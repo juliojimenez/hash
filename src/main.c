@@ -11,10 +11,25 @@ Julio Jimenez, julio@julioj.com
 #include <stdio.h>
 #include <stdlib.h>
 #include "hash.h"
+#include "parser.h"
+
+static void loop(void) {
+    char *line;
+
+    do {
+        printf("#> ");
+        line = read_line();
+        printf("%s", line);
+
+        free(line);
+    } while(1);
+}
 
 int main(/*int argc, char **argv*/) {
     printf("hash v%s\n", HASH_VERSION);
     printf("Type `exit` to quit\n\n");
+
+    loop();
 
     return EXIT_SUCCESS;
 }
