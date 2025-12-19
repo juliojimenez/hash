@@ -2,3 +2,14 @@
 
 # hash
 Command line interpreter for the Linux operating system. 
+
+## Install
+
+### Compile
+
+```bash
+git clone https://github.com/juliojimenez/hash
+cd hash
+make
+./hash
+```
