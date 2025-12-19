@@ -16,5 +16,5 @@ make
 
 ## Newletter
 
-Keep up with development updates on [Rede Livre](https://redelivre.net/newsletters/hash) <img style="width:32px;" src="images/redelivre.png" />
+Keep up with development updates on [Rede Livre](https://redelivre.net/newsletters/hash) <img style="width:16px;" src="images/redelivre.png" />
 
