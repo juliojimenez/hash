@@ -104,7 +104,7 @@ run_test "echo command" "echo hello"
 # TODO: command substitution - $(pwd)
 run_test "pwd command" "pwd"
 run_command_test "ls command" "ls"
-#run_command_test "date command" "date"
+run_command_test "date command" "date"
 
 echo -e "\n${YELLOW}Built-in Commands:${NC}"
 #run_command_test "cd to /tmp" "cd /tmp"
