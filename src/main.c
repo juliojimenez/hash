@@ -12,17 +12,21 @@ Julio Jimenez, julio@julioj.com
 #include <stdlib.h>
 #include "hash.h"
 #include "parser.h"
+#include "execute.h"
 
 static void loop(void) {
     char *line;
+    char **args;
+    int status;
 
     do {
         printf("#> ");
         line = read_line();
-        printf("%s", line);
-
+        args = parse_line(line);
+        status = execute(args);
         free(line);
-    } while(1);
+        free(args);
+    } while(status);
 }
 
 int main(/*int argc, char **argv*/) {

@@ -1,5 +1,7 @@
 <img style="width:128px;" src="images/hash.png" />
 
+[![Tests](https://github.com/juliojimenez/hash/actions/workflows/tests.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/tests.yml)
+
 # hash
 Command line interpreter (shell) for the Linux operating system. 
 
