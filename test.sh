@@ -107,9 +107,10 @@ run_command_test "ls command" "ls"
 run_command_test "date command" "date"
 
 echo -e "\n${YELLOW}Built-in Commands:${NC}"
-#run_command_test "cd to /tmp" "cd /tmp"
-#run_command_test "cd to home" "cd ~"
-#run_command_test "exit command" "exit"
+run_command_test "cd to /tmp" "cd /tmp"
+# TODO: recognize ~ as home
+run_command_test "cd to home" "cd ~"
+run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
 #run_test "invalid command" "this_command_does_not_exist_12345" "hash:"
