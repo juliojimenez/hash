@@ -1,0 +1,48 @@
+name: Hash Shell Tests
+
+on:
+  push:
+#    branches: [ main, develop ]
+#  pull_request:
+#    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04]
+        cc: [gcc, clang]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Show compiler version
+      run: |
+        ${{ matrix.cc }} --version
+        make --version
+
+    - name: Build hash
+      run: |
+        make clean
+        CC=${{ matrix.cc }} make
+
+    - name: Check binary exists
+      run: |
+        ls -lh hash
+        file hash
+
+    - name: Make test script executable
+      run: chmod +x test.sh
+
+    - name: Run tests
+      run: ./test.sh
