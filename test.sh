@@ -113,7 +113,7 @@ run_command_test "cd to home" "cd ~"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
-run_test "invalid command" "this_command_does_not_exist_12345" "hash: No such file or directory"
+run_test "invalid command" "this_command_does_not_exist_12345" "hash: No such file or directory\n"
 run_test "cd with no args" "cd" "expected argument"
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
