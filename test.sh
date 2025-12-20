@@ -100,7 +100,7 @@ echo -e "${YELLOW}=== Hash Shell Test Suite ===${NC}\n"
 setup
 
 echo -e "${YELLOW}Basic Commands:${NC}"
-#run_test "echo command" "echo hello" "hello"
+run_test "echo command" "echo hello" "hello"
 #run_test "pwd command" "pwd" "$(pwd)"
 #run_command_test "ls command" "ls"
 #run_command_test "date command" "date"
