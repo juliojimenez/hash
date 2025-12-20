@@ -113,12 +113,12 @@ run_command_test "cd to home" "cd ~"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
-#run_test "invalid command" "this_command_does_not_exist_12345" "hash:"
-#run_test "cd with no args" "cd" "expected argument"
+run_test "invalid command" "this_command_does_not_exist_12345" "hash:"
+run_test "cd with no args" "cd" "expected argument"
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
-#run_command_test "empty command" ""
-#run_command_test "whitespace only" "   "
+run_command_test "empty command" ""
+run_command_test "whitespace only" "   "
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 #run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
