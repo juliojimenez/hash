@@ -1,4 +1,4 @@
-name: Hash Shell Tests
+name: Tests
 
 on:
   push:
