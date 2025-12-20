@@ -18,15 +18,15 @@ jobs:
         cc: [gcc, clang]
 
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential
 
-    - name: Show compiler version
+    - name: Compiler Version
       run: |
         ${{ matrix.cc }} --version
         make --version
@@ -36,13 +36,13 @@ jobs:
         make clean
         CC=${{ matrix.cc }} make
 
-    - name: Check binary exists
+    - name: Check Binary
       run: |
         ls -lh hash
         file hash
 
-    - name: Make test script executable
+    - name: Make Test Script Executable
       run: chmod +x test.sh
 
-    - name: Run tests
+    - name: Run Tests
       run: ./test.sh
