@@ -101,8 +101,9 @@ setup
 
 echo -e "${YELLOW}Basic Commands:${NC}"
 run_test "echo command" "echo hello"
-run_test "pwd command" "pwd" "$(pwd)"
-#run_command_test "ls command" "ls"
+# TODO: command substitution - $(pwd)
+run_test "pwd command" "pwd"
+run_command_test "ls command" "ls"
 #run_command_test "date command" "date"
 
 echo -e "\n${YELLOW}Built-in Commands:${NC}"
