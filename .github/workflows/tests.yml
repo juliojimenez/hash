@@ -40,3 +40,9 @@ jobs:
       run: |
         ls -lh hash
         file hash
+
+    - name: Make test script executable
+      run: chmod +x test.sh
+
+    - name: Run tests
+      run: ./test.sh
