@@ -49,3 +49,11 @@ jobs:
 
     - name: Run Unit Tests
       run: make test
+
+    - name: Test with different optimization levels
+      run: |
+        make clean
+        CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g" make
+        ./test.sh
+        make test-clean
+        make test
