@@ -15,7 +15,7 @@ echo "Setting up Unity test framework..."
 mkdir -p "${TEST_DIR}"
 
 # Download Unity if not already present
-if [ ! -d "${UNITY_DIR}" ]; then
+if [[ ! -d "${UNITY_DIR}" ]]; then
     echo "Downloading Unity v${UNITY_VERSION}..."
 
     cd "${TEST_DIR}"
