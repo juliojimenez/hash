@@ -101,6 +101,137 @@ void test_parse_line_with_newline(void) {
     free(args);
 }
 
+// Test parse_line with double quotes
+void test_parse_line_double_quotes(void) {
+    char line[] = "echo \"hello world\"";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello world", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with single quotes
+void test_parse_line_single_quotes(void) {
+    char line[] = "echo 'hello world'";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello world", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with mixed quotes
+void test_parse_line_mixed_quotes(void) {
+    char line[] = "echo \"double\" 'single' unquoted";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("double", args[1]);
+    TEST_ASSERT_EQUAL_STRING("single", args[2]);
+    TEST_ASSERT_EQUAL_STRING("unquoted", args[3]);
+    TEST_ASSERT_NULL(args[4]);
+
+    free(args);
+}
+
+// Test parse_line with escaped double quote
+void test_parse_line_escaped_double_quote(void) {
+    char line[] = "echo \"He said \\\"hello\\\"\"";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("He said \"hello\"", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with escaped single quote
+void test_parse_line_escaped_single_quote(void) {
+    char line[] = "echo 'can'\\''t'";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("can't", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with backslash escape
+void test_parse_line_escaped_backslash(void) {
+    char line[] = "echo \"path\\\\to\\\\file\"";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("path\\to\\file", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with newline escape
+void test_parse_line_escaped_newline(void) {
+    char line[] = "echo \"line1\\nline2\"";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("line1\nline2", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with tab escape
+void test_parse_line_escaped_tab(void) {
+    char line[] = "echo \"col1\\tcol2\"";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("col1\tcol2", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with literal backslash in single quotes
+void test_parse_line_single_quote_literal_backslash(void) {
+    char line[] = "echo 'literal\\n'";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("literal\\n", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with empty quotes
+void test_parse_line_empty_quotes(void) {
+    char line[] = "echo \"\" ''";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_NULL(args[1]);
+
+    free(args);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -111,6 +242,15 @@ int main(void) {
     RUN_TEST(test_parse_line_whitespace_only);
     RUN_TEST(test_parse_line_with_tabs);
     RUN_TEST(test_parse_line_with_newline);
-
+    RUN_TEST(test_parse_line_double_quotes);
+    RUN_TEST(test_parse_line_single_quotes);
+    RUN_TEST(test_parse_line_mixed_quotes);
+    RUN_TEST(test_parse_line_escaped_double_quote);
+    RUN_TEST(test_parse_line_escaped_single_quote);
+    RUN_TEST(test_parse_line_escaped_backslash);
+    RUN_TEST(test_parse_line_escaped_newline);
+    RUN_TEST(test_parse_line_escaped_tab);
+    RUN_TEST(test_parse_line_single_quote_literal_backslash);
+    RUN_TEST(test_parse_line_empty_quotes);
     return UNITY_END();
 }
