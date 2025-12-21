@@ -93,7 +93,7 @@ test: test-setup $(TEST_BINS)
 	failed=0; \
 	for test in $(TEST_BINS); do \
 		echo ""; \
-		echo "Running $test..."; \
+		echo "Running $$test..."; \
 		if $$test; then \
 			passed=$$((passed + 1)); \
 		else \
