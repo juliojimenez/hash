@@ -9,7 +9,10 @@ static char original_dir[PATH_MAX];
 
 void setUp(void) {
     // Save current directory
-    getcwd(original_dir, sizeof(original_dir));
+    if (getcwd(original_dir, sizeof(original_dir)) == NULL) {
+        perror("getcwd");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void tearDown(void) {
