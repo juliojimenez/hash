@@ -62,7 +62,10 @@ void test_shell_cd_invalid_directory(void) {
 
     // Verify we stayed in original directory
     char cwd[PATH_MAX];
-    getcwd(cwd, sizeof(cwd));
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        perror("getcwd");
+        exit(EXIT_FAILURE);
+    }
     TEST_ASSERT_EQUAL_STRING(original_dir, cwd);
 }
 
