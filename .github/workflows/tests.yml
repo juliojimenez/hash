@@ -69,7 +69,7 @@ jobs:
       - name: Check Compiler Warnings
         run: |
           make clean
-          make CFLAGS="-Wall -Wextra -Werror -O2 -std=c99"
+          make CFLAGS="-Wall -Wextra -Werror -O2 -std=gnu99"
 
       - name: Check Code Formatting
         run: |
@@ -94,7 +94,7 @@ jobs:
       - name: Build With Security Flags
         run: |
           make clean
-          make CFLAGS="-Wall -Wextra -O2 -std=c99 -D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+          make CFLAGS="-Wall -Wextra -O2 -std=gnu99 -D_FORTIFY_SOURCE=2 -fstack-protector-strong"
 
       - name: Run Security Checks
         run: |
