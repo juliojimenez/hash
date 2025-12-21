@@ -94,17 +94,17 @@ test: test-setup $(TEST_BINS)
 	for test in $(TEST_BINS); do \
 		echo ""; \
 		echo "Running $test..."; \
-		if $test; then \
-			passed=$((passed + 1)); \
+		if $$test; then \
+			passed=$$((passed + 1)); \
 		else \
-			failed=$((failed + 1)); \
+			failed=$$((failed + 1)); \
 		fi; \
 	done; \
 	echo ""; \
 	echo "===================="; \
-	echo "Tests passed: $passed"; \
-	echo "Tests failed: $failed"; \
-	if [ $failed -gt 0 ]; then \
+	echo "Tests passed: $$passed"; \
+	echo "Tests failed: $$failed"; \
+	if [ $$failed -gt 0 ]; then \
 		exit 1; \
 	fi
 
