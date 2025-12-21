@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS ?= -Wall -Wextra -O2 -std=gnu99
-TARGET = hash
+TARGET = hash-shell
 SRC_DIR = src
 BUILD_DIR = build
 TEST_DIR = tests
