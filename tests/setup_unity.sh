@@ -31,7 +31,7 @@ else
 fi
 
 # Create a simple unity.h wrapper if needed
-if [ ! -f "${TEST_DIR}/unity.h" ]; then
+if [[ ! -f "${TEST_DIR}/unity.h" ]]; then
     cat > "${TEST_DIR}/unity.h" << 'EOF'
 #ifndef UNITY_WRAPPER_H
 #define UNITY_WRAPPER_H
