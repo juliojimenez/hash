@@ -46,3 +46,6 @@ jobs:
 
     - name: Run Tests
       run: ./test.sh
+
+    - name: Run Unit Tests
+      run: make test
