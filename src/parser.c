@@ -114,8 +114,8 @@ char **parse_line(char *line) {
         // Null-terminate the token
         *write_pos = '\0';
 
-        // Move past whitespace
-        if (*current) {
+        // Skip whitespace before next token
+        while (*current && isspace(*current)) {
             current++;
         }
 
@@ -133,13 +133,7 @@ char **parse_line(char *line) {
                 }
             }
         }
-
-        // Skip whitespace before next token
-        while (*current && isspace(*current)) {
-            current++;
-        }
     }
-
     tokens[position] = NULL;
     return tokens;
 }
