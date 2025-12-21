@@ -89,7 +89,8 @@ test: test-setup $(TEST_BINS)
 	@echo ""
 	@echo "Running unit tests..."
 	@echo "===================="
-	@passed=0; failed=0; \
+	@passed=0; \
+	failed=0; \
 	for test in $(TEST_BINS); do \
 		echo ""; \
 		echo "Running $test..."; \
