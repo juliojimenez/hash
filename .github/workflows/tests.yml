@@ -53,7 +53,7 @@ jobs:
     - name: Test with different optimization levels
       run: |
         make clean
-        CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g" make
+        make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g"
         ./test.sh
         make test-clean
         make test

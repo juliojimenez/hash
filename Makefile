@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=gnu99
+CFLAGS ?= -Wall -Wextra -O2 -std=gnu99
 TARGET = hash
 SRC_DIR = src
 BUILD_DIR = build
