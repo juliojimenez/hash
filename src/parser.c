@@ -32,19 +32,23 @@ char **parse_line(char *line) {
     int in_double_quote = 0;
 
     if (!tokens) {
-        fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+        fprintf(stderr, "%s: allocation error\n", SHELL_NAME);
         exit(EXIT_FAILURE);
     }
 
     current = line;
 
+    // Skip leading whitespace
     while (*current && isspace(*current)) {
         current++;
     }
 
     while (*current) {
+        // Start of a new token
         token_start = current;
         write_pos = current;
+
+        // Process characters until we hit the end of the token
         while (*current) {
             if (*current == '\\' && *(current + 1)) {
                 // Escape sequence
@@ -124,7 +128,7 @@ char **parse_line(char *line) {
                 bufsize += MAX_ARGS;
                 tokens = realloc(tokens, bufsize * sizeof(char*));
                 if (!tokens) {
-                    fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+                    fprintf(stderr, "%s: allocation error\n", SHELL_NAME);
                     exit(EXIT_FAILURE);
                 }
             }
