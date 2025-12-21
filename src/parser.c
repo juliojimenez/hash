@@ -32,7 +32,7 @@ char **parse_line(char *line) {
     int in_double_quote = 0;
 
     if (!tokens) {
-        fprintf(stderr, "%s: allocation error\n", SHELL_NAME);
+        fprintf(stderr, "%s: allocation error\n", HASH_NAME);
         exit(EXIT_FAILURE);
     }
 
@@ -128,7 +128,7 @@ char **parse_line(char *line) {
                 bufsize += MAX_ARGS;
                 tokens = realloc(tokens, bufsize * sizeof(char*));
                 if (!tokens) {
-                    fprintf(stderr, "%s: allocation error\n", SHELL_NAME);
+                    fprintf(stderr, "%s: allocation error\n", HASH_NAME);
                     exit(EXIT_FAILURE);
                 }
             }
