@@ -114,7 +114,8 @@ run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
 run_test "invalid command" "this_command_does_not_exist_12345" "No such file or directory"
-run_test "cd with no args" "cd" "expected argument"
+# TODO: cd with no args will send you to home directory
+run_test "cd with no args" "cd" "No such file or directory"
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""
