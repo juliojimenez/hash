@@ -17,7 +17,10 @@ void setUp(void) {
 
 void tearDown(void) {
     // Restore original directory
-    chdir(original_dir);
+    if (chdir(original_dir) != 0) {
+        perror("chdir");
+        exit(EXIT_FAILURE);
+    }
 }
 
 // Test shell_exit returns 0
