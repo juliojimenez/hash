@@ -1,0 +1,116 @@
+#include "unity.h"
+#include "../src/parser.h"
+#include <string.h>
+#include <stdlib.h>
+
+void setUp(void) {
+    // Set up before each test
+}
+
+void tearDown(void) {
+    // Clean up after each test
+}
+
+// Test parse_line with simple command
+void test_parse_line_simple_command(void) {
+    char line[] = "echo hello";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test parse_line with multiple arguments
+void test_parse_line_multiple_args(void) {
+    char line[] = "ls -la /tmp";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("ls", args[0]);
+    TEST_ASSERT_EQUAL_STRING("-la", args[1]);
+    TEST_ASSERT_EQUAL_STRING("/tmp", args[2]);
+    TEST_ASSERT_NULL(args[3]);
+
+    free(args);
+}
+
+// Test parse_line with extra whitespace
+void test_parse_line_extra_whitespace(void) {
+    char line[] = "  echo   hello   world  ";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello", args[1]);
+    TEST_ASSERT_EQUAL_STRING("world", args[2]);
+    TEST_ASSERT_NULL(args[3]);
+
+    free(args);
+}
+
+// Test parse_line with empty string
+void test_parse_line_empty_string(void) {
+    char line[] = "";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_NULL(args[0]);
+
+    free(args);
+}
+
+// Test parse_line with only whitespace
+void test_parse_line_whitespace_only(void) {
+    char line[] = "   \t  \n  ";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_NULL(args[0]);
+
+    free(args);
+}
+
+// Test parse_line with tabs
+void test_parse_line_with_tabs(void) {
+    char line[] = "echo\thello\tworld";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello", args[1]);
+    TEST_ASSERT_EQUAL_STRING("world", args[2]);
+    TEST_ASSERT_NULL(args[3]);
+
+    free(args);
+}
+
+// Test parse_line with newline
+void test_parse_line_with_newline(void) {
+    char line[] = "echo hello\n";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("hello", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+int main(void) {
+    UNITY_BEGIN();
+
+    RUN_TEST(test_parse_line_simple_command);
+    RUN_TEST(test_parse_line_multiple_args);
+    RUN_TEST(test_parse_line_extra_whitespace);
+    RUN_TEST(test_parse_line_empty_string);
+    RUN_TEST(test_parse_line_whitespace_only);
+    RUN_TEST(test_parse_line_with_tabs);
+    RUN_TEST(test_parse_line_with_newline);
+
+    return UNITY_END();
+}

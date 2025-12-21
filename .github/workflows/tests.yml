@@ -1,4 +1,4 @@
-name: Hash Shell Tests
+name: Tests
 
 on:
   push:
@@ -18,31 +18,85 @@ jobs:
         cc: [gcc, clang]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
 
-    - name: Show compiler version
-      run: |
-        ${{ matrix.cc }} --version
-        make --version
+      - name: Compiler Version
+        run: |
+          ${{ matrix.cc }} --version
+          make --version
 
-    - name: Build hash
-      run: |
-        make clean
-        CC=${{ matrix.cc }} make
+      - name: Build hash
+        run: |
+          make clean
+          CC=${{ matrix.cc }} make
 
-    - name: Check binary exists
-      run: |
-        ls -lh hash
-        file hash
+      - name: Check Binary
+        run: |
+          ls -lh hash
+          file hash
 
-    - name: Make test script executable
-      run: chmod +x test.sh
+      - name: Make Test Script Executable
+        run: chmod +x test.sh
 
-    - name: Run tests
-      run: ./test.sh
+      - name: Run Tests
+        run: ./test.sh
+
+      - name: Run Unit Tests
+        run: make test
+
+      - name: Test Different Optimization Levels
+        run: |
+          make clean
+          make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g"
+          ./test.sh
+          make test-clean
+          make test
+
+  build-check:
+    name: Build Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Compiler Warnings
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -Werror -O2 -std=gnu99"
+
+      - name: Check Code Formatting
+        run: |
+          # Check for trailing whitespace
+          ! git grep -n '[[:space:]]$' -- '*.c' '*.h'
+
+      - name: Verify Clean Rebuild
+        run: |
+          make clean
+          make
+          make clean
+          make
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build With Security Flags
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -O2 -std=gnu99 -D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+
+      - name: Run Security Checks
+        run: |
+          echo "Checking for unsafe functions..."
+          ! git grep -n 'gets\|strcpy\|strcat\|sprintf' -- '*.c' || echo "Warning: Found potentially unsafe functions"

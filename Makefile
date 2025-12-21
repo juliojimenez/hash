@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=gnu99
+CFLAGS ?= -Wall -Wextra -O2 -std=gnu99
 TARGET = hash
 SRC_DIR = src
 BUILD_DIR = build
@@ -89,21 +89,22 @@ test: test-setup $(TEST_BINS)
 	@echo ""
 	@echo "Running unit tests..."
 	@echo "===================="
-	@passed=0; failed=0; \
+	@passed=0; \
+	failed=0; \
 	for test in $(TEST_BINS); do \
 		echo ""; \
-		echo "Running $test..."; \
-		if $test; then \
-			passed=$((passed + 1)); \
+		echo "Running $$test..."; \
+		if $$test; then \
+			passed=$$((passed + 1)); \
 		else \
-			failed=$((failed + 1)); \
+			failed=$$((failed + 1)); \
 		fi; \
 	done; \
 	echo ""; \
 	echo "===================="; \
-	echo "Tests passed: $passed"; \
-	echo "Tests failed: $failed"; \
-	if [ $failed -gt 0 ]; then \
+	echo "Tests passed: $$passed"; \
+	echo "Tests failed: $$failed"; \
+	if [ $$failed -gt 0 ]; then \
 		exit 1; \
 	fi
 
