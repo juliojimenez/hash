@@ -38,8 +38,8 @@ jobs:
 
       - name: Check Binary
         run: |
-          ls -lh hash
-          file hash
+          ls -lh hash-shell
+          file hash-shell
 
       - name: Make Test Script Executable
         run: chmod +x test.sh
