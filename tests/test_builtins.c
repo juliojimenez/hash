@@ -39,7 +39,10 @@ void test_shell_cd_valid_directory(void) {
 
     // Verify we actually changed directory
     char cwd[PATH_MAX];
-    getcwd(cwd, sizeof(cwd));
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        perror("getcwd");
+        exit(EXIT_FAILURE);
+    }
     TEST_ASSERT_EQUAL_STRING("/tmp", cwd);
 }
 
