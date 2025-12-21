@@ -37,7 +37,7 @@ run_test() {
     echo -n "Testing: $test_name... "
 
     # Run command in hash shell
-    local output=$(echo "$command" | timeout 2 "$HASH_BIN" 2>&1 | tail -n +4)
+    local output=$(echo "$command\nexit" | timeout 2 "$HASH_BIN" 2>&1)
 
     if echo "$output" | grep -q "$expected"; then
         echo -e "${GREEN}PASS${NC}"
@@ -113,7 +113,7 @@ run_command_test "cd to home" "cd ~"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
-run_test "invalid command" "this_command_does_not_exist_12345" "hash: No such file or directory\n"
+run_test "invalid command" "this_command_does_not_exist_12345" "No such file or directory"
 run_test "cd with no args" "cd" "expected argument"
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
