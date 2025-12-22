@@ -121,6 +121,13 @@ echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""
 run_command_test "whitespace only" "   "
 
+echo -e "\n${YELLOW}Quote Handling:${NC}"
+run_test "double quotes" "echo \"hello world\"" "hello world"
+run_test "single quotes" "echo 'hello world'" "hello world"
+run_test "escaped double quote" "echo \"He said \\\"hello\\\"\"" 'He said "hello"'
+run_test "escaped backslash" "echo \"path\\\\to\\\\file\"" "path\\to\\file"
+run_test "mixed quotes" "echo \"double\" 'single'" "double"
+
 echo -e "\n${YELLOW}File Operations:${NC}"
 # TODO: This will pass with I/O redirection
 #run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
