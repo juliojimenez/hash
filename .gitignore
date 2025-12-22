@@ -58,3 +58,4 @@ hash-shell
 tests/unity.h
 tests/unity
 build
+examples/color_demo

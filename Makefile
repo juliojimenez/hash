@@ -18,7 +18,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_OBJ = $(filter-out $(BUILD_DIR)/main.o, $(OBJ))
 TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SRC))
 
-.PHONY: all clean install uninstall debug help test test-setup test-clean
+.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo
 
 all: $(TARGET)
 
@@ -32,7 +32,7 @@ $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) examples/color_demo
 
 install: $(TARGET)
 	install -d $(PREFIX)/bin
@@ -111,3 +111,10 @@ test: test-setup $(TEST_BINS)
 test-clean:
 	rm -rf $(TEST_BUILD_DIR) $(UNITY_DIR)
 	rm -f $(TEST_DIR)/unity.h
+
+# Build color demo
+color-demo:
+	@echo "Building color demo..."
+	@$(CC) $(CFLAGS) -o examples/color_demo examples/color_demo.c $(BUILD_DIR)/colors.o -I$(SRC_DIR)
+	@echo "Running color demo..."
+	@./examples/color_demo
