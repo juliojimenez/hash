@@ -32,7 +32,7 @@ $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) examples/color_demo
 
 install: $(TARGET)
 	install -d $(PREFIX)/bin
