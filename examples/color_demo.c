@@ -55,15 +55,15 @@ void demo_convenience_functions(void) {
 
 void demo_mixed_output(void) {
     printf("\n=== Mixed Output ===\n");
-    
+
     printf("Status: ");
     color_print(COLOR_GREEN, "ONLINE");
     printf(" | ");
-    
+
     printf("CPU: ");
     color_print(COLOR_YELLOW, "45%%");
     printf(" | ");
-    
+
     printf("Memory: ");
     color_print(COLOR_RED, "89%%");
     printf("\n");
@@ -78,7 +78,7 @@ void demo_prompt(void) {
     color_print(COLOR_BOLD COLOR_CYAN, "~/projects");
     color_print(COLOR_BOLD COLOR_WHITE, "$ ");
     printf("echo hello\n");
-    
+
     color_print(COLOR_BOLD COLOR_BLUE, "#> ");
     printf("ls -la\n");
 }
@@ -89,11 +89,11 @@ void demo_tables(void) {
     printf("%-15s ", "web-server");
     color_print(COLOR_GREEN, "%-10s", "running");
     printf(" %-10s\n", "5d 3h");
-    
+
     printf("%-15s ", "database");
     color_print(COLOR_GREEN, "%-10s", "running");
     printf(" %-10s\n", "12d 7h");
-    
+
     printf("%-15s ", "cache");
     color_print(COLOR_RED, "%-10s", "stopped");
     printf(" %-10s\n", "0d 0h");
@@ -101,15 +101,15 @@ void demo_tables(void) {
 
 int main(void) {
     colors_init();
-    
+
     color_print(COLOR_BOLD COLOR_CYAN, "Hash Shell Color Demo\n");
     color_print(COLOR_DIM, "Demonstrating color capabilities\n");
-    
+
     if (!colors_enabled) {
         printf("\nColors are disabled (NO_COLOR set or not a TTY)\n");
         return 0;
     }
-    
+
     demo_basic_colors();
     demo_bright_colors();
     demo_styles();
@@ -118,10 +118,10 @@ int main(void) {
     demo_mixed_output();
     demo_prompt();
     demo_tables();
-    
+
     printf("\n");
     color_success("Color demo complete!");
-    
+
     return 0;
 }
 
