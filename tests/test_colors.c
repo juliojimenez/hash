@@ -69,12 +69,12 @@ void test_style_definitions(void) {
 void test_no_color_env(void) {
     // Save original value
     char *original = getenv("NO_COLOR");
-    
+
     // Set NO_COLOR
     setenv("NO_COLOR", "1", 1);
     colors_init();
     TEST_ASSERT_FALSE(colors_enabled);
-    
+
     // Restore
     if (original) {
         setenv("NO_COLOR", original, 1);
@@ -86,7 +86,7 @@ void test_no_color_env(void) {
 
 int main(void) {
     UNITY_BEGIN();
-    
+
     RUN_TEST(test_colors_enable);
     RUN_TEST(test_colors_disable);
     RUN_TEST(test_color_code_when_enabled);
@@ -95,6 +95,6 @@ int main(void) {
     RUN_TEST(test_bright_color_definitions);
     RUN_TEST(test_style_definitions);
     RUN_TEST(test_no_color_env);
-    
+
     return UNITY_END();
 }
