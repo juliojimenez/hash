@@ -58,13 +58,13 @@ jobs:
         mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
 
         # Create tarball
-        tar -czf hash-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
+        tar -czf hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
           hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} \
           README.md
 
     - name: Generate Checksums
       run: |
-        sha256sum hash-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} > \
+        sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} > \
           hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
         sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz > \
           hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
