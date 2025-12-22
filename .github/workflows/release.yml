@@ -13,6 +13,10 @@ on:
         required: true
         default: 'v0.1.0'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build-release:
     name: Build Release Binaries
