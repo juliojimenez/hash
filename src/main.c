@@ -13,6 +13,7 @@ Julio Jimenez, julio@julioj.com
 #include "hash.h"
 #include "parser.h"
 #include "execute.h"
+#include "colors.h"
 
 static void loop(void) {
     char *line;
@@ -20,7 +21,7 @@ static void loop(void) {
     int status;
 
     do {
-        printf("#> ");
+        color_print(COLOR_BOLD COLOR_BLUE, "#> ");
         line = read_line();
         args = parse_line(line);
         status = execute(args);
@@ -30,8 +31,12 @@ static void loop(void) {
 }
 
 int main(/*int argc, char **argv*/) {
-    printf("hash v%s\n", HASH_VERSION);
-    printf("Type `exit` to quit\n\n");
+    colors_init();
+    color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
+    printf(" v%s\n", HASH_VERSION);
+    printf("Type ");
+    color_print(COLOR_YELLOW, "'exit'");
+    printf(" to quit\n\n");
 
     loop();
 

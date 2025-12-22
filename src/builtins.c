@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "hash.h"
 #include "builtins.h"
+#include "colors.h"
 
 static char *builtin_str[] = {
     "cd",
@@ -23,7 +24,7 @@ static int num_builtins(void) {
 // Built-in: cd
 int shell_cd(char **args) {
     if (args[1] == NULL) {
-        fprintf(stderr, "%s: expected argument to \"cd\"\n", HASH_NAME);
+        color_error("%s: expected argument to \"cd\"", HASH_NAME);
     } else {
         if (chdir(args[1]) != 0) {
             perror(HASH_NAME);
