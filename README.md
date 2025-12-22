@@ -13,8 +13,17 @@ Command line interpreter (shell) for the Linux operating system.
 git clone https://github.com/juliojimenez/hash
 cd hash
 make
-./hash
+./hash-shell
 ```
+
+### Install
+
+Drops binary in `/usr/local/bin`. May require `sudo`.
+
+```bash
+make install
+```
+
 
 ## Newletter
 
