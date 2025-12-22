@@ -55,7 +55,7 @@ jobs:
         make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O2 -std=gnu99 -static"
 
         # Rename binary with architecture suffix
-        mv hash hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
+        mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
 
         # Create tarball
         tar -czf hash-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
