@@ -39,7 +39,7 @@ run_test() {
     # Run command in hash shell
     local output=$(echo "$command\nexit" | timeout 2 "$HASH_BIN" 2>&1)
 
-    if echo "$output" | grep -q "$expected"; then
+    if echo "$output" | grep -qF "$expected"; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
