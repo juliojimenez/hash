@@ -7,23 +7,59 @@ Command line interpreter (shell) for the Linux operating system.
 
 ## Install
 
-### Compile
+### From Release
+
+#### Linux x86_64
+
+```bash
+curl -LO https://github.com/juliojimenez/hash/releases/download/v0.0.2/hash-shell-v0.0.2-x86_64
+chmod +x hash-shell-v0.0.2-x86_64
+sudo mv hash-shell-v0.0.2-x86_64 /usr/local/bin/hash-shell
+hash-shell
+```
+
+#### Linux ARM64
+
+```bash
+curl -LO https://github.com/juliojimenez/hash/releases/download/v0.0.2/hash-shell-v0.0.2-aarch64
+chmod +x hash-shell-v0.0.2-aarch64
+sudo mv hash-shell-v0.0.2-aarch64 /usr/local/bin/hash-shell
+hash-shell
+```
+
+### From Source
 
 ```bash
 git clone https://github.com/juliojimenez/hash
 cd hash
 make
-./hash-shell
+sudo make install
+hash-shell
 ```
 
-### Install
+## Usage
 
-Drops binary in `/usr/local/bin`. May require `sudo`.
+### Start hash
 
 ```bash
-make install
+hash-shell
 ```
 
+### Change Default Shell To hash
+
+Log off and log on to your session for changes to take effect.
+
+#### chsh
+
+```bash
+chsh -s /usr/local/bin/hash-shell
+```
+
+#### chmod
+
+```bash
+sudo usermod -s /usr/local/bin/hash-shell your_username
+```
 
 ## Newletter
 

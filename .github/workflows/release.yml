@@ -124,14 +124,14 @@ jobs:
 
         ## Installation
 
-        ### Quick Install (Linux x86_64)
+        ### Linux x86_64
         ```bash
         curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64
         chmod +x hash-shell-${{ steps.get_version.outputs.version }}-x86_64
         sudo mv hash-shell-${{ steps.get_version.outputs.version }}-x86_64 /usr/local/bin/hash-shell
         ```
 
-        ### Quick Install (Linux ARM64)
+        ### Linux ARM64
         ```bash
         curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-aarch64
         chmod +x hash-shell-${{ steps.get_version.outputs.version }}-aarch64
