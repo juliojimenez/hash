@@ -17,16 +17,18 @@ setup() {
     make clean > /dev/null 2>&1
     make > /dev/null 2>&1
 
-    if [ ! -f "$HASH_BIN" ]; then
+    if [[ ! -f "$HASH_BIN" ]]; then
         echo -e "${RED}FATAL: hash binary not found${NC}"
         exit 1
     fi
 
     echo -e "${GREEN}Setup complete${NC}\n"
+    return 0
 }
 
 cleanup() {
     rm -rf "$TEST_DIR"
+    return 0
 }
 
 run_test() {
@@ -82,7 +84,7 @@ run_file_test() {
     # Run command
     echo -e "$command\nexit" | timeout 2 "$HASH_BIN" > /dev/null 2>&1
 
-    if [ -f "$output_file" ] && grep -q "$expected_content" "$output_file"; then
+    if [[ -f "$output_file" ]] && grep -q "$expected_content" "$output_file"; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         rm -f "$output_file"
@@ -139,7 +141,7 @@ echo -e "Passed: ${GREEN}$PASSED${NC}"
 echo -e "Failed: ${RED}$FAILED${NC}"
 echo -e "Total:  $((PASSED + FAILED))"
 
-if [ $FAILED -eq 0 ]; then
+if [[ $FAILED -eq 0 ]]; then
     echo -e "\n${GREEN}All tests passed!${NC}"
     exit 0
 else
