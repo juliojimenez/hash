@@ -3,6 +3,13 @@
 
 #include <stdio.h>
 
+// Format attribute for printf-style functions
+#ifdef __GNUC__
+#define COLOR_PRINTF_FORMAT(fmt, args) __attribute__((format(printf, fmt, args)))
+#else
+#define COLOR_PRINTF_FORMAT(fmt, args)
+#endif
+
 // ANSI Color codes
 #define COLOR_RESET   "\033[0m"
 #define COLOR_BOLD    "\033[1m"
@@ -55,11 +62,11 @@ void colors_disable(void);
 const char *color_code(const char *code);
 
 // Convenience functions for colored output
-void color_print(const char *color, const char *format, ...);
-void color_println(const char *color, const char *format, ...);
-void color_error(const char *format, ...);
-void color_success(const char *format, ...);
-void color_warning(const char *format, ...);
-void color_info(const char *format, ...);
+void color_print(const char *color, const char *format, ...) COLOR_PRINTF_FORMAT(2, 3);
+void color_println(const char *color, const char *format, ...) COLOR_PRINTF_FORMAT(2, 3);
+void color_error(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+void color_success(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+void color_warning(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+void color_info(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
 
 #endif // COLORS_H

@@ -18,7 +18,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_OBJ = $(filter-out $(BUILD_DIR)/main.o, $(OBJ))
 TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SRC))
 
-.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo
+.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check
 
 all: $(TARGET)
 
@@ -118,3 +118,9 @@ color-demo:
 	@$(CC) $(CFLAGS) -o examples/color_demo examples/color_demo.c $(BUILD_DIR)/colors.o -I$(SRC_DIR)
 	@echo "Running color demo..."
 	@./examples/color_demo
+
+# Check format strings (extra strict)
+format-check:
+	@echo "Checking format strings..."
+	@$(CC) -Wall -Wextra -Wformat -Wformat-security -Werror=format-security -std=gnu99 -c examples/format_check.c -I$(SRC_DIR) -o /dev/null
+	@echo "Format string checks passed!"
