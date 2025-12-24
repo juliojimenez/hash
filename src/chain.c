@@ -6,7 +6,8 @@
 #include "parser.h"
 #include "execute.h"
 #include "colors.h"
-#include "safe_string"
+#include "safe_string.h"
+
 #define INITIAL_CHAIN_CAPACITY 8
 
 // Create a new command chain
