@@ -76,6 +76,7 @@ tests/
 
 1. Create a new test file: `tests/test_module.c`
 2. Include Unity and your module:
+
 ```c
 #include "unity.h"
 #include "../src/module.h"
@@ -93,6 +94,7 @@ int main(void) {
     return UNITY_END();
 }
 ```
+
 3. Run `make test` - new tests are auto-discovered!
 
 ### Unity Assertions
@@ -160,28 +162,6 @@ Test basic commands:
 
 ## GitHub Actions
 
-### Setting Up
-
-1. Create the workflow directory:
-```bash
-mkdir -p .github/workflows
-```
-
-2. Copy the workflow file to `.github/workflows/test.yml`
-
-3. Create test files:
-```bash
-chmod +x test.sh
-chmod +x tests/setup_unity.sh
-```
-
-4. Commit and push:
-```bash
-git add .github/workflows/test.yml test.sh tests/
-git commit -m "Add CI/CD testing with unit and integration tests"
-git push
-```
-
 ### Workflow Features
 
 The GitHub Actions workflow runs **both** integration and unit tests:
@@ -205,7 +185,7 @@ The GitHub Actions workflow runs **both** integration and unit tests:
 
 ### Viewing Results
 
-1. Go to your GitHub repository
+1. Go to GitHub repository
 2. Click the "Actions" tab
 3. See test results for each push/PR
 4. Click on a specific run to see detailed output for each test
@@ -213,7 +193,7 @@ The GitHub Actions workflow runs **both** integration and unit tests:
 ### Workflow Triggers
 
 Tests run automatically on:
-- Push to `main` or `develop` branches
+- Push to `main` branch
 - Pull requests to `main`
 - Manual trigger (workflow_dispatch)
 

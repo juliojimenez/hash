@@ -16,10 +16,10 @@ Julio Jimenez, julio@julioj.com
 #include "colors.h"
 #include "config.h"
 #include "prompt.h"
+#include "chain.h"
 
 static void loop(void) {
     char *line;
-    char **args;
     int status;
     int last_exit_code = 0;
 
@@ -27,11 +27,20 @@ static void loop(void) {
         char *prompt_str = prompt_generate(last_exit_code);
         printf("%s", prompt_str);
         line = read_line();
-        args = parse_line(line);
-        status = execute(args);
-        last_exit_code = execute_get_last_exit_code();
+        CommandChain *chain = chain_parse(line);
+        if (chain) {
+            // Execute the chain
+            status = chain_execute(chain);
+            // Get exit code for next prompt
+            last_exit_code = execute_get_last_exit_code();
+            // Free the chain
+            chain_free(chain);
+        } else {
+            // Empty line or parse error
+            status = 1;
+            last_exit_code = 0;
+        }
         free(line);
-        free(args);
     } while(status);
 }
 
