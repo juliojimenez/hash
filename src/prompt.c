@@ -125,175 +125,112 @@ char *prompt_get_hostname(void) {
     return NULL;
 }
 
+// Safe append helper - explicitly bounds-checked for static analyzers
+static size_t safe_append(char *output, size_t out_pos, size_t max_pos, const char *str) {
+    if (!str || out_pos >= max_pos) {
+        return out_pos;
+    }
+
+    size_t available = max_pos - out_pos;
+    size_t len = strlen(str);
+    size_t to_copy = (len < available) ? len : available;
+
+    if (to_copy > 0 && out_pos + to_copy <= max_pos) {
+        memcpy(output + out_pos, str, to_copy);
+        return out_pos + to_copy;
+    }
+
+    return out_pos;
+}
+
 // Process escape sequences in PS1
 static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, int last_exit_code) {
-    size_t out_pos = 0;
-    const char *p = ps1;
-
-    // Reserve space for null terminator
     if (out_size == 0) return;
+
+    size_t out_pos = 0;
     size_t max_pos = out_size - 1;
+    const char *p = ps1;
 
     while (*p && out_pos < max_pos) {
         if (*p == '\\' && *(p + 1)) {
-            p++;  // Skip backslash
+            p++;
 
             switch (*p) {
-                case 'u':  // Username
-                    {
-                        char *user = prompt_get_user();
-                        if (user && out_pos < max_pos) {
-                            size_t len = strlen(user);
-                            size_t available = max_pos - out_pos;
-                            size_t to_copy = (len < available) ? len : available;
-                            memcpy(output + out_pos, user, to_copy);
-                            out_pos += to_copy;
+                case 'u':
+                    out_pos = safe_append(output, out_pos, max_pos, prompt_get_user());
+                    break;
+
+                case 'h':
+                    out_pos = safe_append(output, out_pos, max_pos, prompt_get_hostname());
+                    break;
+
+                case 'w': {
+                    char *cwd = prompt_get_cwd();
+                    if (cwd) {
+                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
+                        out_pos = safe_append(output, out_pos, max_pos, cwd);
+                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
+                    }
+                    break;
+                }
+
+                case 'W': {
+                    char *dir = prompt_get_current_dir();
+                    if (dir) {
+                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
+                        out_pos = safe_append(output, out_pos, max_pos, dir);
+                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
+                    }
+                    break;
+                }
+
+                case 'g': {
+                    char *branch = prompt_git_branch();
+                    if (branch) {
+                        bool dirty = prompt_git_dirty();
+                        const char *git_color = dirty ? COLOR_YELLOW : COLOR_GREEN;
+
+                        char temp[512];
+                        int n = snprintf(temp, sizeof(temp), " %sgit:%s(%s%s%s)",
+                            color_code(git_color), color_code(COLOR_RESET),
+                            color_code(COLOR_CYAN), branch, color_code(COLOR_RESET));
+
+                        if (n > 0 && (size_t)n < sizeof(temp)) {
+                            out_pos = safe_append(output, out_pos, max_pos, temp);
                         }
                     }
                     break;
+                }
 
-                case 'h':  // Hostname
-                    {
-                        char *host = prompt_get_hostname();
-                        if (host && out_pos < max_pos) {
-                            size_t len = strlen(host);
-                            size_t available = max_pos - out_pos;
-                            size_t to_copy = (len < available) ? len : available;
-                            memcpy(output + out_pos, host, to_copy);
-                            out_pos += to_copy;
-                        }
-                    }
-                    break;
-
-                case 'w':  // Full current working directory
-                    {
-                        char *cwd = prompt_get_cwd();
-                        if (cwd) {
-                            const char *color = color_code(COLOR_BOLD COLOR_BLUE);
-                            const char *reset = color_code(COLOR_RESET);
-                            size_t available = max_pos - out_pos;
-
-                            size_t color_len = strlen(color);
-                            if (color_len < available) {
-                                memcpy(output + out_pos, color, color_len);
-                                out_pos += color_len;
-                                available -= color_len;
-                            }
-
-                            size_t cwd_len = strlen(cwd);
-                            size_t to_copy = (cwd_len < available) ? cwd_len : available;
-                            if (to_copy > 0) {
-                                memcpy(output + out_pos, cwd, to_copy);
-                                out_pos += to_copy;
-                                available -= to_copy;
-                            }
-
-                            size_t reset_len = strlen(reset);
-                            to_copy = (reset_len < available) ? reset_len : available;
-                            if (to_copy > 0) {
-                                memcpy(output + out_pos, reset, to_copy);
-                                out_pos += to_copy;
-                            }
-                        }
-                    }
-                    break;
-
-                case 'W':  // Current directory name only
-                    {
-                        char *dir = prompt_get_current_dir();
-                        if (dir) {
-                            const char *color = color_code(COLOR_BOLD COLOR_BLUE);
-                            const char *reset = color_code(COLOR_RESET);
-                            size_t available = max_pos - out_pos;
-
-                            size_t color_len = strlen(color);
-                            if (color_len < available) {
-                                memcpy(output + out_pos, color, color_len);
-                                out_pos += color_len;
-                                available -= color_len;
-                            }
-
-                            size_t dir_len = strlen(dir);
-                            size_t to_copy = (dir_len < available) ? dir_len : available;
-                            if (to_copy > 0) {
-                                memcpy(output + out_pos, dir, to_copy);
-                                out_pos += to_copy;
-                                available -= to_copy;
-                            }
-
-                            size_t reset_len = strlen(reset);
-                            to_copy = (reset_len < available) ? reset_len : available;
-                            if (to_copy > 0) {
-                                memcpy(output + out_pos, reset, to_copy);
-                                out_pos += to_copy;
-                            }
-                        }
-                    }
-                    break;
-
-                case 'g':  // Git branch (custom)
-                    {
-                        char *branch = prompt_git_branch();
-                        if (branch) {
-                            bool dirty = prompt_git_dirty();
-                            const char *git_color = dirty ? COLOR_YELLOW : COLOR_GREEN;
-
-                            char temp[512];
-                            int written = snprintf(temp, sizeof(temp), " %sgit:%s(%s%s%s)",
-                                color_code(git_color),
-                                color_code(COLOR_RESET),
-                                color_code(COLOR_CYAN),
-                                branch,
-                                color_code(COLOR_RESET));
-
-                            if (written > 0 && (size_t)written < sizeof(temp)) {
-                                size_t available = max_pos - out_pos;
-                                size_t to_copy = ((size_t)written < available) ? (size_t)written : available;
-                                memcpy(output + out_pos, temp, to_copy);
-                                out_pos += to_copy;
-                            }
-                        }
-                    }
-                    break;
-
-                case '$':  // $ for regular user, # for root
-                    {
-                        const char *symbol = (getuid() == 0) ? "#" : "$";
-                        if (out_pos < max_pos) {
-                            output[out_pos++] = *symbol;
-                        }
-                    }
-                    break;
-
-                case 'e':  // Exit code indicator
-                    {
-                        const char *bracket_color = (last_exit_code == 0) ?
-                            COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
-                        const char *color = color_code(bracket_color);
-                        size_t len = strlen(color);
-                        size_t available = max_pos - out_pos;
-                        size_t to_copy = (len < available) ? len : available;
-                        if (to_copy > 0) {
-                            memcpy(output + out_pos, color, to_copy);
-                            out_pos += to_copy;
-                        }
-                    }
-                    break;
-
-                case 'n':  // Newline
+                case '$': {
+                    const char *symbol = (getuid() == 0) ? "#" : "$";
                     if (out_pos < max_pos) {
-                        output[out_pos++] = '\\';
+                        output[out_pos++] = *symbol;
+                    }
+                    break;
+                }
+
+                case 'e':
+                    {
+                        const char *bracket_color = (last_exit_code == 0) ? 
+                            COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
+                        out_pos = safe_append(output, out_pos, max_pos, color_code(bracket_color));
                     }
                     break;
 
-                case '\\':  // Literal backslash
+                case 'n':
+                    if (out_pos < max_pos) {
+                        output[out_pos++] = '\n';
+                    }
+                    break;
+
+                case '\\':
                     if (out_pos < max_pos) {
                         output[out_pos++] = '\\';
                     }
                     break;
 
                 default:
-                    // Unknown escape, keep the backslash and character
                     if (out_pos < max_pos) {
                         output[out_pos++] = '\\';
                     }
