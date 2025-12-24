@@ -5,6 +5,7 @@
 #include "hash.h"
 #include "builtins.h"
 #include "colors.h"
+#include "config.h"
 
 static char *builtin_str[] = {
     "cd",
