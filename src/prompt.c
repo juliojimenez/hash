@@ -7,6 +7,7 @@
 #include <pwd.h>
 #include "prompt.h"
 #include "colors.h"
+#include "safe_string.h"
 
 PromptConfig prompt_config;
 
@@ -14,30 +15,35 @@ PromptConfig prompt_config;
 void prompt_init(void) {
     prompt_config.use_custom_ps1 = false;
     // Default PS1: <path> git:(branch) #>
-    strncpy(prompt_config.ps1, "\\w\\g #> ", MAX_PROMPT_LENGTH - 1);
+    safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e ", MAX_PROMPT_LENGTH);
 }
 
 // Set custom PS1
 void prompt_set_ps1(const char *ps1) {
     if (!ps1) return;
 
-    strncpy(prompt_config.ps1, ps1, MAX_PROMPT_LENGTH - 1);
-    prompt_config.ps1[MAX_PROMPT_LENGTH - 1] = '\0';
+    safe_strcpy(prompt_config.ps1, ps1, MAX_PROMPT_LENGTH);
     prompt_config.use_custom_ps1 = true;
 }
 
-// Get current git branch
 char *prompt_git_branch(void) {
     FILE *fp = popen("git rev-parse --abbrev-ref HEAD 2>/dev/null", "r");
     if (!fp) return NULL;
 
     static char branch[256];
     if (fgets(branch, sizeof(branch), fp) != NULL) {
-        // Remove newline
-        branch[strcspn(branch, "\n")] = '\0';
+        // Ensure null termination
+        branch[sizeof(branch) - 1] = '\0';
+
+        // Remove newline safely
+        size_t len = safe_strlen(branch, sizeof(branch));
+        if (len > 0 && branch[len - 1] == '\n') {
+            branch[len - 1] = '\0';
+        }
+
         pclose(fp);
 
-        if (strlen(branch) > 0) {
+        if (safe_strlen(branch, sizeof(branch)) > 0) {
             return branch;
         }
     }
@@ -101,13 +107,13 @@ char *prompt_get_user(void) {
 
     const char *user = getenv("USER");
     if (user) {
-        strncpy(username, user, sizeof(username) - 1);
+        safe_strcpy(username, user, sizeof(username));
         return username;
     }
 
     struct passwd *pw = getpwuid(getuid());
     if (pw) {
-        strncpy(username, pw->pw_name, sizeof(username) - 1);
+        safe_strcpy(username, pw->pw_name, sizeof(username));
         return username;
     }
 

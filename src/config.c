@@ -8,6 +8,7 @@
 #include "colors.h"
 #include "prompt.h"
 #include "hash.h"
+#include "safe_string.h"
 
 Config shell_config;
 
@@ -46,8 +47,7 @@ int config_add_alias(const char *name, const char *value) {
     // Check if alias already exists (update it)
     for (int i = 0; i < shell_config.alias_count; i++) {
         if (strcmp(shell_config.aliases[i].name, name) == 0) {
-            strncpy(shell_config.aliases[i].value, value, MAX_ALIAS_VALUE - 1);
-            shell_config.aliases[i].value[MAX_ALIAS_VALUE - 1] = '\0';
+            safe_strcpy(shell_config.aliases[i].value, value, MAX_ALIAS_VALUE);
             return 0;
         }
     }
@@ -58,11 +58,8 @@ int config_add_alias(const char *name, const char *value) {
         return -1;
     }
 
-    strncpy(shell_config.aliases[shell_config.alias_count].name, name, MAX_ALIAS_NAME - 1);
-    shell_config.aliases[shell_config.alias_count].name[MAX_ALIAS_NAME - 1] = '\0';
-
-    strncpy(shell_config.aliases[shell_config.alias_count].value, value, MAX_ALIAS_VALUE - 1);
-    shell_config.aliases[shell_config.alias_count].value[MAX_ALIAS_VALUE - 1] = '\0';
+    safe_strcpy(shell_config.aliases[shell_config.alias_count].name, name, MAX_ALIAS_NAME);
+    safe_strcpy(shell_config.aliases[shell_config.alias_count].value, value, MAX_ALIAS_VALUE);
 
     shell_config.alias_count++;
     return 0;
