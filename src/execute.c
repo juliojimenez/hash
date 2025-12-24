@@ -26,7 +26,7 @@ static int launch(char **args) {
         exit(EXIT_FAILURE);
     } else if (pid < 0) {
         // Fork error
-        perror(SHELL_NAME);
+        perror(HASH_NAME);
         last_command_exit_code = 1;
     } else {
         // Parent process
