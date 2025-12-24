@@ -30,8 +30,8 @@ static CommandChain *chain_create(void) {
 static int chain_add(CommandChain *chain, const char *cmd_line, ChainOp next_op) {
     if (chain->count >= chain->capacity) {
         chain->capacity *= 2;
-        ChainedCommand *new_cmds = realloc(chain->commands, 
-                                            chain->capacity * sizeof(ChainedCommand));
+        ChainedCommand *new_cmds = realloc(chain->commands,
+                                           chain->capacity * sizeof(ChainedCommand));
         if (!new_cmds) return -1;
         chain->commands = new_cmds;
     }
