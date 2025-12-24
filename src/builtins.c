@@ -7,6 +7,7 @@
 #include "colors.h"
 #include "config.h"
 #include "execute.h"
+#include "safe_string.h"
 
 extern int last_command_exit_code;
 
@@ -77,8 +78,8 @@ int shell_alias(char **args) {
 
         // Remove quotes if present
         if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
+            value[0] == value[safe_strlen(value, sizeof(value)) - 1]) {
+            value[safe_strlen(value, sizeof(value)) - 1] = '\0';
             value++;
         }
 
