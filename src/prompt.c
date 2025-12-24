@@ -134,7 +134,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
     if (out_size == 0) return;
     size_t max_pos = out_size - 1;
 
-    while (*p && out_pos < out_size - 1) {
+    while (*p && out_pos < max_pos) {
         if (*p == '\\' && *(p + 1)) {
             p++;  // Skip backslash
 
