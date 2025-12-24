@@ -103,24 +103,29 @@ CommandChain *chain_parse(char *line) {
 
             // Found an operator
             if (op != CHAIN_NONE) {
-                // Extract command
+                // Extract command - null-terminate at operator position
                 *current = '\0';
 
-                // Trim whitespace from command
+                // Trim leading whitespace from command
                 char *cmd = cmd_start;
-                while (isspace(*cmd)) cmd++;
-
-                char *end = current - 1;
-                while (end > cmd && isspace(*end)) {
-                    *end = '\0';
-                    end--;
+                while (*cmd && isspace(*cmd)) {
+                    cmd++;
                 }
 
-                // Add command to chain
-                if (safe_strlen(cmd, sizeof(cmd)) > 0) {
-                    if (chain_add(chain, cmd, op) != 0) {
-                        chain_free(chain);
-                        return NULL;
+                // Trim trailing whitespace
+                if (*cmd) {
+                    size_t len = safe_strlen(cmd, 1024);
+                    while (len > 0 && isspace(cmd[len - 1])) {
+                        cmd[len - 1] = '\0';
+                        len--;
+                    }
+
+                    // Add command to chain if not empty
+                    if (len > 0) {
+                        if (chain_add(chain, cmd, op) != 0) {
+                            chain_free(chain);
+                            return NULL;
+                        }
                     }
                 }
 
