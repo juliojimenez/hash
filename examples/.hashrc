@@ -1,0 +1,113 @@
+# Hash Shell Configuration File (~/.hashrc)
+# This file is loaded automatically when hash starts
+
+# ============================================================================
+# SHELL OPTIONS
+# ============================================================================
+
+# Enable or disable colors
+set colors=on
+
+# Show welcome message on startup
+set welcome=on
+
+# ============================================================================
+# PROMPT CUSTOMIZATION
+# ============================================================================
+
+# Default: Full path with git integration and exit code indicator
+# set PS1='\w\g \e#>\e '
+
+# Compact: Just current directory name with git
+# set PS1='\W\g \e#>\e '
+
+# Classic: User@host:path $
+# set PS1='\u@\h:\w\g \$ '
+
+# Two-line: Path on top, prompt below
+# set PS1='\w\g\n\e#>\e '
+
+# Minimal: Just directory and prompt
+# set PS1='\W #> '
+
+# Simple with git: Directory name and git status
+set PS1='\W\g \e#>\e '
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+
+# Set default editor
+export EDITOR=vim
+
+# Set your preferred pager
+export PAGER=less
+
+# Add custom bin directory to PATH
+# export PATH=$HOME/bin:$PATH
+
+# ============================================================================
+# ALIASES
+# ============================================================================
+
+# Navigation shortcuts
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+
+# ls variations
+alias ll='ls -lah'
+alias la='ls -A'
+alias l='ls -CF'
+
+# Safety nets
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# Git shortcuts
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+
+# Docker shortcuts (if you use Docker)
+# alias dps='docker ps'
+# alias dimg='docker images'
+# alias dexec='docker exec -it'
+
+# Kubernetes shortcuts (if you use k8s)
+# alias k='kubectl'
+# alias kgp='kubectl get pods'
+# alias kgs='kubectl get services'
+
+# System monitoring
+alias ports='netstat -tulanp'
+alias meminfo='free -m -l -t'
+alias cpuinfo='lscpu'
+
+# Network
+alias myip='curl ifconfig.me'
+alias ping='ping -c 5'
+
+# File operations
+alias grep='grep --color=auto'
+alias mkdir='mkdir -pv'
+
+# Development shortcuts
+alias py='python3'
+alias serve='python3 -m http.server'
+
+# Quick edits
+alias vimrc='vim ~/.vimrc'
+alias hashrc='vim ~/.hashrc'
+
+# ============================================================================
+# CUSTOM ALIASES
+# ============================================================================
+
+# Add your custom aliases here
+# alias myproject='cd ~/projects/myproject'
+# alias update='sudo apt update && sudo apt upgrade'

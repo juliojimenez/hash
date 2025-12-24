@@ -8,20 +8,24 @@
 
 static char *builtin_str[] = {
     "cd",
-    "exit"
+    "exit",
+    "alias",
+    "unalias",
+    "source"
 };
 
-// Built-in command functions
 static int (*builtin_func[])(char **) = {
     &shell_cd,
-    &shell_exit
+    &shell_exit,
+    &shell_alias,
+    &shell_unalias,
+    &shell_source
 };
 
 static int num_builtins(void) {
     return sizeof(builtin_str) / sizeof(char *);
 }
 
-// Built-in: cd
 int shell_cd(char **args) {
     if (args[1] == NULL) {
         color_error("%s: expected argument to \"cd\"", HASH_NAME);
@@ -40,6 +44,78 @@ int shell_exit(char **args) {
         fprintf(stdout, "Bye :)\n");
         return 0;
     }
+    return 1;
+}
+
+int shell_alias(char **args) {
+    // No arguments - list all aliases
+    if (args[1] == NULL) {
+        config_list_aliases();
+        return 1;
+    }
+
+    // Check if it's an alias definition (name=value)
+    char *equals = strchr(args[1], '=');
+    if (equals) {
+        *equals = '\0';
+        char *name = args[1];
+        char *value = equals + 1;
+
+        // Remove quotes if present
+        if ((value[0] == '"' || value[0] == '\'') && 
+            value[0] == value[strlen(value) - 1]) {
+            value[strlen(value) - 1] = '\0';
+            value++;
+        }
+
+        if (config_add_alias(name, value) == 0) {
+            color_success("Alias '%s' added", name);
+        } else {
+            color_error("Failed to add alias");
+        }
+    } else {
+        // Show specific alias
+        const char *value = config_get_alias(args[1]);
+        if (value) {
+            color_print(COLOR_CYAN, "%s", args[1]);
+            printf("='%s'\n", value);
+        } else {
+            color_error("%s: alias not found: %s", SHELL_NAME, args[1]);
+        }
+    }
+
+    return 1;
+}
+
+// Built-in: unalias
+int shell_unalias(char **args) {
+    if (args[1] == NULL) {
+        color_error("%s: expected argument to \"unalias\"", SHELL_NAME);
+        return 1;
+    }
+
+    if (config_remove_alias(args[1]) == 0) {
+        color_success("Alias '%s' removed", args[1]);
+    } else {
+        color_error("%s: alias not found: %s", SHELL_NAME, args[1]);
+    }
+
+    return 1;
+}
+
+// Built-in: source
+int shell_source(char **args) {
+    if (args[1] == NULL) {
+        color_error("%s: expected argument to \"source\"", SHELL_NAME);
+        return 1;
+    }
+
+    if (config_load(args[1]) == 0) {
+        color_success("Loaded config from '%s'", args[1]);
+    } else {
+        color_error("%s: failed to load config from '%s'", SHELL_NAME, args[1]);
+    }
+
     return 1;
 }
 
