@@ -38,16 +38,18 @@ run_test() {
 
     echo -n "Testing: $test_name... "
 
-    # Run command in hash shell
-    local output=$(echo "$command\nexit" | timeout 2 "$HASH_BIN" 2>&1)
+    # Run command in hash shell and capture all output
+    # Use printf with separate lines instead of echo -e
+    local output=$(printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" 2>&1)
 
+    # Use grep -F for literal (fixed) string matching to avoid regex issues
     if echo "$output" | grep -qF "$expected"; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
     else
         echo -e "${RED}FAIL${NC}"
-        echo "  Expected: $expected"
+        echo "  Expected to find: $expected"
         echo "  Full output:"
         echo "$output" | head -20
         ((FAILED++))
@@ -62,7 +64,7 @@ run_command_test() {
     echo -n "Testing: $test_name... "
 
     # Run command, check exit code
-    if echo -e "$command\nexit" | timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
+    if printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
