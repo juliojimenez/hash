@@ -48,7 +48,8 @@ run_test() {
     else
         echo -e "${RED}FAIL${NC}"
         echo "  Expected: $expected"
-        echo "  Got: $output"
+        echo "  Full output:"
+        echo "$output" | head -20
         ((FAILED++))
         return 1
     fi
