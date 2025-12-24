@@ -212,7 +212,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
 
                 case 'e':
                     {
-                        const char *bracket_color = (last_exit_code == 0) ? 
+                        const char *bracket_color = (last_exit_code == 0) ?
                             COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
                         out_pos = safe_append(output, out_pos, max_pos, color_code(bracket_color));
                     }
