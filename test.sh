@@ -134,7 +134,7 @@ run_test "mixed quotes" "echo \"double\" 'single'" "double"
 echo -e "\n${YELLOW}Alias Functionality:${NC}"
 run_command_test "create alias" "alias testcmd='echo test works'"
 run_test "use alias" "alias testcmd='echo aliasworks'\ntestcmd" "aliasworks"
-run_test "alias with args" "alias ll='ls -la' && ll /tmp" "total"
+run_test "alias with args" "alias ll='ls -la'\nll /tmp" "total"
 run_command_test "list aliases" "alias"
 run_command_test "remove alias" "unalias testcmd"
 
