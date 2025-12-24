@@ -54,7 +54,7 @@ int config_add_alias(const char *name, const char *value) {
 
     // Add new alias
     if (shell_config.alias_count >= MAX_ALIASES) {
-        color_error("%s: too many aliases (max %d)", SHELL_NAME, MAX_ALIASES);
+        color_error("%s: too many aliases (max %d)", HASH_NAME, MAX_ALIASES);
         return -1;
     }
 
@@ -131,7 +131,7 @@ int config_process_line(char *line) {
 
         char *equals = strchr(alias_def, '=');
         if (!equals) {
-            color_warning("%s: invalid alias format: %s", SHELL_NAME, line);
+            color_warning("%s: invalid alias format: %s", HASH_NAME, line);
             return -1;
         }
 
@@ -156,7 +156,7 @@ int config_process_line(char *line) {
 
         char *equals = strchr(export_def, '=');
         if (!equals) {
-            color_warning("%s: invalid export format: %s", SHELL_NAME, line);
+            color_warning("%s: invalid export format: %s", HASH_NAME, line);
             return -1;
         }
 
@@ -211,12 +211,12 @@ int config_process_line(char *line) {
             return 0;
         }
 
-        color_warning("%s: unknown option: %s", SHELL_NAME, set_def);
+        color_warning("%s: unknown option: %s", HASH_NAME, set_def);
         return -1;
     }
 
     // Unknown directive
-    color_warning("%s: unknown directive in config: %s", SHELL_NAME, line);
+    color_warning("%s: unknown directive in config: %s", HASH_NAME, line);
     return -1;
 }
 
