@@ -6,6 +6,9 @@
 #include "builtins.h"
 #include "colors.h"
 #include "config.h"
+#include "execute.h"
+
+extern int last_command_exit_code;
 
 static char *builtin_str[] = {
     "cd",
@@ -27,31 +30,34 @@ static int num_builtins(void) {
     return sizeof(builtin_str) / sizeof(char *);
 }
 
+// Built-in: cd
 int shell_cd(char **args) {
     if (args[1] == NULL) {
         color_error("%s: expected argument to \"cd\"", HASH_NAME);
+        last_command_exit_code = 1;
     } else {
         if (chdir(args[1]) != 0) {
-            perror(HASH_NAME);
+            perror(SHELL_NAME);
+            last_command_exit_code = 1;
+        } else {
+            last_command_exit_code = 0;
         }
     }
     return 1;
 }
 
+// Built-in: exit
 int shell_exit(char **args) {
-    if (args[1] != NULL) {
-        fprintf(stderr, "%s: exit accepts no arguments\n", HASH_NAME);
-    } else {
-        fprintf(stdout, "Bye :)\n");
-        return 0;
-    }
-    return 1;
+    last_command_exit_code = 0;
+    return 0;
 }
 
+// Built-in: alias
 int shell_alias(char **args) {
     // No arguments - list all aliases
     if (args[1] == NULL) {
         config_list_aliases();
+        last_command_exit_code = 0;
         return 1;
     }
 
@@ -71,8 +77,10 @@ int shell_alias(char **args) {
 
         if (config_add_alias(name, value) == 0) {
             color_success("Alias '%s' added", name);
+            last_command_exit_code = 0;
         } else {
             color_error("Failed to add alias");
+            last_command_exit_code = 1;
         }
     } else {
         // Show specific alias
@@ -80,8 +88,10 @@ int shell_alias(char **args) {
         if (value) {
             color_print(COLOR_CYAN, "%s", args[1]);
             printf("='%s'\n", value);
+            last_command_exit_code = 0;
         } else {
             color_error("%s: alias not found: %s", HASH_NAME, args[1]);
+            last_command_exit_code = 1;
         }
     }
 
@@ -92,13 +102,16 @@ int shell_alias(char **args) {
 int shell_unalias(char **args) {
     if (args[1] == NULL) {
         color_error("%s: expected argument to \"unalias\"", HASH_NAME);
+        last_command_exit_code = 1;
         return 1;
     }
 
     if (config_remove_alias(args[1]) == 0) {
         color_success("Alias '%s' removed", args[1]);
+        last_command_exit_code = 0;
     } else {
         color_error("%s: alias not found: %s", HASH_NAME, args[1]);
+        last_command_exit_code = 1;
     }
 
     return 1;
@@ -108,17 +121,21 @@ int shell_unalias(char **args) {
 int shell_source(char **args) {
     if (args[1] == NULL) {
         color_error("%s: expected argument to \"source\"", HASH_NAME);
+        last_command_exit_code = 1;
         return 1;
     }
 
     if (config_load(args[1]) == 0) {
         color_success("Loaded config from '%s'", args[1]);
+        last_command_exit_code = 0;
     } else {
         color_error("%s: failed to load config from '%s'", HASH_NAME, args[1]);
+        last_command_exit_code = 1;
     }
 
     return 1;
 }
+
 
 // Check if command is a built-in and execute it
 int try_builtin(char **args) {

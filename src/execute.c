@@ -117,7 +117,6 @@ int execute(char **args) {
     // Try built-in commands first
     int result = try_builtin(args);
     if (result != -1) {
-        last_command_exit_code = (result == 0) ? 0 : 0;  // Built-ins don't fail
         return result;
     }
 
