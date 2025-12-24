@@ -140,7 +140,7 @@ int config_process_line(char *line) {
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
-        if ((value[0] == '"' || value[0] == '\'') && 
+        if ((value[0] == '"' || value[0] == '\'') &&
             value[0] == value[strlen(value) - 1]) {
             value[strlen(value) - 1] = '\0';
             value++;
@@ -165,7 +165,7 @@ int config_process_line(char *line) {
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
-        if ((value[0] == '"' || value[0] == '\'') && 
+        if ((value[0] == '"' || value[0] == '\'') &&
             value[0] == value[strlen(value) - 1]) {
             value[strlen(value) - 1] = '\0';
             value++;
@@ -201,7 +201,7 @@ int config_process_line(char *line) {
             char *ps1_value = set_def + 4;
 
             // Remove quotes if present
-            if ((ps1_value[0] == '"' || ps1_value[0] == '\'') && 
+            if ((ps1_value[0] == '"' || ps1_value[0] == '\'') &&
                 ps1_value[0] == ps1_value[strlen(ps1_value) - 1]) {
                 ps1_value[strlen(ps1_value) - 1] = '\0';
                 ps1_value++;

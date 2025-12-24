@@ -199,9 +199,9 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
 
                 case 'e':  // Exit code indicator
                     {
-                        const char *bracket_color = (last_exit_code == 0) ? 
+                        const char *bracket_color = (last_exit_code == 0) ?
                             COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
-                        out_pos += snprintf(output + out_pos, out_size - out_pos, "%s", 
+                        out_pos += snprintf(output + out_pos, out_size - out_pos, "%s",
                             color_code(bracket_color));
                     }
                     break;
@@ -237,7 +237,7 @@ char *prompt_generate(int last_exit_code) {
 
     // Get PS1 from environment or config
     const char *ps1_env = getenv("PS1");
-    const char *ps1 = ps1_env ? ps1_env : 
+    const char *ps1 = ps1_env ? ps1_env :
                       (prompt_config.use_custom_ps1 ? prompt_config.ps1 : "\\w\\g \\e#>\\e ");
 
     // Process escape sequences
