@@ -142,7 +142,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 case 'u':  // Username
                     {
                         char *user = prompt_get_user();
-                        if (user) {
+                        if (user && out_pos < max_pos) {
                             size_t len = strlen(user);
                             size_t available = max_pos - out_pos;
                             size_t to_copy = (len < available) ? len : available;
@@ -155,7 +155,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 case 'h':  // Hostname
                     {
                         char *host = prompt_get_hostname();
-                        if (host) {
+                        if (host && out_pos < max_pos) {
                             size_t len = strlen(host);
                             size_t available = max_pos - out_pos;
                             size_t to_copy = (len < available) ? len : available;
