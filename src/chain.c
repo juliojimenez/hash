@@ -116,7 +116,7 @@ CommandChain *chain_parse(char *line) {
                 }
 
                 // Add command to chain
-                if (strlen(cmd) > 0) {
+                if (safe_strlen(cmd, sizeof(cmd)) > 0) {
                     if (chain_add(chain, cmd, op) != 0) {
                         chain_free(chain);
                         return NULL;
@@ -138,13 +138,13 @@ CommandChain *chain_parse(char *line) {
     while (isspace(*cmd)) cmd++;
 
     if (*cmd) {
-        char *end = cmd + strlen(cmd) - 1;
+        char *end = cmd + safe_strlen(cmd, sizeof(cmd)) - 1;
         while (end > cmd && isspace(*end)) {
             *end = '\0';
             end--;
         }
 
-        if (strlen(cmd) > 0) {
+        if (safe_strlen(cmd, sizeof(cmd)) > 0) {
             if (chain_add(chain, cmd, CHAIN_NONE) != 0) {
                 chain_free(chain);
                 return NULL;

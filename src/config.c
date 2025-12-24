@@ -30,7 +30,7 @@ static char *trim_whitespace(char *str) {
     if (*str == 0) return str;
 
     // Trim trailing space
-    end = str + strlen(str) - 1;
+    end = str + safe_strlen(str, sizeof(str)) - 1;
     while (end > str && isspace((unsigned char)*end)) end--;
 
     end[1] = '\0';
@@ -40,7 +40,7 @@ static char *trim_whitespace(char *str) {
 // Add an alias
 int config_add_alias(const char *name, const char *value) {
     if (!name || !value) return -1;
-    if (strlen(name) >= MAX_ALIAS_NAME || strlen(value) >= MAX_ALIAS_VALUE) {
+    if (safe_strlen(name, sizeof(name)) >= MAX_ALIAS_NAME || safe_strlen(value, sizeof(value)) >= MAX_ALIAS_VALUE) {
         return -1;
     }
 
@@ -138,8 +138,8 @@ int config_process_line(char *line) {
 
         // Remove quotes if present
         if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
+            value[0] == value[safe_strlen(value, sizeof(value)) - 1]) {
+            value[safe_strlen(value, sizeof(value)) - 1] = '\0';
             value++;
         }
 
@@ -163,8 +163,8 @@ int config_process_line(char *line) {
 
         // Remove quotes if present
         if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
+            value[0] == value[safe_strlen(value, sizeof(value)) - 1]) {
+            value[safe_strlen(value, sizeof(value)) - 1] = '\0';
             value++;
         }
 
@@ -199,7 +199,7 @@ int config_process_line(char *line) {
 
             // Remove quotes if present
             if ((ps1_value[0] == '"' || ps1_value[0] == '\'') &&
-                ps1_value[0] == ps1_value[strlen(ps1_value) - 1]) {
+                ps1_value[0] == ps1_value[safe_strlen(ps1_value, sizeof(ps1_value)) - 1]) {
                 ps1_value[strlen(ps1_value) - 1] = '\0';
                 ps1_value++;
             }
@@ -235,7 +235,7 @@ int config_load(const char *filepath) {
         line[MAX_CONFIG_LINE - 1] = '\0';
 
         // Remove newline characters safely
-        size_t len = strlen(line);
+        size_t len = safe_strlen(line, sizeof(line));
         if (len > 0 && line[len - 1] == '\n') {
             line[len - 1] = '\0';
             len--;
