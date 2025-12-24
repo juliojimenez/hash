@@ -234,8 +234,18 @@ int config_load(const char *filepath) {
     while (fgets(line, sizeof(line), fp)) {
         line_num++;
 
-        // Remove newline
-        line[strcspn(line, "\r\n")] = '\0';
+        // Ensure null termination (defense in depth)
+        line[MAX_CONFIG_LINE - 1] = '\0';
+
+        // Remove newline characters safely
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n') {
+            line[len - 1] = '\0';
+            len--;
+        }
+        if (len > 0 && line[len - 1] == '\r') {
+            line[len - 1] = '\0';
+        }
 
         if (config_process_line(line) != 0) {
             errors++;
