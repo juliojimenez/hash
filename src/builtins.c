@@ -35,12 +35,15 @@ int shell_cd(char **args) {
     if (args[1] == NULL) {
         color_error("%s: expected argument to \"cd\"", HASH_NAME);
         last_command_exit_code = 1;
+        return 1;
     } else {
         if (chdir(args[1]) != 0) {
-            perror(SHELL_NAME);
+            perror(HASH_NAME);
             last_command_exit_code = 1;
+            return 1;
         } else {
             last_command_exit_code = 0;
+            return 0;
         }
     }
     return 1;
@@ -48,6 +51,15 @@ int shell_cd(char **args) {
 
 // Built-in: exit
 int shell_exit(char **args) {
+    if (args[1] != NULL) {
+        fprintf(stderr, "%s: exit accepts no arguments\n", HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    } else {
+        fprintf(stdout, "Bye :)\n");
+        last_command_exit_code = 0;
+        return 0;
+    }
     last_command_exit_code = 0;
     return 0;
 }
@@ -78,6 +90,7 @@ int shell_alias(char **args) {
         if (config_add_alias(name, value) == 0) {
             color_success("Alias '%s' added", name);
             last_command_exit_code = 0;
+            return 0;
         } else {
             color_error("Failed to add alias");
             last_command_exit_code = 1;
@@ -89,6 +102,7 @@ int shell_alias(char **args) {
             color_print(COLOR_CYAN, "%s", args[1]);
             printf("='%s'\n", value);
             last_command_exit_code = 0;
+            return 0;
         } else {
             color_error("%s: alias not found: %s", HASH_NAME, args[1]);
             last_command_exit_code = 1;
@@ -109,6 +123,7 @@ int shell_unalias(char **args) {
     if (config_remove_alias(args[1]) == 0) {
         color_success("Alias '%s' removed", args[1]);
         last_command_exit_code = 0;
+        return 0;
     } else {
         color_error("%s: alias not found: %s", HASH_NAME, args[1]);
         last_command_exit_code = 1;
@@ -128,6 +143,7 @@ int shell_source(char **args) {
     if (config_load(args[1]) == 0) {
         color_success("Loaded config from '%s'", args[1]);
         last_command_exit_code = 0;
+        return 0;
     } else {
         color_error("%s: failed to load config from '%s'", HASH_NAME, args[1]);
         last_command_exit_code = 1;
