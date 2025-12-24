@@ -130,6 +130,10 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
     size_t out_pos = 0;
     const char *p = ps1;
 
+    // Reserve space for null terminator
+    if (out_size == 0) return;
+    size_t max_pos = out_size - 1;
+
     while (*p && out_pos < out_size - 1) {
         if (*p == '\\' && *(p + 1)) {
             p++;  // Skip backslash
@@ -139,7 +143,11 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     {
                         char *user = prompt_get_user();
                         if (user) {
-                            out_pos += snprintf(output + out_pos, out_size - out_pos, "%s", user);
+                            size_t len = strlen(user);
+                            size_t available = max_pos - out_pos;
+                            size_t to_copy = (len < available) ? len : available;
+                            memcpy(output + out_pos, user, to_copy);
+                            out_pos += to_copy;
                         }
                     }
                     break;
@@ -148,7 +156,11 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     {
                         char *host = prompt_get_hostname();
                         if (host) {
-                            out_pos += snprintf(output + out_pos, out_size - out_pos, "%s", host);
+                            size_t len = strlen(host);
+                            size_t available = max_pos - out_pos;
+                            size_t to_copy = (len < available) ? len : available;
+                            memcpy(output + out_pos, host, to_copy);
+                            out_pos += to_copy;
                         }
                     }
                     break;
@@ -157,8 +169,31 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     {
                         char *cwd = prompt_get_cwd();
                         if (cwd) {
-                            out_pos += snprintf(output + out_pos, out_size - out_pos, "%s%s%s",
-                                color_code(COLOR_BOLD COLOR_BLUE), cwd, color_code(COLOR_RESET));
+                            const char *color = color_code(COLOR_BOLD COLOR_BLUE);
+                            const char *reset = color_code(COLOR_RESET);
+                            size_t available = max_pos - out_pos;
+
+                            size_t color_len = strlen(color);
+                            if (color_len < available) {
+                                memcpy(output + out_pos, color, color_len);
+                                out_pos += color_len;
+                                available -= color_len;
+                            }
+
+                            size_t cwd_len = strlen(cwd);
+                            size_t to_copy = (cwd_len < available) ? cwd_len : available;
+                            if (to_copy > 0) {
+                                memcpy(output + out_pos, cwd, to_copy);
+                                out_pos += to_copy;
+                                available -= to_copy;
+                            }
+
+                            size_t reset_len = strlen(reset);
+                            to_copy = (reset_len < available) ? reset_len : available;
+                            if (to_copy > 0) {
+                                memcpy(output + out_pos, reset, to_copy);
+                                out_pos += to_copy;
+                            }
                         }
                     }
                     break;
@@ -167,8 +202,31 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     {
                         char *dir = prompt_get_current_dir();
                         if (dir) {
-                            out_pos += snprintf(output + out_pos, out_size - out_pos, "%s%s%s",
-                                color_code(COLOR_BOLD COLOR_BLUE), dir, color_code(COLOR_RESET));
+                            const char *color = color_code(COLOR_BOLD COLOR_BLUE);
+                            const char *reset = color_code(COLOR_RESET);
+                            size_t available = max_pos - out_pos;
+
+                            size_t color_len = strlen(color);
+                            if (color_len < available) {
+                                memcpy(output + out_pos, color, color_len);
+                                out_pos += color_len;
+                                available -= color_len;
+                            }
+
+                            size_t dir_len = strlen(dir);
+                            size_t to_copy = (dir_len < available) ? dir_len : available;
+                            if (to_copy > 0) {
+                                memcpy(output + out_pos, dir, to_copy);
+                                out_pos += to_copy;
+                                available -= to_copy;
+                            }
+
+                            size_t reset_len = strlen(reset);
+                            to_copy = (reset_len < available) ? reset_len : available;
+                            if (to_copy > 0) {
+                                memcpy(output + out_pos, reset, to_copy);
+                                out_pos += to_copy;
+                            }
                         }
                     }
                     break;
@@ -180,12 +238,20 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                             bool dirty = prompt_git_dirty();
                             const char *git_color = dirty ? COLOR_YELLOW : COLOR_GREEN;
 
-                            out_pos += snprintf(output + out_pos, out_size - out_pos, " %sgit:%s(%s%s%s)",
+                            char temp[512];
+                            int written = snprintf(temp, sizeof(temp), " %sgit:%s(%s%s%s)",
                                 color_code(git_color),
                                 color_code(COLOR_RESET),
                                 color_code(COLOR_CYAN),
                                 branch,
                                 color_code(COLOR_RESET));
+
+                            if (written > 0 && (size_t)written < sizeof(temp)) {
+                                size_t available = max_pos - out_pos;
+                                size_t to_copy = ((size_t)written < available) ? (size_t)written : available;
+                                memcpy(output + out_pos, temp, to_copy);
+                                out_pos += to_copy;
+                            }
                         }
                     }
                     break;
@@ -193,7 +259,9 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 case '$':  // $ for regular user, # for root
                     {
                         const char *symbol = (getuid() == 0) ? "#" : "$";
-                        out_pos += snprintf(output + out_pos, out_size - out_pos, "%s", symbol);
+                        if (out_pos < max_pos) {
+                            output[out_pos++] = *symbol;
+                        }
                     }
                     break;
 
@@ -201,30 +269,46 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     {
                         const char *bracket_color = (last_exit_code == 0) ?
                             COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
-                        out_pos += snprintf(output + out_pos, out_size - out_pos, "%s",
-                            color_code(bracket_color));
+                        const char *color = color_code(bracket_color);
+                        size_t len = strlen(color);
+                        size_t available = max_pos - out_pos;
+                        size_t to_copy = (len < available) ? len : available;
+                        if (to_copy > 0) {
+                            memcpy(output + out_pos, color, to_copy);
+                            out_pos += to_copy;
+                        }
                     }
                     break;
 
                 case 'n':  // Newline
-                    output[out_pos++] = '\n';
+                    if (out_pos < max_pos) {
+                        output[out_pos++] = '\\';
+                    }
                     break;
 
                 case '\\':  // Literal backslash
-                    output[out_pos++] = '\\';
+                    if (out_pos < max_pos) {
+                        output[out_pos++] = '\\';
+                    }
                     break;
 
                 default:
                     // Unknown escape, keep the backslash and character
-                    output[out_pos++] = '\\';
-                    if (out_pos < out_size - 1) {
+                    if (out_pos < max_pos) {
+                        output[out_pos++] = '\\';
+                    }
+                    if (out_pos < max_pos) {
                         output[out_pos++] = *p;
                     }
                     break;
             }
             p++;
         } else {
-            output[out_pos++] = *p++;
+            if (out_pos < max_pos) {
+                output[out_pos++] = *p++;
+            } else {
+                break;
+            }
         }
     }
 
