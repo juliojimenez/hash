@@ -63,7 +63,7 @@ int shell_alias(char **args) {
         char *value = equals + 1;
 
         // Remove quotes if present
-        if ((value[0] == '"' || value[0] == '\'') && 
+        if ((value[0] == '"' || value[0] == '\'') &&
             value[0] == value[strlen(value) - 1]) {
             value[strlen(value) - 1] = '\0';
             value++;
@@ -81,7 +81,7 @@ int shell_alias(char **args) {
             color_print(COLOR_CYAN, "%s", args[1]);
             printf("='%s'\n", value);
         } else {
-            color_error("%s: alias not found: %s", SHELL_NAME, args[1]);
+            color_error("%s: alias not found: %s", HASH_NAME, args[1]);
         }
     }
 
@@ -91,14 +91,14 @@ int shell_alias(char **args) {
 // Built-in: unalias
 int shell_unalias(char **args) {
     if (args[1] == NULL) {
-        color_error("%s: expected argument to \"unalias\"", SHELL_NAME);
+        color_error("%s: expected argument to \"unalias\"", HASH_NAME);
         return 1;
     }
 
     if (config_remove_alias(args[1]) == 0) {
         color_success("Alias '%s' removed", args[1]);
     } else {
-        color_error("%s: alias not found: %s", SHELL_NAME, args[1]);
+        color_error("%s: alias not found: %s", HASH_NAME, args[1]);
     }
 
     return 1;
@@ -107,14 +107,14 @@ int shell_unalias(char **args) {
 // Built-in: source
 int shell_source(char **args) {
     if (args[1] == NULL) {
-        color_error("%s: expected argument to \"source\"", SHELL_NAME);
+        color_error("%s: expected argument to \"source\"", HASH_NAME);
         return 1;
     }
 
     if (config_load(args[1]) == 0) {
         color_success("Loaded config from '%s'", args[1]);
     } else {
-        color_error("%s: failed to load config from '%s'", SHELL_NAME, args[1]);
+        color_error("%s: failed to load config from '%s'", HASH_NAME, args[1]);
     }
 
     return 1;
