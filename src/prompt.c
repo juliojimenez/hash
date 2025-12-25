@@ -15,7 +15,7 @@ PromptConfig prompt_config;
 void prompt_init(void) {
     prompt_config.use_custom_ps1 = false;
     // Default PS1: <path> git:(branch) #>
-    safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e ", MAX_PROMPT_LENGTH);
+    safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e", MAX_PROMPT_LENGTH);
 }
 
 // Set custom PS1
