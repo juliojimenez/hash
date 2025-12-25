@@ -13,26 +13,26 @@
 // Trim whitespace from both ends of a string (in-place)
 static void trim_whitespace(char *str) {
     if (!str || *str == '\0') return;
-    
+
     // Trim leading whitespace
     char *start = str;
     while (*start && isspace(*start)) {
         start++;
     }
-    
+
     // If entire string was whitespace
     if (*start == '\0') {
         *str = '\0';
         return;
     }
-    
+
     // Trim trailing whitespace
     char *end = start + strlen(start) - 1;
     while (end > start && isspace(*end)) {
         end--;
     }
     end[1] = '\0';
-    
+
     // Move trimmed content to beginning if needed
     if (start != str) {
         memmove(str, start, end - start + 2);  // +2 for char and null
@@ -43,16 +43,16 @@ static void trim_whitespace(char *str) {
 static CommandChain *chain_create(void) {
     CommandChain *chain = malloc(sizeof(CommandChain));
     if (!chain) return NULL;
-    
+
     chain->capacity = INITIAL_CHAIN_CAPACITY;
     chain->count = 0;
     chain->commands = malloc(chain->capacity * sizeof(ChainedCommand));
-    
+
     if (!chain->commands) {
         free(chain);
         return NULL;
     }
-    
+
     return chain;
 }
 
@@ -60,34 +60,33 @@ static CommandChain *chain_create(void) {
 static int chain_add(CommandChain *chain, const char *cmd_line, ChainOp next_op) {
     if (chain->count >= chain->capacity) {
         chain->capacity *= 2;
-        ChainedCommand *new_cmds = realloc(chain->commands, 
-                                            chain->capacity * sizeof(ChainedCommand));
+        ChainedCommand *new_cmds = realloc(chain->commands, chain->capacity * sizeof(ChainedCommand));
         if (!new_cmds) return -1;
         chain->commands = new_cmds;
     }
-    
+
     chain->commands[chain->count].cmd_line = strdup(cmd_line);
     if (!chain->commands[chain->count].cmd_line) return -1;
-    
+
     chain->commands[chain->count].next_op = next_op;
     chain->count++;
-    
+
     return 0;
 }
 
 // Parse a line into chained commands
 CommandChain *chain_parse(char *line) {
     if (!line) return NULL;
-    
+
     CommandChain *chain = chain_create();
     if (!chain) return NULL;
-    
+
     char *current = line;
     char *cmd_start = line;
     int in_single_quote = 0;
     int in_double_quote = 0;
     int escaped = 0;
-    
+
     while (*current) {
         // Handle escape sequences
         if (escaped) {
@@ -95,25 +94,25 @@ CommandChain *chain_parse(char *line) {
             current++;
             continue;
         }
-        
+
         if (*current == '\\') {
             escaped = 1;
             current++;
             continue;
         }
-        
+
         // Track quote state
         if (*current == '\'' && !in_double_quote) {
             in_single_quote = !in_single_quote;
         } else if (*current == '"' && !in_single_quote) {
             in_double_quote = !in_double_quote;
         }
-        
+
         // Look for operators outside quotes
         if (!in_single_quote && !in_double_quote) {
             ChainOp op = CHAIN_NONE;
             int op_len = 0;
-            
+
             // Check for &&
             if (*current == '&' && *(current + 1) == '&') {
                 op = CHAIN_AND;
@@ -129,15 +128,15 @@ CommandChain *chain_parse(char *line) {
                 op = CHAIN_ALWAYS;
                 op_len = 1;
             }
-            
+
             // Found an operator
             if (op != CHAIN_NONE) {
                 // Null-terminate at operator position
                 *current = '\0';
-                
+
                 // Trim whitespace from command
                 trim_whitespace(cmd_start);
-                
+
                 // Add command to chain if not empty
                 if (*cmd_start != '\0') {
                     if (chain_add(chain, cmd_start, op) != 0) {
@@ -145,14 +144,14 @@ CommandChain *chain_parse(char *line) {
                         return NULL;
                     }
                 }
-                
+
                 // Move past operator
                 current += op_len;
                 cmd_start = current;
                 continue;
             }
         }
-        
+
         current++;
     }
 
