@@ -63,6 +63,12 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 
 ## See Also
 
+- [.hashrc](./docs/HASHRC.md)
+- [.hashrc Quick Start](./docs/QUICK_START_HASHRC.md)
+- [Prompt Customization](./docs/PROMPT.md)
+- [PS1 Reference](./docs/PS1.md)
+- [Command Chaining](./docs/COMMAND_CHAINING.md)
+- [Safe String](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 
 ## Newletter
