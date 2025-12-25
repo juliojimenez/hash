@@ -271,7 +271,7 @@ char *prompt_generate(int last_exit_code) {
     process_ps1_escapes(prompt, sizeof(prompt), ps1, last_exit_code);
 
     // Add final reset and space
-    size_t len = strlen(prompt);
+    size_t len = safe_strlen(prompt, sizeof(prompt));
     if (len < MAX_PROMPT_LENGTH - 10) {
         snprintf(prompt + len, MAX_PROMPT_LENGTH - len, "%s ", color_code(COLOR_RESET));
     }
