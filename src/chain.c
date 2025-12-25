@@ -139,8 +139,8 @@ CommandChain *chain_parse(char *line) {
                 trim_whitespace(cmd_start);
 
                 // Add command to chain if not empty
-                if (len > 0) {
-                    if (chain_add(chain, cmd, op) != 0) {
+                if (*cmd_start != '\0') {
+                    if (chain_add(chain, cmd_start, op) != 0) {
                         chain_free(chain);
                         return NULL;
                     }
