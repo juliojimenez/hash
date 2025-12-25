@@ -125,7 +125,7 @@ char **parse_line(char *line) {
             }
 
             // Start of next token
-            token_start_idx = write_pos - line;
+            token_start_idx = (size_t)(write_pos - line);
         } else {
             // Regular character
             *write_pos++ = *read_pos++;
