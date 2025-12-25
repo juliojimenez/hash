@@ -27,7 +27,7 @@ static void trim_whitespace(char *str) {
     }
 
     // Trim trailing whitespace
-    char *end = start + strlen(start, sizeof(start)) - 1;
+    char *end = start + safe_strlen(start, sizeof(start)) - 1;
     while (end > start && isspace(*end)) {
         end--;
     }
