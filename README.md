@@ -68,7 +68,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Prompt Customization](./docs/PROMPT.md)
 - [PS1 Reference](./docs/PS1.md)
 - [Command Chaining](./docs/COMMAND_CHAINING.md)
-- [Safe String](./docs/SAFE_STRING.md)
+- [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 
 ## Newletter
