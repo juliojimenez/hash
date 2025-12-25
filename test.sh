@@ -38,17 +38,20 @@ run_test() {
 
     echo -n "Testing: $test_name... "
 
-    # Run command in hash shell
-    local output=$(echo "$command\nexit" | timeout 2 "$HASH_BIN" 2>&1)
+    # Run command in hash shell and capture all output
+    # Use printf with separate lines instead of echo -e
+    local output=$(printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" 2>&1)
 
+    # Use grep -F for literal (fixed) string matching to avoid regex issues
     if echo "$output" | grep -qF "$expected"; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
     else
         echo -e "${RED}FAIL${NC}"
-        echo "  Expected: $expected"
-        echo "  Got: $output"
+        echo "  Expected to find: $expected"
+        echo "  Full output:"
+        echo "$output" | head -20
         ((FAILED++))
         return 1
     fi
@@ -61,7 +64,7 @@ run_command_test() {
     echo -n "Testing: $test_name... "
 
     # Run command, check exit code
-    if echo -e "$command\nexit" | timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
+    if printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
@@ -117,7 +120,7 @@ run_command_test "exit command" "exit"
 echo -e "\n${YELLOW}Error Handling:${NC}"
 run_test "invalid command" "this_command_does_not_exist_12345" "No such file or directory"
 # TODO: cd with no args will send you to home directory
-run_test "cd with no args" "cd" "No such file or directory"
+run_test "cd with no args" "cd" "expected argument to \"cd\""
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""
@@ -129,6 +132,13 @@ run_test "single quotes" "echo 'hello world'" "hello world"
 run_test "escaped double quote" "echo \"He said \\\"hello\\\"\"" 'He said "hello"'
 run_test "escaped backslash" "echo \"path\\\\to\\\\file\"" "path\\to\\file"
 run_test "mixed quotes" "echo \"double\" 'single'" "double"
+
+echo -e "\n${YELLOW}Alias Functionality:${NC}"
+run_command_test "create alias" "alias testcmd='echo test works'"
+run_test "use alias" "alias testcmd='echo aliasworks' && testcmd" "aliasworks"
+run_test "alias with args" "alias ll='ls -la' && ll /tmp" "total"
+run_command_test "list aliases" "alias"
+run_command_test "remove alias" "unalias testcmd"
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 # TODO: This will pass with I/O redirection
