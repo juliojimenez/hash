@@ -29,7 +29,7 @@ char **parse_line(char *line) {
     char *write_pos;
     int in_single_quote = 0;
     int in_double_quote = 0;
-    int token_start_idx = 0;
+    size_t token_start_idx = 0;
 
     if (!tokens) {
         fprintf(stderr, "%s: allocation error\n", HASH_NAME);
@@ -45,7 +45,7 @@ char **parse_line(char *line) {
         write_pos++;
     }
 
-    token_start_idx = write_pos - line;
+    token_start_idx = (size_t)(write_pos - line);
 
     while (*read_pos) {
         if (*read_pos == '\\' && *(read_pos + 1)) {
@@ -125,7 +125,7 @@ char **parse_line(char *line) {
             }
 
             // Start of next token
-            token_start_idx = write_pos - line;
+            token_start_idx = (size_t)(write_pos - line);
         } else {
             // Regular character
             *write_pos++ = *read_pos++;
