@@ -10,6 +10,35 @@
 
 #define INITIAL_CHAIN_CAPACITY 8
 
+// Trim whitespace from both ends of a string (in-place)
+static void trim_whitespace(char *str) {
+    if (!str || *str == '\0') return;
+
+    // Trim leading whitespace
+    char *start = str;
+    while (*start && isspace(*start)) {
+        start++;
+    }
+
+    // If entire string was whitespace
+    if (*start == '\0') {
+        *str = '\0';
+        return;
+    }
+
+    // Trim trailing whitespace
+    char *end = start + strlen(start, sizeof(start)) - 1;
+    while (end > start && isspace(*end)) {
+        end--;
+    }
+    end[1] = '\0';
+
+    // Move trimmed content to beginning if needed
+    if (start != str) {
+        memmove(str, start, end - start + 2);  // +2 for char and null
+    }
+}
+
 // Create a new command chain
 static CommandChain *chain_create(void) {
     CommandChain *chain = malloc(sizeof(CommandChain));
@@ -106,26 +135,14 @@ CommandChain *chain_parse(char *line) {
                 // Extract command - null-terminate at operator position
                 *current = '\0';
 
-                // Trim leading whitespace from command
-                char *cmd = cmd_start;
-                while (*cmd && isspace(*cmd)) {
-                    cmd++;
-                }
+                // Trim whitespace from command
+                trim_whitespace(cmd_start);
 
-                // Trim trailing whitespace
-                if (*cmd) {
-                    size_t len = safe_strlen(cmd, 1024);
-                    while (len > 0 && isspace(cmd[len - 1])) {
-                        cmd[len - 1] = '\0';
-                        len--;
-                    }
-
-                    // Add command to chain if not empty
-                    if (len > 0) {
-                        if (chain_add(chain, cmd, op) != 0) {
-                            chain_free(chain);
-                            return NULL;
-                        }
+                // Add command to chain if not empty
+                if (len > 0) {
+                    if (chain_add(chain, cmd, op) != 0) {
+                        chain_free(chain);
+                        return NULL;
                     }
                 }
 
@@ -140,21 +157,12 @@ CommandChain *chain_parse(char *line) {
     }
 
     // Add final command
-    char *cmd = cmd_start;
-    while (isspace(*cmd)) cmd++;
+    trim_whitespace(cmd_start);
 
-    if (*cmd) {
-        char *end = cmd + safe_strlen(cmd, sizeof(cmd)) - 1;
-        while (end > cmd && isspace(*end)) {
-            *end = '\0';
-            end--;
-        }
-
-        if (safe_strlen(cmd, sizeof(cmd)) > 0) {
-            if (chain_add(chain, cmd, CHAIN_NONE) != 0) {
-                chain_free(chain);
-                return NULL;
-            }
+    if (*cmd_start != '\0') {
+        if (chain_add(chain, cmd_start, CHAIN_NONE) != 0) {
+            chain_free(chain);
+            return NULL;
         }
     }
 
