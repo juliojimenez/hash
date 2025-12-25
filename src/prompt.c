@@ -111,9 +111,12 @@ char *prompt_get_user(void) {
         return username;
     }
 
-    struct passwd *pw = getpwuid(getuid());
-    if (pw) {
-        safe_strcpy(username, pw->pw_name, sizeof(username));
+    struct passwd pw;
+    struct passwd *result;
+    char buf[1024];
+
+    if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
+        safe_strcpy(username, pw.pw_name, sizeof(username));
         return username;
     }
 
