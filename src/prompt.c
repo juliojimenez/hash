@@ -112,7 +112,7 @@ char *prompt_get_user(void) {
     }
 
     struct passwd pw;
-    struct passwd *result;
+    struct passwd *result = NULL;
     char buf[1024];
 
     if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {

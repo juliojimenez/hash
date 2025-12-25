@@ -260,7 +260,7 @@ int config_load_default(void) {
     if (!home) {
         // Use reentrant version for thread safety
         struct passwd pw;
-        struct passwd *result;
+        struct passwd *result = NULL;
         char buf[1024];
 
         if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
