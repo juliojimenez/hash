@@ -30,7 +30,7 @@ static char *trim_whitespace(char *str) {
     if (*str == 0) return str;
 
     // Trim trailing space
-    end = str + safe_strlen(str, sizeof(str)) - 1;
+    end = str + strlen(str) - 1;
     while (end > str && isspace((unsigned char)*end)) end--;
 
     end[1] = '\0';
@@ -40,7 +40,7 @@ static char *trim_whitespace(char *str) {
 // Add an alias
 int config_add_alias(const char *name, const char *value) {
     if (!name || !value) return -1;
-    if (safe_strlen(name, sizeof(name)) >= MAX_ALIAS_NAME || safe_strlen(value, sizeof(value)) >= MAX_ALIAS_VALUE) {
+    if (safe_strlen(name, sizeof(name)) >= MAX_ALIAS_NAME || strlen(value) >= MAX_ALIAS_VALUE) {
         return -1;
     }
 
@@ -138,8 +138,8 @@ int config_process_line(char *line) {
 
         // Remove quotes if present
         if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[safe_strlen(value, sizeof(value)) - 1]) {
-            value[safe_strlen(value, sizeof(value)) - 1] = '\0';
+            value[0] == value[strlen(value) - 1]) {
+            value[strlen(value) - 1] = '\0';
             value++;
         }
 
@@ -163,8 +163,8 @@ int config_process_line(char *line) {
 
         // Remove quotes if present
         if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[safe_strlen(value, sizeof(value)) - 1]) {
-            value[safe_strlen(value, sizeof(value)) - 1] = '\0';
+            value[0] == value[strlen(value) - 1]) {
+            value[strlen(value) - 1] = '\0';
             value++;
         }
 
