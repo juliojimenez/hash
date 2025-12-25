@@ -256,10 +256,15 @@ int config_load(const char *filepath) {
 // Load default config file (~/.hashrc)
 int config_load_default(void) {
     const char *home = getenv("HOME");
+
     if (!home) {
-        struct passwd *pw = getpwuid(getuid());
-        if (pw) {
-            home = pw->pw_dir;
+        // Use reentrant version for thread safety
+        struct passwd pw;
+        struct passwd *result;
+        char buf[1024];
+
+        if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
+            home = pw.pw_dir;
         }
     }
 
