@@ -187,7 +187,7 @@ void chain_free(CommandChain *chain) {
 }
 
 // Execute a command chain
-int chain_execute(CommandChain *chain) {
+int chain_execute(const CommandChain *chain) {
     if (!chain || chain->count == 0) return 1;
 
     int last_exit_code = 0;
