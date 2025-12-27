@@ -133,7 +133,7 @@ int config_process_line(char *line) {
         }
 
         *equals = '\0';
-        char *name = trim_whitespace(alias_def);
+        const char *name = trim_whitespace(alias_def);
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
@@ -158,7 +158,7 @@ int config_process_line(char *line) {
         }
 
         *equals = '\0';
-        char *name = trim_whitespace(export_def);
+        const char *name = trim_whitespace(export_def);
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
