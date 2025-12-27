@@ -252,9 +252,4 @@ Hash shell's command chaining works like bash:
 | `&` | ❌ Not yet | ✅ Yes |
 | `()` | ❌ Not yet | ✅ Yes |
 
-## See Also
-
-- [Built-in Commands](BUILTINS.md)
-- [.hashrc Configuration](HASHRC.md)
-- [Prompt Customization](PROMPT.md) - Exit code indicators
-
+Back to [README](../README.md)
