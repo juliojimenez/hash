@@ -469,4 +469,4 @@ Planned features for .hashrc:
 
 - [Built-in Commands](BUILTINS.md)
 - [Color Configuration](COLORS.md)
-- [Example Configuration](./examples/.hashrc)
+- [Example Configuration](../examples/.hashrc)
