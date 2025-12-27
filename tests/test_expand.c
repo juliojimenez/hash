@@ -49,12 +49,21 @@ void test_expand_non_tilde(void) {
 
 // Test expand_tilde on args array
 void test_expand_tilde_args(void) {
-    char *args[] = {
-        strdup("cat"),
-        strdup("~/file.txt"),
-        strdup("/tmp/other"),
-        NULL
-    };
+    // Create line buffer that args will point into
+    char line_buf[256] = "cat ~/file.txt /tmp/other";
+
+    char *args[4];
+    args[0] = line_buf;              // "cat"
+    args[1] = line_buf + 4;          // "~/file.txt"
+    args[2] = line_buf + 15;         // "/tmp/other"
+    args[3] = NULL;
+
+    // Manually null-terminate (simulating parse_line behavior)
+    line_buf[3] = '\0';
+    line_buf[14] = '\0';
+
+    // Save original pointer to expanded arg
+    char *original_arg1 = args[1];
 
     int result = expand_tilde(args);
     TEST_ASSERT_EQUAL_INT(0, result);
@@ -62,7 +71,8 @@ void test_expand_tilde_args(void) {
     // First arg unchanged
     TEST_ASSERT_EQUAL_STRING("cat", args[0]);
 
-    // Second arg should be expanded
+    // Second arg should be expanded (and is now a different pointer)
+    TEST_ASSERT_NOT_EQUAL(original_arg1, args[1]);
     const char *home = getenv("HOME");
     if (home) {
         TEST_ASSERT_TRUE(strncmp(args[1], home, strlen(home)) == 0);
@@ -71,20 +81,27 @@ void test_expand_tilde_args(void) {
     // Third arg unchanged
     TEST_ASSERT_EQUAL_STRING("/tmp/other", args[2]);
 
-    // Clean up
-    for (int i = 0; args[i] != NULL; i++) {
-        free(args[i]);
+    // Free only the expanded arg
+    if (args[1] != original_arg1) {
+        free(args[1]);
     }
 }
 
 // Test multiple tildes in args
 void test_expand_multiple_tildes(void) {
-    char *args[] = {
-        strdup("cp"),
-        strdup("~/source.txt"),
-        strdup("~/dest.txt"),
-        NULL
-    };
+    char line_buf[256] = "cp ~/source.txt ~/dest.txt";
+
+    char *args[4];
+    args[0] = line_buf;        // "cp"
+    args[1] = line_buf + 3;    // "~/source.txt"
+    args[2] = line_buf + 16;   // "~/dest.txt"
+    args[3] = NULL;
+
+    line_buf[2] = '\0';
+    line_buf[15] = '\0';
+
+    char *orig_arg1 = args[1];
+    char *orig_arg2 = args[2];
 
     int result = expand_tilde(args);
     TEST_ASSERT_EQUAL_INT(0, result);
@@ -95,9 +112,9 @@ void test_expand_multiple_tildes(void) {
         TEST_ASSERT_TRUE(strncmp(args[2], home, strlen(home)) == 0);
     }
 
-    for (int i = 0; args[i] != NULL; i++) {
-        free(args[i]);
-    }
+    // Free expanded args
+    if (args[1] != orig_arg1) free(args[1]);
+    if (args[2] != orig_arg2) free(args[2]);
 }
 
 // Test empty args
@@ -110,11 +127,16 @@ void test_expand_empty_args(void) {
 
 // Test just tilde
 void test_expand_just_tilde(void) {
-    char *args[] = {
-        strdup("cd"),
-        strdup("~"),
-        NULL
-    };
+    char line_buf[64] = "cd ~";
+
+    char *args[3];
+    args[0] = line_buf;      // "cd"
+    args[1] = line_buf + 3;  // "~"
+    args[2] = NULL;
+
+    line_buf[2] = '\0';
+
+    char *orig_arg1 = args[1];
 
     int result = expand_tilde(args);
     TEST_ASSERT_EQUAL_INT(0, result);
@@ -124,9 +146,7 @@ void test_expand_just_tilde(void) {
         TEST_ASSERT_EQUAL_STRING(home, args[1]);
     }
 
-    for (int i = 0; args[i] != NULL; i++) {
-        free(args[i]);
-    }
+    if (args[1] != orig_arg1) free(args[1]);
 }
 
 int main(void) {

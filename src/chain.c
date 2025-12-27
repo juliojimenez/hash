@@ -7,7 +7,6 @@
 #include "execute.h"
 #include "colors.h"
 #include "safe_string.h"
-#include "expand.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
