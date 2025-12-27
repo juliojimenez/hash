@@ -77,7 +77,7 @@ int execute(char **args) {
         // If original command had arguments, we need to append them
         // Count original args (excluding command name)
         int orig_arg_count = 0;
-        while (args[orig_arg_count + 1] != NULL) {
+        for (int j = 1; args[j] != NULL; j++) {
             orig_arg_count++;
         }
 
