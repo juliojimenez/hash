@@ -396,8 +396,4 @@ alias prompt-full='export PS1="\w\g \e#>\e "'
 - `\!` - History number
 - `\[` and `\]` - Non-printing sequences
 
-## See Also
-
-- [.hashrc Configuration](HASHRC.md)
-- [Color Support](COLORS.md)
-- Example prompts in `examples/.hashrc`
+Back to [README](../README.md)
