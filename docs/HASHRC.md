@@ -141,33 +141,6 @@ set PS1='\u@\h:\w\$ '
 - `\h` - Hostname
 - `\g` - Git branch with status
 - `\e` - Exit code color indicator
-- `\# Hash Shell Configuration (.hashrc)
-
-Hash shell supports configuration through a `.hashrc` file in your home directory. This allows you to customize your shell experience with aliases, environment variables, and settings.
-
-## Quick Start
-
-1. **Create your .hashrc file:**
-```bash
-cp examples/.hashrc ~/.hashrc
-```
-
-2. **Edit it:**
-```bash
-vim ~/.hashrc
-```
-
-3. **Reload configuration:**
-```bash
-source ~/.hashrc
-# or restart hash
-```
-
-## Configuration File Location
-
-Hash looks for configuration in: `~/.hashrc`
-
-The file is loaded automatically when hash starts.
 
 ## Syntax
 
@@ -233,34 +206,6 @@ export LANG=en_US.UTF-8
 # Custom variables
 export MY_API_KEY=abc123
 ```
-
- - `# Hash Shell Configuration (.hashrc)
-
-Hash shell supports configuration through a `.hashrc` file in your home directory. This allows you to customize your shell experience with aliases, environment variables, and settings.
-
-## Quick Start
-
-1. **Create your .hashrc file:**
-```bash
-cp examples/.hashrc ~/.hashrc
-```
-
-2. **Edit it:**
-```bash
-vim ~/.hashrc
-```
-
-3. **Reload configuration:**
-```bash
-source ~/.hashrc
-# or restart hash
-```
-
-## Configuration File Location
-
-Hash looks for configuration in: `~/.hashrc`
-
-The file is loaded automatically when hash starts.
 
 ## Syntax
 
