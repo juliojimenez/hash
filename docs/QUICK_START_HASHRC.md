@@ -47,7 +47,7 @@ source ~/.hashrc
 
 # Or restart hash
 exit
-./hash
+./hash-shell
 ```
 
 Try your aliases:
@@ -137,29 +137,6 @@ alias bashrc='vim ~/.bashrc'
 alias hashrc='vim ~/.hashrc'
 ```
 
-## Interactive Commands
-
-You can also manage aliases from within hash:
-
-```bash
-# Create alias
-#> alias ll='ls -lah'
-Alias 'll' added
-
-# List all aliases
-#> alias
-ll='ls -lah'
-gs='git status'
-
-# Remove alias
-#> unalias ll
-Alias 'll' removed
-
-# Reload config
-#> source ~/.hashrc
-Loaded config from '/home/user/.hashrc'
-```
-
 ## Tips
 
 1. **Group related aliases** - organize by category (git, docker, system, etc.)
@@ -172,7 +149,6 @@ Loaded config from '/home/user/.hashrc'
 
 - Read the full [.hashrc documentation](HASHRC.md)
 - See the [example .hashrc](../examples/.hashrc)
-- Learn about [built-in commands](BUILTINS.md)
 - Explore [color options](COLORS.md)
 
 ## Troubleshooting
@@ -187,11 +163,4 @@ alias ll=ls -lah     # ❌ Bad
 source ~/.hashrc
 ```
 
-**Want to reset?**
-```bash
-# Remove all aliases
-rm ~/.hashrc
-# Restart hash
-```
-
-Happy customizing! 🎨
+Back to [README](../README.md)
