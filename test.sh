@@ -113,7 +113,6 @@ run_command_test "date command" "date"
 
 echo -e "\n${YELLOW}Built-in Commands:${NC}"
 run_command_test "cd to /tmp" "cd /tmp"
-# TODO: recognize ~ as home
 run_command_test "cd to home" "cd ~"
 run_command_test "exit command" "exit"
 
