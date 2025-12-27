@@ -462,7 +462,6 @@ Planned features for .hashrc:
 - [ ] Functions (like bash functions)
 - [ ] Conditionals based on environment
 - [ ] Include/import other config files
-- [ ] Prompt customization
 - [ ] Key bindings
 - [ ] Command history settings
 
@@ -470,4 +469,4 @@ Planned features for .hashrc:
 
 - [Built-in Commands](BUILTINS.md)
 - [Color Configuration](COLORS.md)
-- Example configuration: `examples/.hashrc`
+- [Example Configuration](./examples/.hashrc]
