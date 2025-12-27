@@ -30,8 +30,8 @@ set welcome=on
 # Minimal: Just directory and prompt
 # set PS1='\W #> '
 
-# Simple with git: Directory name and git status
-set PS1='\W\g \e#>\e '
+# Simple with git: Absolute path and git status
+set PS1='\w\g \e#>\e '
 
 # ============================================================================
 # ENVIRONMENT VARIABLES

@@ -199,7 +199,7 @@ int config_process_line(char *line) {
 
             // Remove quotes if present
             if ((ps1_value[0] == '"' || ps1_value[0] == '\'') &&
-                ps1_value[0] == ps1_value[safe_strlen(ps1_value, sizeof(ps1_value)) - 1]) {
+                ps1_value[0] == ps1_value[strlen(ps1_value) - 1]) {
                 ps1_value[strlen(ps1_value) - 1] = '\0';
                 ps1_value++;
             }
