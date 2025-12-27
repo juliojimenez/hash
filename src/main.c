@@ -17,6 +17,7 @@ Julio Jimenez, julio@julioj.com
 #include "config.h"
 #include "prompt.h"
 #include "chain.h"
+#include "expand.h"
 
 static void loop(void) {
     char *line;

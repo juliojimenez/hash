@@ -94,7 +94,6 @@ int expand_tilde(char **args) {
             char *expanded = expand_tilde_path(args[i]);
             if (expanded) {
                 // Replace the argument with expanded version
-                free(args[i]);
                 args[i] = expanded;
             }
             // If expansion failed, keep original
@@ -102,4 +101,21 @@ int expand_tilde(char **args) {
     }
 
     return 0;
+}
+
+// Free any expanded arguments (those allocated by expand_tilde)
+void expand_free(char **args, const char *line) {
+    if (!args || !line) return;
+
+    // Calculate line buffer boundaries
+    size_t line_len = strlen(line);
+    const char *line_end = line + line_len;
+
+    for (int i = 0; args[i] != NULL; i++) {
+        // Check if this pointer is outside the line buffer
+        // If so, it was allocated by expand_tilde and needs to be freed
+        if (args[i] < line || args[i] > line_end) {
+            free(args[i]);
+        }
+    }
 }

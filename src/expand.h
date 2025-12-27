@@ -17,6 +17,15 @@
 int expand_tilde(char **args);
 
 /**
+ * Free any expanded arguments
+ * Call this after executing to clean up malloc'd expansions
+ *
+ * @param args Argument array
+ * @param line Original line buffer (args that point into this won't be freed)
+ */
+void expand_free(char **args, const char *line);
+
+/**
  * Expand a single path with tilde
  * Returns newly allocated string (caller must free)
  * Returns NULL on error or if no expansion needed

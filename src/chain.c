@@ -7,6 +7,7 @@
 #include "execute.h"
 #include "colors.h"
 #include "safe_string.h"
+#include "expand.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
@@ -220,6 +221,7 @@ int chain_execute(const CommandChain *chain) {
             shell_continue = execute(args);
             last_exit_code = execute_get_last_exit_code();
 
+            expand_free(args, line_copy);
             free(args);
         }
 
