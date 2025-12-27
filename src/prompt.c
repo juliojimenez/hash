@@ -266,9 +266,16 @@ char *prompt_generate(int last_exit_code) {
     static char prompt[MAX_PROMPT_LENGTH];
 
     // Get PS1 from environment or config
+    const char *ps1;
     const char *ps1_env = getenv("PS1");
-    const char *ps1 = ps1_env ? ps1_env :
-                      (prompt_config.use_custom_ps1 ? prompt_config.ps1 : "\\w\\g \\e#>\\e ");
+
+    if (ps1_env) {
+        ps1 = ps1_env;
+    } else if (prompt_config.use_custom_ps1) {
+        ps1 = prompt_config.ps1;
+    } else {
+        ps1 = "\\w\\g \\e#>\\e";
+    }
 
     // Process escape sequences
     process_ps1_escapes(prompt, sizeof(prompt), ps1, last_exit_code);
