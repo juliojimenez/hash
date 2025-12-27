@@ -8,6 +8,7 @@
 #include "builtins.h"
 #include "config.h"
 #include "parser.h"
+#include "expand.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -52,6 +53,9 @@ int execute(char **args) {
         last_command_exit_code = 0;
         return 1;
     }
+
+    // Expand tilde in all arguments
+    expand_tilde(args);
 
     // Check if command is an alias
     const char *alias_value = config_get_alias(args[0]);

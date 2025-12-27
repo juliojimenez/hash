@@ -43,8 +43,13 @@ export EDITOR=vim
 # Set your preferred pager
 export PAGER=less
 
-# Add custom bin directory to PATH
-# export PATH=$HOME/bin:$PATH
+# Note: Tilde expansion is supported!
+# You can use ~ in aliases and commands
+# Example: alias docs='cd ~/Documents'
+
+# Note: Variable expansion ($VAR) is NOT yet supported
+# So you cannot do: export PATH=$HOME/bin:$PATH
+# Instead use literal paths or tilde: ~/bin
 
 # ============================================================================
 # ALIASES
