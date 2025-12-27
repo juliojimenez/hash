@@ -174,7 +174,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     break;
 
                 case 'w': {
-                    char *cwd = prompt_get_cwd();
+                    const char *cwd = prompt_get_cwd();
                     if (cwd) {
                         out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
                         out_pos = safe_append(output, out_pos, max_pos, cwd);
@@ -184,7 +184,7 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 }
 
                 case 'W': {
-                    char *dir = prompt_get_current_dir();
+                    const char *dir = prompt_get_current_dir();
                     if (dir) {
                         out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
                         out_pos = safe_append(output, out_pos, max_pos, dir);

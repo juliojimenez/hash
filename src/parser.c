@@ -25,7 +25,7 @@ char **parse_line(char *line) {
     int bufsize = MAX_ARGS;
     int position = 0;
     char **tokens = malloc(bufsize * sizeof(char*));
-    char *read_pos;
+    const char *read_pos;
     char *write_pos;
     int in_single_quote = 0;
     int in_double_quote = 0;
