@@ -139,8 +139,4 @@ set PS1='\W $ '
 set PS1='\u@\h:\w\g\n\e└─\$\e '
 ```
 
-## See Also
-
-- [Complete Prompt Documentation](PROMPT.md)
-- [.hashrc Guide](HASHRC.md)
-- Example configurations in `examples/.hashrc`
+Back to [README](../README.md)
