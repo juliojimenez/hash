@@ -171,6 +171,17 @@ unalias ll
 unalias gs
 ```
 
+### cd
+
+Change directory:
+
+```bash
+cd /tmp              # Change to /tmp
+cd ~                 # Change to home directory
+cd ~/Documents       # Change to ~/Documents
+cd                   # No arguments - goes to home directory (like bash)
+```
+
 ### source
 
 Reload configuration file:
@@ -181,6 +192,14 @@ source ~/.hashrc
 
 # Load another config file
 source ~/my-custom-config
+```
+
+### exit
+
+Exit the shell:
+
+```bash
+exit
 ```
 
 ## How Aliases Work
@@ -465,8 +484,4 @@ Planned features for .hashrc:
 - [ ] Key bindings
 - [ ] Command history settings
 
-## See Also
-
-- [Built-in Commands](BUILTINS.md)
-- [Color Configuration](COLORS.md)
-- [Example Configuration](../examples/.hashrc)
+Back to [README](../README.md)

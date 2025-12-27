@@ -113,13 +113,12 @@ run_command_test "date command" "date"
 
 echo -e "\n${YELLOW}Built-in Commands:${NC}"
 run_command_test "cd to /tmp" "cd /tmp"
-run_command_test "cd to home" "cd ~"
+run_command_test "cd to home (with tilde)" "cd ~"
+run_command_test "cd to home (no args)" "cd"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
 run_test "invalid command" "this_command_does_not_exist_12345" "No such file or directory"
-# TODO: cd with no args will send you to home directory
-run_test "cd with no args" "cd" "expected argument to \"cd\""
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""

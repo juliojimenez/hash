@@ -33,17 +33,35 @@ static int num_builtins(void) {
 
 // Built-in: cd
 int shell_cd(char **args) {
-    if (args[1] == NULL) {
-        color_error("%s: expected argument to \"cd\"", HASH_NAME);
-        last_command_exit_code = 1;
-    } else {
-        if (chdir(args[1]) != 0) {
-            perror(HASH_NAME);
-            last_command_exit_code = 1;
-        } else {
-            last_command_exit_code = 0;
+    const char *path = args[1];
+
+    // If no argument, go to home directory
+    if (path == NULL) {
+        path = getenv("HOME");
+
+        if (!path) {
+            // Use getpwuid_r for thread safety
+            struct passwd pw;
+            struct passwd *result = NULL;
+            char buf[1024];
+
+            if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
+                path = pw.pw_dir;
+            } else {
+                color_error("%s: could not determine home directory", SHELL_NAME);
+                last_command_exit_code = 1;
+                return 1;
+            }
         }
     }
+
+    if (chdir(path) != 0) {
+        perror(SHELL_NAME);
+        last_command_exit_code = 1;
+    } else {
+        last_command_exit_code = 0;
+    }
+
     return 1;
 }
 

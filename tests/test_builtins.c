@@ -46,13 +46,24 @@ void test_shell_cd_valid_directory(void) {
     TEST_ASSERT_EQUAL_STRING("/tmp", cwd);
 }
 
-// Test shell_cd with no arguments
+// Test shell_cd with no arguments (should go to home)
 void test_shell_cd_no_arguments(void) {
     char *args[] = {"cd", NULL};
     int result = shell_cd(args);
 
-    // Should return 1 (continue shell) but print error
+    // Should return 1 (continue shell) and change to home directory
     TEST_ASSERT_EQUAL_INT(1, result);
+
+    // Verify we're now in home directory
+    const char *home = getenv("HOME");
+    if (home) {
+        char cwd[PATH_MAX];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            TEST_ASSERT_EQUAL_STRING(home, cwd);
+        } else {
+            TEST_FAIL_MESSAGE("getcwd failed");
+        }
+    }
 }
 
 // Test shell_cd to invalid directory
