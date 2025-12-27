@@ -187,14 +187,14 @@ void chain_free(CommandChain *chain) {
 }
 
 // Execute a command chain
-int chain_execute(CommandChain *chain) {
+int chain_execute(const CommandChain *chain) {
     if (!chain || chain->count == 0) return 1;
 
     int last_exit_code = 0;
     int shell_continue = 1;
 
     for (int i = 0; i < chain->count; i++) {
-        ChainedCommand *cmd = &chain->commands[i];
+        const ChainedCommand *cmd = &chain->commands[i];
 
         // Check if we should execute this command based on previous exit code
         if (i > 0) {

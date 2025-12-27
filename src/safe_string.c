@@ -77,8 +77,7 @@ int safe_strcmp(const char *s1, const char *s2, size_t maxlen) {
         return (s1 == s2) ? 0 : -1;
     }
 
-    size_t i;
-    for (i = 0; i < maxlen; i++) {
+    for (size_t i = 0; i < maxlen; i++) {
         if (s1[i] != s2[i]) {
             return s1[i] - s2[i];
         }
