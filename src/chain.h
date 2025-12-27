@@ -30,6 +30,6 @@ void chain_free(CommandChain *chain);
 
 // Execute a command chain
 // Returns 1 to continue shell loop, 0 to exit
-int chain_execute(CommandChain *chain);
+int chain_execute(const CommandChain *chain);
 
 #endif // CHAIN_H
