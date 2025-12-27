@@ -319,3 +319,6 @@ safe_strcpy(dst, src, size);
 
 - [String Safety Best Practices](https://cwe.mitre.org/data/definitions/120.html)
 - [CERT C Coding Standard STR31-C](https://wiki.sei.cmu.edu/confluence/display/c/STR31-C.+Guarantee+that+storage+for+strings+has+sufficient+space+for+character+data+and+the+null+terminator)
+
+Back to [README](../README.md)
+
