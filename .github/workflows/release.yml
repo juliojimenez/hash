@@ -13,10 +13,6 @@ on:
         required: true
         default: 'v0.1.0'
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   build-release:
     name: Build Release Binaries
@@ -32,69 +28,73 @@ jobs:
             cc: aarch64-linux-gnu-gcc
             target: aarch64-linux-gnu
 
+    permissions:
+      contents: write
+      packages: write
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install Cross-Compilation Tools
-      if: matrix.arch == 'aarch64'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install Cross-Compilation Tools
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
-    - name: Get Version From Tag
-      id: get_version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          VERSION="${{ github.event.inputs.tag }}"
-        else
-          VERSION="${GITHUB_REF#refs/tags/}"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Building version: $VERSION"
+      - name: Get Version From Tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
 
-    - name: Build hash
-      run: |
-        make clean
-        make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O2 -std=gnu99 -static"
+      - name: Build hash
+        run: |
+          make clean
+          make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O2 -std=gnu99 -static"
 
-        # Rename binary with architecture suffix
-        mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
+          # Rename binary with architecture suffix
+          mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
 
-        # Create tarball
-        tar -czf hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} \
-          README.md
+          # Create tarball
+          tar -czf hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} \
+            README.md
 
-    - name: Generate Checksums
-      run: |
-        sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} > \
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-        sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz > \
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+      - name: Generate Checksums
+        run: |
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} > \
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz > \
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
 
-    - name: Upload Binary Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hash-shell-${{ matrix.arch }}
-        path: |
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hash-shell-${{ matrix.arch }}
+          path: |
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
 
-    - name: Upload To Release
-      if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
-      with:
-        files: |
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-          hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
-        tag_name: ${{ steps.get_version.outputs.version }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload To Release
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
+        with:
+          files: |
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+          tag_name: ${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-release-notes:
     name: Create Release Notes
@@ -102,73 +102,80 @@ jobs:
     needs: build-release
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
 
+    permissions:
+      contents: write
+      packages: write
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Get Version From Tag
-      id: get_version
-      run: |
-        VERSION="${GITHUB_REF#refs/tags/}"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Get Version From Tag
+        id: get_version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-    - name: Download All Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
-    - name: Generate Installation Instructions
-      run: |
-        cat > INSTALL.md << 'EOF'
-        # Hash Shell ${{ steps.get_version.outputs.version }}
+      - name: Generate Installation Instructions
+        run: |
+          cat > INSTALL.md << 'EOF'
+          # Hash Shell ${{ steps.get_version.outputs.version }}
 
-        ## Installation
+          ## Installation
 
-        ### Linux x86_64
-        ```bash
-        curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64
-        chmod +x hash-shell-${{ steps.get_version.outputs.version }}-x86_64
-        sudo mv hash-shell-${{ steps.get_version.outputs.version }}-x86_64 /usr/local/bin/hash-shell
-        ```
+          ### Linux x86_64
 
-        ### Linux ARM64
-        ```bash
-        curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-aarch64
-        chmod +x hash-shell-${{ steps.get_version.outputs.version }}-aarch64
-        sudo mv hash-shell-${{ steps.get_version.outputs.version }}-aarch64 /usr/local/bin/hash-shell
-        ```
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-x86_64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-x86_64 /usr/local/bin/hash-shell
+          ```
 
-        ### Verify Checksums
-        ```bash
-        # Download checksum file
-        curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
+          ### Linux ARM64
 
-        # Verify
-        sha256sum -c hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
-        ```
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-aarch64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-aarch64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-aarch64 /usr/local/bin/hash-shell
+          ```
 
-        ## Available Downloads
+          ### Verify Checksums
 
-        - `hash-shell-${{ steps.get_version.outputs.version }}-x86_64` - Linux x86_64 binary
-        - `hash-shell-${{ steps.get_version.outputs.version }}-aarch64` - Linux ARM64 binary
-        - `*.tar.gz` - Tarball with binary and README
-        - `*.sha256` - SHA256 checksums for verification
+          ```bash
+          # Download checksum file
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
 
-        ## Build from Source
+          # Verify
+          sha256sum -c hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
+          ```
 
-        ```bash
-        git clone https://github.com/${{ github.repository }}.git
-        cd hash
-        make
-        sudo make install
-        ```
-        EOF
+          ## Available Downloads
 
-    - name: Update Release With Installation Instructions
-      uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
-      with:
-        body_path: INSTALL.md
-        tag_name: ${{ steps.get_version.outputs.version }}
-        append_body: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          - `hash-shell-${{ steps.get_version.outputs.version }}-x86_64` - Linux x86_64 binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-aarch64` - Linux ARM64 binary
+          - `*.tar.gz` - Tarball with binary and README
+          - `*.sha256` - SHA256 checksums for verification
+
+          ## Build from Source
+
+          ```bash
+          git clone https://github.com/${{ github.repository }}.git
+          cd hash
+          make
+          sudo make install
+          ```
+          EOF
+
+      - name: Update Release With Installation Instructions
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
+        with:
+          body_path: INSTALL.md
+          tag_name: ${{ steps.get_version.outputs.version }}
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
