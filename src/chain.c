@@ -194,7 +194,7 @@ int chain_execute(const CommandChain *chain) {
     int shell_continue = 1;
 
     for (int i = 0; i < chain->count; i++) {
-        ChainedCommand *cmd = &chain->commands[i];
+        const ChainedCommand *cmd = &chain->commands[i];
 
         // Check if we should execute this command based on previous exit code
         if (i > 0) {
