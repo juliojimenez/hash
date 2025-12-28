@@ -53,10 +53,10 @@ static int enable_raw_mode(void) {
     raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 
     // Disable output processing
-    raw.c_oflag &= ~(OPOST);
+    raw.c_oflag &= ~OPOST;
 
     // Set character size to 8 bits
-    raw.c_cflag |= (CS8);
+    raw.c_cflag |= CS8;
 
     // Read returns with 1 byte or timeout
     raw.c_cc[VMIN] = 1;
