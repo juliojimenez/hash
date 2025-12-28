@@ -133,21 +133,27 @@ static int read_key(void) {
 
 // Refresh the line on screen
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt) {
+    ssize_t ret;
     // Move cursor to beginning of line
-    write(STDOUT_FILENO, "\r", 1);
+    ret = write(STDOUT_FILENO, "\r", 1);
+    (void)ret;
 
     // Clear line
-    write(STDOUT_FILENO, "\x1b[K", 3);
+    ret = write(STDOUT_FILENO, "\x1b[K", 3);
+    (void)ret;
 
     // Write prompt and current buffer
-    write(STDOUT_FILENO, prompt, strlen(prompt));
-    write(STDOUT_FILENO, buf, len);
+    ret = write(STDOUT_FILENO, prompt, strlen(prompt));
+    (void)ret;
+    ret = write(STDOUT_FILENO, buf, len);
+    (void)ret;
 
     // Move cursor to correct position
     size_t cursor_col = strlen(prompt) + pos;
     char cursor_seq[32];
     snprintf(cursor_seq, sizeof(cursor_seq), "\r\x1b[%zuC", cursor_col);
-    write(STDOUT_FILENO, cursor_seq, strlen(cursor_seq));
+    ret = write(STDOUT_FILENO, cursor_seq, strlen(cursor_seq));
+    (void)ret;
 }
 
 // Initialize line editor
@@ -165,10 +171,12 @@ char *lineedit_read_line(const char *prompt) {
     static char buf[MAX_LINE_LENGTH];
     size_t len = 0;      // Length of current line
     size_t pos = 0;      // Cursor position
+    ssize_t ret;
 
     // Display initial prompt
     if (prompt) {
-        write(STDOUT_FILENO, prompt, strlen(prompt));
+        ret = write(STDOUT_FILENO, prompt, strlen(prompt));
+        (void)ret;
     }
 
     // Enable raw mode
@@ -203,7 +211,8 @@ char *lineedit_read_line(const char *prompt) {
             case KEY_ENTER:
                 // Submit line
                 disable_raw_mode();
-                write(STDOUT_FILENO, "\n", 1);
+                ret = write(STDOUT_FILENO, "\n", 1);
+                (void)ret;
 
                 char *result = malloc(len + 1);
                 if (result) {
@@ -224,7 +233,8 @@ char *lineedit_read_line(const char *prompt) {
                 // Cancel line
                 len = 0;
                 pos = 0;
-                write(STDOUT_FILENO, "^C\n", 3);
+                ret = write(STDOUT_FILENO, "^C\n", 3);
+                (void)ret;
                 disable_raw_mode();
 
                 char *empty = malloc(1);
@@ -246,28 +256,32 @@ char *lineedit_read_line(const char *prompt) {
             case 'C' + 256:  // Right arrow
                 if (pos < len) {
                     pos++;
-                    write(STDOUT_FILENO, "\x1b[C", 3);
+                    ret = write(STDOUT_FILENO, "\x1b[C", 3);
+                    (void)ret;
                 }
                 break;
 
             case 'D' + 256:  // Left arrow
                 if (pos > 0) {
                     pos--;
-                    write(STDOUT_FILENO, "\x1b[D", 3);
+                    ret = write(STDOUT_FILENO, "\x1b[D", 3);
+                    (void)ret;
                 }
                 break;
 
             case KEY_CTRL_A:  // Beginning of line
                 while (pos > 0) {
                     pos--;
-                    write(STDOUT_FILENO, "\x1b[D", 3);
+                    ret = write(STDOUT_FILENO, "\x1b[D", 3);
+                    (void)ret;
                 }
                 break;
 
             case KEY_CTRL_E:  // End of line
                 while (pos < len) {
                     pos++;
-                    write(STDOUT_FILENO, "\x1b[C", 3);
+                    ret = write(STDOUT_FILENO, "\x1b[C", 3);
+                    (void)ret;
                 }
                 break;
 
@@ -310,7 +324,8 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case KEY_CTRL_L:  // Clear screen
-                write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
+                ret = write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
+                (void)ret;
                 refresh_line(buf, len, pos, prompt_str);
                 break;
 
@@ -346,7 +361,8 @@ char *lineedit_read_line(const char *prompt) {
                         refresh_line(buf, len, pos, prompt_str);
                     } else {
                         // Just write the character (optimization)
-                        write(STDOUT_FILENO, &c, 1);
+                        ret = write(STDOUT_FILENO, &c, 1);
+                        (void)ret;
                     }
                 }
                 break;

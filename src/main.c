@@ -10,6 +10,7 @@ Julio Jimenez, julio@julioj.com
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include "hash.h"
 #include "parser.h"
 #include "execute.h"
@@ -36,7 +37,7 @@ static void loop(void) {
         char *prompt_str = prompt_generate(last_exit_code);
         printf("%s", prompt_str);
 
-        line = read_line();
+        line = read_line(prompt_str);
 
         CommandChain *chain = chain_parse(line);
 
