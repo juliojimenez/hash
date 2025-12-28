@@ -4,18 +4,16 @@
 #include <string.h>
 #include "hash.h"
 #include "parser.h"
+#include "lineedit.h"
 
-char *read_line(void) {
-    char *line = NULL;
-    size_t bufsize = 0;
+// Read a line from stdin
+char *read_line(const char *prompt) {
+    // Use line editor for interactive input
+    char *line = lineedit_read_line(prompt);
 
-    if (getline(&line, &bufsize, stdin) == -1) {
-        if (feof(stdin)) {
-            exit(EXIT_SUCCESS);
-        } else {
-            perror("readline");
-            exit(EXIT_FAILURE);
-        }
+    if (!line) {
+        // EOF received (Ctrl+D on empty line)
+        exit(EXIT_SUCCESS);
     }
 
     return line;
