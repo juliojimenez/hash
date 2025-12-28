@@ -152,7 +152,7 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     size_t cursor_col = strlen(prompt) + pos;
     char cursor_seq[32];
     snprintf(cursor_seq, sizeof(cursor_seq), "\r\x1b[%zuC", cursor_col);
-    ret = write(STDOUT_FILENO, cursor_seq, strlen(cursor_seq));
+    ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
     (void)ret;
 }
 
