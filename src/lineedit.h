@@ -23,7 +23,7 @@ void lineedit_init(void);
  * - Backspace/Delete - delete character
  * - Home/End - beginning/end of line
  * - Tab - insert 4 spaces
- * 
+ *
  * @param prompt Prompt string to display (can include ANSI colors)
  * @return Newly allocated string (caller must free), or NULL on EOF
  */
