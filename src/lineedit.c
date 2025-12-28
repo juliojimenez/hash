@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include "lineedit.h"
 #include "hash.h"
+#include "safe_string.h"
 
 #define MAX_LINE_LENGTH 4096
 
