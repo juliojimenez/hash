@@ -132,6 +132,30 @@ static int read_key(void) {
     return c;
 }
 
+// Calculate visible length of prompt (excluding ANSI escape sequences)
+static size_t visible_prompt_length(const char *prompt) {
+    if (!prompt) return 0;
+
+    size_t visible = 0;
+    const char *p = prompt;
+    int in_escape = 0;
+
+    while (*p) {
+        if (*p == '\x1b') {
+            in_escape = 1;
+        } else if (in_escape) {
+            if (*p == 'm') {
+                in_escape = 0;
+            }
+        } else {
+            visible++;
+        }
+        p++;
+    }
+
+    return visible;
+}
+
 // Refresh the line on screen
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt) {
     ssize_t ret;
@@ -150,7 +174,8 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     (void)ret;
 
     // Move cursor to correct position
-    size_t cursor_col = strlen(prompt) + pos;
+    size_t visible_prompt = visible_prompt_length(prompt);
+    size_t cursor_col = visible_prompt + pos;
     char cursor_seq[32];
     snprintf(cursor_seq, sizeof(cursor_seq), "\r\x1b[%zuC", cursor_col);
     ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
@@ -231,12 +256,11 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case KEY_CTRL_C:
-                // Cancel line
-                len = 0;
-                pos = 0;
-                ret = write(STDOUT_FILENO, "^C\n", 3);
-                (void)ret;
                 disable_raw_mode();
+
+                // Move to beginning and write ^C on a fresh line
+                ret = write(STDOUT_FILENO, "\r\x1b[K^C\n", 8);
+                (void)ret;
 
                 char *empty = malloc(1);
                 if (empty) empty[0] = '\0';
