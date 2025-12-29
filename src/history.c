@@ -94,6 +94,13 @@ static int should_erase_dups(void) {
 
 // Initialize history
 void history_init(void) {
+    // If already initialized, clear first
+    if (history) {
+        history_clear();
+        free(history);
+        history = NULL;
+    }
+
     history_size = get_histsize();
     history_filesize = get_histfilesize();
 
@@ -432,6 +439,16 @@ void history_load(void) {
     FILE *fp = fopen(history_path, "r");
     if (!fp) return;
 
+    // Save old HISTCONTROL
+    const char *old_histcontrol = getenv("HISTCONTROL");
+    char saved_histcontrol[256] = {0};
+    if (old_histcontrol) {
+        safe_strcpy(saved_histcontrol, old_histcontrol, sizeof(saved_histcontrol));
+    }
+
+    // Temporarily disable HISTCONTROL during load
+    unsetenv("HISTCONTROL");
+
     char line[HISTORY_MAX_LINE];
     while (fgets(line, sizeof(line), fp)) {
         line[HISTORY_MAX_LINE - 1] = '\0';
@@ -441,15 +458,9 @@ void history_load(void) {
             line[len - 1] = '\0';
         }
 
-        // Add to history (will apply HISTCONTROL rules)
-        // Temporarily disable duplicate checking during load to preserve file
-        const char *old_histcontrol = getenv("HISTCONTROL");
-        unsetenv("HISTCONTROL");
-
         if (line[0] != '\0') {
-            // Manual add to avoid filtering during load
+            // Check if we need to grow or wrap
             if (history_count_val >= history_size) {
-                // Need to grow or wrap
                 int histsize_limit = get_histsize();
                 if (histsize_limit == -1) {
                     // Grow
@@ -461,6 +472,9 @@ void history_load(void) {
                         }
                         history = new_history;
                         history_size = new_size;
+                    } else {
+                        // Can't grow, skip this entry
+                        continue;
                     }
                 } else {
                     // Wrap around
@@ -477,14 +491,15 @@ void history_load(void) {
                 history_count_val++;
             }
         }
-
-        // Restore HISTCONTROL
-        if (old_histcontrol) {
-            setenv("HISTCONTROL", old_histcontrol, 1);
-        }
     }
 
     fclose(fp);
+
+    // Restore HISTCONTROL
+    if (saved_histcontrol[0] != '\0') {
+        setenv("HISTCONTROL", saved_histcontrol, 1);
+    }
+
     history_reset_position();
 }
 

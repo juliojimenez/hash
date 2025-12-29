@@ -4,7 +4,10 @@
 #include <stdlib.h>
 
 void setUp(void) {
+    // Clear any existing history
     history_clear();
+    // Initialize fresh for each test
+    history_init();
 }
 
 void tearDown(void) {
