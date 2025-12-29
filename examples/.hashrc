@@ -37,19 +37,22 @@ set PS1='\w\g \e#>\e '
 # ENVIRONMENT VARIABLES
 # ============================================================================
 
+# Note: Variable expansion is now supported!
+# You can use $VAR and ${VAR} syntax
+
 # Set default editor
 export EDITOR=vim
 
 # Set your preferred pager
 export PAGER=less
 
-# Note: Tilde expansion is supported!
+# PATH manipulation now works!
+# export PATH=$HOME/bin:$PATH
+# (Uncomment if you have ~/bin directory)
+
+# Note: Tilde expansion is also supported
 # You can use ~ in aliases and commands
 # Example: alias docs='cd ~/Documents'
-
-# Note: Variable expansion ($VAR) is NOT yet supported
-# So you cannot do: export PATH=$HOME/bin:$PATH
-# Instead use literal paths or tilde: ~/bin
 
 # ============================================================================
 # ALIASES

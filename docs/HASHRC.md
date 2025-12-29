@@ -79,7 +79,27 @@ export VARIABLE='value with spaces'
 export VARIABLE="value with $substitution"
 ```
 
+**Variable Expansion:**
+
+Hash supports variable expansion. You can use `$VAR` and `${VAR}` syntax:
+
+```bash
+# Set a variable
+export MY_DIR=~/projects
+
+# Use it
+cd $MY_DIR
+
+# PATH manipulation  
+export PATH=$HOME/bin:$PATH
+
+# Concatenation (use braces)
+export PREFIX=test
+echo ${PREFIX}ing  # → testing
+```
+
 **Examples:**
+
 ```bash
 # Set default editor
 export EDITOR=vim
@@ -94,6 +114,8 @@ export LANG=en_US.UTF-8
 export MY_API_KEY=abc123
 ```
 
+See [VARIABLES.md](VARIABLES.md) for complete variable expansion documentation.
+
 ### Shell Options
 
 Configure shell behavior with `set`:
@@ -103,6 +125,7 @@ set option=value
 ```
 
 **Available options:**
+
 - `colors=on|off` - Enable or disable colored output
 - `welcome=on|off` - Show or hide welcome message
 - `PS1=<format>` - Set custom prompt format

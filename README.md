@@ -66,6 +66,8 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 
 - [.hashrc](./docs/HASHRC.md)
 - [.hashrc Quick Start](./docs/QUICK_START_HASHRC.md)
+- [Variable Expansion](./docs/VARIABLES.md)
+- [Variables Quick Reference](./docs/VARIABLES_QUICKREF.md)
 - [Line Editing](./docs/LINE_EDITING.md)
 - [Prompt Customization](./docs/PROMPT.md)
 - [PS1 Reference](./docs/PS1.md)
