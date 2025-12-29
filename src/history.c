@@ -73,7 +73,7 @@ static int should_ignore_space(void) {
     const char *histcontrol = getenv("HISTCONTROL");
     if (!histcontrol) return 1;  // Default: ignore space
 
-    return (strstr(histcontrol, "ignorespace") != NULL || 
+    return (strstr(histcontrol, "ignorespace") != NULL ||
             strstr(histcontrol, "ignoreboth") != NULL);
 }
 
@@ -81,7 +81,7 @@ static int should_ignore_dups(void) {
     const char *histcontrol = getenv("HISTCONTROL");
     if (!histcontrol) return 1;  // Default: ignore dups
 
-    return (strstr(histcontrol, "ignoredups") != NULL || 
+    return (strstr(histcontrol, "ignoredups") != NULL ||
             strstr(histcontrol, "ignoreboth") != NULL);
 }
 
