@@ -41,6 +41,7 @@ Hash shell includes a custom line editor with full cursor navigation and editing
 ### Insert Mode
 
 Hash uses **insert mode** (like bash):
+
 - Typing inserts characters at cursor position
 - Existing text shifts right
 - Can edit anywhere in the line
@@ -57,6 +58,7 @@ Type 'beautiful ' → hello beautiful world
 ### Line Refresh
 
 The line automatically redraws when:
+
 - Characters are inserted/deleted
 - Cursor moves
 - Line is modified
