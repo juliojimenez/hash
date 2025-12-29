@@ -34,25 +34,21 @@ char *varexpand_expand(const char *str, int last_exit_code) {
 
             const char *var_value = NULL;
             char var_name[256] = {0};
-            int is_special = 0;
 
             // Check for special variables
             if (*p == '?') {
                 // $? - exit code
                 snprintf(var_name, sizeof(var_name), "%d", last_exit_code);
                 var_value = var_name;
-                is_special = 1;
                 p++;
             } else if (*p == '$') {
                 // $$ - process ID
                 snprintf(var_name, sizeof(var_name), "%d", getpid());
                 var_value = var_name;
-                is_special = 1;
                 p++;
             } else if (*p == '0') {
                 // $0 - shell name
-                var_value = SHELL_NAME;
-                is_special = 1;
+                var_value = HASH_NAME;
                 p++;
             } else if (*p == '{') {
                 // ${VAR} syntax
