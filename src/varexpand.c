@@ -96,9 +96,14 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 size_t space = MAX_EXPANDED_LENGTH - 1 - out_pos;
                 size_t to_copy = (val_len < space) ? val_len : space;
 
-                if (to_copy > 0) {
+                if (to_copy > 0 && out_pos + to_copy <= MAX_EXPANDED_LENGTH) {
                     memcpy(result + out_pos, var_value, to_copy);
                     out_pos += to_copy;
+                } else if (out_pos < MAX_EXPANDED_LENGTH) {
+                    // Copy as much as possible within the buffer limits
+                    size_t available_space = MAX_EXPANDED_LENGTH - out_pos;
+                    memcpy(result + out_pos, var_value, available_space);
+                    out_pos += available_space;
                 }
             }
             // If variable doesn't exist, it expands to empty string (like bash)
