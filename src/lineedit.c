@@ -9,6 +9,7 @@
 #include "lineedit.h"
 #include "hash.h"
 #include "safe_string.h"
+#include "history.h"
 
 #define MAX_LINE_LENGTH 4096
 
@@ -309,6 +310,42 @@ char *lineedit_read_line(const char *prompt) {
                     pos--;
                     ret = write(STDOUT_FILENO, "\x1b[D", 3);
                     (void)ret;
+                }
+                break;
+
+            case 'A' + 256:  // Up arrow - previous history
+                {
+                    const char *prev = history_prev();
+                    if (prev) {
+                        // Clear current line and load history entry
+                        len = 0;
+                        pos = 0;
+                        safe_strcpy(buf, prev, sizeof(buf));
+                        len = safe_strlen(buf, sizeof(buf));
+                        pos = len;
+                        refresh_line(buf, len, pos, prompt_str);
+                    }
+                }
+                break;
+
+            case 'B' + 256:  // Down arrow - next history
+                {
+                    const char *next = history_next();
+                    if (next) {
+                        // Load next history entry
+                        len = 0;
+                        pos = 0;
+                        safe_strcpy(buf, next, sizeof(buf));
+                        len = safe_strlen(buf, sizeof(buf));
+                        pos = len;
+                        refresh_line(buf, len, pos, prompt_str);
+                    } else {
+                        // At end of history, clear line
+                        len = 0;
+                        pos = 0;
+                        buf[0] = '\0';
+                        refresh_line(buf, len, pos, prompt_str);
+                    }
                 }
                 break;
 

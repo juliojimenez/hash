@@ -9,6 +9,7 @@
 #include "colors.h"
 #include "config.h"
 #include "execute.h"
+#include "history.h"
 
 extern int last_command_exit_code;
 
@@ -19,6 +20,7 @@ static char *builtin_str[] = {
     "unalias",
     "source",
     "export",
+    "history"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -27,7 +29,8 @@ static int (*builtin_func[])(char **) = {
     &shell_alias,
     &shell_unalias,
     &shell_source,
-    &shell_export
+    &shell_export,
+    &shell_history
 };
 
 static int num_builtins(void) {
@@ -202,6 +205,46 @@ int shell_export(char **args) {
         }
     }
 
+    return 1;
+}
+
+// Built-in: history
+int shell_history(char **args) {
+    // Handle flags
+    if (args[1] != NULL) {
+        if (strcmp(args[1], "-c") == 0) {
+            // Clear history
+            history_clear();
+            color_success("History cleared");
+            last_command_exit_code = 0;
+            return 1;
+        } else if (strcmp(args[1], "-w") == 0) {
+            // Write/save history
+            history_save();
+            color_success("History saved");
+            last_command_exit_code = 0;
+            return 1;
+        } else if (strcmp(args[1], "-r") == 0) {
+            // Read/reload history
+            history_clear();
+            history_load();
+            color_success("History reloaded");
+            last_command_exit_code = 0;
+            return 1;
+        }
+    }
+
+    // List history with line numbers
+    int count = history_count();
+    for (int i = 0; i < count; i++) {
+        const char *cmd = history_get(i);
+        if (cmd) {
+            color_print(COLOR_CYAN, "%5d", i);
+            printf("  %s\n", cmd);
+        }
+    }
+
+    last_command_exit_code = 0;
     return 1;
 }
 

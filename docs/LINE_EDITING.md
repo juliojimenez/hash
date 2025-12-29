@@ -10,6 +10,8 @@ Hash shell includes a custom line editor with full cursor navigation and editing
 |-----|--------|
 | **←** (Left Arrow) | Move cursor left one character |
 | **→** (Right Arrow) | Move cursor right one character |
+| **↑** (Up Arrow) | Previous command in history |
+| **↓** (Down Arrow) | Next command in history |
 | **Ctrl+A** | Move to beginning of line |
 | **Ctrl+E** | Move to end of line |
 | **Home** | Move to beginning of line |
@@ -136,6 +138,7 @@ If raw mode fails (non-TTY, pipe, etc.):
 ### Supported (Same as Bash)
 
 - ✅ Arrow key navigation
+- ✅ Up/Down arrows (command history)
 - ✅ Ctrl+A, Ctrl+E
 - ✅ Ctrl+U, Ctrl+K, Ctrl+W
 - ✅ Ctrl+L (clear screen)
@@ -147,7 +150,6 @@ If raw mode fails (non-TTY, pipe, etc.):
 
 ### Not Yet Supported
 
-- ❌ Up/Down arrows (command history)
 - ❌ Ctrl+R (reverse search)
 - ❌ Tab completion
 - ❌ Ctrl+T (transpose characters)
@@ -160,10 +162,6 @@ If raw mode fails (non-TTY, pipe, etc.):
 **Tab:**
 - Bash: Tab completion
 - Hash: Inserts 4 spaces
-
-**History:**
-- Bash: Up/Down arrows navigate history
-- Hash: Not yet implemented
 
 ## Tips & Tricks
 

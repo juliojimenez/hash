@@ -13,6 +13,7 @@ void lineedit_init(void);
  * Read a line with full editing capabilities
  * Supports:
  * - Left/Right arrows - cursor movement
+ * - Up/Down arrows - command history navigation
  * - Ctrl+A - beginning of line
  * - Ctrl+E - end of line
  * - Ctrl+U - delete to beginning

@@ -19,6 +19,9 @@ int shell_source(char **args);
 // Built-in command: export environment variable
 int shell_export(char **args);
 
+// Built-in command: show command history
+int shell_history(char **args);
+
 // Check if command is a built-in and execute it
 // Returns -1 if not a built-in, otherwise returns the result
 int try_builtin(char **args);
