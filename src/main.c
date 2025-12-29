@@ -35,7 +35,6 @@ static void loop(void) {
 
     do {
         char *prompt_str = prompt_generate(last_exit_code);
-        printf("%s", prompt_str);
 
         line = read_line(prompt_str);
 

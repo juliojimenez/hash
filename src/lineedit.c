@@ -230,15 +230,11 @@ char *lineedit_read_line(const char *prompt) {
         return line;
     }
 
-    // Ensure we're at column 0 before displaying prompt
-    // This prevents prompt doubling if previous output didn't end with newline
-    ret = write(STDOUT_FILENO, "\r\x1b[K", 4);
-    (void)ret;
-
     // Display prompt after entering raw mode
     if (prompt) {
         ret = write(STDOUT_FILENO, prompt, safe_strlen(prompt, 2048));
         (void)ret;
+        fflush(stdout);
     }
 
     const char *prompt_str = prompt ? prompt : "";
