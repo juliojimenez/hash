@@ -65,14 +65,16 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 ## See Also
 
 - [.hashrc](./docs/HASHRC.md)
-- [.hashrc Quick Start](./docs/QUICK_START_HASHRC.md)
+  - [.hashrc Quick Start](./docs/QUICK_START_HASHRC.md)
 - [Variable Expansion](./docs/VARIABLES.md)
-- [Variables Quick Reference](./docs/VARIABLES_QUICKREF.md)
+  - [Variables Quick Reference](./docs/VARIABLES_QUICKREF.md)
 - [Line Editing](./docs/LINE_EDITING.md)
 - [Prompt Customization](./docs/PROMPT.md)
-- [PS1 Reference](./docs/PS1.md)
+  - [PS1 Reference](./docs/PS1.md)
 - [Command Chaining](./docs/COMMAND_CHAINING.md)
 - [Tilde Expansion](./docs/EXPANSION.md)
+- [Command History](./docs/HISTORY.md)
+  - [HISTCONTROL](./docs/HISTCONTROL.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 

@@ -12,6 +12,22 @@ set colors=on
 set welcome=on
 
 # ============================================================================
+# HISTORY CONFIGURATION
+# ============================================================================
+
+# Number of commands to keep in memory (default: 1000, -1 = unlimited)
+export HISTSIZE=10000
+
+# Number of commands to keep in history file (default: 2000, -1 = unlimited)
+export HISTFILESIZE=20000
+
+# History control (ignorespace, ignoredups, ignoreboth, erasedups)
+export HISTCONTROL=ignoreboth
+
+# Custom history file location (optional)
+# export HISTFILE=~/.my_custom_history
+
+# ============================================================================
 # PROMPT CUSTOMIZATION
 # ============================================================================
 
