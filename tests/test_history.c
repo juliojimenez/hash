@@ -4,14 +4,29 @@
 #include <stdlib.h>
 
 void setUp(void) {
-    // Clear any existing history
-    history_clear();
-    // Initialize fresh for each test
+    // Use a non-existent file for tests to avoid loading user's actual history
+    setenv("HISTFILE", "/tmp/hash_test_history_nonexistent_12345", 1);
+    setenv("HISTSIZE", "100", 1);
+    setenv("HISTFILESIZE", "200", 1);
+
+    // Clear HISTCONTROL so tests use default behavior
+    unsetenv("HISTCONTROL");
+
+    // Initialize history (won't load anything since file doesn't exist)
     history_init();
 }
 
 void tearDown(void) {
     history_clear();
+
+    // Clean up test file if it was created
+    unlink("/tmp/hash_test_history_nonexistent_12345");
+
+    // Restore defaults
+    unsetenv("HISTFILE");
+    unsetenv("HISTSIZE");
+    unsetenv("HISTFILESIZE");
+    unsetenv("HISTCONTROL");
 }
 
 // Test adding commands to history
