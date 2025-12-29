@@ -201,7 +201,7 @@ char *lineedit_read_line(const char *prompt) {
 
     // Display initial prompt
     if (prompt) {
-        ret = write(STDOUT_FILENO, prompt, strlen(prompt));
+        ret = write(STDOUT_FILENO, prompt, safe_strlen(prompt, 2048));
         (void)ret;
     }
 
@@ -235,10 +235,19 @@ char *lineedit_read_line(const char *prompt) {
 
         switch (c) {
             case KEY_ENTER:
-                // Submit line
                 disable_raw_mode();
+
+                // Ensure we're at the end of the line visually
+                while (pos < len) {
+                    ret = write(STDOUT_FILENO, "\x1b[C", 3);
+                    (void)ret;
+                    pos++;
+                }
+
+                // Write newline and flush
                 ret = write(STDOUT_FILENO, "\n", 1);
                 (void)ret;
+                fflush(stdout);
 
                 char *result = malloc(len + 1);
                 if (result) {
