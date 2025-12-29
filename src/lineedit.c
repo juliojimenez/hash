@@ -195,21 +195,25 @@ void lineedit_cleanup(void) {
 // Read a line with editing capabilities
 char *lineedit_read_line(const char *prompt) {
     static char buf[MAX_LINE_LENGTH];
-    size_t len = 0;      // Length of current line
-    size_t pos = 0;      // Cursor position
+    size_t len = 0;
+    size_t pos = 0;
     ssize_t ret;
 
-    // Display initial prompt
-    if (prompt) {
-        ret = write(STDOUT_FILENO, prompt, safe_strlen(prompt, 2048));
-        (void)ret;
-    }
+    // Clear buffer and state
+    memset(buf, 0, sizeof(buf));
+    len = 0;
+    pos = 0;
 
-    // Enable raw mode
+    // Enable raw mode first
     if (enable_raw_mode() == -1) {
-        // Fallback to simple getline if raw mode fails
+        // Fallback to simple getline
         char *line = NULL;
         size_t bufsize = 0;
+
+        if (prompt) {
+            printf("%s", prompt);
+            fflush(stdout);
+        }
 
         if (getline(&line, &bufsize, stdin) == -1) {
             if (feof(stdin)) {
@@ -223,8 +227,16 @@ char *lineedit_read_line(const char *prompt) {
         return line;
     }
 
-    // Clear buffer
-    memset(buf, 0, sizeof(buf));
+    // Ensure we're at column 0 before displaying prompt
+    // This prevents prompt doubling if previous output didn't end with newline
+    ret = write(STDOUT_FILENO, "\r\x1b[K", 4);
+    (void)ret;
+
+    // Display prompt after entering raw mode
+    if (prompt) {
+        ret = write(STDOUT_FILENO, prompt, safe_strlen(prompt, 2048));
+        (void)ret;
+    }
 
     const char *prompt_str = prompt ? prompt : "";
 
@@ -257,7 +269,6 @@ char *lineedit_read_line(const char *prompt) {
                 return result;
 
             case KEY_CTRL_D:
-                // EOF - exit if line is empty
                 if (len == 0) {
                     disable_raw_mode();
                     return NULL;
@@ -277,7 +288,6 @@ char *lineedit_read_line(const char *prompt) {
 
             case KEY_BACKSPACE:
             case KEY_CTRL_H:
-                // Delete character before cursor
                 if (pos > 0) {
                     memmove(buf + pos - 1, buf + pos, len - pos);
                     pos--;
@@ -303,7 +313,7 @@ char *lineedit_read_line(const char *prompt) {
                 }
                 break;
 
-            case KEY_CTRL_A:  // Beginning of line
+            case KEY_CTRL_A:  // Beginning
                 while (pos > 0) {
                     pos--;
                     ret = write(STDOUT_FILENO, "\x1b[D", 3);
@@ -311,7 +321,7 @@ char *lineedit_read_line(const char *prompt) {
                 }
                 break;
 
-            case KEY_CTRL_E:  // End of line
+            case KEY_CTRL_E:  // End
                 while (pos < len) {
                     pos++;
                     ret = write(STDOUT_FILENO, "\x1b[C", 3);
@@ -319,7 +329,7 @@ char *lineedit_read_line(const char *prompt) {
                 }
                 break;
 
-            case KEY_CTRL_U:  // Delete from cursor to beginning
+            case KEY_CTRL_U:  // Delete to beginning
                 if (pos > 0) {
                     memmove(buf, buf + pos, len - pos);
                     len -= pos;
@@ -329,7 +339,7 @@ char *lineedit_read_line(const char *prompt) {
                 }
                 break;
 
-            case KEY_CTRL_K:  // Delete from cursor to end
+            case KEY_CTRL_K:  // Delete to end
                 len = pos;
                 buf[len] = '\0';
                 refresh_line(buf, len, pos, prompt_str);
@@ -339,17 +349,14 @@ char *lineedit_read_line(const char *prompt) {
                 if (pos > 0) {
                     size_t old_pos = pos;
 
-                    // Skip trailing whitespace
                     while (pos > 0 && isspace(buf[pos - 1])) {
                         pos--;
                     }
 
-                    // Delete word
                     while (pos > 0 && !isspace(buf[pos - 1])) {
                         pos--;
                     }
 
-                    // Remove deleted chars
                     memmove(buf + pos, buf + old_pos, len - old_pos);
                     len -= (old_pos - pos);
                     buf[len] = '\0';
@@ -364,8 +371,7 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case KEY_TAB:
-                // Insert 4 spaces instead of tab
-                if (len < MAX_LINE_LENGTH - 1) {
+                if (len < MAX_LINE_LENGTH - 4) {
                     const char *spaces = "    ";
                     size_t spaces_len = 4;
 
@@ -381,20 +387,16 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             default:
-                // Regular character
                 if (c >= 32 && c < 127 && len < MAX_LINE_LENGTH - 1) {
-                    // Insert character at cursor position
                     memmove(buf + pos + 1, buf + pos, len - pos);
                     buf[pos] = c;
                     pos++;
                     len++;
                     buf[len] = '\0';
 
-                    // Redraw line if we're not at the end
                     if (pos < len) {
                         refresh_line(buf, len, pos, prompt_str);
                     } else {
-                        // Just write the character (optimization)
                         ret = write(STDOUT_FILENO, &c, 1);
                         (void)ret;
                     }
