@@ -194,6 +194,19 @@ unalias ll
 unalias gs
 ```
 
+### export
+
+Set environment variables:
+
+```bash
+# Set variable
+export VAR=value
+export PATH=$HOME/bin:$PATH
+
+# List all environment variables
+export
+```
+
 ### cd
 
 Change directory:

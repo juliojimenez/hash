@@ -17,7 +17,8 @@ static char *builtin_str[] = {
     "exit",
     "alias",
     "unalias",
-    "source"
+    "source",
+    "export",
 };
 
 static int (*builtin_func[])(char **) = {
@@ -25,7 +26,8 @@ static int (*builtin_func[])(char **) = {
     &shell_exit,
     &shell_alias,
     &shell_unalias,
-    &shell_source
+    &shell_source,
+    &shell_export
 };
 
 static int num_builtins(void) {
@@ -163,6 +165,45 @@ int shell_source(char **args) {
     return 1;
 }
 
+// Built-in: export
+int shell_export(char **args) {
+    if (args[1] == NULL) {
+        // No arguments - list all environment variables
+        extern char **environ;
+        for (char **env = environ; *env != NULL; env++) {
+            printf("%s\n", *env);
+        }
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Process each argument (VAR=value)
+    for (int i = 1; args[i] != NULL; i++) {
+        char *equals = strchr(args[i], '=');
+        if (!equals) {
+            // No = sign, just export existing variable (mark for export)
+            // For now, we'll just report it's not supported
+            color_warning("%s: export without assignment not yet supported: %s", HASH_NAME, args[i]);
+            last_command_exit_code = 1;
+            continue;
+        }
+
+        // Split into name=value
+        *equals = '\0';
+        char *name = args[i];
+        char *value = equals + 1;
+
+        // Set the environment variable
+        if (setenv(name, value, 1) == 0) {
+            last_command_exit_code = 0;
+        } else {
+            perror(HASH_NAME);
+            last_command_exit_code = 1;
+        }
+    }
+
+    return 1;
+}
 
 // Check if command is a built-in and execute it
 int try_builtin(char **args) {
