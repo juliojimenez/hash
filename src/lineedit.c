@@ -260,7 +260,7 @@ char *lineedit_read_line(const char *prompt) {
                 }
 
                 // Write newline and flush
-                ret = write(STDOUT_FILENO, "\n", 1);
+                ret = write(STDOUT_FILENO, "\r\n", 2);
                 (void)ret;
                 fflush(stdout);
 
