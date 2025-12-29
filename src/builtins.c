@@ -190,8 +190,8 @@ int shell_export(char **args) {
 
         // Split into name=value
         *equals = '\0';
-        char *name = args[i];
-        char *value = equals + 1;
+        const char *name = args[i];
+        const char *value = equals + 1;
 
         // Set the environment variable
         if (setenv(name, value, 1) == 0) {
