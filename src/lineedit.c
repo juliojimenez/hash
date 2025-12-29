@@ -105,6 +105,7 @@ static int read_key(void) {
                         case '1': return KEY_CTRL_A;  // Home
                         case '3': return KEY_BACKSPACE;  // Delete
                         case '4': return KEY_CTRL_E;  // End
+                        default: break;
                     }
                 }
             } else {
@@ -116,6 +117,7 @@ static int read_key(void) {
                     case 'D': return 'D' + 256;  // Left arrow
                     case 'H': return KEY_CTRL_A;  // Home
                     case 'F': return KEY_CTRL_E;  // End
+                    default: break;
                 }
             }
         } else if (seq[0] == 'O') {
@@ -123,6 +125,7 @@ static int read_key(void) {
             switch (seq[1]) {
                 case 'H': return KEY_CTRL_A;  // Home
                 case 'F': return KEY_CTRL_E;  // End
+                default: break;
             }
         }
 
