@@ -34,7 +34,7 @@ static void loop(void) {
     int last_exit_code = 0;
 
     do {
-        char *prompt_str = prompt_generate(last_exit_code);
+        const char *prompt_str = prompt_generate(last_exit_code);
 
         line = read_line(prompt_str);
 
