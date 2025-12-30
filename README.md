@@ -75,6 +75,8 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Tilde Expansion](./docs/EXPANSION.md)
 - [Command History](./docs/HISTORY.md)
   - [HISTCONTROL](./docs/HISTCONTROL.md)
+- [Tab Completion](./docs/TAB_COMPLETION.md)
+  - [Tab Completion Quick Reference](./docs/COMPLETION_QUICKREF.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 
