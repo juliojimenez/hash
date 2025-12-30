@@ -39,9 +39,21 @@ static void loop(void) {
 
         line = read_line(prompt_str);
 
+        history_reset_position();
+
+        // Expand history references
+        char *expanded = history_expand(line);
+        if (expanded) {
+            printf("%s\n", expanded);
+            free(line);
+            line = expanded;
+        }
+
         CommandChain *chain = chain_parse(line);
 
         if (chain) {
+            history_add(line);
+
             // Execute the chain
             status = chain_execute(chain);
 

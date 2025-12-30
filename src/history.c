@@ -225,6 +225,7 @@ void history_add(const char *line) {
 
     // Save immediately to file
     history_save();
+    fprintf(stderr, "DEBUG: History count: %d\n", history_count_val);
 }
 
 // Get history entry
@@ -423,9 +424,10 @@ void history_save(void) {
         const char *cmd = history_get(i);
         if (cmd) {
             fprintf(fp, "%s\n", cmd);
+            fprintf(stderr, "DEBUG: Tried to save to: %s\n", history_path);
         }
     }
-
+    fflush(fp);
     fclose(fp);
 }
 
