@@ -71,6 +71,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Line Editing](./docs/LINE_EDITING.md)
 - [Prompt Customization](./docs/PROMPT.md)
   - [PS1 Reference](./docs/PS1.md)
+- [Pipes](./docs/PIPES.md)
 - [Command Chaining](./docs/COMMAND_CHAINING.md)
 - [Tilde Expansion](./docs/EXPANSION.md)
 - [Command History](./docs/HISTORY.md)
