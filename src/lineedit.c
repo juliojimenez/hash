@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <ctype.h>
+#include <sys/ioctl.h>
 #include "lineedit.h"
 #include "hash.h"
 #include "safe_string.h"
@@ -135,6 +136,15 @@ static int read_key(void) {
     }
 
     return c;
+}
+
+// Get terminal width
+static int get_terminal_width(void) {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1) {
+        return 80;  // Default fallback
+    }
+    return ws.ws_col;
 }
 
 // Calculate visible length of prompt (excluding ANSI escape sequences)
@@ -464,20 +474,43 @@ char *lineedit_read_line(const char *prompt) {
                                 ret = write(STDOUT_FILENO, "\r\n", 2);
                                 (void)ret;
 
+                                // Calculate column layout
+                                int term_width = get_terminal_width();
+                                size_t max_len = 0;
+
+                                // Find longest match
+                                for (int i = 0; i < comp->count; i++) {
+                                    size_t len = strlen(comp->matches[i]);
+                                    if (len > max_len) max_len = len;
+                                }
+
+                                // Add 2 spaces padding between columns
+                                size_t col_width = max_len + 2;
+                                int cols_per_row = term_width / col_width;
+                                if (cols_per_row < 1) cols_per_row = 1;
+
                                 // Display matches in columns
                                 for (int i = 0; i < comp->count; i++) {
                                     ret = write(STDOUT_FILENO, comp->matches[i], strlen(comp->matches[i]));
                                     (void)ret;
-                                    ret = write(STDOUT_FILENO, "  ", 2);
-                                    (void)ret;
 
-                                    if ((i + 1) % 4 == 0) {
+                                    // Add padding to align columns
+                                    size_t match_len = strlen(comp->matches[i]);
+                                    if ((i + 1) % cols_per_row != 0 && i < comp->count - 1) {
+                                        // Not end of row, add padding
+                                        for (size_t pad = 0; pad < col_width - match_len; pad++) {
+                                            ret = write(STDOUT_FILENO, " ", 1);
+                                            (void)ret;
+                                        }
+                                    } else {
+                                        // End of row or last item
                                         ret = write(STDOUT_FILENO, "\r\n", 2);
                                         (void)ret;
                                     }
                                 }
 
-                                if (comp->count % 4 != 0) {
+                                // Ensure we end with newline
+                                if (comp->count % cols_per_row != 0) {
                                     ret = write(STDOUT_FILENO, "\r\n", 2);
                                     (void)ret;
                                 }
