@@ -32,7 +32,7 @@ Hash shell includes a custom line editor with full cursor navigation and editing
 
 | Key | Action |
 |-----|--------|
-| **Tab** | Insert 4 spaces |
+| **Tab** | Auto-complete commands, files, directories |
 | **Ctrl+L** | Clear screen |
 | **Ctrl+C** | Cancel current line (start fresh) |
 | **Ctrl+D** | EOF (exit shell if line is empty) |
@@ -70,6 +70,7 @@ This prevents the TAB+backspace prompt corruption issue!
 ### Safe Backspace
 
 Backspace is **bounded**:
+
 - Won't delete past the beginning of input
 - Won't corrupt the prompt
 - Properly handles multi-byte movements
@@ -77,6 +78,7 @@ Backspace is **bounded**:
 ### Ctrl+C Handling
 
 Press Ctrl+C to cancel current input:
+
 ```
 #> some long command that I don't want^C
 #> 
@@ -88,12 +90,30 @@ Press Ctrl+C to cancel current input:
 - **On empty line**: Exits the shell (like bash)
 - **On non-empty line**: Does nothing
 
-### Tab Handling
+### Tab Completion
 
-Tab inserts **4 spaces** instead of a tab character:
-- Prevents alignment issues
-- Consistent with modern editors
-- Can be changed if needed
+Press **Tab** to auto-complete:
+
+**Single match:**
+```bash
+#> ec
+#> echo |  # Completed with space
+```
+
+**Multiple matches - first TAB:**
+```bash
+#> cat te
+#> cat test  # Common prefix
+```
+
+**Multiple matches - second TAB:**
+```bash
+#> cat test
+test.txt  test.md  testing.log
+#> cat test  # Line redisplayed
+```
+
+See [Tab Completion](TAB_COMPLETION.md) for complete details.
 
 ## Technical Details
 
@@ -118,6 +138,7 @@ Arrow keys send escape sequences:
 ### Line Redrawing
 
 After edits, the line is redrawn using:
+
 ```
 \r         - Move to beginning
 \x1b[K     - Clear to end of line
@@ -129,6 +150,7 @@ After edits, the line is redrawn using:
 ### Fallback Mode
 
 If raw mode fails (non-TTY, pipe, etc.):
+
 - Falls back to simple `getline()`
 - No line editing
 - Still works for scripts and pipes
@@ -151,17 +173,10 @@ If raw mode fails (non-TTY, pipe, etc.):
 ### Not Yet Supported
 
 - ❌ Ctrl+R (reverse search)
-- ❌ Tab completion
 - ❌ Ctrl+T (transpose characters)
 - ❌ Alt key bindings
 - ❌ Vi mode
 - ❌ Custom key bindings
-
-### Different Behavior
-
-**Tab:**
-- Bash: Tab completion
-- Hash: Inserts 4 spaces
 
 ## Tips & Tricks
 
@@ -206,17 +221,20 @@ If raw mode fails (non-TTY, pipe, etc.):
 ### Keys Not Working
 
 **Check terminal type:**
+
 ```bash
 echo $TERM
 # Should be xterm, xterm-256color, screen, etc.
 ```
 
 **If using tmux/screen:**
+
 Most key bindings should work, but some terminals may send different sequences.
 
 ### Backspace Deletes Wrong Character
 
 Different terminals send different codes for backspace:
+
 - Most send `127` (DEL)
 - Some send `8` (Ctrl+H)
 - Hash handles both!
@@ -224,18 +242,21 @@ Different terminals send different codes for backspace:
 ### Arrow Keys Print Escape Sequences
 
 Your terminal isn't sending proper escape sequences. Try:
+
 - Setting `TERM=xterm-256color`
 - Using a modern terminal emulator
 
 ### Tab Inserts Literal Tab
 
 Hash intentionally inserts spaces instead of tab. If you need a literal tab:
+
 - Use Ctrl+V then Tab (future feature)
 - Or type `\t` in quotes
 
 ## Performance
 
 Line editing is **very fast**:
+
 - Minimal redrawing
 - Optimized for append (most common case)
 - Only full refresh when necessary

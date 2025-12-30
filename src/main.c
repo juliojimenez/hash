@@ -20,6 +20,7 @@ Julio Jimenez, julio@julioj.com
 #include "chain.h"
 #include "lineedit.h"
 #include "history.h"
+#include "completion.h"
 
 // Signal handler for cleanup
 static void signal_handler(int sig) {
@@ -90,6 +91,9 @@ int main(/*int argc, char **argv*/) {
 
     // Initialize history (loads from ~/.hash_history)
     history_init();
+
+    // Initialize tab completion
+    completion_init();
 
     // Load .hashrc if it exists
     config_load_default();
