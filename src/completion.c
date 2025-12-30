@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+√√√√#define _POSIX_C_SOURCE 200809L
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,7 +192,7 @@ static void complete_files(CompletionResult *result, const char *prefix) {
         // Check if name matches prefix
         if (strncmp(entry->d_name, filename_prefix, prefix_len) == 0) {
             // Calculate required buffer size
-            size_t dir_len = strlen(dir_path);
+            size_t dir_len = safe_strlen(dir_path, sizeof(dir_path));
             size_t name_len = strlen(entry->d_name);
             size_t required_size = dir_len + 1 + name_len + 1;  // dir + / + name + \0
 
