@@ -226,7 +226,7 @@ static void complete_files(CompletionResult *result, const char *prefix) {
             } else {
                 // Manually build to avoid warning
                 safe_strcpy(check_path, dir_path, sizeof(check_path));
-                size_t written = strlen(check_path);
+                size_t written = safe_strlen(check_path, sizeof(check_path));
 
                 if (written + 1 + name_len < sizeof(check_path)) {
                     check_path[written++] = '/';
