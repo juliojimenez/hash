@@ -28,7 +28,7 @@ Pipeline *pipeline_parse(char *line);
  * @param pipeline Pipeline to execute
  * @return Exit code of last command in pipeline
  */
-int pipeline_execute(Pipeline *pipeline);
+int pipeline_execute(const Pipeline *pipeline);
 
 /**
  * Free a pipeline structure
