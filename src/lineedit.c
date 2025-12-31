@@ -566,7 +566,7 @@ char *lineedit_read_line(const char *prompt) {
                 last_was_tab = 0;
                 if (c >= 32 && c < 127 && len < MAX_LINE_LENGTH - 1) {
                     memmove(buf + pos + 1, buf + pos, len - pos);
-                    buf[pos] = c;
+                    buf[pos] = (char)c;
                     pos++;
                     len++;
                     buf[len] = '\0';
