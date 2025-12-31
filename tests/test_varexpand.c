@@ -2,6 +2,7 @@
 #include "../src/varexpand.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 void setUp(void) {
 }
