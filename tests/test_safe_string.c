@@ -109,6 +109,41 @@ void test_safe_strcmp_limited(void) {
     TEST_ASSERT_EQUAL_INT(0, result);  // First 3 chars match
 }
 
+// Test safe_trim basic
+void test_safe_trim_basic(void) {
+    char str[] = "  hello world  ";
+    safe_trim(str);
+    TEST_ASSERT_EQUAL_STRING("hello world", str);
+}
+
+// Test safe_trim leading only
+void test_safe_trim_leading(void) {
+    char str[] = "  hello";
+    safe_trim(str);
+    TEST_ASSERT_EQUAL_STRING("hello", str);
+}
+
+// Test safe_trim trailing only
+void test_safe_trim_trailing(void) {
+    char str[] = "hello  ";
+    safe_trim(str);
+    TEST_ASSERT_EQUAL_STRING("hello", str);
+}
+
+// Test safe_trim all whitespace
+void test_safe_trim_all_whitespace(void) {
+    char str[] = "   \t  ";
+    safe_trim(str);
+    TEST_ASSERT_EQUAL_STRING("", str);
+}
+
+// Test safe_trim no whitespace
+void test_safe_trim_none(void) {
+    char str[] = "hello";
+    safe_trim(str);
+    TEST_ASSERT_EQUAL_STRING("hello", str);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -125,6 +160,11 @@ int main(void) {
     RUN_TEST(test_safe_strcmp_equal);
     RUN_TEST(test_safe_strcmp_different);
     RUN_TEST(test_safe_strcmp_limited);
+    RUN_TEST(test_safe_trim_basic);
+    RUN_TEST(test_safe_trim_leading);
+    RUN_TEST(test_safe_trim_trailing);
+    RUN_TEST(test_safe_trim_all_whitespace);
+    RUN_TEST(test_safe_trim_none);
 
     return UNITY_END();
 }

@@ -41,34 +41,6 @@ static int pipeline_add(Pipeline *pipeline, const char *cmd_line) {
     return 0;
 }
 
-// Trim whitespace from both ends (in-place)
-static void trim_whitespace_pipe(char *str) {
-    if (!str || *str == '\0') return;
-
-    // Trim leading
-    char *start = str;
-    while (*start && isspace(*start)) {
-        start++;
-    }
-
-    if (*start == '\0') {
-        *str = '\0';
-        return;
-    }
-
-    // Trim trailing
-    char *end = start + strlen(start) - 1;
-    while (end > start && isspace(*end)) {
-        end--;
-    }
-    end[1] = '\0';
-
-    // Move to beginning if needed
-    if (start != str) {
-        memmove(str, start, end - start + 2);
-    }
-}
-
 // Parse command line into pipeline
 Pipeline *pipeline_parse(char *line) {
     if (!line) return NULL;
@@ -115,7 +87,7 @@ Pipeline *pipeline_parse(char *line) {
             *current = '\0';
 
             // Trim and add command
-            trim_whitespace_pipe(cmd_start);
+            safe_trim(cmd_start);
             if (*cmd_start != '\0') {
                 if (pipeline_add(pipeline, cmd_start) != 0) {
                     pipeline_free(pipeline);
@@ -133,7 +105,7 @@ Pipeline *pipeline_parse(char *line) {
     }
 
     // Add final command
-    trim_whitespace_pipe(cmd_start);
+    safe_trim(cmd_start);
     if (*cmd_start != '\0') {
         if (pipeline_add(pipeline, cmd_start) != 0) {
             pipeline_free(pipeline);

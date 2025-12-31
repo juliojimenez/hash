@@ -1,5 +1,6 @@
 #include "safe_string.h"
 #include <string.h>
+#include <ctype.h>
 
 // Safe string copy - always null-terminates
 size_t safe_strcpy(char *dst, const char *src, size_t size) {
@@ -90,4 +91,32 @@ int safe_strcmp(const char *s1, const char *s2, size_t maxlen) {
 
     // Reached maxlen without difference
     return 0;
+}
+
+// Trim whitespace from both ends (in-place)
+void safe_trim(char *str) {
+    if (!str || *str == '\0') return;
+
+    // Trim leading whitespace
+    char *start = str;
+    while (*start && isspace(*start)) {
+        start++;
+    }
+
+    if (*start == '\0') {
+        *str = '\0';
+        return;
+    }
+
+    // Trim trailing whitespace
+    char *end = start + strlen(start) - 1;
+    while (end > start && isspace(*end)) {
+        end--;
+    }
+    end[1] = '\0';
+
+    // Move trimmed content to beginning if needed
+    if (start != str) {
+        memmove(str, start, end - start + 2);  // +2 for char and null
+    }
 }

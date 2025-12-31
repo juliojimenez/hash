@@ -11,35 +11,6 @@
 
 #define INITIAL_CHAIN_CAPACITY 8
 
-// Trim whitespace from both ends of a string (in-place)
-static void trim_whitespace(char *str) {
-    if (!str || *str == '\0') return;
-
-    // Trim leading whitespace
-    char *start = str;
-    while (*start && isspace(*start)) {
-        start++;
-    }
-
-    // If entire string was whitespace
-    if (*start == '\0') {
-        *str = '\0';
-        return;
-    }
-
-    // Trim trailing whitespace
-    char *end = start + strlen(start) - 1;
-    while (end > start && isspace(*end)) {
-        end--;
-    }
-    end[1] = '\0';
-
-    // Move trimmed content to beginning if needed
-    if (start != str) {
-        memmove(str, start, end - start + 2);  // +2 for char and null
-    }
-}
-
 // Create a new command chain
 static CommandChain *chain_create(void) {
     CommandChain *chain = malloc(sizeof(CommandChain));
@@ -136,7 +107,7 @@ CommandChain *chain_parse(char *line) {
                 *current = '\0';
 
                 // Trim whitespace from command
-                trim_whitespace(cmd_start);
+                safe_trim(cmd_start);
 
                 // Add command to chain if not empty
                 if (*cmd_start != '\0') {
@@ -157,7 +128,7 @@ CommandChain *chain_parse(char *line) {
     }
 
     // Add final command
-    trim_whitespace(cmd_start);
+    safe_trim(cmd_start);
 
     if (*cmd_start != '\0') {
         if (chain_add(chain, cmd_start, CHAIN_NONE) != 0) {
