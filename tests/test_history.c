@@ -2,6 +2,7 @@
 #include "../src/history.h"
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 void setUp(void) {
     // Use a non-existent file for tests to avoid loading user's actual history
