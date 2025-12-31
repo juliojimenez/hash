@@ -147,7 +147,7 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
         }
 
         closedir(dp);
-        dir = strtok(NULL, ":");
+        dir = strtok(NULL, ":", &saveptr);
     }
 
     free(path_copy);
