@@ -151,7 +151,7 @@ Pipeline *pipeline_parse(char *line) {
 }
 
 // Execute a pipeline
-int pipeline_execute(Pipeline *pipeline) {
+int pipeline_execute(const Pipeline *pipeline) {
     if (!pipeline || pipeline->count == 0) return -1;
     if (pipeline->count == 1) return -1;  // Single command, shouldn't be here
 
