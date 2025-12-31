@@ -125,11 +125,11 @@ RedirInfo *redirect_parse(char **args) {
 }
 
 // Apply redirections
-int redirect_apply(RedirInfo *info) {
+int redirect_apply(const RedirInfo *info) {
     if (!info) return 0;
 
     for (int i = 0; i < info->count; i++) {
-        Redirection *redir = &info->redirs[i];
+        const Redirection *redir = &info->redirs[i];
 
         switch (redir->type) {
             case REDIR_INPUT: {

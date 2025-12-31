@@ -139,8 +139,7 @@ run_command_test "list aliases" "alias"
 run_command_test "remove alias" "unalias testcmd"
 
 echo -e "\n${YELLOW}File Operations:${NC}"
-# TODO: This will pass with I/O redirection
-#run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
+run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
 
 cleanup
 
