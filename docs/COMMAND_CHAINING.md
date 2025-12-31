@@ -4,6 +4,21 @@ Hash shell supports chaining multiple commands together using shell operators.
 
 ## Operators
 
+### Pipe (|) - Connect Commands
+
+Connect the output of one command to the input of another:
+
+```bash
+#> ls | grep txt
+file1.txt
+test.txt
+
+#> cat file.txt | grep pattern | wc -l
+42
+```
+
+See [Pipes](PIPES.md) for complete pipe documentation.
+
 ### Semicolon (;) - Always Execute
 
 Execute commands sequentially, regardless of success or failure:
@@ -200,7 +215,6 @@ alias deploy='make clean && make && make deploy'
 
 ### Not Supported (Yet)
 
-- **Pipes** (`|`) - Redirect output between commands
 - **Background execution** (`&`) - Run commands in background
 - **Grouping** (`(cmd1 && cmd2)`) - Group commands
 - **Redirection chaining** - Complex I/O redirection
@@ -208,6 +222,7 @@ alias deploy='make clean && make && make deploy'
 ### Workarounds
 
 **For pipes**, use intermediate files:
+
 ```bash
 #> ls > tmp.txt ; grep txt tmp.txt ; rm tmp.txt
 ```
@@ -248,7 +263,7 @@ Hash shell's command chaining works like bash:
 | `;` | ✅ Yes | ✅ Yes |
 | `&&` | ✅ Yes | ✅ Yes |
 | `\|\|` | ✅ Yes | ✅ Yes |
-| `\|` | ❌ Not yet | ✅ Yes |
+| `\|` | ✅ Yes | ✅ Yes |
 | `&` | ❌ Not yet | ✅ Yes |
 | `()` | ❌ Not yet | ✅ Yes |
 

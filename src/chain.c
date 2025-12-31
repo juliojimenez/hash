@@ -7,6 +7,7 @@
 #include "execute.h"
 #include "colors.h"
 #include "safe_string.h"
+#include "pipeline.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
@@ -215,12 +216,26 @@ int chain_execute(const CommandChain *chain) {
         char *line_copy = strdup(cmd->cmd_line);
         if (!line_copy) continue;
 
-        char **args = parse_line(line_copy);
-        if (args) {
-            shell_continue = execute(args);
-            last_exit_code = execute_get_last_exit_code();
+        // Check if this command contains pipes
+        Pipeline *pipe = pipeline_parse(line_copy);
 
-            free(args);
+        if (pipe) {
+            // Execute as pipeline
+            int pipe_exit = pipeline_execute(pipe);
+
+            // Update global exit code
+            extern int last_command_exit_code;
+            last_command_exit_code = pipe_exit;
+
+            pipeline_free(pipe);
+        } else {
+            // No pipes - execute normally
+            char **args = parse_line(line_copy);
+            if (args) {
+                shell_continue = execute(args);
+                last_exit_code = execute_get_last_exit_code();
+                free(args);
+            }
         }
 
         free(line_copy);
