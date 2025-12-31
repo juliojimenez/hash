@@ -43,7 +43,7 @@ RedirInfo *redirect_parse(char **args);
  * @param info Redirection info
  * @return 0 on success, -1 on error
  */
-int redirect_apply(RedirInfo *info);
+int redirect_apply(const RedirInfo *info);
 
 /**
  * Free redirection info
