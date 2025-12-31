@@ -4,12 +4,14 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include <ctype.h>
 #include "hash.h"
 #include "builtins.h"
 #include "colors.h"
 #include "config.h"
 #include "execute.h"
 #include "history.h"
+#include "jobs.h"
 
 extern int last_command_exit_code;
 
@@ -20,7 +22,10 @@ static char *builtin_str[] = {
     "unalias",
     "source",
     "export",
-    "history"
+    "history",
+    "jobs",
+    "fg",
+    "bg"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -30,11 +35,38 @@ static int (*builtin_func[])(char **) = {
     &shell_unalias,
     &shell_source,
     &shell_export,
-    &shell_history
+    &shell_history,
+    &shell_jobs,
+    &shell_fg,
+    &shell_bg
 };
 
 static int num_builtins(void) {
     return sizeof(builtin_str) / sizeof(char *);
+}
+
+// Parse job ID from argument (handles %n, %%, %+, %-, n)
+static int parse_job_id(const char *arg) {
+    if (!arg) return 0;  // No arg means current job
+
+    // Skip leading whitespace
+    while (isspace(*arg)) arg++;
+
+    if (*arg == '%') {
+        arg++;
+        if (*arg == '%' || *arg == '+' || *arg == '\0') {
+            return 0;  // Current job
+        } else if (*arg == '-') {
+            // Previous job - not fully implemented, treat as current
+            return 0;
+        } else if (isdigit(*arg)) {
+            return atoi(arg);
+        }
+    } else if (isdigit(*arg)) {
+        return atoi(arg);
+    }
+
+    return -1;  // Invalid
 }
 
 // Built-in: cd
@@ -73,13 +105,32 @@ int shell_cd(char **args) {
 
 // Built-in: exit
 int shell_exit(char **args) {
+    // Check for running jobs
+    int job_count = jobs_count();
+    if (job_count > 0) {
+        color_warning("There are %d running job(s).", job_count);
+        printf("Use 'exit' again to force exit, or 'jobs' to see them.\n");
+
+        // Set a flag to allow exit on next attempt
+        static int exit_attempted = 0;
+        if (exit_attempted) {
+            exit_attempted = 0;
+            fprintf(stdout, "Bye :)\n");
+            last_command_exit_code = 0;
+            return 0;
+        }
+        exit_attempted = 1;
+        last_command_exit_code = 1;
+        return 1;
+    }
+
     if (args[1] != NULL) {
         fprintf(stderr, "%s: exit accepts no arguments\n", HASH_NAME);
         last_command_exit_code = 1;
-    } else {
-        fprintf(stdout, "Bye :)\n");
-        last_command_exit_code = 0;
+        return 1;
     }
+
+    fprintf(stdout, "Bye :)\n");
     last_command_exit_code = 0;
     return 0;
 }
@@ -245,6 +296,45 @@ int shell_history(char **args) {
     }
 
     last_command_exit_code = 0;
+    return 1;
+}
+
+// Built-in: jobs
+int shell_jobs(char **args) {
+    (void)args;  // Unused for now
+
+    jobs_list();
+    last_command_exit_code = 0;
+    return 1;
+}
+
+// Built-in: fg
+int shell_fg(char **args) {
+    int job_id = parse_job_id(args[1]);
+
+    if (job_id == -1) {
+        color_error("%s: fg: invalid job specification: %s", HASH_NAME, args[1]);
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    int result = jobs_foreground(job_id);
+    last_command_exit_code = (result == -1) ? 1 : result;
+    return 1;
+}
+
+// Built-in: bg
+int shell_bg(char **args) {
+    int job_id = parse_job_id(args[1]);
+
+    if (job_id == -1) {
+        color_error("%s: bg: invalid job specification: %s", HASH_NAME, args[1]);
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    int result = jobs_background(job_id);
+    last_command_exit_code = (result == -1) ? 1 : 0;
     return 1;
 }
 

@@ -1,6 +1,8 @@
 #ifndef CHAIN_H
 #define CHAIN_H
 
+#include <stdbool.h>
+
 // Chain operator types
 typedef enum {
     CHAIN_NONE,      // No chaining (single command)
@@ -13,6 +15,7 @@ typedef enum {
 typedef struct {
     char *cmd_line;
     ChainOp next_op;
+    bool background;  // Run in background (&)
 } ChainedCommand;
 
 // A list of chained commands
@@ -20,6 +23,7 @@ typedef struct {
     ChainedCommand *commands;
     int count;
     int capacity;
+    bool background;  // Entire chain runs in background
 } CommandChain;
 
 // Parse a line into chained commands

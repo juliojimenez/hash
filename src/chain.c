@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #include "chain.h"
 #include "parser.h"
 #include "execute.h"
 #include "colors.h"
 #include "safe_string.h"
 #include "pipeline.h"
+#include "jobs.h"
+#include "hash.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
@@ -18,6 +22,7 @@ static CommandChain *chain_create(void) {
 
     chain->capacity = INITIAL_CHAIN_CAPACITY;
     chain->count = 0;
+    chain->background = false;
     chain->commands = malloc(chain->capacity * sizeof(ChainedCommand));
 
     if (!chain->commands) {
@@ -29,7 +34,7 @@ static CommandChain *chain_create(void) {
 }
 
 // Add a command to the chain
-static int chain_add(CommandChain *chain, const char *cmd_line, ChainOp next_op) {
+static int chain_add(CommandChain *chain, const char *cmd_line, ChainOp next_op, bool background) {
     if (chain->count >= chain->capacity) {
         chain->capacity *= 2;
         ChainedCommand *new_cmds = realloc(chain->commands, chain->capacity * sizeof(ChainedCommand));
@@ -41,9 +46,47 @@ static int chain_add(CommandChain *chain, const char *cmd_line, ChainOp next_op)
     if (!chain->commands[chain->count].cmd_line) return -1;
 
     chain->commands[chain->count].next_op = next_op;
+    chain->commands[chain->count].background = background;
     chain->count++;
 
     return 0;
+}
+
+// Check if command ends with & (background operator)
+// Returns true if & found and removes it from the string
+static bool check_background(char *cmd) {
+    if (!cmd) return false;
+
+    size_t len = strlen(cmd);
+    if (len == 0) return false;
+
+    // Find the last non-whitespace character
+    char *end = cmd + len - 1;
+    while (end > cmd && isspace(*end)) {
+        end--;
+    }
+
+    // Check if it's &
+    if (*end == '&') {
+        // Make sure it's not && (AND operator)
+        if (end > cmd && *(end - 1) == '&') {
+            return false;  // It's &&, not background
+        }
+
+        // Remove the &
+        *end = '\0';
+
+        // Trim any trailing whitespace
+        end--;
+        while (end > cmd && isspace(*end)) {
+            *end = '\0';
+            end--;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 // Parse a line into chained commands
@@ -109,9 +152,12 @@ CommandChain *chain_parse(char *line) {
                 // Trim whitespace from command
                 safe_trim(cmd_start);
 
+                // Check for background operator on this segment
+                bool bg = check_background(cmd_start);
+
                 // Add command to chain if not empty
                 if (*cmd_start != '\0') {
-                    if (chain_add(chain, cmd_start, op) != 0) {
+                    if (chain_add(chain, cmd_start, op, bg) != 0) {
                         chain_free(chain);
                         return NULL;
                     }
@@ -130,11 +176,19 @@ CommandChain *chain_parse(char *line) {
     // Add final command
     safe_trim(cmd_start);
 
+    // Check for trailing & on final command
+    bool final_bg = check_background(cmd_start);
+
     if (*cmd_start != '\0') {
-        if (chain_add(chain, cmd_start, CHAIN_NONE) != 0) {
+        if (chain_add(chain, cmd_start, CHAIN_NONE, final_bg) != 0) {
             chain_free(chain);
             return NULL;
         }
+    }
+
+    // If the last command is background, mark the whole chain
+    if (chain->count > 0 && chain->commands[chain->count - 1].background) {
+        chain->background = true;
     }
 
     // If no commands were added, free and return NULL
@@ -156,6 +210,55 @@ void chain_free(CommandChain *chain) {
 
     free(chain->commands);
     free(chain);
+}
+
+// Execute a single command in background
+static int execute_background(const char *cmd_line) {
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror(HASH_NAME);
+        return -1;
+    }
+
+    if (pid == 0) {
+        // Child process
+
+        // Create new process group
+        setpgid(0, 0);
+
+        // Parse and execute command
+        char *line_copy = strdup(cmd_line);
+        if (!line_copy) exit(EXIT_FAILURE);
+
+        // Check for pipes
+        Pipeline *pipe = pipeline_parse(line_copy);
+
+        if (pipe) {
+            int exit_code = pipeline_execute(pipe);
+            pipeline_free(pipe);
+            free(line_copy);
+            exit(exit_code);
+        } else {
+            char **args = parse_line(line_copy);
+            if (args) {
+                execute(args);
+                free(args);
+            }
+            free(line_copy);
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    // Parent process
+    // Add job to job table
+    int job_id = jobs_add(pid, cmd_line);
+
+    if (job_id > 0) {
+        printf("[%d] %d\n", job_id, pid);
+    }
+
+    return 0;
 }
 
 // Execute a command chain
@@ -183,6 +286,13 @@ int chain_execute(const CommandChain *chain) {
             }
         }
 
+        // Check if this command should run in background
+        if (cmd->background) {
+            execute_background(cmd->cmd_line);
+            last_exit_code = 0;  // Background commands always "succeed" immediately
+            continue;
+        }
+
         // Parse and execute command
         char *line_copy = strdup(cmd->cmd_line);
         if (!line_copy) continue;
@@ -197,6 +307,7 @@ int chain_execute(const CommandChain *chain) {
             // Update global exit code
             extern int last_command_exit_code;
             last_command_exit_code = pipe_exit;
+            last_exit_code = pipe_exit;
 
             pipeline_free(pipe);
         } else {

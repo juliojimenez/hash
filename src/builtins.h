@@ -22,6 +22,15 @@ int shell_export(char **args);
 // Built-in command: show command history
 int shell_history(char **args);
 
+// Built-in command: list background jobs
+int shell_jobs(char **args);
+
+// Built-in command: bring job to foreground
+int shell_fg(char **args);
+
+// Built-in command: continue job in background
+int shell_bg(char **args);
+
 // Check if command is a built-in and execute it
 // Returns -1 if not a built-in, otherwise returns the result
 int try_builtin(char **args);

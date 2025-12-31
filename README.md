@@ -74,6 +74,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
   - [PS1 Reference](./docs/PS1.md)
 - [Pipes](./docs/PIPES.md)
 - [Command Chaining](./docs/COMMAND_CHAINING.md)
+- [Background Processes](./docs/BACKGROUND.md)
 - [I/O Redirection](./docs/REDIRECTION.md)
 - [Tilde Expansion](./docs/EXPANSION.md)
 - [Command History](./docs/HISTORY.md)
@@ -88,4 +89,3 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 ## Newletter
 
 Keep up with development updates on [Rede Livre](https://redelivre.net/newsletters/hash) <img style="width:16px;margin-left:3px;margin-top:2px;" src="images/redelivre.png" />
-

@@ -21,6 +21,7 @@ Julio Jimenez, julio@julioj.com
 #include "lineedit.h"
 #include "history.h"
 #include "completion.h"
+#include "jobs.h"
 
 // Signal handler for cleanup
 static void signal_handler(int sig) {
@@ -36,6 +37,9 @@ static void loop(void) {
     int last_exit_code = 0;
 
     do {
+        // Check for completed background jobs before displaying prompt
+        jobs_check_completed();
+
         const char *prompt_str = prompt_generate(last_exit_code);
 
         line = read_line(prompt_str);
@@ -94,6 +98,9 @@ int main(/*int argc, char **argv*/) {
 
     // Initialize tab completion
     completion_init();
+
+    // Initialize job control
+    jobs_init();
 
     // Load .hashrc if it exists
     config_load_default();
