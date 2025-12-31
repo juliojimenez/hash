@@ -105,25 +105,28 @@ Pipeline *pipeline_parse(char *line) {
 
         // Look for pipe outside quotes
         if (!in_single_quote && !in_double_quote && *current == '|') {
-            // But not || (that's OR operator for chaining)
-            if (*(current + 1) != '|') {
-                // Found a pipe
-                *current = '\0';
-
-                // Trim and add command
-                trim_whitespace_pipe(cmd_start);
-                if (*cmd_start != '\0') {
-                    if (pipeline_add(pipeline, cmd_start) != 0) {
-                        pipeline_free(pipeline);
-                        return NULL;
-                    }
-                }
-
-                // Move to next command
-                current++;
-                cmd_start = current;
+            // Check if it's || (OR operator) - skip both characters
+            if (*(current + 1) == '|') {
+                current += 2;  // Skip both | characters
                 continue;
             }
+
+            // Single | - it's a pipe
+            *current = '\0';
+
+            // Trim and add command
+            trim_whitespace_pipe(cmd_start);
+            if (*cmd_start != '\0') {
+                if (pipeline_add(pipeline, cmd_start) != 0) {
+                    pipeline_free(pipeline);
+                    return NULL;
+                }
+            }
+
+            // Move to next command
+            current++;
+            cmd_start = current;
+            continue;
         }
 
         current++;
