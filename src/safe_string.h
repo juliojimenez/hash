@@ -47,7 +47,7 @@ int safe_strcmp(const char *s1, const char *s2, size_t maxlen);
 /**
  * Trim whitespace from both ends of a string (in-place)
  * Modifies the string directly
- * 
+ *
  * @param str String to trim
  */
 void safe_trim(char *str);
