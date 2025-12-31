@@ -84,7 +84,7 @@ static void disable_raw_mode(void) {
 // Read a key from stdin
 static int read_key(void) {
     char c;
-    int nread;
+    ssize_t nread;
 
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
         if (nread == -1) return -1;
