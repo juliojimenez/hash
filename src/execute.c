@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "expand.h"
 #include "varexpand.h"
+#include "cmdsub.h"
 #include "redirect.h"
 
 // Global to store last exit code
@@ -74,6 +75,9 @@ int execute(char **args) {
 
     // Expand tilde in all arguments
     expand_tilde(args);
+
+    // Expand command substitutions in all arguments
+    cmdsub_args(args);
 
     // Expand variables in all arguments
     varexpand_args(args, last_command_exit_code);

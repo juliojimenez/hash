@@ -106,7 +106,6 @@ setup
 
 echo -e "${YELLOW}Basic Commands:${NC}"
 run_test "echo command" "echo hello"
-# TODO: command substitution - $(pwd)
 run_test "pwd command" "pwd"
 run_command_test "ls command" "ls"
 run_command_test "date command" "date"
@@ -123,6 +122,12 @@ run_test "invalid command" "this_command_does_not_exist_12345" "No such file or 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""
 run_command_test "whitespace only" "   "
+
+echo -e "\n${YELLOW}Command Substitution:${NC}"
+run_test "basic command substitution" "echo \$(echo hello)" "hello"
+run_test "command substitution with pwd" "echo \$(pwd)" "/"
+run_test "command substitution in string" "echo prefix-\$(echo middle)-suffix" "prefix-middle-suffix"
+run_test "backtick substitution" "echo \`echo backtick\`" "backtick"
 
 echo -e "\n${YELLOW}Quote Handling:${NC}"
 run_test "double quotes" "echo \"hello world\"" "hello world"
