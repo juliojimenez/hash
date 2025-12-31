@@ -114,13 +114,17 @@ static const char *find_closing_backtick(const char *start) {
     return NULL;
 }
 
-// Check if string contains command substitution
+// Check if string contains command substitution or escaped sequences that need processing
 static int has_cmdsub(const char *str) {
     if (!str) return 0;
 
     const char *p = str;
     while (*p) {
         if (*p == '\\' && *(p + 1)) {
+            // Escaped $ or ` needs processing (to remove the backslash)
+            if (*(p + 1) == '$' || *(p + 1) == '`') {
+                return 1;
+            }
             p += 2;
             continue;
         }
@@ -145,7 +149,7 @@ char *cmdsub_expand(const char *str) {
         // Handle escape sequences
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
-                // Escaped $ or ` - keep the character
+                // Escaped $ or ` - keep the character (remove backslash)
                 if (out_pos < MAX_CMDSUB_LENGTH - 1) {
                     result[out_pos++] = *(p + 1);
                 }
