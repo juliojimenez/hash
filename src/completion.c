@@ -112,11 +112,12 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
     char *path_copy = strdup(path_env);
     if (!path_copy) return;
 
-    char *dir = strtok(path_copy, ":");
+    char *saveptr;
+    char *dir = strtok_r(path_copy, ":", &saveptr);
     while (dir && result->count < MAX_COMPLETIONS) {
         DIR *dp = opendir(dir);
         if (!dp) {
-            dir = strtok(NULL, ":");
+            dir = strtok_r(NULL, ":", &saveptr);
             continue;
         }
 
