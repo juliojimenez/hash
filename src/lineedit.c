@@ -480,8 +480,8 @@ char *lineedit_read_line(const char *prompt) {
 
                                 // Find longest match
                                 for (int i = 0; i < comp->count; i++) {
-                                    size_t len = strlen(comp->matches[i]);
-                                    if (len > max_len) max_len = len;
+                                    size_t mlen = strlen(comp->matches[i]);
+                                    if (mlen > max_len) max_len = mlen;
                                 }
 
                                 // Add 2 spaces padding between columns
