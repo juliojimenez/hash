@@ -126,7 +126,7 @@ run_command_test "whitespace only" "   "
 echo -e "\n${YELLOW}Command Substitution:${NC}"
 run_test "basic command substitution" 'echo $(echo hello)' "hello"
 run_test "command substitution with pwd" 'echo $(pwd)' "/"
-run_test "command substitution in string" 'echo prefix-$(echo middle)-suffix' "prefix-middle-suffix"
+run_test "command substitution in string" 'echo "prefix-$(echo middle)-suffix"' "prefix-middle-suffix"
 run_test "backtick substitution" 'echo `echo backtick`' "backtick"
 
 echo -e "\n${YELLOW}Quote Handling:${NC}"
