@@ -183,7 +183,7 @@ static void complete_files(CompletionResult *result, const char *prefix) {
     DIR *dp = opendir(dir_path);
     if (!dp) return;
 
-    struct dirent *entry;
+    const struct dirent *entry;
     while ((entry = readdir(dp)) != NULL && result->count < MAX_COMPLETIONS) {
         // Skip . and .. unless explicitly requested
         if (prefix_len == 0 && (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)) {
