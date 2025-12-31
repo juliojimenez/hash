@@ -16,7 +16,6 @@
 static char *execute_and_capture(const char *cmd) {
     if (!cmd || *cmd == '\0') return strdup("");
 
-    // Create pipe for capturing output
     int pipefd[2];
     if (pipe(pipefd) == -1) {
         return NULL;
@@ -31,23 +30,16 @@ static char *execute_and_capture(const char *cmd) {
 
     if (pid == 0) {
         // Child process
-        close(pipefd[0]);  // Close read end
-
-        // Redirect stdout to pipe
+        close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
-
-        // Execute command using /bin/sh -c
         execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
-
-        // If exec fails
         _exit(127);
     }
 
     // Parent process
-    close(pipefd[1]);  // Close write end
+    close(pipefd[1]);
 
-    // Read output from child
     char *output = malloc(MAX_CMD_OUTPUT);
     if (!output) {
         close(pipefd[0]);
@@ -66,8 +58,6 @@ static char *execute_and_capture(const char *cmd) {
 
     close(pipefd[0]);
     output[total_read] = '\0';
-
-    // Wait for child to finish
     waitpid(pid, NULL, 0);
 
     // Remove trailing newlines (like bash does)
@@ -85,7 +75,7 @@ static const char *find_closing_paren(const char *start) {
 
     while (*p && depth > 0) {
         if (*p == '\\' && *(p + 1)) {
-            p += 2;  // Skip escaped characters
+            p += 2;
             continue;
         }
         if (*p == '(') depth++;
@@ -102,7 +92,7 @@ static const char *find_closing_backtick(const char *start) {
 
     while (*p) {
         if (*p == '\\' && *(p + 1) == '`') {
-            p += 2;  // Skip escaped backtick
+            p += 2;
             continue;
         }
         if (*p == '`') {
@@ -121,7 +111,6 @@ static int has_cmdsub(const char *str) {
     const char *p = str;
     while (*p) {
         if (*p == '\\' && *(p + 1)) {
-            // Escaped $ or ` needs processing (to remove the backslash)
             if (*(p + 1) == '$' || *(p + 1) == '`') {
                 return 1;
             }
@@ -133,6 +122,32 @@ static int has_cmdsub(const char *str) {
         p++;
     }
     return 0;
+}
+
+// Extract command, execute it, and append output to result buffer
+// Returns new position in result buffer, or -1 on allocation failure
+static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
+                                    char *result, size_t out_pos) {
+    char *cmd = malloc(cmd_len + 1);
+    if (!cmd) {
+        return -1;
+    }
+    memcpy(cmd, cmd_start, cmd_len);
+    cmd[cmd_len] = '\0';
+
+    char *output = execute_and_capture(cmd);
+    free(cmd);
+
+    if (output) {
+        size_t output_len = strlen(output);
+        size_t space = MAX_CMDSUB_LENGTH - 1 - out_pos;
+        size_t to_copy = (output_len < space) ? output_len : space;
+        memcpy(result + out_pos, output, to_copy);
+        out_pos += to_copy;
+        free(output);
+    }
+
+    return (ssize_t)out_pos;
 }
 
 // Expand command substitutions in a string
@@ -149,14 +164,12 @@ char *cmdsub_expand(const char *str) {
         // Handle escape sequences
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
-                // Escaped $ or ` - keep the character (remove backslash)
                 if (out_pos < MAX_CMDSUB_LENGTH - 1) {
                     result[out_pos++] = *(p + 1);
                 }
                 p += 2;
                 continue;
             }
-            // Other escapes - keep both characters
             if (out_pos < MAX_CMDSUB_LENGTH - 2) {
                 result[out_pos++] = *p++;
                 result[out_pos++] = *p++;
@@ -168,11 +181,10 @@ char *cmdsub_expand(const char *str) {
 
         // Handle $(...) syntax
         if (*p == '$' && *(p + 1) == '(') {
-            p += 2;  // Skip $(
+            p += 2;
 
             const char *end = find_closing_paren(p);
             if (!end) {
-                // No closing paren - copy literally
                 if (out_pos < MAX_CMDSUB_LENGTH - 2) {
                     result[out_pos++] = '$';
                     result[out_pos++] = '(';
@@ -180,70 +192,35 @@ char *cmdsub_expand(const char *str) {
                 continue;
             }
 
-            // Extract command
-            size_t cmd_len = end - p;
-            char *cmd = malloc(cmd_len + 1);
-            if (!cmd) {
+            ssize_t new_pos = process_substitution(p, end - p, result, out_pos);
+            if (new_pos < 0) {
                 free(result);
                 return NULL;
             }
-            memcpy(cmd, p, cmd_len);
-            cmd[cmd_len] = '\0';
-
-            // Execute and capture output
-            char *output = execute_and_capture(cmd);
-            free(cmd);
-
-            if (output) {
-                size_t output_len = strlen(output);
-                size_t space = MAX_CMDSUB_LENGTH - 1 - out_pos;
-                size_t to_copy = (output_len < space) ? output_len : space;
-                memcpy(result + out_pos, output, to_copy);
-                out_pos += to_copy;
-                free(output);
-            }
-
-            p = end + 1;  // Skip past closing )
+            out_pos = (size_t)new_pos;
+            p = end + 1;
             continue;
         }
 
         // Handle `...` syntax (backticks)
         if (*p == '`') {
-            p++;  // Skip opening backtick
+            p++;
 
             const char *end = find_closing_backtick(p);
             if (!end) {
-                // No closing backtick - copy literally
                 if (out_pos < MAX_CMDSUB_LENGTH - 1) {
                     result[out_pos++] = '`';
                 }
                 continue;
             }
 
-            // Extract command
-            size_t cmd_len = end - p;
-            char *cmd = malloc(cmd_len + 1);
-            if (!cmd) {
+            ssize_t new_pos = process_substitution(p, end - p, result, out_pos);
+            if (new_pos < 0) {
                 free(result);
                 return NULL;
             }
-            memcpy(cmd, p, cmd_len);
-            cmd[cmd_len] = '\0';
-
-            // Execute and capture output
-            char *output = execute_and_capture(cmd);
-            free(cmd);
-
-            if (output) {
-                size_t output_len = strlen(output);
-                size_t space = MAX_CMDSUB_LENGTH - 1 - out_pos;
-                size_t to_copy = (output_len < space) ? output_len : space;
-                memcpy(result + out_pos, output, to_copy);
-                out_pos += to_copy;
-                free(output);
-            }
-
-            p = end + 1;  // Skip past closing `
+            out_pos = (size_t)new_pos;
+            p = end + 1;
             continue;
         }
 
@@ -260,11 +237,9 @@ int cmdsub_args(char **args) {
     if (!args) return -1;
 
     for (int i = 0; args[i] != NULL; i++) {
-        // Check if this argument contains command substitution
         if (has_cmdsub(args[i])) {
             char *expanded = cmdsub_expand(args[i]);
             if (expanded) {
-                // Replace argument with expanded version
                 args[i] = expanded;
             }
         }
