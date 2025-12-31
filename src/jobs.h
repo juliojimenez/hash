@@ -33,7 +33,7 @@ void jobs_init(void);
 
 /**
  * Add a new background job
- * 
+ *
  * @param pid Process ID of the job
  * @param command Command string for display
  * @return Job ID (1-based), or -1 on error
@@ -42,7 +42,7 @@ int jobs_add(pid_t pid, const char *command);
 
 /**
  * Remove a job by job ID
- * 
+ *
  * @param job_id Job ID to remove
  * @return 0 on success, -1 if not found
  */
@@ -50,7 +50,7 @@ int jobs_remove(int job_id);
 
 /**
  * Get job by job ID
- * 
+ *
  * @param job_id Job ID
  * @return Pointer to job, or NULL if not found
  */
@@ -58,7 +58,7 @@ Job *jobs_get(int job_id);
 
 /**
  * Get job by PID
- * 
+ *
  * @param pid Process ID
  * @return Pointer to job, or NULL if not found
  */
@@ -66,14 +66,14 @@ Job *jobs_get_by_pid(pid_t pid);
 
 /**
  * Get the most recent job (for fg/bg with no args)
- * 
+ *
  * @return Pointer to most recent job, or NULL if none
  */
 Job *jobs_get_current(void);
 
 /**
  * Update job state based on waitpid status
- * 
+ *
  * @param pid Process ID
  * @param status Status from waitpid
  */
@@ -92,14 +92,14 @@ void jobs_list(void);
 
 /**
  * Get number of active jobs
- * 
+ *
  * @return Number of running or stopped jobs
  */
 int jobs_count(void);
 
 /**
  * Wait for a specific job to complete
- * 
+ *
  * @param job_id Job ID to wait for
  * @return Exit status of the job
  */
@@ -107,7 +107,7 @@ int jobs_wait(int job_id);
 
 /**
  * Bring a job to foreground
- * 
+ *
  * @param job_id Job ID (0 for current job)
  * @return 0 on success, -1 on error
  */
@@ -115,7 +115,7 @@ int jobs_foreground(int job_id);
 
 /**
  * Continue a stopped job in background
- * 
+ *
  * @param job_id Job ID (0 for current job)
  * @return 0 on success, -1 on error
  */
