@@ -13,18 +13,18 @@ Command line interpreter (shell) for the Linux operating system.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v11/hash-shell-v11-x86_64
-chmod +x hash-shell-v11-x86_64
-sudo mv hash-shell-v11-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v12/hash-shell-v12-x86_64
+chmod +x hash-shell-v12-x86_64
+sudo mv hash-shell-v12-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v11/hash-shell-v11-aarch64
-chmod +x hash-shell-v11-aarch64
-sudo mv hash-shell-v11-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v12/hash-shell-v12-aarch64
+chmod +x hash-shell-v12-aarch64
+sudo mv hash-shell-v12-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
