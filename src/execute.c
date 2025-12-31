@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "expand.h"
 #include "varexpand.h"
+#include "redirect.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -19,10 +20,23 @@ static int launch(char **args) {
     pid_t pid;
     int status;
 
+    // Parse redirections
+    RedirInfo *redir = redirect_parse(args);
+
+    // Use cleaned args (or original if no redirections)
+    char **exec_args = redir ? redir->args : args;
+
     pid = fork();
     if (pid == 0) {
         // Child process
-        if (execvp(args[0], args) == -1) {
+
+        // Apply redirections
+        if (redir && redirect_apply(redir) != 0) {
+            exit(EXIT_FAILURE);
+        }
+
+        // Execute command
+        if (execvp(exec_args[0], exec_args) == -1) {
             perror(HASH_NAME);
         }
         exit(EXIT_FAILURE);
@@ -43,6 +57,9 @@ static int launch(char **args) {
             last_command_exit_code = 1;
         }
     }
+
+    // Clean up
+    redirect_free(redir);
 
     return 1;
 }

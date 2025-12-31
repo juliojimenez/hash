@@ -6,10 +6,12 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <ctype.h>
+#include "hash.h"
 #include "pipeline.h"
 #include "parser.h"
 #include "execute.h"
 #include "safe_string.h"
+#include "redirect.h"
 
 #define INITIAL_PIPE_CAPACITY 8
 
@@ -194,10 +196,28 @@ int pipeline_execute(const Pipeline *pipeline) {
                 exit(EXIT_FAILURE);
             }
 
+            // Parse redirections
+            RedirInfo *redir = redirect_parse(args);
+            char **exec_args = redir ? redir->args : args;
+
+            // Apply redirections
+            if (redir && redirect_apply(redir) != 0) {
+                redirect_free(redir);
+                free(args);
+                free(line_copy);
+                exit(EXIT_FAILURE);
+            }
+
             // Execute (this will handle expansions, built-ins, etc.)
-            execute(args);
+            // execute(args);
+
+            // Execute (this will handle expansions, but not built-ins in pipes)
+            if (execvp(exec_args[0], exec_args) == -1) {
+                perror(HASH_NAME);
+            }
 
             // Should not reach here for built-ins that continue
+            redirect_free(redir);
             free(args);
             free(line_copy);
             exit(EXIT_SUCCESS);

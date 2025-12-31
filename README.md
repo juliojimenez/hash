@@ -73,6 +73,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
   - [PS1 Reference](./docs/PS1.md)
 - [Pipes](./docs/PIPES.md)
 - [Command Chaining](./docs/COMMAND_CHAINING.md)
+- [I/O Redirection](./docs/REDIRECTION.md)
 - [Tilde Expansion](./docs/EXPANSION.md)
 - [Command History](./docs/HISTORY.md)
   - [HISTCONTROL](./docs/HISTCONTROL.md)
@@ -80,6 +81,8 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
   - [Tab Completion Quick Reference](./docs/COMPLETION_QUICKREF.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [License](LICENSE)
 
 ## Newletter
 
