@@ -224,7 +224,7 @@ int execute(char **args) {
                 // Re-run the builtin (result already computed, but we need output redirected)
                 int builtin_result = try_builtin(exec_args);
                 redirect_free(redir);
-                exit(builtin_result == 0 ? EXIT_SUCCESS : 
+                exit(builtin_result == 0 ? EXIT_SUCCESS :
                      (builtin_result == 1 ? EXIT_SUCCESS : EXIT_FAILURE));
             } else if (pid > 0) {
                 // Parent - wait for child
