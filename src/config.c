@@ -106,7 +106,7 @@ void config_list_aliases(void) {
     }
 
     for (int i = 0; i < shell_config.alias_count; i++) {
-        printf("alias %s='%s'\n", shell_config.aliases[i].name, 
+        printf("alias %s='%s'\n", shell_config.aliases[i].name,
                shell_config.aliases[i].value);
     }
 }
@@ -140,7 +140,7 @@ int config_process_line(char *line) {
 
         // Remove quotes if present
         size_t val_len = strlen(value);
-        if (val_len >= 2 && 
+        if (val_len >= 2 &&
             (value[0] == '"' || value[0] == '\'') &&
             value[0] == value[val_len - 1]) {
             value[val_len - 1] = '\0';
@@ -301,7 +301,7 @@ int config_load_silent(const char *filepath) {
     if (access(filepath, R_OK) != 0) {
         return 0;  // Not readable - silently skip
     }
-    
+
     // Use script_execute_file for proper POSIX execution
     return script_execute_file(filepath, 0, NULL);
 }

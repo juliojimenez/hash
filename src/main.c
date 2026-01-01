@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
                 }
                 command_string = argv[i + 1];
                 i += 2;
-                
+
                 // Remaining arguments become positional parameters
                 if (i < argc) {
                     script_argc = argc - i + 1;  // +1 for $0
@@ -190,32 +190,32 @@ int main(int argc, char *argv[]) {
                     script_argv = &argv[i];
                 }
                 break;  // Stop option parsing
-                
+
             } else if (strcmp(argv[i], "-i") == 0) {
                 force_interactive = true;
                 i++;
-                
+
             } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--login") == 0) {
                 is_login_shell_global = true;
                 i++;
-                
+
             } else if (strcmp(argv[i], "-s") == 0) {
                 read_stdin = true;
                 i++;
-                
+
             } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
                 print_version();
                 return 0;
-                
+
             } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
                 print_usage(argv[0]);
                 return 0;
-                
+
             } else if (strcmp(argv[i], "--") == 0) {
                 // End of options
                 i++;
                 break;
-                
+
             } else {
                 fprintf(stderr, "%s: %s: invalid option\n", HASH_NAME, argv[i]);
                 print_usage(argv[0]);
@@ -235,10 +235,10 @@ int main(int argc, char *argv[]) {
     }
 
     // Determine if we're running interactively
-    is_interactive = force_interactive || 
-                     (command_string == NULL && 
-                      script_file == NULL && 
-                      !read_stdin && 
+    is_interactive = force_interactive ||
+                     (command_string == NULL &&
+                      script_file == NULL &&
+                      !read_stdin &&
                       isatty(STDIN_FILENO));
 
     // Initialize scripting subsystem (always needed)
@@ -264,10 +264,10 @@ int main(int argc, char *argv[]) {
                 script_state.positional_count = script_argc;
             }
         }
-        
+
         // Execute the command string
         int result = script_execute_string(command_string);
-        
+
         script_cleanup();
         return result;
     }
@@ -277,7 +277,7 @@ int main(int argc, char *argv[]) {
     // ========================================================================
     if (script_file != NULL) {
         int result = script_execute_file(script_file, script_argc, script_argv);
-        
+
         script_cleanup();
         return result;
     }
@@ -296,30 +296,30 @@ int main(int argc, char *argv[]) {
                 script_state.positional_count = script_argc;
             }
         }
-        
+
         // Read and execute from stdin
         char line[MAX_LINE];
         script_state.in_script = true;
-        
+
         while (fgets(line, sizeof(line), stdin)) {
             // Remove trailing newline
             size_t len = strlen(line);
             if (len > 0 && line[len - 1] == '\n') {
                 line[len - 1] = '\0';
             }
-            
+
             script_process_line(line);
         }
-        
+
         script_state.in_script = false;
-        
+
         // Check for unclosed control structures
         if (script_state.context_depth > 0) {
             fprintf(stderr, "%s: unexpected end of file\n", HASH_NAME);
             script_cleanup();
             return 1;
         }
-        
+
         script_cleanup();
         return execute_get_last_exit_code();
     }

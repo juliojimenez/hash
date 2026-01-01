@@ -166,7 +166,7 @@ static int parse_integer(const char *str, long *result) {
     char *endptr;
     errno = 0;
     *result = strtol(str, &endptr, 10);
-    
+
     // Check for errors
     if (errno != 0 || endptr == str || *endptr != '\0') {
         return -1;
@@ -249,9 +249,9 @@ static int eval_primary(char **args, int *pos, int argc) {
     if (*pos >= argc) {
         return 1;  // No more arguments = false
     }
-    
+
     const char *arg = args[*pos];
-    
+
     // Handle parentheses
     if (strcmp(arg, "(") == 0) {
         (*pos)++;
@@ -264,20 +264,20 @@ static int eval_primary(char **args, int *pos, int argc) {
         }
         return result;
     }
-    
+
     // Unary file operators
     if (arg[0] == '-' && arg[1] != '\0' && arg[2] == '\0') {
         char op = arg[1];
-        
+
         // Check if next argument exists for unary operators
         if (*pos + 1 >= argc) {
             // Single argument - treat as string test
             (*pos)++;
             return test_string_nonempty(arg);
         }
-        
+
         const char *operand = args[*pos + 1];
-        
+
         switch (op) {
             case 'e':
                 (*pos) += 2;
@@ -345,11 +345,11 @@ static int eval_primary(char **args, int *pos, int argc) {
                 break;
         }
     }
-    
+
     // Check for binary operators with look-ahead
     if (*pos + 2 < argc) {
         const char *op = args[*pos + 1];
-        
+
         // String comparison
         if (strcmp(op, "=") == 0 || strcmp(op, "==") == 0) {
             const char *s1 = args[*pos];
@@ -363,7 +363,7 @@ static int eval_primary(char **args, int *pos, int argc) {
             (*pos) += 3;
             return test_string_not_equal(s1, s2);
         }
-        
+
         // Integer comparison
         if (strcmp(op, "-eq") == 0) {
             const char *s1 = args[*pos];
@@ -401,7 +401,7 @@ static int eval_primary(char **args, int *pos, int argc) {
             (*pos) += 3;
             return test_int_ge(s1, s2);
         }
-        
+
         // File comparisons
         if (strcmp(op, "-nt") == 0) {
             const char *f1 = args[*pos];
@@ -422,7 +422,7 @@ static int eval_primary(char **args, int *pos, int argc) {
             return test_file_same(f1, f2);
         }
     }
-    
+
     // Single string argument - true if non-empty
     (*pos)++;
     return test_string_nonempty(arg);
@@ -443,12 +443,12 @@ static int eval_not(char **args, int *pos, int argc) {
 static int eval_and(char **args, int *pos, int argc) {
     int result = eval_not(args, pos, argc);
     if (result == 2) return 2;
-    
+
     while (*pos < argc && strcmp(args[*pos], "-a") == 0) {
         (*pos)++;
         int right = eval_not(args, pos, argc);
         if (right == 2) return 2;
-        
+
         // Short-circuit: if left is false, result is false
         if (result != 0) {
             result = 1;
@@ -456,7 +456,7 @@ static int eval_and(char **args, int *pos, int argc) {
             result = right;
         }
     }
-    
+
     return result;
 }
 
@@ -464,12 +464,12 @@ static int eval_and(char **args, int *pos, int argc) {
 static int eval_or(char **args, int *pos, int argc) {
     int result = eval_and(args, pos, argc);
     if (result == 2) return 2;
-    
+
     while (*pos < argc && strcmp(args[*pos], "-o") == 0) {
         (*pos)++;
         int right = eval_and(args, pos, argc);
         if (right == 2) return 2;
-        
+
         // Short-circuit: if left is true, result is true
         if (result == 0) {
             result = 0;
@@ -477,7 +477,7 @@ static int eval_or(char **args, int *pos, int argc) {
             result = right;
         }
     }
-    
+
     return result;
 }
 
@@ -494,16 +494,16 @@ int test_evaluate(char **args, int argc) {
     if (argc == 0) {
         return 1;  // No arguments = false
     }
-    
+
     int pos = 0;
     int result = eval_expr(args, &pos, argc);
-    
+
     // Check for extra arguments
     if (result != 2 && pos < argc) {
         fprintf(stderr, "test: too many arguments\n");
         return 2;
     }
-    
+
     return result;
 }
 
@@ -512,13 +512,13 @@ int builtin_test(char **args) {
     if (args[0] == NULL) {
         return 1;
     }
-    
+
     // Count arguments (excluding "test")
     int argc = 0;
     while (args[argc + 1] != NULL) {
         argc++;
     }
-    
+
     return test_evaluate(args + 1, argc);
 }
 
@@ -527,19 +527,19 @@ int builtin_bracket(char **args) {
     if (args[0] == NULL) {
         return 1;
     }
-    
+
     // Count arguments and find closing bracket
     int argc = 0;
     while (args[argc + 1] != NULL) {
         argc++;
     }
-    
+
     // Check for closing bracket
     if (argc == 0 || strcmp(args[argc], "]") != 0) {
         fprintf(stderr, "[: missing ']'\n");
         return 2;
     }
-    
+
     // Evaluate without the closing bracket
     return test_evaluate(args + 1, argc - 1);
 }

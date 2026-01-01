@@ -151,12 +151,12 @@ void test_pop_context(void) {
 void test_nested_context(void) {
     script_push_context(CTX_IF);
     script_push_context(CTX_FOR);
-    
+
     TEST_ASSERT_EQUAL(CTX_FOR, script_current_context());
-    
+
     script_pop_context();
     TEST_ASSERT_EQUAL(CTX_IF, script_current_context());
-    
+
     script_pop_context();
     TEST_ASSERT_EQUAL(CTX_NONE, script_current_context());
 }
@@ -176,7 +176,7 @@ void test_should_execute_default(void) {
 
 void test_define_function(void) {
     TEST_ASSERT_EQUAL(0, script_define_function("hello", "echo Hello"));
-    
+
     ShellFunction *func = script_get_function("hello");
     TEST_ASSERT_NOT_NULL(func);
     TEST_ASSERT_EQUAL_STRING("hello", func->name);
@@ -191,7 +191,7 @@ void test_get_undefined_function(void) {
 void test_redefine_function(void) {
     script_define_function("greet", "echo Hi");
     script_define_function("greet", "echo Hello");
-    
+
     ShellFunction *func = script_get_function("greet");
     TEST_ASSERT_NOT_NULL(func);
     TEST_ASSERT_EQUAL_STRING("echo Hello", func->body);
