@@ -19,9 +19,6 @@
 // Global to store last exit code
 int last_command_exit_code = 0;
 
-// Store the current foreground command for job control
-static char *current_fg_command = NULL;
-
 // Launch an external program
 static int launch(char **args, const char *cmd_string) {
     pid_t pid;
