@@ -148,7 +148,7 @@ int shell_cd(char **args) {
 
 int shell_exit(char **args) {
     int exit_code = 0;
-    
+
     // Check for exit code argument
     if (args[1] != NULL) {
         char *endptr;
@@ -160,7 +160,7 @@ int shell_exit(char **args) {
             exit_code = (int)(val & 0xFF);  // Exit codes are 0-255
         }
     }
-    
+
     // Check for running jobs
     int job_count = jobs_count();
     if (job_count > 0) {
@@ -534,7 +534,7 @@ done:
 int shell_read(char **args) {
     // Basic read implementation
     // Usage: read [-r] [var ...]
-    
+
     bool raw = false;
     int start = 1;
 
@@ -574,7 +574,7 @@ int shell_read(char **args) {
             if (word) {
                 char rest[4096];
                 safe_strcpy(rest, word, sizeof(rest));
-                
+
                 char *remaining = strtok_r(NULL, "", &saveptr);
                 if (remaining) {
                     safe_strcat(rest, " ", sizeof(rest));
@@ -594,7 +594,7 @@ int shell_read(char **args) {
     }
 
     (void)raw;  // TODO: Handle -r flag for backslash escapes
-    
+
     last_command_exit_code = 0;
     return 1;
 }
@@ -605,7 +605,7 @@ int shell_read(char **args) {
 
 int shell_return(char **args) {
     int return_code = 0;
-    
+
     if (args[1] != NULL) {
         char *endptr;
         long val = strtol(args[1], &endptr, 10);
@@ -616,14 +616,14 @@ int shell_return(char **args) {
             return_code = (int)(val & 0xFF);
         }
     }
-    
+
     // If not in a function or sourced script, this is an error
     if (!script_state.in_script) {
         fprintf(stderr, "%s: return: can only `return' from a function or sourced script\n", HASH_NAME);
         last_command_exit_code = 1;
         return 1;
     }
-    
+
     last_command_exit_code = return_code;
     // Signal to caller to return
     return -2;  // Special return code for "return from function"
@@ -631,7 +631,7 @@ int shell_return(char **args) {
 
 int shell_break(char **args) {
     int levels = 1;
-    
+
     if (args[1] != NULL) {
         char *endptr;
         long val = strtol(args[1], &endptr, 10);
@@ -642,23 +642,23 @@ int shell_break(char **args) {
         }
         levels = (int)val;
     }
-    
+
     // Check if we're in a loop
     if (!script_in_control_structure()) {
         fprintf(stderr, "%s: break: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
         last_command_exit_code = 0;
         return 1;
     }
-    
+
     (void)levels;  // TODO: Handle multiple levels
-    
+
     last_command_exit_code = 0;
     return -3;  // Special return code for "break from loop"
 }
 
 int shell_continue_cmd(char **args) {
     int levels = 1;
-    
+
     if (args[1] != NULL) {
         char *endptr;
         long val = strtol(args[1], &endptr, 10);
@@ -669,15 +669,15 @@ int shell_continue_cmd(char **args) {
         }
         levels = (int)val;
     }
-    
+
     if (!script_in_control_structure()) {
         fprintf(stderr, "%s: continue: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
         last_command_exit_code = 0;
         return 1;
     }
-    
+
     (void)levels;  // TODO: Handle multiple levels
-    
+
     last_command_exit_code = 0;
     return -4;  // Special return code for "continue loop"
 }
@@ -687,19 +687,19 @@ int shell_eval(char **args) {
         last_command_exit_code = 0;
         return 1;
     }
-    
+
     // Concatenate all arguments with spaces
     size_t total_len = 0;
     for (int i = 1; args[i] != NULL; i++) {
         total_len += strlen(args[i]) + 1;  // +1 for space or null
     }
-    
+
     char *cmd = malloc(total_len);
     if (!cmd) {
         last_command_exit_code = 1;
         return 1;
     }
-    
+
     cmd[0] = '\0';
     for (int i = 1; args[i] != NULL; i++) {
         if (i > 1) {
@@ -707,16 +707,16 @@ int shell_eval(char **args) {
         }
         strcat(cmd, args[i]);
     }
-    
+
     // Execute the concatenated command
     CommandChain *chain = chain_parse(cmd);
     if (chain) {
         chain_execute(chain);
         chain_free(chain);
     }
-    
+
     free(cmd);
-    
+
     // Exit code already set by chain_execute
     return 1;
 }
