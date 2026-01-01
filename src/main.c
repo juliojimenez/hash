@@ -256,10 +256,14 @@ int main(int argc, char *argv[]) {
     if (command_string != NULL) {
         // Set up positional parameters if provided
         if (script_argc > 0 && script_argv != NULL) {
-            script_state.positional_params = malloc(script_argc * sizeof(char*));
+            script_state.positional_params = malloc((size_t)script_argc * sizeof(char*));
             if (script_state.positional_params) {
                 for (int j = 0; j < script_argc; j++) {
-                    script_state.positional_params[j] = strdup(script_argv[j]);
+                    if (script_argv[j] != NULL) {
+                        script_state.positional_params[j] = strdup(script_argv[j]);
+                    } else {
+                        script_state.positional_params[j] = strdup("");
+                    }
                 }
                 script_state.positional_count = script_argc;
             }
@@ -288,10 +292,14 @@ int main(int argc, char *argv[]) {
     if (read_stdin || !isatty(STDIN_FILENO)) {
         // Set up positional parameters if provided (for -s)
         if (script_argc > 0 && script_argv != NULL) {
-            script_state.positional_params = malloc(script_argc * sizeof(char*));
+            script_state.positional_params = malloc((size_t)script_argc * sizeof(char*));
             if (script_state.positional_params) {
                 for (int j = 0; j < script_argc; j++) {
-                    script_state.positional_params[j] = strdup(script_argv[j]);
+                    if (script_argv[j] != NULL) {
+                        script_state.positional_params[j] = strdup(script_argv[j]);
+                    } else {
+                        script_state.positional_params[j] = strdup("");
+                    }
                 }
                 script_state.positional_count = script_argc;
             }
