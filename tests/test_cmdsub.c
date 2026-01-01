@@ -122,7 +122,9 @@ void test_cmdsub_empty_command(void) {
 
 // Test command with arguments
 void test_cmdsub_with_args(void) {
-    char *result = cmdsub_expand("$(echo -n test)");
+    // Use printf instead of echo -n for cross-platform compatibility
+    // (macOS echo doesn't support -n the same way as GNU echo)
+    char *result = cmdsub_expand("$(printf '%s' test)");
 
     TEST_ASSERT_NOT_NULL(result);
     TEST_ASSERT_EQUAL_STRING("test", result);

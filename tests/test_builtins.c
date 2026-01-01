@@ -32,7 +32,8 @@ void test_shell_exit_returns_zero(void) {
 
 // Test shell_cd to valid directory
 void test_shell_cd_valid_directory(void) {
-    char *args[] = {"cd", "/tmp", NULL};
+    // Use /usr which exists on both Linux and macOS without symlink issues
+    char *args[] = {"cd", "/usr", NULL};
     int result = shell_cd(args);
 
     TEST_ASSERT_EQUAL_INT(1, result);
@@ -43,7 +44,7 @@ void test_shell_cd_valid_directory(void) {
         perror("getcwd");
         exit(EXIT_FAILURE);
     }
-    TEST_ASSERT_EQUAL_STRING("/tmp", cwd);
+    TEST_ASSERT_EQUAL_STRING("/usr", cwd);
 }
 
 // Test shell_cd with no arguments (should go to home)
@@ -85,7 +86,8 @@ void test_shell_cd_invalid_directory(void) {
 
 // Test try_builtin with cd command
 void test_try_builtin_cd(void) {
-    char *args[] = {"cd", "/tmp", NULL};
+    // Use /usr which exists on both Linux and macOS without symlink issues
+    char *args[] = {"cd", "/usr", NULL};
     int result = try_builtin(args);
 
     TEST_ASSERT_EQUAL_INT(1, result);
