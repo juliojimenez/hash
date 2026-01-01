@@ -14,8 +14,8 @@ on:
         default: 'v0.1.0'
 
 jobs:
-  build-release:
-    name: Build Release Binaries
+  build-linux:
+    name: Build Linux Binaries
     runs-on: ubuntu-latest
 
     strategy:
@@ -59,39 +59,105 @@ jobs:
           make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O2 -std=gnu99 -static"
 
           # Rename binary with architecture suffix
-          mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
+          mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}
 
           # Create tarball
-          tar -czf hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz \
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} \
+          tar -czf hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz \
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }} \
             README.md
 
       - name: Generate Checksums
         run: |
-          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }} > \
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz > \
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }} > \
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.sha256
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz > \
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz.sha256
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: hash-shell-${{ matrix.arch }}
+          name: hash-shell-linux-${{ matrix.arch }}
           path: |
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz.sha256
 
       - name: Upload To Release
         if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
         with:
           files: |
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.sha256
-            hash-shell-${{ steps.get_version.outputs.version }}-${{ matrix.arch }}.tar.gz.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz.sha256
+          tag_name: ${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build macOS Binary
+    runs-on: macos-latest
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get Version From Tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Build hash
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -O2 -std=gnu99"
+
+          # Rename binary with platform suffix
+          mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
+
+          # Create tarball
+          tar -czf hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz \
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64 \
+            README.md
+
+      - name: Generate Checksums
+        run: |
+          shasum -a 256 hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64 > \
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
+          shasum -a 256 hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz > \
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz.sha256
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: hash-shell-darwin-arm64
+          path: |
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz.sha256
+
+      - name: Upload To Release
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
+        with:
+          files: |
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz.sha256
           tag_name: ${{ steps.get_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,7 +165,7 @@ jobs:
   create-release-notes:
     name: Create Release Notes
     runs-on: ubuntu-latest
-    needs: build-release
+    needs: [build-linux, build-macos]
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
 
     permissions:
@@ -131,33 +197,44 @@ jobs:
           ### Linux x86_64
 
           ```bash
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64
-          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-x86_64
-          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-x86_64 /usr/local/bin/hash-shell
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64 /usr/local/bin/hash-shell
           ```
 
           ### Linux ARM64
 
           ```bash
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-aarch64
-          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-aarch64
-          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-aarch64 /usr/local/bin/hash-shell
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64 /usr/local/bin/hash-shell
+          ```
+
+          ### macOS (Apple Silicon)
+
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64 /usr/local/bin/hash-shell
           ```
 
           ### Verify Checksums
 
           ```bash
-          # Download checksum file
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
+          # Linux
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64.sha256
+          sha256sum -c hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64.sha256
 
-          # Verify
-          sha256sum -c hash-shell-${{ steps.get_version.outputs.version }}-x86_64.sha256
+          # macOS
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
+          shasum -a 256 -c hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
           ```
 
           ## Available Downloads
 
-          - `hash-shell-${{ steps.get_version.outputs.version }}-x86_64` - Linux x86_64 binary
-          - `hash-shell-${{ steps.get_version.outputs.version }}-aarch64` - Linux ARM64 binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64` - Linux x86_64 binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64` - Linux ARM64 binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64` - macOS Apple Silicon binary
           - `*.tar.gz` - Tarball with binary and README
           - `*.sha256` - SHA256 checksums for verification
 

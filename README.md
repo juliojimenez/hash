@@ -28,6 +28,14 @@ sudo mv hash-shell-v16-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
+#### macOS (Apple Silicon)
+
+```bash
+curl -LO https://github.com/juliojimenez/releases/download/v16/hash-shell-v16-darwin-arm64
+chmod +x hash-shell-v16-darwin-arm64
+sudo mv hash-shell-v16-darwin-arm64 /usr/local/bin/hash-shell
+```
+
 ### From Source
 
 ```bash
