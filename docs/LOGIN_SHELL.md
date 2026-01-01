@@ -194,7 +194,7 @@ hash --login
 exec -a -hash /usr/local/bin/hash
 
 # Check if you're in a login shell (look for "(login)" in welcome)
-hash v14 (login)
+hash v15 (login)
 Type 'exit' to quit
 
 # Test logout
@@ -237,7 +237,6 @@ If you want to share profile settings with bash or other shells:
 
 Planned features for login shell support:
 
-- [x] Logout file (`~/.hash_logout`)
 - [ ] Conditional execution based on login shell status
 - [ ] `shopt` equivalent for shell options
 - [ ] Non-interactive shell mode (for scripts)
