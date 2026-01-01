@@ -42,6 +42,9 @@ int shell_test(char **args);
 // Built-in command: [ (alias for test with ] check)
 int shell_bracket(char **args);
 
+// Built-in command: [[ ]] extended test (bash-style)
+int shell_double_bracket(char **args);
+
 // Built-in command: unset environment variable or function
 int shell_unset(char **args);
 

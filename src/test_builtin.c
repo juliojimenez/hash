@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fnmatch.h>
+#include <regex.h>
 #include "test_builtin.h"
 #include "hash.h"
 #include "safe_string.h"
@@ -542,4 +544,350 @@ int builtin_bracket(char **args) {
 
     // Evaluate without the closing bracket
     return test_evaluate(args + 1, argc - 1);
+}
+
+// ============================================================================
+// [[ ]] Extended Test - Bash-style
+// ============================================================================
+
+// Pattern matching for [[ ]] (uses fnmatch)
+static int test_pattern_match(const char *string, const char *pattern) {
+    // fnmatch returns 0 on match
+    return fnmatch(pattern, string, 0) == 0 ? 0 : 1;
+}
+
+// Regex matching for [[ =~ ]]
+static int test_regex_match(const char *string, const char *pattern) {
+    regex_t regex;
+    int ret;
+
+    ret = regcomp(&regex, pattern, REG_EXTENDED | REG_NOSUB);
+    if (ret != 0) {
+        fprintf(stderr, "[[: invalid regex: %s\n", pattern);
+        return 2;
+    }
+
+    ret = regexec(&regex, string, 0, NULL, 0);
+    regfree(&regex);
+
+    return (ret == 0) ? 0 : 1;
+}
+
+// String comparison for [[ < ]] and [[ > ]]
+static int test_string_less_than(const char *s1, const char *s2) {
+    return (strcmp(s1, s2) < 0) ? 0 : 1;
+}
+
+static int test_string_greater_than(const char *s1, const char *s2) {
+    return (strcmp(s1, s2) > 0) ? 0 : 1;
+}
+
+// Forward declarations for [[ ]] recursive parsing
+static int eval_double_bracket_expr(char **args, int *pos, int argc);
+static int eval_double_bracket_or(char **args, int *pos, int argc);
+static int eval_double_bracket_and(char **args, int *pos, int argc);
+static int eval_double_bracket_not(char **args, int *pos, int argc);
+static int eval_double_bracket_primary(char **args, int *pos, int argc);
+
+// Primary expression for [[ ]]
+static int eval_double_bracket_primary(char **args, int *pos, int argc) {
+    if (*pos >= argc) {
+        return 1;  // No more arguments = false
+    }
+
+    const char *arg = args[*pos];
+
+    // Handle parentheses
+    if (strcmp(arg, "(") == 0) {
+        (*pos)++;
+        int result = eval_double_bracket_expr(args, pos, argc);
+        if (*pos < argc && strcmp(args[*pos], ")") == 0) {
+            (*pos)++;
+        } else {
+            fprintf(stderr, "[[: missing ')'\n");
+            return 2;
+        }
+        return result;
+    }
+
+    // Unary file operators (same as [ ])
+    if (arg[0] == '-' && arg[1] != '\0' && arg[2] == '\0') {
+        char op = arg[1];
+
+        if (*pos + 1 >= argc) {
+            (*pos)++;
+            return test_string_nonempty(arg);
+        }
+
+        const char *operand = args[*pos + 1];
+
+        switch (op) {
+            case 'e':
+                (*pos) += 2;
+                return test_file_exists(operand);
+            case 'f':
+                (*pos) += 2;
+                return test_file_regular(operand);
+            case 'd':
+                (*pos) += 2;
+                return test_file_directory(operand);
+            case 'r':
+                (*pos) += 2;
+                return test_file_readable(operand);
+            case 'w':
+                (*pos) += 2;
+                return test_file_writable(operand);
+            case 'x':
+                (*pos) += 2;
+                return test_file_executable(operand);
+            case 's':
+                (*pos) += 2;
+                return test_file_nonempty(operand);
+            case 'L':
+            case 'h':
+                (*pos) += 2;
+                return test_file_symlink(operand);
+            case 'b':
+                (*pos) += 2;
+                return test_file_block(operand);
+            case 'c':
+                (*pos) += 2;
+                return test_file_char(operand);
+            case 'p':
+                (*pos) += 2;
+                return test_file_pipe(operand);
+            case 'S':
+                (*pos) += 2;
+                return test_file_socket(operand);
+            case 'u':
+                (*pos) += 2;
+                return test_file_setuid(operand);
+            case 'g':
+                (*pos) += 2;
+                return test_file_setgid(operand);
+            case 'k':
+                (*pos) += 2;
+                return test_file_sticky(operand);
+            case 'O':
+                (*pos) += 2;
+                return test_file_owned(operand);
+            case 'G':
+                (*pos) += 2;
+                return test_file_group_owned(operand);
+            case 'z':
+                (*pos) += 2;
+                return test_string_empty(operand);
+            case 'n':
+                (*pos) += 2;
+                return test_string_nonempty(operand);
+            case 't':
+                (*pos) += 2;
+                return test_terminal(operand);
+            case 'v':  // [[ -v VAR ]] - variable is set
+                (*pos) += 2;
+                return (getenv(operand) != NULL) ? 0 : 1;
+            default:
+                break;
+        }
+    }
+
+    // Check for binary operators with look-ahead
+    if (*pos + 2 < argc) {
+        const char *op = args[*pos + 1];
+
+        // Pattern matching with == (in [[ ]], right side is pattern)
+        if (strcmp(op, "==") == 0 || strcmp(op, "=") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            // In [[ ]], == does pattern matching
+            return test_pattern_match(s1, s2);
+        }
+        if (strcmp(op, "!=") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            // In [[ ]], != does pattern matching (inverted)
+            return test_pattern_match(s1, s2) ? 0 : 1;
+        }
+
+        // Regex matching with =~
+        if (strcmp(op, "=~") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_regex_match(s1, s2);
+        }
+
+        // String comparison with < and >
+        if (strcmp(op, "<") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_string_less_than(s1, s2);
+        }
+        if (strcmp(op, ">") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_string_greater_than(s1, s2);
+        }
+
+        // Integer comparison (same as [ ])
+        if (strcmp(op, "-eq") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_eq(s1, s2);
+        }
+        if (strcmp(op, "-ne") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_ne(s1, s2);
+        }
+        if (strcmp(op, "-lt") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_lt(s1, s2);
+        }
+        if (strcmp(op, "-le") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_le(s1, s2);
+        }
+        if (strcmp(op, "-gt") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_gt(s1, s2);
+        }
+        if (strcmp(op, "-ge") == 0) {
+            const char *s1 = args[*pos];
+            const char *s2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_int_ge(s1, s2);
+        }
+
+        // File comparisons
+        if (strcmp(op, "-nt") == 0) {
+            const char *f1 = args[*pos];
+            const char *f2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_file_newer(f1, f2);
+        }
+        if (strcmp(op, "-ot") == 0) {
+            const char *f1 = args[*pos];
+            const char *f2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_file_older(f1, f2);
+        }
+        if (strcmp(op, "-ef") == 0) {
+            const char *f1 = args[*pos];
+            const char *f2 = args[*pos + 2];
+            (*pos) += 3;
+            return test_file_same(f1, f2);
+        }
+    }
+
+    // Single string argument - true if non-empty
+    (*pos)++;
+    return test_string_nonempty(arg);
+}
+
+// NOT expression for [[ ]]: ! expr
+static int eval_double_bracket_not(char **args, int *pos, int argc) {
+    if (*pos < argc && strcmp(args[*pos], "!") == 0) {
+        (*pos)++;
+        int result = eval_double_bracket_not(args, pos, argc);
+        if (result == 2) return 2;
+        return result ? 0 : 1;
+    }
+    return eval_double_bracket_primary(args, pos, argc);
+}
+
+// AND expression for [[ ]]: expr && expr
+static int eval_double_bracket_and(char **args, int *pos, int argc) {
+    int result = eval_double_bracket_not(args, pos, argc);
+    if (result == 2) return 2;
+
+    while (*pos < argc && strcmp(args[*pos], "&&") == 0) {
+        (*pos)++;
+        int right = eval_double_bracket_not(args, pos, argc);
+        if (right == 2) return 2;
+
+        if (result != 0) {
+            result = 1;
+        } else {
+            result = right;
+        }
+    }
+
+    return result;
+}
+
+// OR expression for [[ ]]: expr || expr
+static int eval_double_bracket_or(char **args, int *pos, int argc) {
+    int result = eval_double_bracket_and(args, pos, argc);
+    if (result == 2) return 2;
+
+    while (*pos < argc && strcmp(args[*pos], "||") == 0) {
+        (*pos)++;
+        int right = eval_double_bracket_and(args, pos, argc);
+        if (right == 2) return 2;
+
+        if (result == 0) {
+            result = 0;
+        } else {
+            result = right;
+        }
+    }
+
+    return result;
+}
+
+// Top-level expression for [[ ]]
+static int eval_double_bracket_expr(char **args, int *pos, int argc) {
+    return eval_double_bracket_or(args, pos, argc);
+}
+
+// Evaluate [[ ]] expression
+static int double_bracket_evaluate(char **args, int argc) {
+    if (argc == 0) {
+        return 1;  // No arguments = false
+    }
+
+    int pos = 0;
+    int result = eval_double_bracket_expr(args, &pos, argc);
+
+    if (result != 2 && pos < argc) {
+        fprintf(stderr, "[[: too many arguments\n");
+        return 2;
+    }
+
+    return result;
+}
+
+int builtin_double_bracket(char **args) {
+    // Skip "[[" command name
+    if (args[0] == NULL) {
+        return 1;
+    }
+
+    // Count arguments and find closing bracket
+    int argc = 0;
+    while (args[argc + 1] != NULL) {
+        argc++;
+    }
+
+    // Check for closing bracket
+    if (argc == 0 || strcmp(args[argc], "]]") != 0) {
+        fprintf(stderr, "[[: missing ']]'\n");
+        return 2;
+    }
+
+    // Evaluate without the closing bracket
+    return double_bracket_evaluate(args + 1, argc - 1);
 }

@@ -46,6 +46,7 @@ static char *builtin_str[] = {
     "logout",
     "test",
     "[",
+    "[[",         // Bash-style extended test
     "unset",
     "true",
     "false",
@@ -73,6 +74,7 @@ static int (*builtin_func[])(char **) = {
     &shell_logout,
     &shell_test,
     &shell_bracket,
+    &shell_double_bracket,
     &shell_unset,
     &shell_true,
     &shell_false,
@@ -402,6 +404,11 @@ int shell_test(char **args) {
 
 int shell_bracket(char **args) {
     last_command_exit_code = builtin_bracket(args);
+    return 1;
+}
+
+int shell_double_bracket(char **args) {
+    last_command_exit_code = builtin_double_bracket(args);
     return 1;
 }
 

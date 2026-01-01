@@ -2,16 +2,18 @@
 #define TEST_BUILTIN_H
 
 // ============================================================================
-// NOTE: This file implements the POSIX 'test' and '[' shell builtins.
+// NOTE: This file implements the POSIX 'test' and '[' shell builtins,
+// as well as the bash-style '[[' extended test.
 // It is NOT a unit test file. The name "test" refers to the shell command.
 // Unit tests are located in the tests/ directory.
 // ============================================================================
 //
 // ============================================================================
-// POSIX test / [ ] BUILTIN
+// POSIX test / [ ] / [[ ]] BUILTIN
 // ============================================================================
 //
-// Implements the POSIX test command and [ ] syntax for conditional expressions.
+// Implements the POSIX test command, [ ] syntax, and bash-style [[ ]]
+// for conditional expressions.
 //
 // File tests:
 //   -e FILE     True if file exists
@@ -41,9 +43,17 @@
 //
 // Logical operators:
 //   ! EXPR      True if EXPR is false
-//   EXPR -a EXPR  True if both expressions are true (AND)
-//   EXPR -o EXPR  True if either expression is true (OR)
+//   EXPR -a EXPR  True if both expressions are true (AND) - [ ] only
+//   EXPR -o EXPR  True if either expression is true (OR) - [ ] only
+//   EXPR && EXPR  True if both expressions are true (AND) - [[ ]] only
+//   EXPR || EXPR  True if either expression is true (OR) - [[ ]] only
 //   ( EXPR )    Grouping
+//
+// [[ ]] specific features:
+//   PATTERN matching with == and != (supports * and ? wildcards)
+//   =~            Regex matching (returns 0 if match, 1 otherwise)
+//   <             String less than (lexicographic)
+//   >             String greater than (lexicographic)
 //
 // ============================================================================
 
@@ -62,6 +72,21 @@ int builtin_test(char **args);
  * @return 0 if true, 1 if false, 2 on error
  */
 int builtin_bracket(char **args);
+
+/**
+ * Execute the [[ builtin (bash-style extended test)
+ *
+ * Differences from [:
+ * - Uses && and || for logical operators (not -a and -o)
+ * - Supports pattern matching with == and !=
+ * - Supports regex matching with =~
+ * - Supports string comparison with < and >
+ * - No word splitting or pathname expansion
+ *
+ * @param args Arguments ([[ arg1 arg2 ... ]])
+ * @return 0 if true, 1 if false, 2 on error
+ */
+int builtin_double_bracket(char **args);
 
 /**
  * Evaluate a test expression

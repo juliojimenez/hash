@@ -296,17 +296,146 @@ case "$input" in
 esac
 ```
 
-## Differences from `[[ ]]`
+## Extended Test: `[[ ]]`
 
-Hash's `[ ]` is the POSIX `test` command. Some shells (bash, zsh) also have `[[ ]]` which has additional features. Hash currently supports `[ ]` only.
+Hash also supports the bash-style extended test `[[ ]]`, which has additional features.
 
-| Feature | `[ ]` (test) | `[[ ]]` (bash) |
-|---------|--------------|----------------|
+### Syntax
+
+```bash
+[[ expression ]]
+```
+
+### Differences from `[ ]`
+
+| Feature | `[ ]` (test) | `[[ ]]` (extended) |
+|---------|--------------|--------------------|
 | Word splitting | Yes | No |
-| Pattern matching | No | Yes (`==`) |
+| Pattern matching | No | Yes (`==`, `!=`) |
 | Regex | No | Yes (`=~`) |
+| String comparison | `=`, `!=` | `<`, `>` also |
 | `&&` / `\|\|` inside | No (use `-a`/`-o`) | Yes |
+| `-v VAR` | No | Yes |
 | POSIX compatible | Yes | No |
+
+### Pattern Matching
+
+In `[[ ]]`, the `==` and `!=` operators do pattern matching (glob-style):
+
+```bash
+# Match files ending in .txt
+[[ "$file" == *.txt ]] && echo "Text file"
+
+# Match anything starting with "test"
+[[ "$name" == test* ]] && echo "Test item"
+
+# Using character classes
+[[ "$char" == [a-z] ]] && echo "Lowercase letter"
+```
+
+### Regex Matching
+
+The `=~` operator matches against extended regular expressions:
+
+```bash
+# Match email pattern
+[[ "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] && echo "Valid email"
+
+# Match digits
+[[ "$input" =~ ^[0-9]+$ ]] && echo "All digits"
+
+# Match version number
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "Valid semver"
+```
+
+### String Comparison
+
+`[[ ]]` supports lexicographic string comparison:
+
+```bash
+# String less than
+[[ "apple" < "banana" ]] && echo "apple comes before banana"
+
+# String greater than  
+[[ "zebra" > "apple" ]] && echo "zebra comes after apple"
+```
+
+### Logical Operators
+
+`[[ ]]` uses `&&` and `||` instead of `-a` and `-o`:
+
+```bash
+# AND - both conditions must be true
+[[ -f "$file" && -r "$file" ]] && echo "File exists and is readable"
+
+# OR - either condition can be true
+[[ -z "$VAR" || "$VAR" == "default" ]] && echo "Using default"
+
+# Combined with NOT
+[[ ! -d "$dir" || ! -w "$dir" ]] && echo "Directory not writable"
+```
+
+### Variable Set Test
+
+`[[ -v VAR ]]` tests if a variable is set (even if empty):
+
+```bash
+# Check if variable is defined
+[[ -v HOME ]] && echo "HOME is set"
+
+# Note: This is different from -n which checks non-empty
+unset MYVAR
+[[ -v MYVAR ]] && echo "set" || echo "not set"  # Prints: not set
+
+MYVAR=""
+[[ -v MYVAR ]] && echo "set" || echo "not set"  # Prints: set
+```
+
+### Examples
+
+```bash
+# Pattern matching for file extensions
+process_file() {
+    local file="$1"
+    
+    if [[ "$file" == *.txt ]]; then
+        echo "Processing text file"
+    elif [[ "$file" == *.{jpg,png,gif} ]]; then
+        echo "Processing image"
+    else
+        echo "Unknown file type"
+    fi
+}
+
+# Input validation with regex
+validate_input() {
+    local input="$1"
+    
+    if [[ ! "$input" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+        echo "Invalid identifier: must start with letter"
+        return 1
+    fi
+    return 0
+}
+
+# Combined conditions
+if [[ -f "$config" && -r "$config" && $(stat -c%s "$config") -gt 0 ]]; then
+    source "$config"
+fi
+```
+
+### When to Use Each
+
+**Use `[ ]` when:**
+- Writing POSIX-compatible scripts
+- Simple file and string tests
+- Maximum portability is required
+
+**Use `[[ ]]` when:**
+- Pattern matching is needed
+- Regex matching is needed
+- Cleaner syntax for complex conditions
+- No need for POSIX compatibility
 
 ## Troubleshooting
 
