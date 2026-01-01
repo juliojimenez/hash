@@ -1,3 +1,5 @@
+#!/bin/bash
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -7,6 +9,40 @@ HASH_BIN="./hash-shell"
 TEST_DIR="test_output"
 PASSED=0
 FAILED=0
+
+# Portable timeout function
+# Usage: run_with_timeout <seconds> <command> [args...]
+run_with_timeout() {
+    local timeout_duration="$1"
+    shift
+
+    # Check if GNU timeout is available (Linux, or macOS with coreutils)
+    if command -v timeout &> /dev/null; then
+        timeout "$timeout_duration" "$@"
+        return $?
+    # Check for gtimeout (macOS with Homebrew coreutils)
+    elif command -v gtimeout &> /dev/null; then
+        gtimeout "$timeout_duration" "$@"
+        return $?
+    else
+        # Fallback: use perl (available on macOS by default)
+        perl -e '
+            use strict;
+            use warnings;
+            my $timeout = shift @ARGV;
+            my $pid = fork();
+            if ($pid == 0) {
+                exec(@ARGV) or exit(127);
+            }
+            local $SIG{ALRM} = sub { kill("TERM", $pid); exit(124); };
+            alarm($timeout);
+            waitpid($pid, 0);
+            alarm(0);
+            exit($? >> 8);
+        ' "$timeout_duration" "$@"
+        return $?
+    fi
+}
 
 setup() {
     echo "Setting up test environment..."
@@ -39,8 +75,7 @@ run_test() {
     echo -n "Testing: $test_name... "
 
     # Run command in hash shell and capture all output
-    # Use printf with separate lines instead of echo -e
-    local output=$(printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" 2>&1)
+    local output=$(printf "%s\nexit\n" "$command" | run_with_timeout 2 "$HASH_BIN" 2>&1)
 
     # Use grep -F for literal (fixed) string matching to avoid regex issues
     if echo "$output" | grep -qF "$expected"; then
@@ -64,7 +99,7 @@ run_command_test() {
     echo -n "Testing: $test_name... "
 
     # Run command, check exit code
-    if printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
+    if printf "%s\nexit\n" "$command" | run_with_timeout 2 "$HASH_BIN" > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
         ((PASSED++))
         return 0
@@ -84,8 +119,8 @@ run_file_test() {
 
     echo -n "Testing: $test_name... "
 
-    # Run command - use printf instead of echo -e for consistency
-    printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" > /dev/null 2>&1
+    # Run command
+    printf "%s\nexit\n" "$command" | run_with_timeout 2 "$HASH_BIN" > /dev/null 2>&1
 
     if [[ -f "$output_file" ]] && grep -q "$expected_content" "$output_file"; then
         echo -e "${GREEN}PASS${NC}"
@@ -111,8 +146,8 @@ echo -e "${YELLOW}=== Hash Shell Test Suite ===${NC}\n"
 setup
 
 echo -e "${YELLOW}Basic Commands:${NC}"
-run_test "echo command" "echo hello"
-run_test "pwd command" "pwd"
+run_test "echo command" "echo hello" "hello"
+run_test "pwd command" "pwd" "/"
 run_command_test "ls command" "ls"
 run_command_test "date command" "date"
 
