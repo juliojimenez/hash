@@ -43,7 +43,7 @@
 
 /**
  * Execute the test builtin command
- * 
+ *
  * @param args Arguments (test arg1 arg2 ... or [ arg1 arg2 ... ])
  * @return 0 if true, 1 if false, 2 on error
  */
@@ -51,7 +51,7 @@ int builtin_test(char **args);
 
 /**
  * Execute the [ builtin (test with syntax checking for ])
- * 
+ *
  * @param args Arguments ([ arg1 arg2 ... ])
  * @return 0 if true, 1 if false, 2 on error
  */
@@ -60,7 +60,7 @@ int builtin_bracket(char **args);
 /**
  * Evaluate a test expression
  * This is the core evaluation function used by both test and [
- * 
+ *
  * @param args Array of test arguments
  * @param argc Number of arguments
  * @return 0 if true, 1 if false, 2 on error
