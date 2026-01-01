@@ -121,6 +121,7 @@ typedef struct {
     bool in_script;         // Are we executing a script file?
     const char *script_path; // Current script path (for error messages)
     int script_line;        // Current line number
+    bool silent_errors;     // Suppress errors (for system startup files)
 
     // Positional parameters ($1, $2, etc.)
     char **positional_params;
@@ -156,6 +157,17 @@ void script_cleanup(void);
  * @return Exit code of the script
  */
 int script_execute_file(const char *filepath, int argc, char **argv);
+
+/**
+ * Execute a script file with extended options
+ *
+ * @param filepath Path to the script file
+ * @param argc Number of arguments passed to script
+ * @param argv Arguments passed to script ($0, $1, $2, ...)
+ * @param silent_errors If true, suppress error messages (for system files)
+ * @return Exit code of the script
+ */
+int script_execute_file_ex(const char *filepath, int argc, char **argv, bool silent_errors);
 
 /**
  * Execute a string as a script (for -c option or eval)

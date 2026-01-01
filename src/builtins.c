@@ -250,7 +250,9 @@ int shell_source(char **args) {
     }
 
     // Execute the script file
-    int result = script_execute_file(args[1], 0, NULL);
+    // If we're already in silent mode (e.g., sourcing system files),
+    // continue in silent mode for nested sources
+    int result = script_execute_file_ex(args[1], 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
     return 1;

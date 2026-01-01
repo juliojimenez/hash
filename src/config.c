@@ -293,7 +293,8 @@ int config_load_default(void) {
 }
 
 // Load config file silently (no error if doesn't exist)
-// This uses script_execute_file for proper POSIX script execution
+// This uses script_execute_file_ex with silent_errors for system files
+// that may contain unsupported bash-specific syntax
 int config_load_silent(const char *filepath) {
     if (access(filepath, F_OK) != 0) {
         return 0;  // File doesn't exist - not an error
@@ -302,8 +303,10 @@ int config_load_silent(const char *filepath) {
         return 0;  // Not readable - silently skip
     }
 
-    // Use script_execute_file for proper POSIX execution
-    return script_execute_file(filepath, 0, NULL);
+    // Use script_execute_file_ex with silent errors for system files
+    // System files like /etc/profile may source bash-specific files
+    // that contain unsupported syntax
+    return script_execute_file_ex(filepath, 0, NULL, true);
 }
 
 // Load startup files based on shell type

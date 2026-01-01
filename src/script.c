@@ -56,6 +56,7 @@ void script_init(void) {
     script_state.in_script = false;
     script_state.script_path = NULL;
     script_state.script_line = 0;
+    script_state.silent_errors = false;
     script_state.positional_params = NULL;
     script_state.positional_count = 0;
 }
@@ -738,13 +739,28 @@ int script_process_line(const char *line) {
 // ============================================================================
 
 int script_execute_file(const char *filepath, int argc, char **argv) {
+    return script_execute_file_ex(filepath, argc, argv, false);
+}
+
+// Extended version with option to suppress errors
+// Used for sourcing system files that may contain unsupported syntax
+int script_execute_file_ex(const char *filepath, int argc, char **argv, bool silent_errors) {
     if (!filepath) return 1;
 
     FILE *fp = fopen(filepath, "r");
     if (!fp) {
-        fprintf(stderr, "%s: cannot open '%s': ", HASH_NAME, filepath);
-        perror("");
+        if (!silent_errors && !script_state.silent_errors) {
+            fprintf(stderr, "%s: cannot open '%s': ", HASH_NAME, filepath);
+            perror("");
+        }
         return 1;
+    }
+
+    // Save and set silent_errors flag
+    // This flag is inherited by nested source operations
+    bool old_silent = script_state.silent_errors;
+    if (silent_errors) {
+        script_state.silent_errors = true;
     }
 
     // Set up script state
@@ -793,13 +809,20 @@ int script_execute_file(const char *filepath, int argc, char **argv) {
 
     // Check for unclosed control structures
     if (script_state.context_depth > 0) {
-        fprintf(stderr, "%s: %s: unexpected end of file\n", HASH_NAME, filepath);
+        if (!silent_errors && !script_state.silent_errors) {
+            fprintf(stderr, "%s: %s: unexpected end of file\n", HASH_NAME, filepath);
+        }
+        // Clear context stack on error to prevent cascading issues
+        while (script_state.context_depth > 0) {
+            script_pop_context();
+        }
         result = 1;
     }
 
     // Cleanup
     script_state.in_script = false;
     script_state.script_path = NULL;
+    script_state.silent_errors = old_silent;  // Restore silent flag
 
     return result < 0 ? 1 : execute_get_last_exit_code();
 }
