@@ -204,11 +204,43 @@ int execute(char **args) {
         return result;
     }
 
+    // Check for redirections
+    RedirInfo *redir = redirect_parse(args);
+    char **exec_args = redir ? redir->args : args;
+
     // Try built-in commands first
-    int result = try_builtin(args);
+    int result = try_builtin(exec_args);
     if (result != -1) {
+        // If there were redirections for a builtin, we need to handle them
+        // Run builtin in a child process if redirections are present
+        if (redir && redir->count > 0) {
+            // Need to re-execute with redirections in a child
+            pid_t pid = fork();
+            if (pid == 0) {
+                // Child process - apply redirections and run builtin
+                if (redirect_apply(redir) != 0) {
+                    exit(EXIT_FAILURE);
+                }
+                // Re-run the builtin (result already computed, but we need output redirected)
+                int builtin_result = try_builtin(exec_args);
+                redirect_free(redir);
+                exit(builtin_result == 0 ? EXIT_SUCCESS : 
+                     (builtin_result == 1 ? EXIT_SUCCESS : EXIT_FAILURE));
+            } else if (pid > 0) {
+                // Parent - wait for child
+                int status;
+                waitpid(pid, &status, 0);
+                if (WIFEXITED(status)) {
+                    last_command_exit_code = WEXITSTATUS(status);
+                }
+            }
+            redirect_free(redir);
+            return 1;
+        }
+        redirect_free(redir);
         return result;
     }
+    redirect_free(redir);
 
     // Build command string for job display
     char *cmd_string = build_cmd_string(args);

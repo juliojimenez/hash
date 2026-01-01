@@ -84,8 +84,8 @@ run_file_test() {
 
     echo -n "Testing: $test_name... "
 
-    # Run command
-    echo -e "$command\nexit" | timeout 2 "$HASH_BIN" > /dev/null 2>&1
+    # Run command - use printf instead of echo -e for consistency
+    printf "%s\nexit\n" "$command" | timeout 2 "$HASH_BIN" > /dev/null 2>&1
 
     if [[ -f "$output_file" ]] && grep -q "$expected_content" "$output_file"; then
         echo -e "${GREEN}PASS${NC}"
@@ -95,6 +95,12 @@ run_file_test() {
     else
         echo -e "${RED}FAIL${NC}"
         echo "  File not found or content mismatch"
+        if [[ -f "$output_file" ]]; then
+            echo "  File exists, content:"
+            cat "$output_file"
+        else
+            echo "  File does not exist: $output_file"
+        fi
         ((FAILED++))
         return 1
     fi

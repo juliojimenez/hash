@@ -2,6 +2,12 @@
 #define TEST_BUILTIN_H
 
 // ============================================================================
+// NOTE: This file implements the POSIX 'test' and '[' shell builtins.
+// It is NOT a unit test file. The name "test" refers to the shell command.
+// Unit tests are located in the tests/ directory.
+// ============================================================================
+//
+// ============================================================================
 // POSIX test / [ ] BUILTIN
 // ============================================================================
 //
