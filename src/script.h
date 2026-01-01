@@ -38,7 +38,7 @@ typedef enum {
     TOK_RPAREN,         // )
     TOK_LBRACE,         // {
     TOK_RBRACE,         // }
-    
+
     // Control structure keywords
     TOK_IF,
     TOK_THEN,
@@ -53,10 +53,10 @@ typedef enum {
     TOK_CASE,
     TOK_ESAC,
     TOK_IN,
-    
+
     // Other keywords
     TOK_FUNCTION,       // function keyword (bash extension)
-    
+
     TOK_EOF,
     TOK_ERROR
 } TokenType;
@@ -81,14 +81,14 @@ typedef struct {
     ContextType type;
     bool condition_met;     // For if/elif - was a condition already true?
     bool should_execute;    // Should commands in this block execute?
-    
+
     // For loops
     char *loop_var;         // Variable name for for loops
     char **loop_values;     // Values to iterate over
     int loop_index;         // Current index in loop
     int loop_count;         // Total number of values
     long loop_body_start;   // File position of loop body start
-    
+
     // For case
     char *case_word;        // Word being matched in case statement
     bool case_matched;      // Has a pattern matched?
@@ -112,16 +112,16 @@ typedef struct {
     // Context stack for nested control structures
     ScriptContext context_stack[MAX_SCRIPT_DEPTH];
     int context_depth;
-    
+
     // Function definitions
     ShellFunction functions[MAX_FUNCTIONS];
     int function_count;
-    
+
     // Script execution state
     bool in_script;         // Are we executing a script file?
     const char *script_path; // Current script path (for error messages)
     int script_line;        // Current line number
-    
+
     // Positional parameters ($1, $2, etc.)
     char **positional_params;
     int positional_count;
@@ -149,7 +149,7 @@ void script_cleanup(void);
 
 /**
  * Execute a script file
- * 
+ *
  * @param filepath Path to the script file
  * @param argc Number of arguments passed to script
  * @param argv Arguments passed to script ($0, $1, $2, ...)
@@ -159,7 +159,7 @@ int script_execute_file(const char *filepath, int argc, char **argv);
 
 /**
  * Execute a string as a script (for -c option or eval)
- * 
+ *
  * @param script Script content to execute
  * @return Exit code
  */
@@ -168,7 +168,7 @@ int script_execute_string(const char *script);
 /**
  * Process a single line of script
  * This handles control structures and can buffer incomplete statements
- * 
+ *
  * @param line Line to process
  * @return 0 to continue, negative on error, positive for exit
  */
@@ -210,7 +210,7 @@ ContextType script_current_context(void);
 
 /**
  * Define a new function
- * 
+ *
  * @param name Function name
  * @param body Function body (commands)
  * @return 0 on success, -1 on error
@@ -219,7 +219,7 @@ int script_define_function(const char *name, const char *body);
 
 /**
  * Look up a function by name
- * 
+ *
  * @param name Function name
  * @return Pointer to function, or NULL if not found
  */
@@ -227,7 +227,7 @@ ShellFunction *script_get_function(const char *name);
 
 /**
  * Execute a function
- * 
+ *
  * @param func Function to execute
  * @param argc Number of arguments
  * @param argv Arguments ($1, $2, ...)
@@ -241,7 +241,7 @@ int script_execute_function(ShellFunction *func, int argc, char **argv);
 
 /**
  * Evaluate a test expression (for [ ] or test builtin)
- * 
+ *
  * @param args Arguments to test (excluding [ and ])
  * @param argc Number of arguments
  * @return 0 if true, 1 if false, 2 on error
@@ -251,7 +251,7 @@ int script_eval_test(char **args, int argc);
 /**
  * Evaluate a condition for if/while/until
  * Runs the command and returns based on exit code
- * 
+ *
  * @param condition Command to execute
  * @return true if exit code is 0
  */
