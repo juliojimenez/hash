@@ -235,7 +235,7 @@ int jobs_count(void) {
 
 // Wait for a specific job to complete
 int jobs_wait(int job_id) {
-    Job *job = jobs_get(job_id);
+    const Job *job = jobs_get(job_id);
     if (!job) {
         color_error("%s: job %d not found", HASH_NAME, job_id);
         return -1;
@@ -365,7 +365,7 @@ void jobs_sigchld_handler(int sig) {
 
     // Reap all terminated children (but not stopped ones)
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-        Job *job = jobs_get_by_pid(pid);
+        const Job *job = jobs_get_by_pid(pid);
         if (job) {
             // Only update if terminated, not stopped
             // (stopped processes are handled by the foreground wait)
