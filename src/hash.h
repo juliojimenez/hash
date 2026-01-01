@@ -3,5 +3,5 @@
 #define MAX_LINE 1024
 #define MAX_ARGS 64
 #define HASH_NAME "hash"
-#define HASH_VERSION "12"
+#define HASH_VERSION "13"
 #endif
