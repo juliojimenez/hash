@@ -254,13 +254,23 @@ int config_load(const char *filepath) {
 }
 
 // Get home directory helper
+// Note: Returns pointer to static buffer or environment variable
 static const char *get_home_dir(void) {
     const char *home = getenv("HOME");
     if (home) return home;
 
-    // Fallback to passwd entry
-    const struct passwd *pw = getpwuid(getuid());
-    return pw ? pw->pw_dir : NULL;
+    // Fallback to passwd entry using reentrant version
+    static char home_buf[1024];
+    struct passwd pw;
+    struct passwd *result = NULL;
+    char buf[1024];
+
+    if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
+        snprintf(home_buf, sizeof(home_buf), "%s", pw.pw_dir);
+        return home_buf;
+    }
+
+    return NULL;
 }
 
 // Load default config file (~/.hashrc)
