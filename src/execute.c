@@ -15,6 +15,7 @@
 #include "cmdsub.h"
 #include "redirect.h"
 #include "jobs.h"
+#include "safe_string.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -118,8 +119,8 @@ static char *build_cmd_string(char **args) {
 
     cmd[0] = '\0';
     for (int i = 0; args[i] != NULL; i++) {
-        if (i > 0) strcat(cmd, " ");
-        strcat(cmd, args[i]);
+        if (i > 0) safe_strcat(cmd, " ", total_len);
+        safe_strcat(cmd, args[i], total_len);
     }
 
     return cmd;
