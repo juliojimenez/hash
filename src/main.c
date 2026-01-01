@@ -13,6 +13,7 @@ Julio Jimenez, julio@julioj.com
 #include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <errno.h>
 #include "hash.h"
 #include "parser.h"
 #include "execute.h"
@@ -58,8 +59,14 @@ static void init_job_control(void) {
     // Put ourselves in our own process group
     shell_pgid = getpid();
     if (setpgid(shell_pgid, shell_pgid) < 0) {
-        perror("Couldn't put the shell in its own process group");
-        exit(1);
+        // EPERM means we're already a session leader (e.g., login shell via SSH)
+        // This is fine - we're already in control
+        if (errno != EPERM) {
+            perror("Couldn't put the shell in its own process group");
+            exit(1);
+        }
+        // We're a session leader, so our pgid is already our pid
+        shell_pgid = getpgrp();
     }
 
     // Grab control of the terminal
