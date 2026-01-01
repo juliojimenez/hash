@@ -259,7 +259,7 @@ static const char *get_home_dir(void) {
     if (home) return home;
 
     // Fallback to passwd entry
-    struct passwd *pw = getpwuid(getuid());
+    const struct passwd *pw = getpwuid(getuid());
     return pw ? pw->pw_dir : NULL;
 }
 
