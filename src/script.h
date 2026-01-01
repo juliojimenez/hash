@@ -233,7 +233,7 @@ ShellFunction *script_get_function(const char *name);
  * @param argv Arguments ($1, $2, ...)
  * @return Exit code of function
  */
-int script_execute_function(ShellFunction *func, int argc, char **argv);
+int script_execute_function(const ShellFunction *func, int argc, char **argv);
 
 // ============================================================================
 // Test/Condition Evaluation

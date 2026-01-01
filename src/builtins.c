@@ -196,7 +196,7 @@ int shell_alias(char **args) {
     char *equals = strchr(args[1], '=');
     if (equals) {
         *equals = '\0';
-        char *name = args[1];
+        const char *name = args[1];
         char *value = equals + 1;
 
         if ((value[0] == '"' || value[0] == '\'') &&
@@ -572,7 +572,7 @@ int shell_read(char **args) {
 
     // Split line into words and assign to variables
     char *saveptr;
-    char *word = strtok_r(line, " \t", &saveptr);
+    const char *word = strtok_r(line, " \t", &saveptr);
     int i = start;
 
     while (args[i] != NULL) {
@@ -582,7 +582,7 @@ int shell_read(char **args) {
                 char rest[4096];
                 safe_strcpy(rest, word, sizeof(rest));
 
-                char *remaining = strtok_r(NULL, "", &saveptr);
+                const char *remaining = strtok_r(NULL, "", &saveptr);
                 if (remaining) {
                     safe_strcat(rest, " ", sizeof(rest));
                     safe_strcat(rest, remaining, sizeof(rest));

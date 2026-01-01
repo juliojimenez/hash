@@ -151,8 +151,8 @@ static void print_version(void) {
 
 int main(int argc, char *argv[]) {
     // Argument parsing state
-    char *command_string = NULL;      // -c argument
-    char *script_file = NULL;         // Script file to execute
+    const char *command_string = NULL;      // -c argument
+    const char *script_file = NULL;         // Script file to execute
     int script_argc = 0;              // Number of script arguments
     char **script_argv = NULL;        // Script arguments ($0, $1, $2, ...)
     bool force_interactive = false;   // -i flag

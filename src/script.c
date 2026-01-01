@@ -342,7 +342,7 @@ ShellFunction *script_get_function(const char *name) {
     return NULL;
 }
 
-int script_execute_function(ShellFunction *func, int argc, char **argv) {
+int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     if (!func || !func->body) return 1;
 
     char **old_params = script_state.positional_params;
@@ -579,7 +579,7 @@ static int process_for(const char *line) {
 
             if (values && len > 0) {
                 char *saveptr;
-                char *token = strtok_r(values_str, " \t", &saveptr);
+                const char *token = strtok_r(values_str, " \t", &saveptr);
                 while (token && count < 255) {
                     values[count++] = strdup(token);
                     token = strtok_r(NULL, " \t", &saveptr);
@@ -815,7 +815,7 @@ int script_execute_string(const char *script) {
 
     int result = 0;
     char *saveptr;
-    char *line = strtok_r(script_copy, "\n", &saveptr);
+    const char *line = strtok_r(script_copy, "\n", &saveptr);
 
     while (line && result >= 0) {
         result = script_process_line(line);
