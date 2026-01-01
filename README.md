@@ -31,7 +31,7 @@ hash-shell
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/releases/download/v17/hash-shell-v17-darwin-arm64
+curl -LO https://github.com/juliojimenez/hash/releases/download/v17/hash-shell-v17-darwin-arm64
 chmod +x hash-shell-v17-darwin-arm64
 sudo mv hash-shell-v17-darwin-arm64 /usr/local/bin/hash-shell
 ```
