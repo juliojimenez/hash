@@ -2,9 +2,6 @@ name: Tests
 
 on:
   push:
-#    branches: [ main, develop ]
-#  pull_request:
-#    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -14,14 +11,25 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-22.04]
+        os: [ubuntu-latest, ubuntu-22.04, macos-latest, macos-14, macos-15, macos-26]
         cc: [gcc, clang]
+        exclude:
+          # On macOS, gcc is actually clang, so only test with clang
+          - os: macos-latest
+            cc: gcc
+          - os: macos-14
+            cc: gcc
+          - os: macos-15
+            cc: gcc
+          - os: macos-26
+            cc: gcc
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Dependencies
+      - name: Install Dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
@@ -75,6 +83,26 @@ jobs:
         run: |
           # Check for trailing whitespace
           ! git grep -n '[[:space:]]$' -- '*.c' '*.h'
+
+      - name: Verify Clean Rebuild
+        run: |
+          make clean
+          make
+          make clean
+          make
+
+  build-check-macos:
+    name: Build Validation (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check Compiler Warnings
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -Werror -O2 -std=gnu99"
 
       - name: Verify Clean Rebuild
         run: |
