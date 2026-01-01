@@ -49,4 +49,11 @@ void config_list_aliases(void);
 // Process a config line (returns 0 on success)
 int config_process_line(char *line);
 
+// Load config file silently (no error if file doesn't exist)
+int config_load_silent(const char *filepath);
+
+// Load startup files based on shell type
+// is_login_shell: true if invoked as login shell (argv[0] starts with '-' or --login)
+void config_load_startup_files(bool is_login_shell);
+
 #endif // CONFIG_H

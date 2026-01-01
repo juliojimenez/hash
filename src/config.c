@@ -253,20 +253,20 @@ int config_load(const char *filepath) {
     return errors > 0 ? -1 : 0;
 }
 
-// Load default config file (~/.hashrc)
-int config_load_default(void) {
+// Get home directory helper
+static const char *get_home_dir(void) {
     const char *home = getenv("HOME");
+    if (home) return home;
 
-    if (!home) {
-        // Use reentrant version for thread safety
-        struct passwd pw;
-        struct passwd *result = NULL;
-        char buf[1024];
+    // Fallback to passwd entry
+    struct passwd *pw = getpwuid(getuid());
+    return pw ? pw->pw_dir : NULL;
+}
 
-        if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
-            home = pw.pw_dir;
-        }
-    }
+// Load default config file (~/.hashrc)
+// DEPRECATED: Use config_load_startup_files() instead
+int config_load_default(void) {
+    const char *home = get_home_dir();
 
     if (!home) {
         return -1;
@@ -281,4 +281,71 @@ int config_load_default(void) {
     }
 
     return config_load(config_path);
+}
+
+// Load config file silently (no error if file doesn't exist)
+int config_load_silent(const char *filepath) {
+    if (access(filepath, F_OK) != 0) {
+        return 0;  // File doesn't exist - not an error
+    }
+    return config_load(filepath);
+}
+
+// Load startup files based on shell type
+void config_load_startup_files(bool is_login_shell) {
+    const char *home = get_home_dir();
+    char path[1024];
+
+    if (is_login_shell) {
+        // ====================================================================
+        // LOGIN SHELL STARTUP SEQUENCE
+        // ====================================================================
+        // 1. /etc/profile (system-wide)
+        // 2. First of: ~/.hash_profile, ~/.hash_login, ~/.profile
+        // 3. ~/.hashrc (for interactive settings)
+
+        // 1. System-wide profile
+        config_load_silent("/etc/profile");
+
+        // 2. User profile (first one found)
+        if (home) {
+            bool profile_loaded = false;
+
+            // Try ~/.hash_profile first (hash-specific)
+            snprintf(path, sizeof(path), "%s/.hash_profile", home);
+            if (access(path, F_OK) == 0) {
+                config_load_silent(path);
+                profile_loaded = true;
+            }
+
+            // Try ~/.hash_login if no profile yet
+            if (!profile_loaded) {
+                snprintf(path, sizeof(path), "%s/.hash_login", home);
+                if (access(path, F_OK) == 0) {
+                    config_load_silent(path);
+                    profile_loaded = true;
+                }
+            }
+
+            // Fall back to ~/.profile (shared with other shells)
+            if (!profile_loaded) {
+                snprintf(path, sizeof(path), "%s/.profile", home);
+                config_load_silent(path);
+            }
+
+            // 3. Interactive config (always load for login shells)
+            snprintf(path, sizeof(path), "%s/.hashrc", home);
+            config_load_silent(path);
+        }
+    } else {
+        // ====================================================================
+        // INTERACTIVE NON-LOGIN SHELL
+        // ====================================================================
+        // Only load ~/.hashrc
+
+        if (home) {
+            snprintf(path, sizeof(path), "%s/.hashrc", home);
+            config_load_silent(path);
+        }
+    }
 }

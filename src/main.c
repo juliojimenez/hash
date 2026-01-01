@@ -10,6 +10,8 @@ Julio Jimenez, julio@julioj.com
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -118,7 +120,23 @@ static void loop(void) {
     } while(status);
 }
 
-int main(/*int argc, char **argv*/) {
+int main(int argc, char *argv[]) {
+    // Determine if we're a login shell
+    // A login shell is indicated by:
+    // 1. argv[0] starting with '-' (e.g., "-hash" set by login/sshd)
+    // 2. --login or -l flag passed as argument
+    bool is_login_shell = false;
+
+    if (argc > 0 && argv[0][0] == '-') {
+        is_login_shell = true;
+    }
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--login") == 0 || strcmp(argv[i], "-l") == 0) {
+            is_login_shell = true;
+        }
+    }
+
     // Initialize job control (must be done early)
     init_job_control();
 
@@ -146,12 +164,16 @@ int main(/*int argc, char **argv*/) {
     // Initialize job control subsystem
     jobs_init();
 
-    // Load .hashrc if it exists
-    config_load_default();
+    // Load startup files based on shell type
+    config_load_startup_files(is_login_shell);
 
     if (shell_config.show_welcome) {
         color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
-        printf(" v%s\n", HASH_VERSION);
+        printf(" v%s", HASH_VERSION);
+        if (is_login_shell) {
+            printf(" (login)");
+        }
+        printf("\n");
         printf("Type ");
         color_print(COLOR_YELLOW, "'exit'");
         printf(" to quit\n\n");

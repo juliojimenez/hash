@@ -1,0 +1,61 @@
+# Hash Shell Login Profile
+# ~/.hash_profile - Loaded on login shells only
+#
+# Put environment variables and PATH modifications here.
+# This file is sourced before ~/.hashrc on login shells.
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+
+# Default editor
+export EDITOR=vim
+export VISUAL=vim
+
+# Pager
+export PAGER=less
+export LESS='-R'
+
+# Locale
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# ============================================================================
+# PATH MODIFICATIONS
+# ============================================================================
+
+# User binaries
+export PATH=$HOME/bin:$HOME/.local/bin:$PATH
+
+# Go
+# export GOPATH=$HOME/go
+# export PATH=$GOPATH/bin:$PATH
+
+# Rust
+# export PATH=$HOME/.cargo/bin:$PATH
+
+# Node.js (nvm or manual)
+# export PATH=$HOME/.nvm/versions/node/v20.0.0/bin:$PATH
+
+# ============================================================================
+# APPLICATION-SPECIFIC
+# ============================================================================
+
+# GPG TTY for signing
+# export GPG_TTY=$(tty)
+
+# AWS
+# export AWS_PROFILE=default
+# export AWS_REGION=us-east-1
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# 
+# This file is only loaded for login shells (SSH, console login, hash --login).
+# For aliases and prompt settings, use ~/.hashrc instead.
+#
+# Login shell startup order:
+#   1. /etc/profile
+#   2. ~/.hash_profile (this file) OR ~/.hash_login OR ~/.profile
+#   3. ~/.hashrc
