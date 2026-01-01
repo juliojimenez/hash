@@ -1,6 +1,8 @@
 #ifndef BUILTINS_H
 #define BUILTINS_H
 
+#include <stdbool.h>
+
 // Built-in command: change directory
 int shell_cd(char **args);
 
@@ -30,6 +32,12 @@ int shell_fg(char **args);
 
 // Built-in command: continue job in background
 int shell_bg(char **args);
+
+// Built-in command: logout from login shell
+int shell_logout(char **args);
+
+// Set login shell status (called from main)
+void builtins_set_login_shell(bool is_login);
 
 // Check if command is a built-in and execute it
 // Returns -1 if not a built-in, otherwise returns the result

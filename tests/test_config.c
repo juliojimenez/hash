@@ -150,6 +150,16 @@ void test_multiple_aliases(void) {
     TEST_ASSERT_EQUAL_STRING("ls -CF", config_get_alias("l"));
 }
 
+// Test config_load_logout_files runs without crashing
+// (actual file execution would require integration testing)
+void test_config_load_logout_files(void) {
+    // Just verify the function doesn't crash when called
+    // This will try to load ~/.hash_logout which may or may not exist
+    config_load_logout_files();
+    // If we get here, the function completed without error
+    TEST_ASSERT_TRUE(1);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -169,6 +179,7 @@ int main(void) {
     RUN_TEST(test_process_set_colors_on);
     RUN_TEST(test_process_set_welcome_off);
     RUN_TEST(test_multiple_aliases);
+    RUN_TEST(test_config_load_logout_files);
 
     return UNITY_END();
 }

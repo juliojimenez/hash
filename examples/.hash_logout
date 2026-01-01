@@ -1,0 +1,42 @@
+# Hash Shell Logout File (~/.hash_logout)
+# This file is executed when exiting a login shell
+
+# ============================================================================
+# LOGOUT ACTIONS
+# ============================================================================
+
+# Clear the screen on logout (for security)
+# clear
+
+# Display farewell message
+# echo "Goodbye! Session ended at $(date)"
+
+# ============================================================================
+# CLEANUP TASKS
+# ============================================================================
+
+# Clean up temporary files
+# rm -rf ~/tmp/session_* 2>/dev/null
+
+# Clear command history (for security)
+# history -c
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Log session end time
+# echo "$(date): Session ended" >> ~/.session_log
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# This file is only executed for login shells (hash -l or hash --login)
+# Regular interactive shells will NOT run this file
+#
+# Common uses:
+# - Clear screen for security (prevent shoulder surfing)
+# - Clean up temporary files
+# - Log session end times
+# - Display farewell messages
+# - Run backup scripts

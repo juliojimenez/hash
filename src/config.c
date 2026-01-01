@@ -359,3 +359,25 @@ void config_load_startup_files(bool is_login_shell) {
         }
     }
 }
+
+// Load logout files for login shell exit
+void config_load_logout_files(void) {
+    const char *home = get_home_dir();
+    char path[1024];
+
+    if (!home) return;
+
+    // ========================================================================
+    // LOGOUT SEQUENCE
+    // ========================================================================
+    // 1. ~/.hash_logout (user logout script)
+    //
+    // Common uses:
+    // - Clear screen on logout (clear)
+    // - Display farewell message
+    // - Clean up temporary files
+    // - Log session end time
+
+    snprintf(path, sizeof(path), "%s/.hash_logout", home);
+    config_load_silent(path);
+}

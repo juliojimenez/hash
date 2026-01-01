@@ -56,4 +56,8 @@ int config_load_silent(const char *filepath);
 // is_login_shell: true if invoked as login shell (argv[0] starts with '-' or --login)
 void config_load_startup_files(bool is_login_shell);
 
+// Load logout files for login shell exit
+// Executes ~/.hash_logout if it exists (for login shells only)
+void config_load_logout_files(void);
+
 #endif // CONFIG_H

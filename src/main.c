@@ -26,10 +26,14 @@ Julio Jimenez, julio@julioj.com
 #include "lineedit.h"
 #include "history.h"
 #include "completion.h"
+#include "builtins.h"
 #include "jobs.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
+
+// Track if this is a login shell (needed for logout handling)
+static bool is_login_shell_global = false;
 
 // Signal handler for cleanup
 static void signal_handler(int sig) {
@@ -125,15 +129,14 @@ int main(int argc, char *argv[]) {
     // A login shell is indicated by:
     // 1. argv[0] starting with '-' (e.g., "-hash" set by login/sshd)
     // 2. --login or -l flag passed as argument
-    bool is_login_shell = false;
 
     if (argc > 0 && argv[0][0] == '-') {
-        is_login_shell = true;
+        is_login_shell_global = true;
     }
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--login") == 0 || strcmp(argv[i], "-l") == 0) {
-            is_login_shell = true;
+            is_login_shell_global = true;
         }
     }
 
@@ -164,13 +167,16 @@ int main(int argc, char *argv[]) {
     // Initialize job control subsystem
     jobs_init();
 
+    // Set login shell status for builtins (needed for logout command)
+    builtins_set_login_shell(is_login_shell_global);
+
     // Load startup files based on shell type
-    config_load_startup_files(is_login_shell);
+    config_load_startup_files(is_login_shell_global);
 
     if (shell_config.show_welcome) {
         color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
         printf(" v%s", HASH_VERSION);
-        if (is_login_shell) {
+        if (is_login_shell_global) {
             printf(" (login)");
         }
         printf("\n");
@@ -181,6 +187,11 @@ int main(int argc, char *argv[]) {
 
     // Run Command Loop
     loop();
+
+    // Run logout scripts for login shells
+    if (is_login_shell_global) {
+        config_load_logout_files();
+    }
 
     // Cleanup
     lineedit_cleanup();

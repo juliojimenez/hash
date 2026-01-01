@@ -115,6 +115,33 @@ void test_try_builtin_null_args(void) {
     TEST_ASSERT_EQUAL_INT(-1, result);
 }
 
+// Test shell_logout in non-login shell (should fail)
+void test_shell_logout_not_login_shell(void) {
+    // By default, is_login_shell is false
+    builtins_set_login_shell(false);
+
+    char *args[] = {"logout", NULL};
+    int result = shell_logout(args);
+
+    // Should return 1 (continue shell) because not a login shell
+    TEST_ASSERT_EQUAL_INT(1, result);
+}
+
+// Test shell_logout in login shell (should succeed)
+void test_shell_logout_login_shell(void) {
+    // Set as login shell
+    builtins_set_login_shell(true);
+
+    char *args[] = {"logout", NULL};
+    int result = shell_logout(args);
+
+    // Should return 0 (exit shell)
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    // Reset to non-login shell for other tests
+    builtins_set_login_shell(false);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -126,6 +153,8 @@ int main(void) {
     RUN_TEST(test_try_builtin_exit);
     RUN_TEST(test_try_builtin_not_builtin);
     RUN_TEST(test_try_builtin_null_args);
+    RUN_TEST(test_shell_logout_not_login_shell);
+    RUN_TEST(test_shell_logout_login_shell);
 
     return UNITY_END();
 }

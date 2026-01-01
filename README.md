@@ -81,7 +81,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
   - [HISTCONTROL](./docs/HISTCONTROL.md)
 - [Tab Completion](./docs/TAB_COMPLETION.md)
   - [Tab Completion Quick Reference](./docs/COMPLETION_QUICKREF.md)
-- [Login Shells](./docs/LOGIN_SHELL.md)
+- [Login Shell](./docs/LOGIN_SHELL.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)

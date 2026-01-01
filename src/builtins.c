@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/types.h>
@@ -15,6 +16,13 @@
 
 extern int last_command_exit_code;
 
+// Track if this is a login shell (set from main)
+static bool is_login_shell = false;
+
+void builtins_set_login_shell(bool is_login) {
+    is_login_shell = is_login;
+}
+
 static char *builtin_str[] = {
     "cd",
     "exit",
@@ -25,7 +33,8 @@ static char *builtin_str[] = {
     "history",
     "jobs",
     "fg",
-    "bg"
+    "bg",
+    "logout"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -38,7 +47,8 @@ static int (*builtin_func[])(char **) = {
     &shell_history,
     &shell_jobs,
     &shell_fg,
-    &shell_bg
+    &shell_bg,
+    &shell_logout
 };
 
 static int num_builtins(void) {
@@ -336,6 +346,40 @@ int shell_bg(char **args) {
     int result = jobs_background(job_id);
     last_command_exit_code = (result == -1) ? 1 : 0;
     return 1;
+}
+
+// Built-in: logout (for login shells only)
+int shell_logout(char **args) {
+    (void)args;  // Unused
+
+    if (!is_login_shell) {
+        color_error("%s: logout: not a login shell", HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    // Check for running jobs (same as exit)
+    int job_count = jobs_count();
+    if (job_count > 0) {
+        color_warning("There are %d running job(s).", job_count);
+        printf("Use 'logout' again to force logout, or 'jobs' to see them.\n");
+
+        // Set a flag to allow logout on next attempt
+        static int logout_attempted = 0;
+        if (logout_attempted) {
+            logout_attempted = 0;
+            fprintf(stdout, "Bye :)\n");
+            last_command_exit_code = 0;
+            return 0;
+        }
+        logout_attempted = 1;
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    fprintf(stdout, "Bye :)\n");
+    last_command_exit_code = 0;
+    return 0;
 }
 
 // Check if command is a built-in and execute it

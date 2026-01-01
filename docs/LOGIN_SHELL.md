@@ -30,6 +30,51 @@ When hash is invoked as a regular interactive shell (running `hash` from another
 
 1. **`~/.hashrc`** only
 
+## Logout File
+
+### `~/.hash_logout`
+
+When exiting a login shell (via `exit` or `logout`), hash executes commands in `~/.hash_logout` if it exists.
+
+**Common uses:**
+
+```bash
+# ~/.hash_logout example
+
+# Clear screen for security (prevent shoulder surfing)
+clear
+
+# Display farewell message
+echo "Goodbye! Session ended at $(date)"
+
+# Clean up temporary files
+rm -rf ~/tmp/session_* 2>/dev/null
+
+# Log session end time
+echo "$(date): Session ended" >> ~/.session_log
+```
+
+**Important:** The logout file is **only executed for login shells**. Regular interactive shells (subshells) will not run this file.
+
+### The `logout` Command
+
+Hash provides a `logout` builtin command specifically for login shells:
+
+```bash
+# In a login shell
+#> logout
+Bye :)
+
+# In a non-login shell
+#> logout
+hash: logout: not a login shell
+```
+
+The `logout` command:
+- Only works in login shells (use `exit` for non-login shells)
+- Warns about running background jobs (just like `exit`)
+- Executes `~/.hash_logout` before exiting
+
 ## Profile Files
 
 ### `/etc/profile`
@@ -98,6 +143,7 @@ set welcome=on
 
 - Put **environment variables** and **PATH** in `~/.hash_profile`
 - Put **aliases** and **prompt settings** in `~/.hashrc`
+- Put **cleanup tasks** in `~/.hash_logout`
 
 This follows the Unix convention and ensures your environment is properly set up whether you're in a login shell or a subshell.
 
@@ -129,6 +175,15 @@ set colors=on
 set welcome=off
 ```
 
+**~/.hash_logout:**
+```bash
+# Clear screen on logout
+clear
+
+# Farewell message
+echo "Session ended. Goodbye!"
+```
+
 ## Testing Login Shell Behavior
 
 ```bash
@@ -141,6 +196,10 @@ exec -a -hash /usr/local/bin/hash
 # Check if you're in a login shell (look for "(login)" in welcome)
 hash v14 (login)
 Type 'exit' to quit
+
+# Test logout
+logout
+# Should run ~/.hash_logout and exit
 ```
 
 ## Compatibility with Other Shells
@@ -159,13 +218,26 @@ If you want to share profile settings with bash or other shells:
 | Login alternative | `~/.bash_login` | `~/.hash_login` |
 | Fallback profile | `~/.profile` | `~/.profile` |
 | Interactive config | `~/.bashrc` | `~/.hashrc` |
+| Logout file | `~/.bash_logout` | `~/.hash_logout` |
 | System profile | `/etc/profile` | `/etc/profile` |
+| Logout command | `logout` | `logout` |
+
+## Summary of Files
+
+| File | When Loaded | Purpose |
+|------|-------------|---------|
+| `/etc/profile` | Login shell startup | System-wide settings |
+| `~/.hash_profile` | Login shell startup | User login settings |
+| `~/.hash_login` | Login shell startup | Alternative to hash_profile |
+| `~/.profile` | Login shell startup (fallback) | Shared with other shells |
+| `~/.hashrc` | Any interactive shell | Interactive settings |
+| `~/.hash_logout` | Login shell exit | Cleanup tasks |
 
 ## Future Enhancements
 
 Planned features for login shell support:
 
-- [ ] Logout file (`~/.hash_logout`)
+- [x] Logout file (`~/.hash_logout`)
 - [ ] Conditional execution based on login shell status
 - [ ] `shopt` equivalent for shell options
 - [ ] Non-interactive shell mode (for scripts)
