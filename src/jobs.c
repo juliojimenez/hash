@@ -84,7 +84,7 @@ int jobs_remove(int job_id) {
                 current_job = 0;
                 // Find next most recent job
                 for (int j = MAX_JOBS - 1; j >= 0; j--) {
-                    if (jobs[j].pid != 0 && 
+                    if (jobs[j].pid != 0 &&
                         (jobs[j].state == JOB_RUNNING || jobs[j].state == JOB_STOPPED)) {
                         current_job = jobs[j].job_id;
                         break;
