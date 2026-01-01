@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <termios.h>
 #include "jobs.h"
 #include "colors.h"
 #include "safe_string.h"
@@ -83,7 +84,8 @@ int jobs_remove(int job_id) {
                 current_job = 0;
                 // Find next most recent job
                 for (int j = MAX_JOBS - 1; j >= 0; j--) {
-                    if (jobs[j].pid != 0 && jobs[j].state == JOB_RUNNING) {
+                    if (jobs[j].pid != 0 && 
+                        (jobs[j].state == JOB_RUNNING || jobs[j].state == JOB_STOPPED)) {
                         current_job = jobs[j].job_id;
                         break;
                     }
@@ -233,7 +235,7 @@ int jobs_count(void) {
 
 // Wait for a specific job to complete
 int jobs_wait(int job_id) {
-    const Job *job = jobs_get(job_id);
+    Job *job = jobs_get(job_id);
     if (!job) {
         color_error("%s: job %d not found", HASH_NAME, job_id);
         return -1;
@@ -273,10 +275,19 @@ int jobs_foreground(int job_id) {
     // Print command being foregrounded
     printf("%s\n", job->command);
 
+    // Give terminal control to the job's process group
+    if (isatty(STDIN_FILENO)) {
+        tcsetpgrp(STDIN_FILENO, job->pgid);
+    }
+
     // If job was stopped, continue it
     if (job->state == JOB_STOPPED) {
-        if (kill(job->pid, SIGCONT) == -1) {
+        if (kill(-job->pgid, SIGCONT) == -1) {
             perror("kill (SIGCONT)");
+            // Take back terminal control
+            if (isatty(STDIN_FILENO)) {
+                tcsetpgrp(STDIN_FILENO, getpgrp());
+            }
             return -1;
         }
         job->state = JOB_RUNNING;
@@ -286,12 +297,17 @@ int jobs_foreground(int job_id) {
     int status;
     pid_t result = waitpid(job->pid, &status, WUNTRACED);
 
+    // Take back terminal control
+    if (isatty(STDIN_FILENO)) {
+        tcsetpgrp(STDIN_FILENO, getpgrp());
+    }
+
     if (result > 0) {
         if (WIFSTOPPED(status)) {
             // Job was stopped (Ctrl+Z)
             job->state = JOB_STOPPED;
-            printf("\n[%d]+  Stopped\t\t%s\n", job->job_id, job->command);
-            return 0;
+            printf("\n[%d]+  Stopped                 %s\n", job->job_id, job->command);
+            return 128 + WSTOPSIG(status);
         } else {
             // Job completed
             jobs_update_status(job->pid, status);
@@ -327,8 +343,8 @@ int jobs_background(int job_id) {
         return -1;
     }
 
-    // Continue the job
-    if (kill(job->pid, SIGCONT) == -1) {
+    // Continue the job in background
+    if (kill(-job->pgid, SIGCONT) == -1) {
         perror("kill (SIGCONT)");
         return -1;
     }
@@ -347,11 +363,15 @@ void jobs_sigchld_handler(int sig) {
     int status;
     pid_t pid;
 
-    // Reap all terminated children
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        const Job *job = jobs_get_by_pid(pid);
+    // Reap all terminated children (but not stopped ones)
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        Job *job = jobs_get_by_pid(pid);
         if (job) {
-            jobs_update_status(pid, status);
+            // Only update if terminated, not stopped
+            // (stopped processes are handled by the foreground wait)
+            if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                jobs_update_status(pid, status);
+            }
         }
     }
 

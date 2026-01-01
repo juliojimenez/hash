@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <signal.h>
+#include <termios.h>
 #include "hash.h"
 #include "execute.h"
 #include "builtins.h"
@@ -12,12 +14,16 @@
 #include "varexpand.h"
 #include "cmdsub.h"
 #include "redirect.h"
+#include "jobs.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
 
+// Store the current foreground command for job control
+static char *current_fg_command = NULL;
+
 // Launch an external program
-static int launch(char **args) {
+static int launch(char **args, const char *cmd_string) {
     pid_t pid;
     int status;
 
@@ -30,6 +36,16 @@ static int launch(char **args) {
     pid = fork();
     if (pid == 0) {
         // Child process
+
+        // Put child in its own process group
+        setpgid(0, 0);
+
+        // Restore default signal handlers in child
+        signal(SIGINT, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
+        signal(SIGTTOU, SIG_DFL);
 
         // Apply redirections
         if (redir && redirect_apply(redir) != 0) {
@@ -47,15 +63,41 @@ static int launch(char **args) {
         last_command_exit_code = 1;
     } else {
         // Parent process
+
+        // Put child in its own process group
+        setpgid(pid, pid);
+
+        // Give terminal control to child process group
+        tcsetpgrp(STDIN_FILENO, pid);
+
+        // Wait for child, but also handle stopped state
         do {
             waitpid(pid, &status, WUNTRACED);
-        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status) && !WIFSTOPPED(status));
 
-        // Store exit code
+        // Take back terminal control
+        tcsetpgrp(STDIN_FILENO, getpgrp());
+
+        // Handle the result
         if (WIFEXITED(status)) {
             last_command_exit_code = WEXITSTATUS(status);
-        } else {
-            last_command_exit_code = 1;
+        } else if (WIFSIGNALED(status)) {
+            last_command_exit_code = 128 + WTERMSIG(status);
+        } else if (WIFSTOPPED(status)) {
+            // Process was stopped (Ctrl+Z)
+            // Add to job table
+            int job_id = jobs_add(pid, cmd_string ? cmd_string : exec_args[0]);
+
+            // Update job state to stopped
+            Job *job = jobs_get(job_id);
+            if (job) {
+                job->state = JOB_STOPPED;
+            }
+
+            // Print notification
+            printf("\n[%d]+  Stopped                 %s\n", job_id, cmd_string ? cmd_string : exec_args[0]);
+
+            last_command_exit_code = 128 + WSTOPSIG(status);
         }
     }
 
@@ -63,6 +105,27 @@ static int launch(char **args) {
     redirect_free(redir);
 
     return 1;
+}
+
+// Build command string from args for display
+static char *build_cmd_string(char **args) {
+    if (!args || !args[0]) return NULL;
+
+    size_t total_len = 0;
+    for (int i = 0; args[i] != NULL; i++) {
+        total_len += strlen(args[i]) + 1;  // +1 for space or null
+    }
+
+    char *cmd = malloc(total_len);
+    if (!cmd) return NULL;
+
+    cmd[0] = '\0';
+    for (int i = 0; args[i] != NULL; i++) {
+        if (i > 0) strcat(cmd, " ");
+        strcat(cmd, args[i]);
+    }
+
+    return cmd;
 }
 
 // Execute command (built-in or external)
@@ -149,8 +212,15 @@ int execute(char **args) {
         return result;
     }
 
+    // Build command string for job display
+    char *cmd_string = build_cmd_string(args);
+
     // Launch external program
-    return launch(args);
+    result = launch(args, cmd_string);
+
+    free(cmd_string);
+
+    return result;
 }
 
 // Get last exit code
