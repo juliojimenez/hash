@@ -28,12 +28,16 @@ Julio Jimenez, julio@julioj.com
 #include "completion.h"
 #include "builtins.h"
 #include "jobs.h"
+#include "script.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
 
 // Track if this is a login shell (needed for logout handling)
 static bool is_login_shell_global = false;
+
+// Track if we're running interactively
+static bool is_interactive = false;
 
 // Signal handler for cleanup
 static void signal_handler(int sig) {
@@ -124,23 +128,207 @@ static void loop(void) {
     } while(status);
 }
 
+static void print_usage(const char *prog_name) {
+    printf("Usage: %s [options] [script-file] [arguments...]\n", prog_name);
+    printf("\n");
+    printf("Options:\n");
+    printf("  -c string     Execute commands from string\n");
+    printf("  -i            Force interactive mode\n");
+    printf("  -l, --login   Run as a login shell\n");
+    printf("  -s            Read commands from standard input\n");
+    printf("  -v, --version Print version information\n");
+    printf("  -h, --help    Show this help message\n");
+    printf("\n");
+    printf("If a script-file is provided, hash executes the script.\n");
+    printf("Without arguments, hash runs interactively.\n");
+}
+
+static void print_version(void) {
+    printf("%s version %s\n", HASH_NAME, HASH_VERSION);
+    printf("A POSIX-compatible shell for Linux\n");
+    printf("https://github.com/juliojimenez/hash\n");
+}
+
 int main(int argc, char *argv[]) {
+    // Argument parsing state
+    char *command_string = NULL;      // -c argument
+    char *script_file = NULL;         // Script file to execute
+    int script_argc = 0;              // Number of script arguments
+    char **script_argv = NULL;        // Script arguments ($0, $1, $2, ...)
+    bool force_interactive = false;   // -i flag
+    bool read_stdin = false;          // -s flag
+
     // Determine if we're a login shell
     // A login shell is indicated by:
     // 1. argv[0] starting with '-' (e.g., "-hash" set by login/sshd)
     // 2. --login or -l flag passed as argument
-
     if (argc > 0 && argv[0][0] == '-') {
         is_login_shell_global = true;
     }
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--login") == 0 || strcmp(argv[i], "-l") == 0) {
-            is_login_shell_global = true;
+    // Parse command line options
+    int i = 1;
+    while (i < argc) {
+        if (argv[i][0] == '-' && argv[i][1] != '\0') {
+            // Option argument
+            if (strcmp(argv[i], "-c") == 0) {
+                // -c: Execute command string
+                if (i + 1 >= argc) {
+                    fprintf(stderr, "%s: -c: option requires an argument\n", HASH_NAME);
+                    return 2;
+                }
+                command_string = argv[i + 1];
+                i += 2;
+                
+                // Remaining arguments become positional parameters
+                if (i < argc) {
+                    script_argc = argc - i + 1;  // +1 for $0
+                    script_argv = &argv[i - 1];  // $0 is the command string context
+                    // Actually, for -c, $0 should be the shell name or specified
+                    // Let's use remaining args starting from next one
+                    script_argc = argc - i;
+                    script_argv = &argv[i];
+                }
+                break;  // Stop option parsing
+                
+            } else if (strcmp(argv[i], "-i") == 0) {
+                force_interactive = true;
+                i++;
+                
+            } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--login") == 0) {
+                is_login_shell_global = true;
+                i++;
+                
+            } else if (strcmp(argv[i], "-s") == 0) {
+                read_stdin = true;
+                i++;
+                
+            } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+                print_version();
+                return 0;
+                
+            } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+                print_usage(argv[0]);
+                return 0;
+                
+            } else if (strcmp(argv[i], "--") == 0) {
+                // End of options
+                i++;
+                break;
+                
+            } else {
+                fprintf(stderr, "%s: %s: invalid option\n", HASH_NAME, argv[i]);
+                print_usage(argv[0]);
+                return 2;
+            }
+        } else {
+            // Non-option argument - script file
+            break;
         }
     }
 
-    // Initialize job control (must be done early)
+    // If there are remaining arguments and no -c or -s, treat first as script file
+    if (i < argc && command_string == NULL && !read_stdin) {
+        script_file = argv[i];
+        script_argc = argc - i;
+        script_argv = &argv[i];
+    }
+
+    // Determine if we're running interactively
+    is_interactive = force_interactive || 
+                     (command_string == NULL && 
+                      script_file == NULL && 
+                      !read_stdin && 
+                      isatty(STDIN_FILENO));
+
+    // Initialize scripting subsystem (always needed)
+    script_init();
+
+    // Initialize colors
+    colors_init();
+
+    // Initialize config with defaults
+    config_init();
+
+    // ========================================================================
+    // Non-interactive mode: Execute command string (-c)
+    // ========================================================================
+    if (command_string != NULL) {
+        // Set up positional parameters if provided
+        if (script_argc > 0 && script_argv != NULL) {
+            script_state.positional_params = malloc(script_argc * sizeof(char*));
+            if (script_state.positional_params) {
+                for (int j = 0; j < script_argc; j++) {
+                    script_state.positional_params[j] = strdup(script_argv[j]);
+                }
+                script_state.positional_count = script_argc;
+            }
+        }
+        
+        // Execute the command string
+        int result = script_execute_string(command_string);
+        
+        script_cleanup();
+        return result;
+    }
+
+    // ========================================================================
+    // Non-interactive mode: Execute script file
+    // ========================================================================
+    if (script_file != NULL) {
+        int result = script_execute_file(script_file, script_argc, script_argv);
+        
+        script_cleanup();
+        return result;
+    }
+
+    // ========================================================================
+    // Non-interactive mode: Read from stdin (-s or piped input)
+    // ========================================================================
+    if (read_stdin || !isatty(STDIN_FILENO)) {
+        // Set up positional parameters if provided (for -s)
+        if (script_argc > 0 && script_argv != NULL) {
+            script_state.positional_params = malloc(script_argc * sizeof(char*));
+            if (script_state.positional_params) {
+                for (int j = 0; j < script_argc; j++) {
+                    script_state.positional_params[j] = strdup(script_argv[j]);
+                }
+                script_state.positional_count = script_argc;
+            }
+        }
+        
+        // Read and execute from stdin
+        char line[MAX_LINE];
+        script_state.in_script = true;
+        
+        while (fgets(line, sizeof(line), stdin)) {
+            // Remove trailing newline
+            size_t len = strlen(line);
+            if (len > 0 && line[len - 1] == '\n') {
+                line[len - 1] = '\0';
+            }
+            
+            script_process_line(line);
+        }
+        
+        script_state.in_script = false;
+        
+        // Check for unclosed control structures
+        if (script_state.context_depth > 0) {
+            fprintf(stderr, "%s: unexpected end of file\n", HASH_NAME);
+            script_cleanup();
+            return 1;
+        }
+        
+        script_cleanup();
+        return execute_get_last_exit_code();
+    }
+
+    // ========================================================================
+    // Interactive mode
+    // ========================================================================
+
+    // Initialize job control (only for interactive shells)
     init_job_control();
 
     // Setup signal handler for clean terminal restoration on SIGTERM
@@ -148,12 +336,6 @@ int main(int argc, char *argv[]) {
 
     // Initialize line editor
     lineedit_init();
-
-    // Initialize colors
-    colors_init();
-
-    // Initialize config with defaults
-    config_init();
 
     // Initialize prompt system
     prompt_init();
@@ -195,6 +377,7 @@ int main(int argc, char *argv[]) {
 
     // Cleanup
     lineedit_cleanup();
+    script_cleanup();
 
     return EXIT_SUCCESS;
 }

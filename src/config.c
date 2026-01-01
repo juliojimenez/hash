@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +11,7 @@
 #include "prompt.h"
 #include "hash.h"
 #include "safe_string.h"
+#include "script.h"
 
 Config shell_config;
 
@@ -40,7 +43,7 @@ static char *trim_whitespace(char *str) {
 // Add an alias
 int config_add_alias(const char *name, const char *value) {
     if (!name || !value) return -1;
-    if (safe_strlen(name, sizeof(name)) >= MAX_ALIAS_NAME || strlen(value) >= MAX_ALIAS_VALUE) {
+    if (strlen(name) >= MAX_ALIAS_NAME || strlen(value) >= MAX_ALIAS_VALUE) {
         return -1;
     }
 
@@ -99,17 +102,17 @@ int config_remove_alias(const char *name) {
 // List all aliases
 void config_list_aliases(void) {
     if (shell_config.alias_count == 0) {
-        printf("No aliases defined\n");
-        return;
+        return;  // Silently return if no aliases
     }
 
     for (int i = 0; i < shell_config.alias_count; i++) {
-        color_print(COLOR_CYAN, "%s", shell_config.aliases[i].name);
-        printf("='%s'\n", shell_config.aliases[i].value);
+        printf("alias %s='%s'\n", shell_config.aliases[i].name, 
+               shell_config.aliases[i].value);
     }
 }
 
-// Process a single config line
+// Process a single config line (for simple .hashrc format)
+// This handles hash-specific directives: alias, export, set
 int config_process_line(char *line) {
     if (!line) return -1;
 
@@ -128,8 +131,7 @@ int config_process_line(char *line) {
 
         char *equals = strchr(alias_def, '=');
         if (!equals) {
-            color_warning("%s: invalid alias format: %s", HASH_NAME, line);
-            return -1;
+            return -1;  // Silently fail for bad format
         }
 
         *equals = '\0';
@@ -137,9 +139,11 @@ int config_process_line(char *line) {
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
-        if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
+        size_t val_len = strlen(value);
+        if (val_len >= 2 && 
+            (value[0] == '"' || value[0] == '\'') &&
+            value[0] == value[val_len - 1]) {
+            value[val_len - 1] = '\0';
             value++;
         }
 
@@ -153,8 +157,9 @@ int config_process_line(char *line) {
 
         char *equals = strchr(export_def, '=');
         if (!equals) {
-            color_warning("%s: invalid export format: %s", HASH_NAME, line);
-            return -1;
+            // export without assignment - just mark variable for export
+            // For now, just ignore
+            return 0;
         }
 
         *equals = '\0';
@@ -162,9 +167,11 @@ int config_process_line(char *line) {
         char *value = trim_whitespace(equals + 1);
 
         // Remove quotes if present
-        if ((value[0] == '"' || value[0] == '\'') &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
+        size_t val_len = strlen(value);
+        if (val_len >= 2 &&
+            (value[0] == '"' || value[0] == '\'') &&
+            value[0] == value[val_len - 1]) {
+            value[val_len - 1] = '\0';
             value++;
         }
 
@@ -198,9 +205,11 @@ int config_process_line(char *line) {
             char *ps1_value = set_def + 4;
 
             // Remove quotes if present
-            if ((ps1_value[0] == '"' || ps1_value[0] == '\'') &&
-                ps1_value[0] == ps1_value[strlen(ps1_value) - 1]) {
-                ps1_value[strlen(ps1_value) - 1] = '\0';
+            size_t val_len = strlen(ps1_value);
+            if (val_len >= 2 &&
+                (ps1_value[0] == '"' || ps1_value[0] == '\'') &&
+                ps1_value[0] == ps1_value[val_len - 1]) {
+                ps1_value[val_len - 1] = '\0';
                 ps1_value++;
             }
 
@@ -208,16 +217,15 @@ int config_process_line(char *line) {
             return 0;
         }
 
-        color_warning("%s: unknown option: %s", HASH_NAME, set_def);
-        return -1;
+        return -1;  // Unknown option
     }
 
-    // Unknown directive
-    color_warning("%s: unknown directive in config: %s", HASH_NAME, line);
+    // Unknown directive - return error but don't print warning
+    // (Warnings are printed by caller if needed)
     return -1;
 }
 
-// Load config from file
+// Load config from file (simple hash-specific format)
 int config_load(const char *filepath) {
     FILE *fp = fopen(filepath, "r");
     if (!fp) {
@@ -225,17 +233,14 @@ int config_load(const char *filepath) {
     }
 
     char line[MAX_CONFIG_LINE];
-    int line_num = 0;
     int errors = 0;
 
     while (fgets(line, sizeof(line), fp)) {
-        line_num++;
-
-        // Ensure null termination (defense in depth)
+        // Ensure null termination
         line[MAX_CONFIG_LINE - 1] = '\0';
 
-        // Remove newline characters safely
-        size_t len = safe_strlen(line, sizeof(line));
+        // Remove newline characters
+        size_t len = strlen(line);
         if (len > 0 && line[len - 1] == '\n') {
             line[len - 1] = '\0';
             len--;
@@ -254,19 +259,18 @@ int config_load(const char *filepath) {
 }
 
 // Get home directory helper
-// Note: Returns pointer to static buffer or environment variable
 static const char *get_home_dir(void) {
     const char *home = getenv("HOME");
     if (home) return home;
 
-    // Fallback to passwd entry using reentrant version
+    // Fallback to passwd entry
     static char home_buf[1024];
     struct passwd pw;
     struct passwd *result = NULL;
     char buf[1024];
 
     if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
-        snprintf(home_buf, sizeof(home_buf), "%s", pw.pw_dir);
+        safe_strcpy(home_buf, pw.pw_dir, sizeof(home_buf));
         return home_buf;
     }
 
@@ -274,31 +278,32 @@ static const char *get_home_dir(void) {
 }
 
 // Load default config file (~/.hashrc)
-// DEPRECATED: Use config_load_startup_files() instead
 int config_load_default(void) {
     const char *home = get_home_dir();
-
-    if (!home) {
-        return -1;
-    }
+    if (!home) return -1;
 
     char config_path[1024];
     snprintf(config_path, sizeof(config_path), "%s/.hashrc", home);
 
-    // Check if file exists
     if (access(config_path, F_OK) != 0) {
-        return 0; // Not an error if file doesn't exist
+        return 0;  // Not an error if doesn't exist
     }
 
     return config_load(config_path);
 }
 
-// Load config file silently (no error if file doesn't exist)
+// Load config file silently (no error if doesn't exist)
+// This uses script_execute_file for proper POSIX script execution
 int config_load_silent(const char *filepath) {
     if (access(filepath, F_OK) != 0) {
         return 0;  // File doesn't exist - not an error
     }
-    return config_load(filepath);
+    if (access(filepath, R_OK) != 0) {
+        return 0;  // Not readable - silently skip
+    }
+    
+    // Use script_execute_file for proper POSIX execution
+    return script_execute_file(filepath, 0, NULL);
 }
 
 // Load startup files based on shell type
@@ -310,7 +315,7 @@ void config_load_startup_files(bool is_login_shell) {
         // ====================================================================
         // LOGIN SHELL STARTUP SEQUENCE
         // ====================================================================
-        // 1. /etc/profile (system-wide)
+        // 1. /etc/profile (system-wide) - executed as script
         // 2. First of: ~/.hash_profile, ~/.hash_login, ~/.profile
         // 3. ~/.hashrc (for interactive settings)
 
@@ -343,7 +348,7 @@ void config_load_startup_files(bool is_login_shell) {
                 config_load_silent(path);
             }
 
-            // 3. Interactive config (always load for login shells)
+            // 3. Interactive config
             snprintf(path, sizeof(path), "%s/.hashrc", home);
             config_load_silent(path);
         }
@@ -367,17 +372,7 @@ void config_load_logout_files(void) {
 
     if (!home) return;
 
-    // ========================================================================
-    // LOGOUT SEQUENCE
-    // ========================================================================
-    // 1. ~/.hash_logout (user logout script)
-    //
-    // Common uses:
-    // - Clear screen on logout (clear)
-    // - Display farewell message
-    // - Clean up temporary files
-    // - Log session end time
-
+    // Execute ~/.hash_logout if it exists
     snprintf(path, sizeof(path), "%s/.hash_logout", home);
     config_load_silent(path);
 }

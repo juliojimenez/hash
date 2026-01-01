@@ -13,18 +13,18 @@ Command line interpreter (shell) for the Linux operating system.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v15/hash-shell-v15-x86_64
-chmod +x hash-shell-v15-x86_64
-sudo mv hash-shell-v15-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v16/hash-shell-v16-x86_64
+chmod +x hash-shell-v16-x86_64
+sudo mv hash-shell-v16-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v15/hash-shell-v15-aarch64
-chmod +x hash-shell-v15-aarch64
-sudo mv hash-shell-v15-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v16/hash-shell-v16-aarch64
+chmod +x hash-shell-v16-aarch64
+sudo mv hash-shell-v16-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
@@ -46,6 +46,18 @@ hash-shell
 hash-shell
 ```
 
+### Execute a Script
+
+```bash
+hash-shell script.sh arg1 arg2
+```
+
+### Execute Command String
+
+```bash
+hash-shell -c 'echo "Hello, World!"'
+```
+
 ### Change Default Shell To hash
 
 Log off and log on to your session for changes to take effect.
@@ -56,14 +68,29 @@ Log off and log on to your session for changes to take effect.
 chsh -s /usr/local/bin/hash-shell
 ```
 
-#### chmod
+#### usermod
 
 ```bash
 sudo usermod -s /usr/local/bin/hash-shell your_username
 ```
 
+## Command Line Options
+
+| Option | Description |
+|--------|-------------|
+| `-c string` | Execute commands from string |
+| `-i` | Force interactive mode |
+| `-l`, `--login` | Run as a login shell |
+| `-s` | Read commands from standard input |
+| `-v`, `--version` | Print version information |
+| `-h`, `--help` | Show help message |
+
 ## See Also
 
+- [Shell Scripting](./docs/SCRIPTING.md)
+  - [Scripting Quick Reference](./docs/SCRIPTING_QUICKREF.md)
+  - [Control Structures](./docs/CONTROL_STRUCTURES.md)
+  - [Test Command](./docs/TEST_COMMAND.md)
 - [.hashrc](./docs/HASHRC.md)
   - [.hashrc Quick Start](./docs/QUICK_START_HASHRC.md)
 - [Variable Expansion](./docs/VARIABLES.md)
@@ -87,6 +114,6 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [License](LICENSE)
 
-## Newletter
+## Newsletter
 
 Keep up with development updates on [Rede Livre](https://redelivre.net/newsletters/hash) <img style="width:16px;margin-left:3px;margin-top:2px;" src="images/redelivre.png" />
