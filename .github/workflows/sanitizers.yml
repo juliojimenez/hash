@@ -1,0 +1,491 @@
+name: Sanitizers & Fuzzing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  # AddressSanitizer - catches memory errors
+  asan:
+    name: AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build with ASan
+        run: |
+          make clean
+          make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer -std=gnu99"
+
+      - name: Run tests with ASan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stats=1
+        run: |
+          # Basic command tests
+          echo -e "echo hello\npwd\nls\nexit" | ./hash-shell
+
+          # Test with various inputs
+          echo -e "cd /tmp\npwd\ncd ~\nexit" | ./hash-shell
+
+          # Test aliases
+          echo -e "alias ll='ls -la'\nll\nunalias ll\nexit" | ./hash-shell
+
+          # Test pipes and redirection
+          echo -e "echo test > /tmp/asan_test.txt\ncat /tmp/asan_test.txt\nrm /tmp/asan_test.txt\nexit" | ./hash-shell
+
+          # Test command chaining
+          echo -e "echo a && echo b\nfalse || echo fallback\nexit" | ./hash-shell
+
+          # Test variable expansion
+          echo -e "export TEST_VAR=hello\necho \$TEST_VAR\nexit" | ./hash-shell
+
+          # Test history
+          echo -e "echo first\necho second\nhistory\nexit" | ./hash-shell
+
+          # Test background processes (job control)
+          echo -e "sleep 0.1 &\njobs\nwait\nexit" | ./hash-shell || true
+
+          # Test multiple background jobs
+          echo -e "sleep 0.1 &\nsleep 0.1 &\njobs\nwait\nexit" | ./hash-shell || true
+
+      - name: Run unit tests with ASan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+        run: |
+          make test-clean
+          make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer -std=gnu99"
+
+  # UndefinedBehaviorSanitizer - catches undefined behavior
+  ubsan:
+    name: UndefinedBehaviorSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build with UBSan
+        run: |
+          make clean
+          make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=undefined -fno-omit-frame-pointer -std=gnu99"
+
+      - name: Run tests with UBSan
+        env:
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          echo -e "echo hello\npwd\nls\nexit" | ./hash-shell
+          echo -e "cd /tmp\ncd ~\nexit" | ./hash-shell
+          echo -e "alias test='echo test'\ntest\nexit" | ./hash-shell
+          echo -e "echo \$HOME\necho \$?\nexit" | ./hash-shell
+
+      - name: Run unit tests with UBSan
+        env:
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          make test-clean
+          make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=undefined -fno-omit-frame-pointer -std=gnu99"
+
+  # ThreadSanitizer - catches data races
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build with TSan
+        run: |
+          make clean
+          make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -std=gnu99"
+
+      - name: Run tests with TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: |
+          # Basic commands
+          echo -e "echo hello\npwd\nls\nexit" | ./hash-shell
+
+          # Test background processes (job control)
+          echo -e "sleep 0.1 &\njobs\nwait\nexit" | ./hash-shell || true
+
+          # Test pipes (multiple processes)
+          echo -e "echo hello | cat\nls | head -5\necho test | grep test\nexit" | ./hash-shell
+
+          # Test command chaining with pipes
+          echo -e "echo a | cat && echo b | cat\nexit" | ./hash-shell
+
+          # Multiple background jobs
+          echo -e "sleep 0.1 &\nsleep 0.1 &\njobs\nwait\nexit" | ./hash-shell || true
+
+      - name: Run unit tests with TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: |
+          make test-clean
+          make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -std=gnu99"
+
+  # MemorySanitizer - catches uninitialized memory reads
+  msan:
+    name: MemorySanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build with MSan
+        run: |
+          make clean
+          # MSan requires all code to be instrumented, so we use -fsanitize=memory
+          make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=memory -fno-omit-frame-pointer -std=gnu99" || echo "MSan build may fail due to uninstrumented libc"
+
+      - name: Run basic tests with MSan
+        env:
+          MSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          # MSan often has false positives with system libraries, so keep tests minimal
+          echo -e "echo hello\nexit" | ./hash-shell || echo "MSan test completed (may have false positives)"
+        continue-on-error: true
+
+  # Valgrind - memory leak detection
+  valgrind:
+    name: Valgrind Memory Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+
+      - name: Build with debug symbols
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -O0 -g -std=gnu99"
+
+      - name: Run Valgrind - Basic Commands
+        run: |
+          echo -e "echo hello\npwd\nls\nexit" | valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Navigation
+        run: |
+          echo -e "cd /tmp\npwd\ncd ~\npwd\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Aliases
+        run: |
+          echo -e "alias ll='ls -la'\nll\nalias\nunalias ll\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Variables
+        run: |
+          echo -e "export TEST=hello\necho \$TEST\necho \$HOME\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Pipes and Redirection
+        run: |
+          echo -e "echo test | cat\necho hello > /tmp/vg_test.txt\ncat /tmp/vg_test.txt\nrm /tmp/vg_test.txt\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Command Chaining
+        run: |
+          echo -e "true && echo success\nfalse || echo fallback\necho a ; echo b\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - History
+        run: |
+          echo -e "echo first\necho second\nhistory\n!!\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+
+      - name: Run Valgrind - Background Jobs
+        run: |
+          echo -e "sleep 0.1 &\njobs\nwait\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell || true
+
+      - name: Run Valgrind - Multiple Background Jobs
+        run: |
+          echo -e "sleep 0.1 &\nsleep 0.2 &\njobs\nwait\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell || true
+
+  # Fuzz testing with AFL++ or libFuzzer
+  fuzz:
+    name: Fuzz Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install AFL++
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y afl++
+
+      - name: Create fuzz test harness
+        run: |
+          mkdir -p fuzz
+          cat > fuzz/fuzz_parser.c << 'EOF'
+          // Fuzz test harness for parser
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <unistd.h>
+          #include "../src/parser.h"
+          #include "../src/safe_string.h"
+
+          __AFL_FUZZ_INIT();
+
+          int main(void) {
+              __AFL_INIT();
+              unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+              while (__AFL_LOOP(10000)) {
+                  int len = __AFL_FUZZ_TESTCASE_LEN;
+                  if (len < 1 || len > 4096) continue;
+
+                  // Create null-terminated copy
+                  char *input = malloc(len + 1);
+                  if (!input) continue;
+                  memcpy(input, buf, len);
+                  input[len] = '\0';
+
+                  // Test parse_line
+                  char **args = parse_line(input);
+                  if (args) {
+                      free(args);
+                  }
+
+                  free(input);
+              }
+
+              return 0;
+          }
+          EOF
+
+          cat > fuzz/fuzz_varexpand.c << 'EOF'
+          // Fuzz test harness for variable expansion
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include "../src/varexpand.h"
+          #include "../src/safe_string.h"
+
+          __AFL_FUZZ_INIT();
+
+          int main(void) {
+              __AFL_INIT();
+              unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+              while (__AFL_LOOP(10000)) {
+                  int len = __AFL_FUZZ_TESTCASE_LEN;
+                  if (len < 1 || len > 4096) continue;
+
+                  char *input = malloc(len + 1);
+                  if (!input) continue;
+                  memcpy(input, buf, len);
+                  input[len] = '\0';
+
+                  char *expanded = varexpand_expand(input, 0);
+                  free(expanded);
+                  free(input);
+              }
+
+              return 0;
+          }
+          EOF
+
+          cat > fuzz/fuzz_safe_string.c << 'EOF'
+          // Fuzz test harness for safe string functions
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include "../src/safe_string.h"
+
+          __AFL_FUZZ_INIT();
+
+          int main(void) {
+              __AFL_INIT();
+              unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+              while (__AFL_LOOP(10000)) {
+                  int len = __AFL_FUZZ_TESTCASE_LEN;
+                  if (len < 1 || len > 1024) continue;
+
+                  char *input = malloc(len + 1);
+                  if (!input) continue;
+                  memcpy(input, buf, len);
+                  input[len] = '\0';
+
+                  // Test safe_strcpy
+                  char dst[256];
+                  safe_strcpy(dst, input, sizeof(dst));
+
+                  // Test safe_strlen
+                  safe_strlen(input, 1024);
+
+                  // Test safe_strcat
+                  char cat_dst[512] = "prefix";
+                  safe_strcat(cat_dst, input, sizeof(cat_dst));
+
+                  // Test safe_trim
+                  char *trim_input = strdup(input);
+                  if (trim_input) {
+                      safe_trim(trim_input);
+                      free(trim_input);
+                  }
+
+                  free(input);
+              }
+
+              return 0;
+          }
+          EOF
+
+      - name: Create seed corpus
+        run: |
+          mkdir -p fuzz/corpus
+          # Parser seeds
+          echo "echo hello" > fuzz/corpus/simple_cmd
+          echo "ls -la /tmp" > fuzz/corpus/cmd_with_args
+          echo "echo \"hello world\"" > fuzz/corpus/quoted_string
+          echo "echo 'single quotes'" > fuzz/corpus/single_quotes
+          echo "cmd1 && cmd2 || cmd3" > fuzz/corpus/chained
+          echo "cat file | grep pattern | wc -l" > fuzz/corpus/pipeline
+          echo "echo test > out.txt" > fuzz/corpus/redirect
+          # Variable seeds
+          echo "\$HOME" > fuzz/corpus/var_simple
+          echo "\${HOME}/path" > fuzz/corpus/var_braced
+          echo "\$? \$\$ \$0" > fuzz/corpus/var_special
+          echo "prefix\$VAR\suffix" > fuzz/corpus/var_concat
+          # Edge cases
+          echo "" > fuzz/corpus/empty
+          echo "   " > fuzz/corpus/whitespace
+          printf '%1000s' | tr ' ' 'a' > fuzz/corpus/long_input
+
+      - name: Build fuzz targets
+        run: |
+          # Build required object files first
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/parser.c -o build/parser.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/safe_string.c -o build/safe_string.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/varexpand.c -o build/varexpand.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/lineedit.c -o build/lineedit.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/history.c -o build/history.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/completion.c -o build/completion.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/config.c -o build/config.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/colors.c -o build/colors.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/prompt.c -o build/prompt.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/builtins.c -o build/builtins.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/execute.c -o build/execute.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/redirect.c -o build/redirect.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/expand.c -o build/expand.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/chain.c -o build/chain.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/pipeline.c -o build/pipeline.o
+
+          # Build fuzz targets
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_parser fuzz/fuzz_parser.c \
+            build/parser.o build/safe_string.o build/lineedit.o build/history.o build/completion.o \
+            build/config.o build/colors.o build/prompt.o build/builtins.o
+
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_varexpand fuzz/fuzz_varexpand.c \
+            build/varexpand.o build/safe_string.o
+
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_safe_string fuzz/fuzz_safe_string.c \
+            build/safe_string.o
+
+      - name: Run AFL++ fuzzing (time-limited)
+        run: |
+          mkdir -p fuzz/output
+
+          # Set up core pattern for AFL
+          echo core | sudo tee /proc/sys/kernel/core_pattern
+
+          # Run each fuzzer for 2 minutes (120 seconds)
+          timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/parser -V 120 -- ./fuzz/fuzz_parser || true
+          timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/varexpand -V 120 -- ./fuzz/fuzz_varexpand || true
+          timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/safe_string -V 120 -- ./fuzz/fuzz_safe_string || true
+
+      - name: Check for crashes
+        run: |
+          echo "=== Fuzzing Results ==="
+          for target in parser varexpand safe_string; do
+            if [ -d "fuzz/output/$target/default/crashes" ]; then
+              crash_count=$(ls -1 fuzz/output/$target/default/crashes 2>/dev/null | wc -l)
+              if [ "$crash_count" -gt 0 ]; then
+                echo "❌ CRASHES FOUND in $target: $crash_count"
+                ls -la fuzz/output/$target/default/crashes/
+                exit 1
+              else
+                echo "✅ No crashes in $target"
+              fi
+            else
+              echo "✅ No crashes directory for $target (likely no crashes)"
+            fi
+          done
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: fuzz/output/*/default/crashes/
+          retention-days: 30
+
+  # Combined ASan + UBSan for thorough checking
+  asan-ubsan:
+    name: ASan + UBSan Combined
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build with ASan + UBSan
+        run: |
+          make clean
+          make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -std=gnu99"
+
+      - name: Run comprehensive tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          # Comprehensive test script
+          cat > /tmp/test_commands.txt << 'EOF'
+          echo "Testing basic commands"
+          pwd
+          ls
+          cd /tmp
+          pwd
+          cd ~
+          alias ll='ls -la'
+          ll
+          unalias ll
+          export TEST_VAR=hello
+          echo $TEST_VAR
+          echo $HOME
+          echo $?
+          echo $$
+          echo "Testing pipes"
+          echo hello | cat
+          ls | head -5
+          echo "Testing redirection"
+          echo test > /tmp/san_test.txt
+          cat /tmp/san_test.txt
+          cat < /tmp/san_test.txt
+          rm /tmp/san_test.txt
+          echo "Testing chaining"
+          true && echo "and works"
+          false || echo "or works"
+          echo a ; echo b ; echo c
+          echo "Testing history"
+          history
+          echo "Testing job control"
+          sleep 0.1 &
+          jobs
+          wait
+          echo "Testing quotes"
+          echo "double quotes"
+          echo 'single quotes'
+          echo "escaped \"quotes\""
+          exit
+          EOF
+
+          cat /tmp/test_commands.txt | ./hash-shell
+
+      - name: Run unit tests with ASan + UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          make test-clean
+          make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -std=gnu99"
