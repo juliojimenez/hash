@@ -131,6 +131,13 @@ static char *build_cmd_string(char **args) {
     return cmd;
 }
 
+// Free expanded arguments
+static void free_expanded_args(char **expanded_args, int count) {
+    for (int i = 0; i < count; i++) {
+        free(expanded_args[i]);
+    }
+}
+
 // Execute command (built-in or external)
 int execute(char **args) {
     if (args[0] == NULL) {
@@ -139,14 +146,52 @@ int execute(char **args) {
         return 1;
     }
 
+    // Track original args to know which ones we allocated
+    // We need to free expanded args later
+    char *expanded_args[MAX_ARGS];
+    int expanded_count = 0;
+
+    // Count args and save original pointers
+    char *original_ptrs[MAX_ARGS];
+    int arg_count = 0;
+    for (int i = 0; args[i] != NULL && i < MAX_ARGS - 1; i++) {
+        original_ptrs[i] = args[i];
+        arg_count++;
+    }
+
     // Expand tilde in all arguments
     expand_tilde(args);
+
+    // Track which args were expanded by tilde
+    for (int i = 0; i < arg_count; i++) {
+        if (args[i] != original_ptrs[i]) {
+            expanded_args[expanded_count++] = args[i];
+            original_ptrs[i] = args[i];  // Update for next expansion check
+        }
+    }
 
     // Expand command substitutions in all arguments
     cmdsub_args(args);
 
+    // Track which args were expanded by cmdsub
+    for (int i = 0; i < arg_count; i++) {
+        if (args[i] != original_ptrs[i]) {
+            expanded_args[expanded_count++] = args[i];
+            original_ptrs[i] = args[i];
+        }
+    }
+
     // Expand variables in all arguments
     varexpand_args(args, last_command_exit_code);
+
+    // Track which args were expanded by varexpand
+    for (int i = 0; i < arg_count; i++) {
+        if (args[i] != original_ptrs[i]) {
+            expanded_args[expanded_count++] = args[i];
+        }
+    }
+
+    int result = 1;  // Default: continue shell
 
     // Check if command is an alias
     const char *alias_value = config_get_alias(args[0]);
@@ -155,6 +200,7 @@ int execute(char **args) {
         char *alias_line = strdup(alias_value);
         if (!alias_line) {
             last_command_exit_code = 1;
+            free_expanded_args(expanded_args, expanded_count);
             return 1;
         }
 
@@ -162,6 +208,7 @@ int execute(char **args) {
         if (!alias_args) {
             free(alias_line);
             last_command_exit_code = 1;
+            free_expanded_args(expanded_args, expanded_count);
             return 1;
         }
 
@@ -193,19 +240,21 @@ int execute(char **args) {
                 combined_args[alias_arg_count + orig_arg_count] = NULL;
 
                 // Execute with combined args
-                int result = execute(combined_args);
+                result = execute(combined_args);
 
                 free(combined_args);
                 free(alias_args);
                 free(alias_line);
+                free_expanded_args(expanded_args, expanded_count);
                 return result;
             }
         }
 
         // No original args, just execute alias
-        int result = execute(alias_args);
+        result = execute(alias_args);
         free(alias_args);
         free(alias_line);
+        free_expanded_args(expanded_args, expanded_count);
         return result;
     }
 
@@ -214,7 +263,7 @@ int execute(char **args) {
     char **exec_args = redir ? redir->args : args;
 
     // Try built-in commands first
-    int result = try_builtin(exec_args);
+    result = try_builtin(exec_args);
     if (result != -1) {
         // If there were redirections for a builtin, we need to handle them
         // Run builtin in a child process if redirections are present
@@ -240,9 +289,11 @@ int execute(char **args) {
                 }
             }
             redirect_free(redir);
+            free_expanded_args(expanded_args, expanded_count);
             return 1;
         }
         redirect_free(redir);
+        free_expanded_args(expanded_args, expanded_count);
         return result;
     }
     redirect_free(redir);
@@ -254,6 +305,7 @@ int execute(char **args) {
     result = launch(args, cmd_string);
 
     free(cmd_string);
+    free_expanded_args(expanded_args, expanded_count);
 
     return result;
 }
