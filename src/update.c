@@ -313,7 +313,7 @@ void update_record_check(void) {
     int fd = open(state_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd >= 0) {
         // Write current version to the file
-        dprintf(fd, "last_check=%ld\nversion=%s\n", (long)time(NULL), HASH_VERSION);
+        dprintf(fd, "last_check=%ld\nversion=%s\n", time(NULL), HASH_VERSION);
         close(fd);
     }
 }
@@ -505,7 +505,7 @@ int update_perform(const UpdateInfo *info, bool interactive) {
     // Create temp file path
     char temp_path[1024];
     snprintf(temp_path, sizeof(temp_path), "%s/hash-shell-update-%d",
-             UPDATE_TEMP_DIR, (int)getpid());
+             UPDATE_TEMP_DIR, getpid());
 
     printf("Downloading %s...\n", info->latest_version);
 
@@ -528,7 +528,7 @@ int update_perform(const UpdateInfo *info, bool interactive) {
 
     // Download and verify checksum
     char checksum_url[600];
-    char checksum_path[1024];
+    char checksum_path[1040];  // temp_path (1024) + ".sha256" (7) + null
     snprintf(checksum_url, sizeof(checksum_url), "%s.sha256", info->download_url);
     snprintf(checksum_path, sizeof(checksum_path), "%s.sha256", temp_path);
 
@@ -568,13 +568,14 @@ int update_perform(const UpdateInfo *info, bool interactive) {
     printf("Installing to %s...\n", install_path);
 
     // Move to install location
+    char move_cmd[2200];  // Larger buffer for two paths + command
     if (need_sudo) {
-        snprintf(cmd, sizeof(cmd), "sudo mv '%s' '%s'", temp_path, install_path);
+        snprintf(move_cmd, sizeof(move_cmd), "sudo mv '%s' '%s'", temp_path, install_path);
     } else {
-        snprintf(cmd, sizeof(cmd), "mv '%s' '%s'", temp_path, install_path);
+        snprintf(move_cmd, sizeof(move_cmd), "mv '%s' '%s'", temp_path, install_path);
     }
 
-    if (system(cmd) != 0) {
+    if (system(move_cmd) != 0) {
         color_error("Installation failed");
         unlink(temp_path);
         return -1;
