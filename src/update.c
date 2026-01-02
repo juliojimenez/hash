@@ -337,7 +337,15 @@ static int run_curl(const char *url, char *output, size_t output_size) {
     output[total] = '\0';
 
     int status = pclose(fp);
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+    // Accept exit code 0 (success) or 23 (write error - happens when
+    // response is larger than our buffer, but we got enough data)
+    if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+        if (exit_code == 0 || exit_code == 23) {
+            return 0;
+        }
+    }
+    return -1;
 }
 
 // Simple JSON string extraction (no full parser needed)
