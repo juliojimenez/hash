@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The following versions of hash shell are currently supported with security updates:
+The **last 5 major versions** of hash are supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -11,7 +11,7 @@ The following versions of hash shell are currently supported with security updat
 
 ## Reporting a Vulnerability
 
-We take the security of hash shell seriously. If you discover a security vulnerability, please report it responsibly.
+We take the security of hash seriously. If you discover a security vulnerability, please report it responsibly.
 
 ### How to Report
 
@@ -60,7 +60,7 @@ Include the following information in your report:
 
 ## Security Features
 
-Hash shell includes several security-conscious design decisions:
+Hash includes several security-conscious design decisions:
 
 - **Safe string utilities:** Custom bounds-checked string functions prevent buffer overflows
 - **Input sanitization:** Command parsing includes proper quote and escape handling
