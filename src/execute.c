@@ -16,6 +16,7 @@
 #include "redirect.h"
 #include "jobs.h"
 #include "safe_string.h"
+#include "script.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -52,12 +53,16 @@ static int launch(char **args, const char *cmd_string) {
 
         // Execute command
         if (execvp(exec_args[0], exec_args) == -1) {
-            perror(HASH_NAME);
+            if (!script_state.silent_errors) {
+                perror(HASH_NAME);
+            }
         }
         exit(EXIT_FAILURE);
     } else if (pid < 0) {
         // Fork error
-        perror(HASH_NAME);
+        if (!script_state.silent_errors) {
+            perror(HASH_NAME);
+        }
         last_command_exit_code = 1;
     } else {
         // Parent process

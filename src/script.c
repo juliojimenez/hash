@@ -141,7 +141,9 @@ bool script_should_execute(void) {
 
 int script_push_context(ContextType type) {
     if (script_state.context_depth >= MAX_SCRIPT_DEPTH) {
-        fprintf(stderr, "%s: maximum nesting depth exceeded\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: maximum nesting depth exceeded\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -157,7 +159,9 @@ int script_push_context(ContextType type) {
 
 int script_pop_context(void) {
     if (script_state.context_depth <= 0) {
-        fprintf(stderr, "%s: context stack underflow\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: context stack underflow\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -449,7 +453,9 @@ static int process_then(const char *line) {
 
     ContextType ctx_type = script_current_context();
     if (ctx_type != CTX_IF && ctx_type != CTX_ELIF) {
-        fprintf(stderr, "%s: syntax error: unexpected 'then'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'then'\n", HASH_NAME);
+        }
         return -1;
     }
     return 0;
@@ -458,7 +464,9 @@ static int process_then(const char *line) {
 static int process_elif(const char *line) {
     ScriptContext *ctx = get_current_context();
     if (!ctx || (ctx->type != CTX_IF && ctx->type != CTX_ELIF && ctx->type != CTX_ELSE)) {
-        fprintf(stderr, "%s: syntax error: unexpected 'elif'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'elif'\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -492,7 +500,9 @@ static int process_else(const char *line) {
 
     ScriptContext *ctx = get_current_context();
     if (!ctx || (ctx->type != CTX_IF && ctx->type != CTX_ELIF)) {
-        fprintf(stderr, "%s: syntax error: unexpected 'else'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'else'\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -511,7 +521,9 @@ static int process_fi(const char *line) {
 
     ContextType ctx_type = script_current_context();
     if (ctx_type != CTX_IF && ctx_type != CTX_ELIF && ctx_type != CTX_ELSE) {
-        fprintf(stderr, "%s: syntax error: unexpected 'fi'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'fi'\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -548,7 +560,9 @@ static int process_for(const char *line) {
     varname[vi] = '\0';
 
     if (vi == 0) {
-        fprintf(stderr, "%s: syntax error: expected variable name after 'for'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: expected variable name after 'for'\n", HASH_NAME);
+        }
         return -1;
     }
 
@@ -659,7 +673,9 @@ static int process_do(const char *line) {
 
     ContextType ctx_type = script_current_context();
     if (ctx_type != CTX_FOR && ctx_type != CTX_WHILE && ctx_type != CTX_UNTIL) {
-        fprintf(stderr, "%s: syntax error: unexpected 'do'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'do'\n", HASH_NAME);
+        }
         return -1;
     }
     return 0;
@@ -672,7 +688,9 @@ static int process_done(const char *line) {
     ContextType ctx_type = script_current_context();
 
     if (!ctx || (ctx_type != CTX_FOR && ctx_type != CTX_WHILE && ctx_type != CTX_UNTIL)) {
-        fprintf(stderr, "%s: syntax error: unexpected 'done'\n", HASH_NAME);
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'done'\n", HASH_NAME);
+        }
         return -1;
     }
 

@@ -318,14 +318,14 @@ void config_load_startup_files(bool is_login_shell) {
         // ====================================================================
         // LOGIN SHELL STARTUP SEQUENCE
         // ====================================================================
-        // 1. /etc/profile (system-wide) - executed as script
-        // 2. First of: ~/.hash_profile, ~/.hash_login, ~/.profile
-        // 3. ~/.hashrc (for interactive settings)
+        // Note: We intentionally skip /etc/profile because it typically
+        // contains bash/sh-specific syntax that hash doesn't support.
+        // Hash loads only hash-specific startup files.
+        //
+        // Load order:
+        // 1. First of: ~/.hash_profile, ~/.hash_login
+        // 2. ~/.hashrc (for interactive settings)
 
-        // 1. System-wide profile
-        config_load_silent("/etc/profile");
-
-        // 2. User profile (first one found)
         if (home) {
             bool profile_loaded = false;
 
@@ -345,13 +345,11 @@ void config_load_startup_files(bool is_login_shell) {
                 }
             }
 
-            // Fall back to ~/.profile (shared with other shells)
-            if (!profile_loaded) {
-                snprintf(path, sizeof(path), "%s/.profile", home);
-                config_load_silent(path);
-            }
+            // Note: We don't fall back to ~/.profile because it may contain
+            // bash-specific syntax. Users who want shared profile settings
+            // should source ~/.profile from ~/.hash_profile if desired.
 
-            // 3. Interactive config
+            // Interactive config
             snprintf(path, sizeof(path), "%s/.hashrc", home);
             config_load_silent(path);
         }
