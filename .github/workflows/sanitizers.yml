@@ -259,6 +259,7 @@ jobs:
           #include <stdio.h>
           #include <stdlib.h>
           #include <string.h>
+          #include <unistd.h>
           #include "../src/varexpand.h"
           #include "../src/safe_string.h"
 
@@ -291,6 +292,7 @@ jobs:
           #include <stdio.h>
           #include <stdlib.h>
           #include <string.h>
+          #include <unistd.h>
           #include "../src/safe_string.h"
 
           __AFL_FUZZ_INIT();
