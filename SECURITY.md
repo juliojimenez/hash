@@ -17,9 +17,7 @@ We take the security of hash shell seriously. If you discover a security vulnera
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to:
-
-**julio@julioj.com**
+Instead, please report them via **Security** (tab) > **Advisories** (left nav) > **New draft security advisory** (button)
 
 Include the following information in your report:
 
