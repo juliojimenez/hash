@@ -119,6 +119,8 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Login Shell](./docs/LOGIN_SHELL.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [License](LICENSE)
 
