@@ -337,14 +337,23 @@ static int run_curl(const char *url, char *output, size_t output_size) {
     output[total] = '\0';
 
     int status = pclose(fp);
-    // Accept exit code 0 (success) or 23 (write error - happens when
-    // response is larger than our buffer, but we got enough data)
-    if (WIFEXITED(status)) {
+    
+    // Check for successful exit
+    if (status != -1 && WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
+        // Accept exit code 0 (success) or 23 (write error - happens when
+        // response is larger than our buffer, but we got enough data)
         if (exit_code == 0 || exit_code == 23) {
             return 0;
         }
     }
+    
+    // If pclose returned -1 but we got data that looks like JSON, consider it success
+    // This can happen on macOS due to signal handling quirks
+    if (status == -1 && total > 0 && output[0] == '{') {
+        return 0;
+    }
+    
     return -1;
 }
 
