@@ -322,4 +322,6 @@ Redirect output to avoid cluttering the terminal:
 
 Background jobs are children of the shell. When the shell exits, they receive SIGHUP. Use `nohup` for persistent jobs.
 
+---
+
 Back to [README](../README.md)
