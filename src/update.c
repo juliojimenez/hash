@@ -337,7 +337,7 @@ static int run_curl(const char *url, char *output, size_t output_size) {
     output[total] = '\0';
 
     int status = pclose(fp);
-    
+
     // Check for successful exit
     if (status != -1 && WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
@@ -347,13 +347,13 @@ static int run_curl(const char *url, char *output, size_t output_size) {
             return 0;
         }
     }
-    
+
     // If pclose returned -1 but we got data that looks like JSON, consider it success
     // This can happen on macOS due to signal handling quirks
     if (status == -1 && total > 0 && output[0] == '{') {
         return 0;
     }
-    
+
     return -1;
 }
 
