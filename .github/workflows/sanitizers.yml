@@ -359,7 +359,7 @@ jobs:
           # Create build directory
           mkdir -p build
 
-          # Build required object files first
+          # Build all required object files
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/parser.c -o build/parser.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/safe_string.c -o build/safe_string.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/varexpand.c -o build/varexpand.o
@@ -375,15 +375,25 @@ jobs:
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/expand.c -o build/expand.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/chain.c -o build/chain.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/pipeline.c -o build/pipeline.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/script.c -o build/script.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/jobs.c -o build/jobs.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/test_builtin.c -o build/test_builtin.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/cmdsub.c -o build/cmdsub.o
 
-          # Build fuzz targets
-          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_parser fuzz/fuzz_parser.c \
-            build/parser.o build/safe_string.o build/lineedit.o build/history.o build/completion.o \
-            build/config.o build/colors.o build/prompt.o build/builtins.o
+          # Define all object files needed for linking
+          ALL_OBJS="build/parser.o build/safe_string.o build/lineedit.o build/history.o \
+            build/completion.o build/config.o build/colors.o build/prompt.o build/builtins.o \
+            build/execute.o build/redirect.o build/expand.o build/chain.o build/pipeline.o \
+            build/script.o build/jobs.o build/test_builtin.o build/cmdsub.o build/varexpand.o"
 
+          # Build fuzz targets - parser needs most dependencies due to builtins/config
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_parser fuzz/fuzz_parser.c $ALL_OBJS
+
+          # varexpand is simpler, only needs safe_string
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_varexpand fuzz/fuzz_varexpand.c \
             build/varexpand.o build/safe_string.o
 
+          # safe_string is standalone
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_safe_string fuzz/fuzz_safe_string.c \
             build/safe_string.o
 
