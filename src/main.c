@@ -29,6 +29,7 @@ Julio Jimenez, julio@julioj.com
 #include "builtins.h"
 #include "jobs.h"
 #include "script.h"
+#include "update.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
@@ -374,6 +375,9 @@ int main(int argc, char *argv[]) {
         color_print(COLOR_YELLOW, "'exit'");
         printf(" to quit\n\n");
     }
+
+    // Check for updates (if enabled and interval has passed)
+    update_startup_check();
 
     // Run Command Loop
     loop();

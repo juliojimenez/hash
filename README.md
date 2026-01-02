@@ -117,6 +117,7 @@ sudo usermod -s /usr/local/bin/hash-shell your_username
 - [Tab Completion](./docs/TAB_COMPLETION.md)
   - [Tab Completion Quick Reference](./docs/COMPLETION_QUICKREF.md)
 - [Login Shell](./docs/LOGIN_SHELL.md)
+- [Update Notifications](./docs/UPDATE.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [Testing](./docs/TESTING.md)
 - [Contributing](CONTRIBUTING.md)

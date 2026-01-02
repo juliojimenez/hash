@@ -20,6 +20,7 @@
 #include "chain.h"
 #include "parser.h"
 #include "safe_string.h"
+#include "update.h"
 
 extern int last_command_exit_code;
 
@@ -56,7 +57,8 @@ static char *builtin_str[] = {
     "return",
     "break",
     "continue",
-    "eval"
+    "eval",
+    "update"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -84,7 +86,8 @@ static int (*builtin_func[])(char **) = {
     &shell_return,
     &shell_break,
     &shell_continue_cmd,
-    &shell_eval
+    &shell_eval,
+    &shell_update
 };
 
 static int num_builtins(void) {

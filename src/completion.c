@@ -14,7 +14,9 @@
 
 // Built-in commands for completion
 static const char *builtin_commands[] = {
-    "cd", "exit", "alias", "unalias", "source", "export", "history", NULL
+    "cd", "exit", "alias", "unalias", "source", "export", "history",
+    "jobs", "fg", "bg", "logout", "test", "unset", "true", "false",
+    "echo", "read", "return", "break", "continue", "eval", "update", NULL
 };
 
 // Initialize completion

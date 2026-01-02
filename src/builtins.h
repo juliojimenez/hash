@@ -75,6 +75,9 @@ int shell_continue_cmd(char **args);
 // Built-in command: eval - evaluate arguments as shell command
 int shell_eval(char **args);
 
+// Built-in command: update - check for and install updates
+int shell_update(char **args);
+
 // Set login shell status (called from main)
 void builtins_set_login_shell(bool is_login);
 
