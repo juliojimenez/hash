@@ -7,7 +7,7 @@ The following versions of hash shell are currently supported with security updat
 | Version | Supported          |
 | ------- | ------------------ |
 | v18     | :white_check_mark: |
-| < v18  | :x:                |
+| < v18   | :x:                |
 
 ## Reporting a Vulnerability
 
