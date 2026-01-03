@@ -267,4 +267,6 @@ Hash shell's command chaining works like bash:
 | `&` | ❌ Not yet | ✅ Yes |
 | `()` | ❌ Not yet | ✅ Yes |
 
+---
+
 Back to [README](../README.md)

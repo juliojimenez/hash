@@ -13,27 +13,27 @@ Command line interpreter (shell) for the Linux operating system.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v19/hash-shell-v19-linux-x86_64
-chmod +x hash-shell-v19-linux-x86_64
-sudo mv hash-shell-v19-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v20/hash-shell-v20-linux-x86_64
+chmod +x hash-shell-v20-linux-x86_64
+sudo mv hash-shell-v20-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v19/hash-shell-v19-linux-aarch64
-chmod +x hash-shell-v19-linux-aarch64
-sudo mv hash-shell-v19-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v20/hash-shell-v20-linux-aarch64
+chmod +x hash-shell-v20-linux-aarch64
+sudo mv hash-shell-v20-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v19/hash-shell-v19-darwin-arm64
-chmod +x hash-shell-v19-darwin-arm64
-sudo mv hash-shell-v19-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v20/hash-shell-v20-darwin-arm64
+chmod +x hash-shell-v20-darwin-arm64
+sudo mv hash-shell-v20-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 ### From Source
@@ -43,6 +43,13 @@ git clone https://github.com/juliojimenez/hash
 cd hash
 make
 sudo make install
+hash-shell
+```
+
+### Homebrew (macOS)
+
+```bash
+brew install juliojimenez/hash/hash-shell
 hash-shell
 ```
 
@@ -70,16 +77,30 @@ hash-shell -c 'echo "Hello, World!"'
 
 Log off and log on to your session for changes to take effect.
 
-#### chsh
+#### chsh (Linux)
 
 ```bash
 chsh -s /usr/local/bin/hash-shell
 ```
 
-#### usermod
+#### usermod (Linux)
 
 ```bash
 sudo usermod -s /usr/local/bin/hash-shell your_username
+```
+
+#### chsh (macOS)
+
+```bash
+sudo bash -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+```
+
+If hash as installed with brew
+
+```bash
+sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" >> /etc/shells'
+chsh -s "$(brew --prefix)/bin/hash-shell"
 ```
 
 ## Command Line Options
