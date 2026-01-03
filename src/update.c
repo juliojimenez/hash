@@ -582,19 +582,44 @@ int update_perform(const UpdateInfo *info, bool interactive) {
     // Check if we need sudo
     bool need_sudo = (access(install_path, W_OK) != 0);
 
+    // Also check if the directory is writable (for new installs)
+    if (!need_sudo) {
+        char install_dir[1024];
+        safe_strcpy(install_dir, install_path, sizeof(install_dir));
+        char *last_slash = strrchr(install_dir, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            if (access(install_dir, W_OK) != 0) {
+                need_sudo = true;
+            }
+        }
+    }
+
     printf("Installing to %s...\n", install_path);
 
     // Move to install location
     char move_cmd[2200];  // Larger buffer for two paths + command
     if (need_sudo) {
-        snprintf(move_cmd, sizeof(move_cmd), "sudo mv '%s' '%s'", temp_path, install_path);
+        printf("\n");
+        color_warning("Elevated permissions required to install to %s", install_path);
+        printf("Please enter your password when prompted.\n\n");
+        snprintf(move_cmd, sizeof(move_cmd), "sudo -p 'Password: ' mv '%s' '%s'", temp_path, install_path);
     } else {
         snprintf(move_cmd, sizeof(move_cmd), "mv '%s' '%s'", temp_path, install_path);
     }
 
     if (system(move_cmd) != 0) {
-        color_error("Installation failed");
-        unlink(temp_path);
+        if (need_sudo) {
+            // Provide manual instructions instead of deleting the file
+            printf("\n");
+            color_error("Installation failed. You can install manually with:");
+            printf("\n");
+            color_print(COLOR_CYAN, "  sudo mv '%s' '%s'\n", temp_path, install_path);
+            printf("\nThe downloaded binary is preserved at: %s\n", temp_path);
+        } else {
+            color_error("Installation failed");
+            unlink(temp_path);
+        }
         return -1;
     }
 
