@@ -552,16 +552,16 @@ int update_perform(const UpdateInfo *info, bool interactive) {
     printf("Verifying checksum...\n");
     snprintf(cmd, sizeof(cmd), "curl -sL -o '%s' '%s'", checksum_path, checksum_url);
     if (system(cmd) == 0) {
-        // Verify checksum
-        char verify_cmd[2048];
+        // Verify checksum by comparing hashes directly (filename-independent)
+        char verify_cmd[4096];
         #ifdef __APPLE__
         snprintf(verify_cmd, sizeof(verify_cmd),
-                 "cd '%s' && shasum -a 256 -c '%s' >/dev/null 2>&1",
-                 UPDATE_TEMP_DIR, checksum_path);
+                 "expected=$(cut -d' ' -f1 '%s') && actual=$(shasum -a 256 '%s' | cut -d' ' -f1) && [ \"$expected\" = \"$actual\" ]",
+                 checksum_path, temp_path);
         #else
         snprintf(verify_cmd, sizeof(verify_cmd),
-                 "cd '%s' && sha256sum -c '%s' >/dev/null 2>&1",
-                 UPDATE_TEMP_DIR, checksum_path);
+                 "expected=$(cut -d' ' -f1 '%s') && actual=$(sha256sum '%s' | cut -d' ' -f1) && [ \"$expected\" = \"$actual\" ]",
+                 checksum_path, temp_path);
         #endif
 
         if (system(verify_cmd) != 0) {
@@ -687,6 +687,19 @@ int shell_update(char **args) {
             last_command_exit_code = 0;
         }
         return 1;
+    }
+
+    if (force) {
+        info.update_available = true;
+        // Build download URL if not already set
+        if (info.download_url[0] == '\0') {
+            char platform[64];
+            if (update_get_platform(platform, sizeof(platform)) == 0) {
+                snprintf(info.download_url, sizeof(info.download_url),
+                        "%s/%s/hash-shell-%s-%s",
+                        GITHUB_DOWNLOAD_URL, info.latest_version, info.latest_version, platform);
+            }
+        }
     }
 
     if (!info.update_available && !force) {
