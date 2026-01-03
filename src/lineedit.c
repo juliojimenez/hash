@@ -450,8 +450,9 @@ char *lineedit_read_line(const char *prompt) {
                                 len += match_len;
                                 buf[len] = '\0';
 
-                                // Add space after completion
-                                if (len < MAX_LINE_LENGTH - 1) {
+                                // Add space after completion, but NOT for directories
+                                // (directories end with '/' and user likely wants to continue typing)
+                                if (len < MAX_LINE_LENGTH - 1 && match_len > 0 && match[match_len - 1] != '/') {
                                     memmove(buf + pos + 1, buf + pos, len - pos);
                                     buf[pos] = ' ';
                                     pos++;

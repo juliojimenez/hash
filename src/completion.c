@@ -215,10 +215,11 @@ static void complete_files(CompletionResult *result, const char *prefix) {
                 safe_strcpy(full_match, dir_path, sizeof(full_match));
                 written = strlen(full_match);
 
-                if (written + 1 < sizeof(full_match)) {
+                // Only add slash if dir_path doesn't already end with one
+                if (written > 0 && full_match[written - 1] != '/' && written + 1 < sizeof(full_match)) {
                     full_match[written++] = '/';
-                    safe_strcpy(full_match + written, entry->d_name, sizeof(full_match) - written);
                 }
+                safe_strcpy(full_match + written, entry->d_name, sizeof(full_match) - written);
             }
 
             // Build check path for stat
@@ -231,8 +232,11 @@ static void complete_files(CompletionResult *result, const char *prefix) {
                 safe_strcpy(check_path, dir_path, sizeof(check_path));
                 size_t written = safe_strlen(check_path, sizeof(check_path));
 
-                if (written + 1 + name_len < sizeof(check_path)) {
+                // Only add slash if dir_path doesn't already end with one
+                if (written > 0 && check_path[written - 1] != '/' && written + 1 + name_len < sizeof(check_path)) {
                     check_path[written++] = '/';
+                }
+                if (written + name_len < sizeof(check_path)) {
                     safe_strcpy(check_path + written, entry->d_name, sizeof(check_path) - written);
                 }
             }
