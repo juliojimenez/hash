@@ -80,6 +80,7 @@ Log off and log on to your session for changes to take effect.
 #### chsh (Linux)
 
 ```bash
+sudo bash -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
 chsh -s /usr/local/bin/hash-shell
 ```
 
@@ -96,7 +97,7 @@ sudo bash -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
 chsh -s /usr/local/bin/hash-shell
 ```
 
-If hash as installed with brew
+If hash was installed with brew:
 
 ```bash
 sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" >> /etc/shells'
