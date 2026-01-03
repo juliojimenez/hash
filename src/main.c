@@ -107,10 +107,16 @@ static void loop(void) {
             line = expanded;
         }
 
+        // Save the original line for history before chain_parse modifies it
+        char *line_for_history = strdup(line);
+
         CommandChain *chain = chain_parse(line);
 
         if (chain) {
-            history_add(line);
+            // Add the original (unmodified) line to history
+            if (line_for_history) {
+                history_add(line_for_history);
+            }
 
             // Execute the chain
             status = chain_execute(chain);
@@ -125,6 +131,9 @@ static void loop(void) {
             status = 1;
             last_exit_code = 0;
         }
+
+        // Free allocated memory
+        free(line_for_history);
         free(line);
     } while(status);
 }
