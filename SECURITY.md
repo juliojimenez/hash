@@ -6,6 +6,7 @@ The **last 5 major versions** of hash are supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
+| v21.x   | :white_check_mark: |
 | v20.x   | :white_check_mark: |
 | v19.x   | :white_check_mark: |
 | v18.x   | :white_check_mark: |

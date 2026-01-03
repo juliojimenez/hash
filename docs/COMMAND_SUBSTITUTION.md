@@ -277,4 +277,6 @@ Current limitations:
 4. **Cache results** in variables if used multiple times
 5. **Test commands** before using in substitutions
 
+---
+
 Back to [README](../README.md)
