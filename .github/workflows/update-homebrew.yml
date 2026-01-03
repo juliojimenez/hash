@@ -1,0 +1,136 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v11)'
+        required: true
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Get Release Info
+        id: release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          
+          # Remove 'v' prefix for version number
+          VERSION="${TAG#v}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG, Version: $VERSION"
+
+      - name: Download and Calculate SHA256
+        id: sha256
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
+          
+          echo "Downloading: $URL"
+          SHA256=$(curl -sL "$URL" | shasum -a 256 | cut -d' ' -f1)
+          
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "SHA256: $SHA256"
+
+      - name: Checkout Homebrew Tap
+        uses: actions/checkout@v4
+        with:
+          repository: juliojimenez/homebrew-hash
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Formula
+        run: |
+          cd homebrew-tap
+          
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          SHA256="${{ steps.sha256.outputs.sha256 }}"
+          
+          # Update the formula file
+          cat > Formula/hash-shell.rb << 'EOF'
+          class HashShell < Formula
+            desc "Command line interpreter (shell) for Linux and macOS"
+            homepage "https://github.com/juliojimenez/hash"
+            url "https://github.com/juliojimenez/hash/archive/refs/tags/TAG_PLACEHOLDER.tar.gz"
+            sha256 "SHA256_PLACEHOLDER"
+            license "Apache-2.0"
+            head "https://github.com/juliojimenez/hash.git", branch: "main"
+
+            on_macos do
+              depends_on xcode: :build
+            end
+
+            on_linux do
+              depends_on "gcc" => :build
+            end
+
+            def install
+              system "make", "CC=#{ENV.cc}", "PREFIX=#{prefix}"
+              system "make", "install", "PREFIX=#{prefix}"
+            end
+
+            def caveats
+              <<~EOS
+                To use hash-shell as your default shell, add it to /etc/shells:
+                  sudo bash -c 'echo "#{opt_bin}/hash-shell" >> /etc/shells'
+
+                Then change your shell:
+                  chsh -s #{opt_bin}/hash-shell
+
+                Configuration file: ~/.hashrc
+                History file: ~/.hash_history
+              EOS
+            end
+
+            test do
+              assert_predicate bin/"hash-shell", :exist?
+              assert_predicate bin/"hash-shell", :executable?
+            end
+          end
+          EOF
+          
+          # Replace placeholders
+          sed -i "s|TAG_PLACEHOLDER|${TAG}|g" Formula/hash-shell.rb
+          sed -i "s|SHA256_PLACEHOLDER|${SHA256}|g" Formula/hash-shell.rb
+          
+          echo "Updated formula:"
+          cat Formula/hash-shell.rb
+
+      - name: Commit and Push
+        run: |
+          cd homebrew-tap
+          
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add Formula/hash-shell.rb
+          git commit -m "hash-shell ${VERSION}" -m "Update to ${TAG}" || echo "No changes to commit"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Homebrew Formula Updated! 🍺" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA256:** ${{ steps.sha256.outputs.sha256 }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Users can now install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "brew install juliojimenez/hash/hash-shell" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
