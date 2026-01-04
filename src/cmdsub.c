@@ -5,6 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
 #include <ctype.h>
 #include "cmdsub.h"
 #include "safe_string.h"

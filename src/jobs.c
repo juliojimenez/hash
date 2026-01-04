@@ -241,8 +241,19 @@ int jobs_wait(int job_id) {
         return -1;
     }
 
+    // Block SIGCHLD while waiting
+    sigset_t block_mask, old_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
     int status;
-    pid_t result = waitpid(job->pid, &status, 0);
+    pid_t result;
+    do {
+        result = waitpid(job->pid, &status, 0);
+    } while (result == -1 && errno == EINTR);
+
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
 
     if (result > 0) {
         jobs_update_status(job->pid, status);
@@ -275,6 +286,12 @@ int jobs_foreground(int job_id) {
     // Print command being foregrounded
     printf("%s\n", job->command);
 
+    // Block SIGCHLD while waiting for foreground job
+    sigset_t block_mask, old_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
     // Give terminal control to the job's process group
     if (isatty(STDIN_FILENO)) {
         tcsetpgrp(STDIN_FILENO, job->pgid);
@@ -288,6 +305,7 @@ int jobs_foreground(int job_id) {
             if (isatty(STDIN_FILENO)) {
                 tcsetpgrp(STDIN_FILENO, getpgrp());
             }
+            sigprocmask(SIG_SETMASK, &old_mask, NULL);
             return -1;
         }
         job->state = JOB_RUNNING;
@@ -295,12 +313,18 @@ int jobs_foreground(int job_id) {
 
     // Wait for the job
     int status;
-    pid_t result = waitpid(job->pid, &status, WUNTRACED);
+    pid_t result;
+    do {
+        result = waitpid(job->pid, &status, WUNTRACED);
+    } while (result == -1 && errno == EINTR);
 
     // Take back terminal control
     if (isatty(STDIN_FILENO)) {
         tcsetpgrp(STDIN_FILENO, getpgrp());
     }
+
+    // Restore SIGCHLD handling
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
 
     if (result > 0) {
         if (WIFSTOPPED(status)) {

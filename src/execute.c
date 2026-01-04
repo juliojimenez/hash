@@ -5,6 +5,7 @@
 #include <string.h>
 #include <signal.h>
 #include <termios.h>
+#include <errno.h>
 #include "hash.h"
 #include "execute.h"
 #include "builtins.h"
@@ -20,6 +21,9 @@
 
 // Global to store last exit code
 int last_command_exit_code = 0;
+
+// Debug flag - set to 1 to enable exit code tracing
+#define DEBUG_EXIT_CODE 0
 
 // Launch an external program
 static int launch(char **args, const char *cmd_string) {
@@ -70,37 +74,57 @@ static int launch(char **args, const char *cmd_string) {
         // Put child in its own process group
         setpgid(pid, pid);
 
+        // Block SIGCHLD while waiting for foreground process
+        // This prevents the SIGCHLD handler from reaping our child
+        sigset_t block_mask, old_mask;
+        sigemptyset(&block_mask);
+        sigaddset(&block_mask, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
         // Give terminal control to child process group
         tcsetpgrp(STDIN_FILENO, pid);
 
         // Wait for child, but also handle stopped state
+        pid_t wpid;
         do {
-            waitpid(pid, &status, WUNTRACED);
-        } while (!WIFEXITED(status) && !WIFSIGNALED(status) && !WIFSTOPPED(status));
+            wpid = waitpid(pid, &status, WUNTRACED);
+        } while (wpid == -1 && errno == EINTR);
 
         // Take back terminal control
         tcsetpgrp(STDIN_FILENO, getpgrp());
 
+        // Restore SIGCHLD handling
+        sigprocmask(SIG_SETMASK, &old_mask, NULL);
+
         // Handle the result
-        if (WIFEXITED(status)) {
-            last_command_exit_code = WEXITSTATUS(status);
-        } else if (WIFSIGNALED(status)) {
-            last_command_exit_code = 128 + WTERMSIG(status);
-        } else if (WIFSTOPPED(status)) {
-            // Process was stopped (Ctrl+Z)
-            // Add to job table
-            int job_id = jobs_add(pid, cmd_string ? cmd_string : exec_args[0]);
+        if (wpid > 0) {
+            if (WIFEXITED(status)) {
+                last_command_exit_code = WEXITSTATUS(status);
+#if DEBUG_EXIT_CODE
+                fprintf(stderr, "DEBUG: launch() WEXITSTATUS=%d for '%s'\n", last_command_exit_code, exec_args[0]);
+#endif
+            } else if (WIFSIGNALED(status)) {
+                last_command_exit_code = 128 + WTERMSIG(status);
+            } else if (WIFSTOPPED(status)) {
+                // Process was stopped (Ctrl+Z)
+                // Add to job table
+                int job_id = jobs_add(pid, cmd_string ? cmd_string : exec_args[0]);
 
-            // Update job state to stopped
-            Job *job = jobs_get(job_id);
-            if (job) {
-                job->state = JOB_STOPPED;
+                // Update job state to stopped
+                Job *job = jobs_get(job_id);
+                if (job) {
+                    job->state = JOB_STOPPED;
+                }
+
+                // Print notification
+                printf("\n[%d]+  Stopped                 %s\n", job_id, cmd_string ? cmd_string : exec_args[0]);
+
+                last_command_exit_code = 128 + WSTOPSIG(status);
             }
-
-            // Print notification
-            printf("\n[%d]+  Stopped                 %s\n", job_id, cmd_string ? cmd_string : exec_args[0]);
-
-            last_command_exit_code = 128 + WSTOPSIG(status);
+        } else {
+            // waitpid failed - this shouldn't happen normally
+            // The child may have been reaped unexpectedly
+            last_command_exit_code = 1;
         }
     }
 
@@ -251,10 +275,23 @@ int execute(char **args) {
         }
 
         // No original args, just execute alias
+#if DEBUG_EXIT_CODE
+        fprintf(stderr, "DEBUG: Executing alias '%s' -> '%s'\n", args[0], alias_value);
+        fprintf(stderr, "DEBUG: Before recursive execute, last_command_exit_code=%d\n", last_command_exit_code);
+#endif
         result = execute(alias_args);
+#if DEBUG_EXIT_CODE
+        fprintf(stderr, "DEBUG: After recursive execute, last_command_exit_code=%d, result=%d\n", last_command_exit_code, result);
+#endif
         free(alias_args);
         free(alias_line);
+#if DEBUG_EXIT_CODE
+        fprintf(stderr, "DEBUG: After freeing alias stuff, last_command_exit_code=%d\n", last_command_exit_code);
+#endif
         free_expanded_args(expanded_args, expanded_count);
+#if DEBUG_EXIT_CODE
+        fprintf(stderr, "DEBUG: After free_expanded_args, last_command_exit_code=%d\n", last_command_exit_code);
+#endif
         return result;
     }
 

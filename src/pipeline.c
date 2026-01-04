@@ -5,6 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <errno.h>
 #include <ctype.h>
 #include "hash.h"
 #include "pipeline.h"
@@ -230,21 +232,36 @@ int pipeline_execute(const Pipeline *pipeline) {
         close(pipes[i][1]);
     }
 
+    // Block SIGCHLD while waiting for pipeline processes
+    // This prevents the SIGCHLD handler from reaping our children
+    sigset_t block_mask, old_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
     // Wait for all children
     int last_exit_code = 0;
     for (int i = 0; i < pipeline->count; i++) {
         int status;
-        waitpid(pids[i], &status, 0);
+        pid_t wpid;
+        do {
+            wpid = waitpid(pids[i], &status, 0);
+        } while (wpid == -1 && errno == EINTR);
 
         // Track exit code of last command
         if (i == pipeline->count - 1) {
-            if (WIFEXITED(status)) {
+            if (wpid > 0 && WIFEXITED(status)) {
                 last_exit_code = WEXITSTATUS(status);
+            } else if (wpid > 0 && WIFSIGNALED(status)) {
+                last_exit_code = 128 + WTERMSIG(status);
             } else {
                 last_exit_code = 1;
             }
         }
     }
+
+    // Restore SIGCHLD handling
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
 
     free(pipes);
     free(pids);

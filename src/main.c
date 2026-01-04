@@ -89,9 +89,17 @@ static void loop(void) {
     int status;
     int last_exit_code = 0;
 
+    // Debug flag - matches execute.c
+    #define DEBUG_EXIT_CODE 0
+
     do {
         // Check for completed background jobs before displaying prompt
         jobs_check_completed();
+
+#if DEBUG_EXIT_CODE
+        fprintf(stderr, "DEBUG: loop() before prompt_generate, execute_get_last_exit_code()=%d, last_exit_code=%d\n", 
+                execute_get_last_exit_code(), last_exit_code);
+#endif
 
         const char *prompt_str = prompt_generate(last_exit_code);
 

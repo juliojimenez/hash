@@ -15,6 +15,9 @@
 
 #define INITIAL_CHAIN_CAPACITY 8
 
+// Debug flag - matches execute.c
+#define DEBUG_EXIT_CODE 0
+
 // Create a new command chain
 static CommandChain *chain_create(void) {
     CommandChain *chain = malloc(sizeof(CommandChain));
@@ -316,6 +319,9 @@ int chain_execute(const CommandChain *chain) {
             if (args) {
                 shell_continue = execute(args);
                 last_exit_code = execute_get_last_exit_code();
+#if DEBUG_EXIT_CODE
+                fprintf(stderr, "DEBUG: chain_execute() after execute, last_exit_code=%d\n", last_exit_code);
+#endif
                 free(args);
             }
         }
