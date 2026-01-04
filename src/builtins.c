@@ -369,7 +369,7 @@ int shell_set(char **args) {
 
         // Handle PS1 setting
         if (strncmp(arg, "PS1=", 4) == 0) {
-            const char *ps1_value = (char *)(arg + 4);
+            const char *ps1_value = arg + 4;
 
             // Remove quotes if present
             size_t val_len = strlen(ps1_value);
