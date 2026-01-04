@@ -326,7 +326,7 @@ int config_load_silent(const char *filepath) {
     // Check if this is a .hashrc file - use config_load for hash-specific directives
     const char *basename = strrchr(filepath, '/');
     basename = basename ? basename + 1 : filepath;
-    
+
     if (strcmp(basename, ".hashrc") == 0) {
         // Use config_load which handles hash-specific directives (alias, set, export)
         return config_load(filepath);
