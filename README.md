@@ -13,27 +13,27 @@ Command line interpreter (shell) for the Linux operating system.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v22/hash-shell-v22-linux-x86_64
-chmod +x hash-shell-v22-linux-x86_64
-sudo mv hash-shell-v22-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v23/hash-shell-v23-linux-x86_64
+chmod +x hash-shell-v23-linux-x86_64
+sudo mv hash-shell-v23-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v22/hash-shell-v22-linux-aarch64
-chmod +x hash-shell-v22-linux-aarch64
-sudo mv hash-shell-v22-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v23/hash-shell-v23-linux-aarch64
+chmod +x hash-shell-v23-linux-aarch64
+sudo mv hash-shell-v23-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v22/hash-shell-v22-darwin-arm64
-chmod +x hash-shell-v22-darwin-arm64
-sudo mv hash-shell-v22-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v23/hash-shell-v23-darwin-arm64
+chmod +x hash-shell-v23-darwin-arm64
+sudo mv hash-shell-v23-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 ### From Source

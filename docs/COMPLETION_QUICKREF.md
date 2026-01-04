@@ -54,4 +54,6 @@ test.txt  test.md  testing.log
 
 ❌ No match → beep
 
+---
+
 Back to [README](../README.md)
