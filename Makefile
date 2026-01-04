@@ -35,11 +35,11 @@ clean:
 	rm -rf $(BUILD_DIR) $(TARGET) examples/color_demo
 
 install: $(TARGET)
-	install -d $(PREFIX)/bin
-	install -m 755 $(TARGET) $(PREFIX)/bin/
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/
 
 uninstall:
-	rm -f $(PREFIX)/bin/$(TARGET)
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(TARGET)
 
 debug: CFLAGS += -g -DDEBUG
 debug: clean all
