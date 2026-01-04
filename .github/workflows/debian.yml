@@ -55,12 +55,11 @@ jobs:
         run: |
           dpkg-buildpackage -us -uc -b
           mkdir -p packages
-          mv ../hash-shell_*.deb packages/
-          # Rename with distro identifier
-          cd packages
-          for f in *.deb; do
-            mv "$f" "hash-shell_${{ steps.get_version.outputs.version }}-1~${{ matrix.distro }}_amd64.deb"
-          done
+          mv ../hash-shell_*.deb packages/ || true
+          mv ../hash-shell-dbgsym_*.ddeb packages/ || true
+          # List what we built
+          echo "Built packages:"
+          ls -la packages/
 
       - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
