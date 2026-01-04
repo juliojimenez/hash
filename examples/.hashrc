@@ -47,7 +47,7 @@ export HISTCONTROL=ignoreboth
 # set PS1='\W #> '
 
 # Simple with git: Absolute path and git status
-set PS1='\w\g \e#>\e '
+set PS1='\w\g \e#>\e'
 
 # ============================================================================
 # ENVIRONMENT VARIABLES
@@ -78,12 +78,18 @@ alias la='ls -A'
 alias l='ls -CF'
 
 # Git shortcuts
-alias gs='git status'
+# Git shortcuts
 alias ga='git add'
-alias gc='git commit'
-alias gp='git push'
-alias gl='git log --oneline'
+alias gb='git branch'
+alias gc='git commit -m'
+alias gcssm='git commit --gpg-sign --signoff --message'
+alias gcb='git checkout -b'
 alias gd='git diff'
+alias gl='git log --oneline'
+alias gp='git push'
+alias gpl='git pull'
+alias gpo='git push origin'
+alias gs='git status'
 
 # Docker shortcuts (if you use Docker)
 # alias dps='docker ps'
@@ -110,3 +116,4 @@ alias serve='python3 -m http.server'
 # Quick edits
 alias vimrc='vim ~/.vimrc'
 alias hashrc='vim ~/.hashrc'
+alias shashrc='source ~/.hashrc'
