@@ -12,6 +12,7 @@
 #include "builtins.h"
 #include "colors.h"
 #include "config.h"
+#include "prompt.h"
 #include "execute.h"
 #include "history.h"
 #include "jobs.h"
@@ -40,6 +41,7 @@ static char *builtin_str[] = {
     "source",
     ".",          // Alias for source (POSIX)
     "export",
+    "set",
     "history",
     "jobs",
     "fg",
@@ -69,6 +71,7 @@ static int (*builtin_func[])(char **) = {
     &shell_source,
     &shell_source,    // . is alias for source
     &shell_export,
+    &shell_set,
     &shell_history,
     &shell_jobs,
     &shell_fg,
@@ -322,6 +325,73 @@ int shell_history(char **args) {
         if (cmd) {
             printf("%5d  %s\n", i, cmd);
         }
+    }
+
+    last_command_exit_code = 0;
+    return 1;
+}
+
+int shell_set(char **args) {
+    // Handle set with no arguments - list all shell variables
+    // (For now, we don't maintain shell-local variables, so this is a no-op)
+    if (args[1] == NULL) {
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Handle set option=value syntax for hash-specific options
+    for (int i = 1; args[i] != NULL; i++) {
+        const char *arg = args[i];
+
+        // Handle colors option
+        if (strcmp(arg, "colors=on") == 0) {
+            shell_config.colors_enabled = true;
+            colors_enable();
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "colors=off") == 0) {
+            shell_config.colors_enabled = false;
+            colors_disable();
+            last_command_exit_code = 0;
+            continue;
+        }
+
+        // Handle welcome option
+        if (strcmp(arg, "welcome=on") == 0) {
+            shell_config.show_welcome = true;
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "welcome=off") == 0) {
+            shell_config.show_welcome = false;
+            last_command_exit_code = 0;
+            continue;
+        }
+
+        // Handle PS1 setting
+        if (strncmp(arg, "PS1=", 4) == 0) {
+            char *ps1_value = (char *)(arg + 4);
+
+            // Remove quotes if present
+            size_t val_len = strlen(ps1_value);
+            if (val_len >= 2 &&
+                (ps1_value[0] == '"' || ps1_value[0] == '\'') &&
+                ps1_value[0] == ps1_value[val_len - 1]) {
+                // Make a mutable copy to remove quotes
+                char *temp = strdup(ps1_value);
+                if (temp) {
+                    temp[val_len - 1] = '\0';
+                    prompt_set_ps1(temp + 1);
+                    free(temp);
+                }
+            } else {
+                prompt_set_ps1(ps1_value);
+            }
+            last_command_exit_code = 0;
+            continue;
+        }
+
+        // Unknown option - silently ignore for compatibility
+        // (bash 'set' has many options we don't support)
     }
 
     last_command_exit_code = 0;

@@ -24,6 +24,9 @@ int shell_export(char **args);
 // Built-in command: show command history
 int shell_history(char **args);
 
+// Built-in command: set shell options
+int shell_set(char **args);
+
 // Built-in command: list background jobs
 int shell_jobs(char **args);
 

@@ -12,6 +12,8 @@
 #include "hash.h"
 #include "safe_string.h"
 #include "script.h"
+#include "varexpand.h"
+#include "expand.h"
 
 Config shell_config;
 
@@ -175,7 +177,25 @@ int config_process_line(char *line) {
             value++;
         }
 
-        setenv(name, value, 1);
+        // First expand tilde if present (e.g., ~/bin)
+        char *tilde_expanded = NULL;
+        if (value[0] == '~') {
+            tilde_expanded = expand_tilde_path(value);
+            if (tilde_expanded) {
+                value = tilde_expanded;
+            }
+        }
+
+        // Expand variables in the value (e.g., $HOME, $PATH)
+        char *var_expanded = varexpand_expand(value, 0);
+        if (var_expanded) {
+            setenv(name, var_expanded, 1);
+            free(var_expanded);
+        } else {
+            setenv(name, value, 1);
+        }
+
+        free(tilde_expanded);  // Safe to free NULL
         return 0;
     }
 
@@ -293,8 +313,8 @@ int config_load_default(void) {
 }
 
 // Load config file silently (no error if doesn't exist)
-// This uses script_execute_file_ex with silent_errors for system files
-// that may contain unsupported bash-specific syntax
+// For .hashrc files, use config_load which handles hash-specific directives
+// For profile/login files, use script_execute_file_ex
 int config_load_silent(const char *filepath) {
     if (access(filepath, F_OK) != 0) {
         return 0;  // File doesn't exist - not an error
@@ -303,9 +323,17 @@ int config_load_silent(const char *filepath) {
         return 0;  // Not readable - silently skip
     }
 
-    // Use script_execute_file_ex with silent errors for system files
-    // System files like /etc/profile may source bash-specific files
-    // that contain unsupported syntax
+    // Check if this is a .hashrc file - use config_load for hash-specific directives
+    const char *basename = strrchr(filepath, '/');
+    basename = basename ? basename + 1 : filepath;
+    
+    if (strcmp(basename, ".hashrc") == 0) {
+        // Use config_load which handles hash-specific directives (alias, set, export)
+        return config_load(filepath);
+    }
+
+    // For other files (profile, login, etc.), use script execution
+    // with silent errors for system files that may contain unsupported syntax
     return script_execute_file_ex(filepath, 0, NULL, true);
 }
 
