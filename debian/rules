@@ -7,14 +7,13 @@ override_dh_auto_build:
 	$(MAKE) CC=gcc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
 
 override_dh_auto_install:
-	install -D -m 755 hash-shell $(CURDIR)/debian/hash-shell/usr/bin/hash-shell
-	install -D -m 644 examples/.hashrc $(CURDIR)/debian/hash-shell/usr/share/hash-shell/hashrc.example
-	install -D -m 644 README.md $(CURDIR)/debian/hash-shell/usr/share/doc/hash-shell/README.md
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp PREFIX=/usr
+	install -D -m 644 examples/.hashrc $(CURDIR)/debian/tmp/usr/share/hash-shell/hashrc.example
 
 override_dh_auto_test:
 	# Skip tests during package build - Unity framework setup has race conditions with parallel builds
 	# Tests are run separately in CI via the Tests workflow
-	echo "Skipping tests during package build"
+	@echo "Skipping tests during package build"
 
 override_dh_auto_clean:
 	$(MAKE) clean || true

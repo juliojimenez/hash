@@ -1,1 +1,2 @@
-/usr/bin/hash-shell
+usr/bin/hash-shell
+usr/share/hash-shell/hashrc.example
