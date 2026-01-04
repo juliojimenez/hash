@@ -53,6 +53,19 @@ brew install juliojimenez/hash/hash-shell
 hash-shell
 ```
 
+### APT (Debian/Ubuntu)
+
+```bash
+# Add repository
+echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+
+# Install
+sudo apt update
+sudo apt install hash-shell
+```
+
+Upgrade with `sudo apt upgrade hash-shell`. See [APT Installation Guide](./docs/APT_INSTALL.md) for more options.
+
 ## Usage
 
 ### Start hash
@@ -141,6 +154,7 @@ chsh -s "$(brew --prefix)/bin/hash-shell"
 - [Login Shell](./docs/LOGIN_SHELL.md)
 - [Update Notifications](./docs/UPDATE.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
+- [APT Installation](./docs/APT_INSTALL.md)
 - [Testing](./docs/TESTING.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)

@@ -1,0 +1,73 @@
+.TH HASH-SHELL 1 "January 2026" "hash-shell 21" "User Commands"
+.SH NAME
+hash-shell \- modern command line interpreter for Linux
+.SH SYNOPSIS
+.B hash-shell
+.SH DESCRIPTION
+.B hash-shell
+is a comprehensive C-based command line shell interpreter for Linux
+providing a modern, secure, and POSIX-compliant alternative to traditional
+shells.
+.SH FEATURES
+.TP
+.B Tab Completion
+Complete commands, files, and directories with the Tab key.
+.TP
+.B Pipes
+Connect commands with | operator.
+.TP
+.B I/O Redirection
+Redirect input (<), output (>), append (>>), and stderr (2>).
+.TP
+.B Command Chaining
+Chain commands with && (and), || (or), and ; (sequential).
+.TP
+.B Aliases
+Define command shortcuts in ~/.hashrc.
+.TP
+.B Variable Expansion
+Use $VAR and ${VAR} syntax for environment variables.
+.TP
+.B Command History
+Navigate history with arrow keys. Supports !!, !n, and !prefix.
+.TP
+.B Customizable Prompts
+Configure PS1 with \\w, \\W, \\u, \\h, \\g (git), and more.
+.TP
+.B Git Integration
+Show branch and status in prompt with \\g escape.
+.SH FILES
+.TP
+.I ~/.hashrc
+User configuration file. Loaded on startup.
+.TP
+.I ~/.hash_history
+Command history file.
+.SH ENVIRONMENT
+.TP
+.B HISTSIZE
+Maximum commands in memory (default: 1000).
+.TP
+.B HISTFILESIZE
+Maximum commands in history file (default: 2000).
+.TP
+.B HISTCONTROL
+History behavior: ignorespace, ignoredups, ignoreboth, erasedups.
+.TP
+.B PS1
+Prompt string format.
+.SH EXAMPLES
+.TP
+Start hash shell:
+.B hash-shell
+.TP
+Change default shell:
+.B chsh -s /usr/bin/hash-shell
+.SH AUTHOR
+Julio Jimenez <julio@julioj.com>
+.SH BUGS
+Report bugs at https://github.com/juliojimenez/hash/issues
+.SH SEE ALSO
+.BR bash (1),
+.BR sh (1),
+.BR zsh (1)

@@ -1,0 +1,253 @@
+name: Debian Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create package for'
+        required: true
+        default: 'v21'
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        include:
+          - distro: jammy
+            distro_name: ubuntu-22.04
+          - distro: noble
+            distro_name: ubuntu-24.04
+          - distro: bookworm
+            distro_name: debian-bookworm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential debhelper devscripts dpkg-dev
+
+      - name: Get Version From Tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Update Changelog
+        run: |
+          sed -i "s/^hash-shell ([^)]*)/hash-shell (${{ steps.get_version.outputs.version }}-1~${{ matrix.distro }})/g" debian/changelog
+          sed -i "s/) unstable;/) ${{ matrix.distro }};/g" debian/changelog
+
+      - name: Build Package
+        run: |
+          dpkg-buildpackage -us -uc -b
+          mkdir -p packages
+          mv ../hash-shell_*.deb packages/
+          # Rename with distro identifier
+          cd packages
+          for f in *.deb; do
+            mv "$f" "hash-shell_${{ steps.get_version.outputs.version }}-1~${{ matrix.distro }}_amd64.deb"
+          done
+
+      - name: Upload Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.distro }}
+          path: packages/*.deb
+
+  publish-apt-repo:
+    name: Publish APT Repository
+    runs-on: ubuntu-latest
+    needs: build-deb
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Install APT Repository Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils
+
+      - name: Get Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup APT Repository Structure
+        run: |
+          mkdir -p apt-repo/pool/main/h/hash-shell
+          mkdir -p apt-repo/dists/stable/main/binary-amd64
+          
+          # Copy all .deb files to pool
+          find artifacts -name "*.deb" -exec cp {} apt-repo/pool/main/h/hash-shell/ \;
+          
+          # List what we have
+          echo "Packages in pool:"
+          ls -la apt-repo/pool/main/h/hash-shell/
+
+      - name: Generate Packages Index
+        run: |
+          cd apt-repo
+          
+          # Generate Packages file
+          dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages
+          gzip -k dists/stable/main/binary-amd64/Packages
+          xz -k dists/stable/main/binary-amd64/Packages
+          
+          # Show what was generated
+          echo "Packages index:"
+          cat dists/stable/main/binary-amd64/Packages
+
+      - name: Generate Release File
+        run: |
+          cd apt-repo/dists/stable
+          
+          # Calculate checksums
+          cat > Release << EOF
+          Origin: Hash Shell
+          Label: Hash Shell
+          Suite: stable
+          Codename: stable
+          Version: ${{ steps.get_version.outputs.version }}
+          Architectures: amd64
+          Components: main
+          Description: Hash Shell APT Repository
+          Date: $(date -Ru)
+          EOF
+          
+          # Add MD5, SHA1, SHA256 checksums
+          echo "MD5Sum:" >> Release
+          for f in main/binary-amd64/Packages*; do
+            echo " $(md5sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
+          done
+          
+          echo "SHA1:" >> Release
+          for f in main/binary-amd64/Packages*; do
+            echo " $(sha1sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
+          done
+          
+          echo "SHA256:" >> Release
+          for f in main/binary-amd64/Packages*; do
+            echo " $(sha256sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
+          done
+          
+          cat Release
+
+      - name: Create Index Page
+        run: |
+          cat > apt-repo/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Hash Shell APT Repository</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+              h1 { color: #333; }
+              code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
+              pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+              .step { margin: 20px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>🐚 Hash Shell APT Repository</h1>
+            
+            <p>A modern command line interpreter for Linux.</p>
+            
+            <h2>Quick Install</h2>
+            
+            <div class="step">
+              <h3>1. Add the repository</h3>
+              <pre>echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list</pre>
+            </div>
+            
+            <div class="step">
+              <h3>2. Update and install</h3>
+              <pre>sudo apt update
+          sudo apt install hash-shell</pre>
+            </div>
+            
+            <div class="step">
+              <h3>3. Run hash</h3>
+              <pre>hash-shell</pre>
+            </div>
+            
+            <h2>Upgrade</h2>
+            <pre>sudo apt update
+          sudo apt upgrade hash-shell</pre>
+            
+            <h2>Links</h2>
+            <ul>
+              <li><a href="https://github.com/juliojimenez/hash">GitHub Repository</a></li>
+              <li><a href="https://github.com/juliojimenez/hash/releases">Releases</a></li>
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apt-repo
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  upload-to-release:
+    name: Upload to Release
+    runs-on: ubuntu-latest
+    needs: build-deb
+    if: github.event_name == 'release'
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

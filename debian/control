@@ -1,0 +1,33 @@
+Source: hash-shell
+Section: shells
+Priority: optional
+Maintainer: Julio Jimenez <julio@julioj.com>
+Build-Depends: debhelper-compat (= 13), gcc, make
+Standards-Version: 4.6.0
+Homepage: https://github.com/juliojimenez/hash
+Vcs-Browser: https://github.com/juliojimenez/hash
+Vcs-Git: https://github.com/juliojimenez/hash.git
+Rules-Requires-Root: no
+
+Package: hash-shell
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Modern command line interpreter for Linux
+ Hash is a comprehensive C-based command line shell interpreter for Linux
+ providing a modern, secure, and POSIX-compliant alternative to traditional
+ shells.
+ .
+ Features include:
+  - Tab completion for commands, files, and directories
+  - Pipes and I/O redirection
+  - Command chaining (&&, ||, ;)
+  - Background processes with job control
+  - Shell scripting with control structures (if/elif/else, for, while)
+  - Command substitution $(command)
+  - Aliases and .hashrc configuration
+  - Environment variable expansion
+  - Command history with HISTCONTROL support
+  - Customizable PS1 prompts with git integration
+  - Tilde expansion
+  - Login shell support
+  - Safe string handling functions
