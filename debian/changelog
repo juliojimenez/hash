@@ -1,18 +1,7 @@
-hash-shell (21-1) unstable; urgency=medium
+hash-shell (22-1) unstable; urgency=medium
 
-  * Tab completion for commands, files, and directories
-  * Pipes and I/O redirection support
-  * Command chaining with &&, ||, and ;
-  * Background process support with job control
-  * Shell scripting with control structures (if/elif/else, for, while)
-  * Command substitution $(command)
-  * Aliases and .hashrc configuration
-  * Environment variable expansion ($VAR, ${VAR})
-  * Command history with HISTCONTROL support
-  * Customizable PS1 prompts with git integration
-  * Tilde expansion for home directories
-  * Login shell support with .hash_profile
-  * Safe string handling functions
-  * Update notification system
+  * source command errors fixed
+  * set built-in command
+  * Prompt exit code indicator fix
 
  -- Julio Jimenez <julio@julioj.com>  Sat, 03 Jan 2026 12:00:00 +0000

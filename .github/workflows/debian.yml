@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Tag to create package for'
         required: true
-        default: 'v21'
+        default: 'v22'
 
 jobs:
   build-deb:
