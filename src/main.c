@@ -97,7 +97,7 @@ static void loop(void) {
         jobs_check_completed();
 
 #if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: loop() before prompt_generate, execute_get_last_exit_code()=%d, last_exit_code=%d\n", 
+        fprintf(stderr, "DEBUG: loop() before prompt_generate, execute_get_last_exit_code()=%d, last_exit_code=%d\n",
                 execute_get_last_exit_code(), last_exit_code);
 #endif
 
