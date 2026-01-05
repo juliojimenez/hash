@@ -187,6 +187,13 @@ jobs:
         with:
           path: artifacts
 
+      - name: Get Version Number
+        id: version_num
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          VERSION_NUM="${VERSION#v}"
+          echo "version_num=$VERSION_NUM" >> $GITHUB_OUTPUT
+
       - name: Generate Installation Instructions
         run: |
           cat > INSTALL.md << 'EOF'
@@ -194,7 +201,40 @@ jobs:
 
           ## Installation
 
-          ### Linux x86_64
+          ### Debian/Ubuntu (via APT)
+
+          The easiest way to install on Debian-based systems:
+
+          ```bash
+          # Add the repository
+          echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+
+          # Update and install
+          sudo apt update
+          sudo apt install hash-shell
+          ```
+
+          ### Debian/Ubuntu (Direct .deb Download)
+
+          **Ubuntu 24.04 (Noble):**
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb
+          ```
+
+          **Ubuntu 22.04 (Jammy):**
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb
+          ```
+
+          **Debian Bookworm:**
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
+          ```
+
+          ### Linux x86_64 (Static Binary)
 
           ```bash
           curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64
@@ -202,7 +242,7 @@ jobs:
           sudo mv hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64 /usr/local/bin/hash-shell
           ```
 
-          ### Linux ARM64
+          ### Linux ARM64 (Static Binary)
 
           ```bash
           curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64
@@ -232,6 +272,12 @@ jobs:
 
           ## Available Downloads
 
+          ### Debian Packages
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb` - Ubuntu 24.04 (Noble)
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb` - Ubuntu 22.04 (Jammy)
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb` - Debian Bookworm
+
+          ### Static Binaries
           - `hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64` - Linux x86_64 binary
           - `hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64` - Linux ARM64 binary
           - `hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64` - macOS Apple Silicon binary
