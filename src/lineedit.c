@@ -18,24 +18,24 @@
 // Get basename from a path (pointer to last component)
 static const char *get_display_name(const char *path) {
     if (!path) return NULL;
-    
+
     // Find the last slash (but not trailing slash)
     size_t len = strlen(path);
     const char *last_slash = NULL;
-    
+
     // Skip trailing slash for directories
     size_t check_len = (len > 0 && path[len - 1] == '/') ? len - 1 : len;
-    
+
     for (size_t i = 0; i < check_len; i++) {
         if (path[i] == '/') {
             last_slash = &path[i];
         }
     }
-    
+
     if (last_slash && *(last_slash + 1) != '\0') {
         return last_slash + 1;
     }
-    
+
     return path;
 }
 

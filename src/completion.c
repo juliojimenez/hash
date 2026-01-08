@@ -190,7 +190,7 @@ static void complete_files(CompletionResult *result, const char *prefix) {
 
     // Check if original prefix had a slash (not the expanded one)
     const char *original_slash = strchr(prefix, '/');
-    
+
     if (has_tilde && !original_slash && expanded_prefix) {
         // Just ~ or ~user with no slash - list home directory contents
         safe_strcpy(dir_path, expanded_prefix, sizeof(dir_path));
@@ -255,17 +255,17 @@ static void complete_files(CompletionResult *result, const char *prefix) {
                 if (home_expanded) {
                     size_t home_len = strlen(home_expanded);
                     size_t dir_path_len = strlen(dir_path);
-                    
+
                     // Start with tilde part
                     safe_strcpy(full_match, tilde_part, sizeof(full_match));
-                    
+
                     // Add any path components after the home directory
                     // e.g., if dir_path is /Users/julio/Documents and home is /Users/julio
                     // then we add /Documents
                     if (dir_path_len > home_len) {
                         safe_strcat(full_match, dir_path + home_len, sizeof(full_match));
                     }
-                    
+
                     // Add slash and filename
                     size_t written = strlen(full_match);
                     if (written > 0 && full_match[written - 1] != '/' && written + 1 < sizeof(full_match)) {
@@ -273,7 +273,7 @@ static void complete_files(CompletionResult *result, const char *prefix) {
                         full_match[written] = '\0';
                     }
                     safe_strcat(full_match, entry->d_name, sizeof(full_match));
-                    
+
                     free(home_expanded);
                 } else {
                     // Fallback to expanded path
