@@ -15,6 +15,30 @@
 
 #define MAX_LINE_LENGTH 4096
 
+// Get basename from a path (pointer to last component)
+static const char *get_display_name(const char *path) {
+    if (!path) return NULL;
+    
+    // Find the last slash (but not trailing slash)
+    size_t len = strlen(path);
+    const char *last_slash = NULL;
+    
+    // Skip trailing slash for directories
+    size_t check_len = (len > 0 && path[len - 1] == '/') ? len - 1 : len;
+    
+    for (size_t i = 0; i < check_len; i++) {
+        if (path[i] == '/') {
+            last_slash = &path[i];
+        }
+    }
+    
+    if (last_slash && *(last_slash + 1) != '\0') {
+        return last_slash + 1;
+    }
+    
+    return path;
+}
+
 // Terminal state
 static struct termios orig_termios;
 static int raw_mode_enabled = 0;
@@ -467,17 +491,18 @@ char *lineedit_read_line(const char *prompt) {
                         } else {
                             // Multiple matches
                             if (last_was_tab) {
-                                // Second TAB - show all matches
+                                // Second TAB - show all matches (basenames only)
                                 ret = write(STDOUT_FILENO, "\r\n", 2);
                                 (void)ret;
 
-                                // Calculate column layout
+                                // Calculate column layout using display names (basenames)
                                 int term_width = get_terminal_width();
                                 size_t max_len = 0;
 
-                                // Find longest match
+                                // Find longest display name
                                 for (int i = 0; i < comp->count; i++) {
-                                    size_t mlen = strlen(comp->matches[i]);
+                                    const char *display = get_display_name(comp->matches[i]);
+                                    size_t mlen = strlen(display);
                                     if (mlen > max_len) max_len = mlen;
                                 }
 
@@ -486,16 +511,17 @@ char *lineedit_read_line(const char *prompt) {
                                 int cols_per_row = term_width / col_width;
                                 if (cols_per_row < 1) cols_per_row = 1;
 
-                                // Display matches in columns
+                                // Display matches in columns (basenames only)
                                 for (int i = 0; i < comp->count; i++) {
-                                    ret = write(STDOUT_FILENO, comp->matches[i], strlen(comp->matches[i]));
+                                    const char *display = get_display_name(comp->matches[i]);
+                                    ret = write(STDOUT_FILENO, display, strlen(display));
                                     (void)ret;
 
                                     // Add padding to align columns
-                                    size_t match_len = strlen(comp->matches[i]);
+                                    size_t display_len = strlen(display);
                                     if ((i + 1) % cols_per_row != 0 && i < comp->count - 1) {
                                         // Not end of row, add padding
-                                        for (size_t pad = 0; pad < col_width - match_len; pad++) {
+                                        for (size_t pad = 0; pad < col_width - display_len; pad++) {
                                             ret = write(STDOUT_FILENO, " ", 1);
                                             (void)ret;
                                         }

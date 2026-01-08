@@ -43,11 +43,15 @@ Press TAB for files and directories:
 # (testfile.txt, test.md, test_data.csv all exist)
 ```
 
-**Second TAB** - Show all matches:
+**Second TAB** - Show all matches (basenames only):
 ```bash
 #> cat test<TAB><TAB>
 testfile.txt  test.md  test_data.csv  testing.log
 #> cat test             # Line redisplayed
+
+#> ls /usr/local/b<TAB><TAB>
+bash  brew  bundle        # Shows basenames, not full paths
+#> ls /usr/local/b
 ```
 
 ### No Matches
@@ -152,7 +156,7 @@ When there's exactly one match:
 - Waits for more input or second TAB
 
 **Second TAB:**
-- Shows all matches in columns
+- Shows all matches in columns (basenames only for cleaner display)
 - Redraws your line
 - You can continue typing to narrow down
 

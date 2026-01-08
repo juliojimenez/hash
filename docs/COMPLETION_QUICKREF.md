@@ -37,7 +37,7 @@
 #> cat test
 ```
 
-**Second TAB:** Show all
+**Second TAB:** Show all (basenames only)
 ```bash
 <TAB>
 test.txt  test.md  testing.log
