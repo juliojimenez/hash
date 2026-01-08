@@ -13,48 +13,48 @@ Command line interpreter (shell) for the Linux operating system.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell-v24-linux-x86_64
-chmod +x hash-shell-v24-linux-x86_64
-sudo mv hash-shell-v24-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell-v25-linux-x86_64
+chmod +x hash-shell-v25-linux-x86_64
+sudo mv hash-shell-v25-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell-v24-linux-aarch64
-chmod +x hash-shell-v24-linux-aarch64
-sudo mv hash-shell-v24-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell-v25-linux-aarch64
+chmod +x hash-shell-v25-linux-aarch64
+sudo mv hash-shell-v25-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell-v24-darwin-arm64
-chmod +x hash-shell-v24-darwin-arm64
-sudo mv hash-shell-v24-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell-v25-darwin-arm64
+chmod +x hash-shell-v25-darwin-arm64
+sudo mv hash-shell-v25-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 #### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell_24-1~noble_amd64.deb
-sudo dpkg -i hash-shell_24-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell_25-1~noble_amd64.deb
+sudo dpkg -i hash-shell_25-1~noble_amd64.deb
 ```
 
 #### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell_24-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_24-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell_25-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_25-1~jammy_amd64.deb
 ```
 
 #### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v24/hash-shell_24-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_24-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v25/hash-shell_25-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_25-1~bookworm_amd64.deb
 ```
 
 ### From Source
