@@ -182,7 +182,7 @@ jobs:
             </style>
           </head>
           <body>
-            <h1>🐚 Hash Shell APT Repository</h1>
+            <h1><img src="/images/hash.png" alt="Hash Shell Logo" style="height: 1em; vertical-align: middle;"> Hash Shell APT Repository</h1>
             
             <p>A modern command line interpreter for Linux.</p>
             
