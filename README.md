@@ -4,7 +4,7 @@
 
 
 # hash
-Command line interpreter (shell) for the Linux operating system. 
+A modern command line interpreter for Linux, macOS, and BSD.
 
 ## Install
 

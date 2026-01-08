@@ -12,10 +12,10 @@ Rules-Requires-Root: no
 Package: hash-shell
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Modern command line interpreter for Linux
- Hash is a comprehensive C-based command line shell interpreter for Linux
- providing a modern, secure, and POSIX-compliant alternative to traditional
- shells.
+Description: Modern command line interpreter for Linux, macOS, and BSD
+ Hash is a comprehensive C-based command line shell interpreter for Linux,
+ macOS, and BSD, providing a modern, secure, and POSIX-compliant alternative 
+ to traditional shells.
  .
  Features include:
   - Tab completion for commands, files, and directories
