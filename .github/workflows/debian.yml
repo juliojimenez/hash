@@ -168,6 +168,10 @@ jobs:
 
       - name: Create Index Page
         run: |
+          # Copy the logo image
+          mkdir -p apt-repo/images
+          cp images/hash.png apt-repo/images/
+          # Create index.html
           cat > apt-repo/index.html << 'EOF'
           <!DOCTYPE html>
           <html>
@@ -182,7 +186,7 @@ jobs:
             </style>
           </head>
           <body>
-            <h1><img src="/images/hash.png" alt="Hash Shell Logo" style="height: 1em; vertical-align: middle;"> Hash Shell APT Repository</h1>
+            <h1><img src="images/hash.png" alt="Hash Shell Logo" style="height: 1em; vertical-align: middle;"> Hash Shell APT Repository</h1>
             
             <p>A modern command line interpreter for Linux.</p>
             
