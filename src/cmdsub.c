@@ -10,6 +10,7 @@
 #include <ctype.h>
 #include "cmdsub.h"
 #include "safe_string.h"
+#include "arith.h"
 
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
@@ -119,7 +120,15 @@ static int has_cmdsub(const char *str) {
             p += 2;
             continue;
         }
-        if (*p == '$' && *(p + 1) == '(') return 1;
+        // Check for $( but NOT $(( which is arithmetic
+        if (*p == '$' && *(p + 1) == '(') {
+            if (*(p + 2) != '(') {
+                return 1;  // This is command substitution $()
+            }
+            // Skip past $(( - it's arithmetic, not command substitution
+            p += 3;
+            continue;
+        }
         if (*p == '`') return 1;
         p++;
     }
@@ -181,7 +190,39 @@ char *cmdsub_expand(const char *str) {
             continue;
         }
 
-        // Handle $(...) syntax
+        // Skip $(( arithmetic - let arith_expand handle it later
+        if (*p == '$' && *(p + 1) == '(' && *(p + 2) == '(') {
+            // Copy $(( literally - arithmetic expansion handles this
+            result[out_pos++] = *p++;
+            if (out_pos < MAX_CMDSUB_LENGTH - 1) {
+                result[out_pos++] = *p++;
+            }
+            if (out_pos < MAX_CMDSUB_LENGTH - 1) {
+                result[out_pos++] = *p++;
+            }
+            // Copy until matching ))
+            int depth = 1;
+            while (*p && depth > 0 && out_pos < MAX_CMDSUB_LENGTH - 1) {
+                if (*p == '(' && *(p + 1) == '(') {
+                    depth++;
+                    result[out_pos++] = *p++;
+                    if (out_pos < MAX_CMDSUB_LENGTH - 1) {
+                        result[out_pos++] = *p++;
+                    }
+                } else if (*p == ')' && *(p + 1) == ')') {
+                    depth--;
+                    result[out_pos++] = *p++;
+                    if (out_pos < MAX_CMDSUB_LENGTH - 1) {
+                        result[out_pos++] = *p++;
+                    }
+                } else {
+                    result[out_pos++] = *p++;
+                }
+            }
+            continue;
+        }
+
+        // Handle $(...) syntax (command substitution)
         if (*p == '$' && *(p + 1) == '(') {
             p += 2;
 

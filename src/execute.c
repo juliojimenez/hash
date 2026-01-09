@@ -14,6 +14,7 @@
 #include "expand.h"
 #include "varexpand.h"
 #include "cmdsub.h"
+#include "arith.h"
 #include "redirect.h"
 #include "jobs.h"
 #include "safe_string.h"
@@ -198,6 +199,17 @@ int execute(char **args) {
     cmdsub_args(args);
 
     // Track which args were expanded by cmdsub
+    for (int i = 0; i < arg_count; i++) {
+        if (args[i] != original_ptrs[i]) {
+            expanded_args[expanded_count++] = args[i];
+            original_ptrs[i] = args[i];
+        }
+    }
+
+    // Expand arithmetic substitutions in all arguments
+    arith_args(args);
+
+    // Track which args were expanded by arith
     for (int i = 0; i < arg_count; i++) {
         if (args[i] != original_ptrs[i]) {
             expanded_args[expanded_count++] = args[i];
