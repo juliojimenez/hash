@@ -194,16 +194,22 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Build on FreeBSD
-        uses: cross-platform-actions/action@v0.25.0
+        uses: cross-platform-actions/action@v0.27.0
         with:
           operating_system: freebsd
           version: '14.2'
           architecture: ${{ matrix.vm_arch }}
+          shell: sh
           run: |
+            set -e
             uname -a
+
+            # Install GNU make
+            sudo pkg install -y gmake
+            
             # Build (FreeBSD uses make, not gmake for simple projects)
-            make clean
-            make CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
+            gmake clean
+            gmake CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
 
             # Rename binary
             mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}
