@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Setup Unity test framework for hash shell
 
@@ -15,7 +15,7 @@ echo "Setting up Unity test framework..."
 mkdir -p "${TEST_DIR}"
 
 # Download Unity if not already present
-if [[ ! -d "${UNITY_DIR}" ]]; then
+if [ ! -d "${UNITY_DIR}" ]; then
     echo "Downloading Unity v${UNITY_VERSION}..."
 
     cd "${TEST_DIR}"
@@ -31,7 +31,7 @@ else
 fi
 
 # Create a simple unity.h wrapper if needed
-if [[ ! -f "${TEST_DIR}/unity.h" ]]; then
+if [ ! -f "${TEST_DIR}/unity.h" ]; then
     cat > "${TEST_DIR}/unity.h" << 'EOF'
 #ifndef UNITY_WRAPPER_H
 #define UNITY_WRAPPER_H
