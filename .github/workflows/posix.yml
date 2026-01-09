@@ -193,55 +193,87 @@ jobs:
           git clone --depth 1 https://github.com/mgree/smoosh.git smoosh-tests
 
       - name: Run Comparison Tests
-        continue-on-error: true
         run: |
           cd smoosh-tests/tests
 
           echo "=== Shell Comparison ==="
           echo ""
 
-          for SHELL_NAME in dash hash-shell; do
-            SHELL_PATH=$(which $SHELL_NAME 2>/dev/null || echo "")
-            if [ -n "$SHELL_PATH" ]; then
-              echo "Testing: $SHELL_NAME ($SHELL_PATH)"
+          # Function to run tests for a shell
+          run_shell_tests() {
+            local SHELL_PATH="$1"
+            local SHELL_NAME="$2"
 
-              PASSED=0
-              TOTAL=0
+            local PASSED=0
+            local FAILED=0
+            local TIMEOUT_COUNT=0
+            local TOTAL=0
 
-              for test_file in shell/*.test; do
-                if [ -f "$test_file" ]; then
-                  TOTAL=$((TOTAL + 1))
-                  TEST_NAME=$(basename "$test_file" .test)
-                  EC_FILE="shell/${TEST_NAME}.ec"
+            for test_file in shell/*.test; do
+              if [ -f "$test_file" ]; then
+                TOTAL=$((TOTAL + 1))
+                TEST_NAME=$(basename "$test_file" .test)
+                EC_FILE="shell/${TEST_NAME}.ec"
 
-                  # Run with timeout
-                  timeout 2s $SHELL_PATH < "$test_file" > /dev/null 2>&1
-                  ACTUAL_EC=$?
+                # Run with timeout, capture exit code
+                set +e
+                timeout 2s "$SHELL_PATH" < "$test_file" > /dev/null 2>&1
+                ACTUAL_EC=$?
+                set -e
 
-                  # Skip timeouts
-                  if [ $ACTUAL_EC -eq 124 ]; then
-                    continue
-                  fi
+                # Check for timeout
+                if [ $ACTUAL_EC -eq 124 ]; then
+                  TIMEOUT_COUNT=$((TIMEOUT_COUNT + 1))
+                  continue
+                fi
 
-                  # Check exit code
-                  if [ -f "$EC_FILE" ]; then
-                    EXPECTED_EC=$(cat "$EC_FILE" | tr -d '[:space:]')
-                    if [ "$ACTUAL_EC" = "$EXPECTED_EC" ]; then
-                      PASSED=$((PASSED + 1))
-                    fi
+                # Check exit code
+                if [ -f "$EC_FILE" ]; then
+                  EXPECTED_EC=$(cat "$EC_FILE" | tr -d '[:space:]')
+                  if [ "$ACTUAL_EC" = "$EXPECTED_EC" ]; then
+                    PASSED=$((PASSED + 1))
                   else
-                    # No expected exit code, assume 0
-                    if [ $ACTUAL_EC -eq 0 ]; then
-                      PASSED=$((PASSED + 1))
-                    fi
+                    FAILED=$((FAILED + 1))
+                  fi
+                else
+                  # No expected exit code, assume 0
+                  if [ $ACTUAL_EC -eq 0 ]; then
+                    PASSED=$((PASSED + 1))
+                  else
+                    FAILED=$((FAILED + 1))
                   fi
                 fi
-              done
-
-              if [ $TOTAL -gt 0 ]; then
-                PERCENT=$((PASSED * 100 / TOTAL))
-                echo "  Results: $PASSED/$TOTAL (${PERCENT}%)"
               fi
-              echo ""
+            done
+
+            echo "  Passed:  $PASSED"
+            echo "  Failed:  $FAILED"
+            echo "  Timeout: $TIMEOUT_COUNT"
+            echo "  Total:   $TOTAL"
+            if [ $TOTAL -gt 0 ]; then
+              PERCENT=$((PASSED * 100 / TOTAL))
+              echo "  Rate:    ${PERCENT}%"
             fi
-          done
+          }
+
+          # Test dash
+          DASH_PATH=$(which dash 2>/dev/null || echo "")
+          if [ -n "$DASH_PATH" ]; then
+            echo "Testing: dash ($DASH_PATH)"
+            run_shell_tests "$DASH_PATH" "dash"
+            echo ""
+          else
+            echo "dash not found, skipping"
+          fi
+
+          # Test hash-shell
+          HASH_PATH=$(which hash-shell 2>/dev/null || echo "")
+          if [ -n "$HASH_PATH" ]; then
+            echo "Testing: hash-shell ($HASH_PATH)"
+            run_shell_tests "$HASH_PATH" "hash-shell"
+            echo ""
+          else
+            echo "hash-shell not found, skipping"
+          fi
+
+          echo "=== Comparison Complete ==="
