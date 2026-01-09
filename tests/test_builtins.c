@@ -144,6 +144,80 @@ void test_shell_logout_login_shell(void) {
     builtins_set_login_shell(false);
 }
 
+// Test shell_command with no arguments
+void test_shell_command_no_args(void) {
+    char *args[] = {"command", NULL};
+    int result = shell_command(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_command -v with builtin
+void test_shell_command_v_builtin(void) {
+    char *args[] = {"command", "-v", "echo", NULL};
+    int result = shell_command(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_command -V with builtin
+void test_shell_command_V_builtin(void) {
+    char *args[] = {"command", "-V", "echo", NULL};
+    int result = shell_command(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_exec with no arguments
+void test_shell_exec_no_args(void) {
+    char *args[] = {"exec", NULL};
+    int result = shell_exec(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_times returns successfully
+void test_shell_times(void) {
+    char *args[] = {"times", NULL};
+    int result = shell_times(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_type with no arguments
+void test_shell_type_no_args(void) {
+    char *args[] = {"type", NULL};
+    int result = shell_type(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test shell_type with builtin
+void test_shell_type_builtin(void) {
+    char *args[] = {"type", "cd", NULL};
+    int result = shell_type(args);
+    TEST_ASSERT_EQUAL_INT(1, result);  // Continue shell
+}
+
+// Test try_builtin recognizes new builtins
+void test_try_builtin_command(void) {
+    char *args[] = {"command", NULL};
+    int result = try_builtin(args);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, result);  // Should recognize command
+}
+
+void test_try_builtin_exec(void) {
+    char *args[] = {"exec", NULL};
+    int result = try_builtin(args);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, result);  // Should recognize exec
+}
+
+void test_try_builtin_times(void) {
+    char *args[] = {"times", NULL};
+    int result = try_builtin(args);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, result);  // Should recognize times
+}
+
+void test_try_builtin_type(void) {
+    char *args[] = {"type", NULL};
+    int result = try_builtin(args);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, result);  // Should recognize type
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -157,6 +231,17 @@ int main(void) {
     RUN_TEST(test_try_builtin_null_args);
     RUN_TEST(test_shell_logout_not_login_shell);
     RUN_TEST(test_shell_logout_login_shell);
+    RUN_TEST(test_shell_command_no_args);
+    RUN_TEST(test_shell_command_v_builtin);
+    RUN_TEST(test_shell_command_V_builtin);
+    RUN_TEST(test_shell_exec_no_args);
+    RUN_TEST(test_shell_times);
+    RUN_TEST(test_shell_type_no_args);
+    RUN_TEST(test_shell_type_builtin);
+    RUN_TEST(test_try_builtin_command);
+    RUN_TEST(test_try_builtin_exec);
+    RUN_TEST(test_try_builtin_times);
+    RUN_TEST(test_try_builtin_type);
 
     return UNITY_END();
 }

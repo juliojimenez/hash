@@ -59,6 +59,7 @@ void script_init(void) {
     script_state.silent_errors = false;
     script_state.positional_params = NULL;
     script_state.positional_count = 0;
+    script_state.function_call_depth = 0;
 }
 
 void script_cleanup(void) {
@@ -127,6 +128,23 @@ bool script_in_control_structure(void) {
     return script_state.context_depth > 0;
 }
 
+int script_count_loops_at_current_depth(void) {
+    int count = 0;
+    int current_depth = script_state.function_call_depth;
+
+    // Count loops that were created at the current function call depth
+    for (int i = 0; i < script_state.context_depth; i++) {
+        ScriptContext *ctx = &script_state.context_stack[i];
+        // Only count loops at the same function call depth (lexical scoping)
+        if (ctx->function_call_depth == current_depth) {
+            if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
 bool script_should_execute(void) {
     if (script_state.context_depth == 0) {
         return true;
@@ -154,6 +172,7 @@ int script_push_context(ContextType type) {
     ctx->type = type;
     ctx->should_execute = true;
     ctx->condition_met = false;
+    ctx->function_call_depth = script_state.function_call_depth;  // Track when this context was created
 
     script_state.context_depth++;
     return 0;
@@ -363,7 +382,13 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     script_state.positional_params = argv;
     script_state.positional_count = argc;
 
+    // Increment function call depth for lexical scoping of break/continue
+    script_state.function_call_depth++;
+
     int result = script_execute_string(func->body);
+
+    // Decrement function call depth
+    script_state.function_call_depth--;
 
     script_state.positional_params = old_params;
     script_state.positional_count = old_count;

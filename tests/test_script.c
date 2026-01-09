@@ -170,6 +170,38 @@ void test_should_execute_default(void) {
     TEST_ASSERT_TRUE(script_should_execute());
 }
 
+void test_count_loops_at_current_depth_empty(void) {
+    // No loops at all
+    TEST_ASSERT_EQUAL(0, script_count_loops_at_current_depth());
+}
+
+void test_count_loops_at_current_depth_one_loop(void) {
+    // Push a while loop context
+    script_push_context(CTX_WHILE);
+    TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
+    script_pop_context();
+}
+
+void test_count_loops_at_current_depth_multiple_loops(void) {
+    // Push multiple loop contexts
+    script_push_context(CTX_FOR);
+    script_push_context(CTX_WHILE);
+    script_push_context(CTX_UNTIL);
+    TEST_ASSERT_EQUAL(3, script_count_loops_at_current_depth());
+    script_pop_context();
+    script_pop_context();
+    script_pop_context();
+}
+
+void test_count_loops_at_current_depth_with_if(void) {
+    // Non-loop contexts shouldn't be counted
+    script_push_context(CTX_IF);
+    script_push_context(CTX_WHILE);
+    TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
+    script_pop_context();
+    script_pop_context();
+}
+
 // ============================================================================
 // Function Management Tests
 // ============================================================================
@@ -269,6 +301,10 @@ int main(void) {
     RUN_TEST(test_nested_context);
     RUN_TEST(test_pop_empty_context);
     RUN_TEST(test_should_execute_default);
+    RUN_TEST(test_count_loops_at_current_depth_empty);
+    RUN_TEST(test_count_loops_at_current_depth_one_loop);
+    RUN_TEST(test_count_loops_at_current_depth_multiple_loops);
+    RUN_TEST(test_count_loops_at_current_depth_with_if);
 
     // Function management
     RUN_TEST(test_define_function);

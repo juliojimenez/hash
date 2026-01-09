@@ -81,6 +81,18 @@ int shell_eval(char **args);
 // Built-in command: update - check for and install updates
 int shell_update(char **args);
 
+// Built-in command: command - execute command or describe command type
+int shell_command(char **args);
+
+// Built-in command: exec - replace shell or manage file descriptors
+int shell_exec(char **args);
+
+// Built-in command: times - print shell process times
+int shell_times(char **args);
+
+// Built-in command: type - describe command type (alias for command -V)
+int shell_type(char **args);
+
 // Set login shell status (called from main)
 void builtins_set_login_shell(bool is_login);
 

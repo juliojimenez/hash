@@ -7,7 +7,10 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include <sys/times.h>
+#include <fcntl.h>
 #include <ctype.h>
+#include <errno.h>
 #include "hash.h"
 #include "builtins.h"
 #include "colors.h"
@@ -60,7 +63,11 @@ static char *builtin_str[] = {
     "break",
     "continue",
     "eval",
-    "update"
+    "update",
+    "command",
+    "exec",
+    "times",
+    "type"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -90,7 +97,11 @@ static int (*builtin_func[])(char **) = {
     &shell_break,
     &shell_continue_cmd,
     &shell_eval,
-    &shell_update
+    &shell_update,
+    &shell_command,
+    &shell_exec,
+    &shell_times,
+    &shell_type
 };
 
 static int num_builtins(void) {
@@ -725,14 +736,21 @@ int shell_break(char **args) {
         levels = (int)val;
     }
 
-    // Check if we're in a loop
-    if (!script_in_control_structure()) {
+    // Check if we're in a loop at the current function depth (lexical scoping)
+    // This ensures break only affects loops within the current function
+    int available_loops = script_count_loops_at_current_depth();
+    if (available_loops == 0) {
         fprintf(stderr, "%s: break: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
         last_command_exit_code = 0;
         return 1;
     }
 
-    (void)levels;  // TODO: Handle multiple levels
+    // If requesting more levels than available, just break all available
+    if (levels > available_loops) {
+        levels = available_loops;
+    }
+
+    (void)levels;  // TODO: Handle multiple levels properly
 
     last_command_exit_code = 0;
     return -3;  // Special return code for "break from loop"
@@ -752,13 +770,20 @@ int shell_continue_cmd(char **args) {
         levels = (int)val;
     }
 
-    if (!script_in_control_structure()) {
+    // Check if we're in a loop at the current function depth (lexical scoping)
+    int available_loops = script_count_loops_at_current_depth();
+    if (available_loops == 0) {
         fprintf(stderr, "%s: continue: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
         last_command_exit_code = 0;
         return 1;
     }
 
-    (void)levels;  // TODO: Handle multiple levels
+    // If requesting more levels than available, just continue the outermost available
+    if (levels > available_loops) {
+        levels = available_loops;
+    }
+
+    (void)levels;  // TODO: Handle multiple levels properly
 
     last_command_exit_code = 0;
     return -4;  // Special return code for "continue loop"
@@ -800,6 +825,468 @@ int shell_eval(char **args) {
     free(cmd);
 
     // Exit code already set by chain_execute
+    return 1;
+}
+
+// ============================================================================
+// Command Information Builtins
+// ============================================================================
+
+// POSIX reserved words (keywords)
+static const char *posix_keywords[] = {
+    "!", "{", "}", "case", "do", "done", "elif", "else", "esac",
+    "fi", "for", "if", "in", "then", "until", "while", NULL
+};
+
+// Check if word is a POSIX reserved word
+static bool is_posix_keyword(const char *word) {
+    for (int i = 0; posix_keywords[i] != NULL; i++) {
+        if (strcmp(word, posix_keywords[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if name is a builtin (helper for command -v/-V)
+static bool is_builtin_name(const char *name) {
+    for (int i = 0; i < num_builtins(); i++) {
+        if (strcmp(name, builtin_str[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Find command in PATH and return full path (caller must free)
+static char *find_in_path(const char *cmd) {
+    // If cmd contains /, it's already a path
+    if (strchr(cmd, '/') != NULL) {
+        if (access(cmd, X_OK) == 0) {
+            return strdup(cmd);
+        }
+        return NULL;
+    }
+
+    const char *path_env = getenv("PATH");
+    if (!path_env) {
+        path_env = "/usr/bin:/bin";
+    }
+
+    char *path_copy = strdup(path_env);
+    if (!path_copy) return NULL;
+
+    char *saveptr;
+    char *dir = strtok_r(path_copy, ":", &saveptr);
+
+    while (dir) {
+        char fullpath[4096];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dir, cmd);
+
+        if (access(fullpath, X_OK) == 0) {
+            free(path_copy);
+            return strdup(fullpath);
+        }
+        dir = strtok_r(NULL, ":", &saveptr);
+    }
+
+    free(path_copy);
+    return NULL;
+}
+
+int shell_command(char **args) {
+    bool opt_v = false;  // -v: print command path
+    bool opt_V = false;  // -V: verbose description
+    bool opt_p = false;  // -p: use default PATH
+    int arg_start = 1;
+
+    // Parse options
+    while (args[arg_start] && args[arg_start][0] == '-') {
+        const char *opt = args[arg_start];
+        if (strcmp(opt, "-v") == 0) {
+            opt_v = true;
+            arg_start++;
+        } else if (strcmp(opt, "-V") == 0) {
+            opt_V = true;
+            arg_start++;
+        } else if (strcmp(opt, "-p") == 0) {
+            opt_p = true;
+            arg_start++;
+        } else if (strcmp(opt, "--") == 0) {
+            arg_start++;
+            break;
+        } else {
+            // Unknown option
+            break;
+        }
+    }
+
+    (void)opt_p;  // TODO: implement default PATH
+
+    // No command specified
+    if (!args[arg_start]) {
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    const char *cmd = args[arg_start];
+
+    // Handle -v option (print command location/type)
+    if (opt_v) {
+        int found = 0;
+
+        // Check for alias first
+        const char *alias_val = config_get_alias(cmd);
+        if (alias_val) {
+            printf("alias %s='%s'\n", cmd, alias_val);
+            found = 1;
+        }
+
+        // Check for keyword
+        if (is_posix_keyword(cmd)) {
+            printf("%s\n", cmd);
+            found = 1;
+        }
+
+        // Check for builtin
+        if (is_builtin_name(cmd)) {
+            printf("%s\n", cmd);
+            found = 1;
+        }
+
+        // Check for function
+        if (script_get_function(cmd)) {
+            printf("%s\n", cmd);
+            found = 1;
+        }
+
+        // Check for external command
+        if (!found) {
+            char *path = find_in_path(cmd);
+            if (path) {
+                printf("%s\n", path);
+                free(path);
+                found = 1;
+            }
+        }
+
+        last_command_exit_code = found ? 0 : 1;
+        return 1;
+    }
+
+    // Handle -V option (verbose description)
+    if (opt_V) {
+        int found = 0;
+
+        // Check for alias
+        const char *alias_val = config_get_alias(cmd);
+        if (alias_val) {
+            printf("%s is aliased to '%s'\n", cmd, alias_val);
+            found = 1;
+        }
+
+        // Check for keyword
+        if (is_posix_keyword(cmd)) {
+            printf("%s is a shell keyword\n", cmd);
+            found = 1;
+        }
+
+        // Check for builtin
+        if (is_builtin_name(cmd)) {
+            printf("%s is a shell builtin\n", cmd);
+            found = 1;
+        }
+
+        // Check for function
+        if (script_get_function(cmd)) {
+            printf("%s is a function\n", cmd);
+            found = 1;
+        }
+
+        // Check for external command
+        if (!found) {
+            char *path = find_in_path(cmd);
+            if (path) {
+                printf("%s is %s\n", cmd, path);
+                free(path);
+                found = 1;
+            }
+        }
+
+        if (!found) {
+            fprintf(stderr, "%s: %s: not found\n", HASH_NAME, cmd);
+        }
+
+        last_command_exit_code = found ? 0 : 1;
+        return 1;
+    }
+
+    // Execute command, bypassing functions
+    // First check builtins
+    int result = try_builtin(args + arg_start);
+    if (result != -1) {
+        return result;
+    }
+
+    // Execute as external command (execute() will handle it)
+    // We need to skip function lookup, so we directly launch
+    // For now, just call execute which handles external commands
+    execute(args + arg_start);
+    return 1;
+}
+
+int shell_exec(char **args) {
+    // exec with no arguments: just return success (noop)
+    if (!args[1]) {
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Check for redirections only (exec N<file, exec N>file, etc.)
+    // These persist for the shell process
+    int i = 1;
+    bool has_command = false;
+
+    // Parse for redirections vs command
+    for (i = 1; args[i]; i++) {
+        const char *arg = args[i];
+        // Check if this looks like a redirection
+        // Patterns: N<file, N>file, N>>file, N<&M, N>&M, <file, >file, etc.
+        bool is_redir = false;
+
+        // Check for digit prefix followed by redirection operator
+        const char *p = arg;
+        while (*p && isdigit(*p)) p++;
+
+        if (*p == '<' || *p == '>') {
+            is_redir = true;
+        } else if (p == arg) {
+            // No digit prefix, check for bare redirection
+            if (*p == '<' || *p == '>') {
+                is_redir = true;
+            }
+        }
+
+        if (!is_redir) {
+            has_command = true;
+            break;
+        }
+    }
+
+    // Handle redirections
+    for (i = 1; args[i]; i++) {
+        const char *arg = args[i];
+
+        // Parse fd number (default to 0 for input, 1 for output)
+        int fd = -1;
+        const char *p = arg;
+
+        while (*p && isdigit(*p)) p++;
+
+        if (p > arg) {
+            fd = atoi(arg);
+        }
+
+        // Handle different redirection types
+        if (*p == '<') {
+            if (fd < 0) fd = 0;  // Default input fd
+            p++;
+
+            if (*p == '&') {
+                // N<&M or N<&-
+                p++;
+                if (*p == '-') {
+                    // Close fd
+                    close(fd);
+                } else {
+                    // Duplicate fd
+                    int src_fd = atoi(p);
+                    if (dup2(src_fd, fd) < 0) {
+                        perror(HASH_NAME);
+                        last_command_exit_code = 1;
+                        return 1;
+                    }
+                }
+            } else {
+                // N<file - open file for input
+                const char *filename = p;
+                if (!*filename && args[i + 1]) {
+                    filename = args[++i];
+                }
+                int new_fd = open(filename, O_RDONLY);
+                if (new_fd < 0) {
+                    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, filename, strerror(errno));
+                    last_command_exit_code = 1;
+                    return 1;
+                }
+                if (new_fd != fd) {
+                    dup2(new_fd, fd);
+                    close(new_fd);
+                }
+            }
+        } else if (*p == '>') {
+            if (fd < 0) fd = 1;  // Default output fd
+            p++;
+
+            bool append = false;
+            if (*p == '>') {
+                append = true;
+                p++;
+            }
+
+            if (*p == '&') {
+                // N>&M or N>&-
+                p++;
+                if (*p == '-') {
+                    close(fd);
+                } else {
+                    int src_fd = atoi(p);
+                    if (dup2(src_fd, fd) < 0) {
+                        perror(HASH_NAME);
+                        last_command_exit_code = 1;
+                        return 1;
+                    }
+                }
+            } else {
+                // N>file or N>>file
+                const char *filename = p;
+                if (!*filename && args[i + 1]) {
+                    filename = args[++i];
+                }
+                int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+                int new_fd = open(filename, flags, 0644);
+                if (new_fd < 0) {
+                    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, filename, strerror(errno));
+                    last_command_exit_code = 1;
+                    return 1;
+                }
+                if (new_fd != fd) {
+                    dup2(new_fd, fd);
+                    close(new_fd);
+                }
+            }
+        } else if (has_command) {
+            // This is the command to exec
+            break;
+        }
+    }
+
+    // If there's a command, replace the shell
+    if (has_command) {
+        // Find the command start
+        for (i = 1; args[i]; i++) {
+            const char *arg = args[i];
+            const char *p = arg;
+            while (*p && isdigit(*p)) p++;
+            if (*p != '<' && *p != '>') {
+                // This is the command
+                execvp(args[i], args + i);
+                // If we get here, exec failed
+                fprintf(stderr, "%s: %s: %s\n", HASH_NAME, args[i], strerror(errno));
+                last_command_exit_code = 127;
+                return 0;  // Exit shell on exec failure
+            }
+        }
+    }
+
+    last_command_exit_code = 0;
+    return 1;
+}
+
+int shell_times(char **args) {
+    (void)args;
+
+    struct tms times_buf;
+    clock_t real_time = times(&times_buf);
+
+    if (real_time == (clock_t)-1) {
+        perror(HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    long ticks_per_sec = sysconf(_SC_CLK_TCK);
+    if (ticks_per_sec <= 0) ticks_per_sec = 100;  // Fallback
+
+    // Shell times (user and system)
+    long shell_user_sec = times_buf.tms_utime / ticks_per_sec;
+    long shell_user_ms = (times_buf.tms_utime % ticks_per_sec) * 1000 / ticks_per_sec;
+    long shell_sys_sec = times_buf.tms_stime / ticks_per_sec;
+    long shell_sys_ms = (times_buf.tms_stime % ticks_per_sec) * 1000 / ticks_per_sec;
+
+    // Children times (user and system)
+    long child_user_sec = times_buf.tms_cutime / ticks_per_sec;
+    long child_user_ms = (times_buf.tms_cutime % ticks_per_sec) * 1000 / ticks_per_sec;
+    long child_sys_sec = times_buf.tms_cstime / ticks_per_sec;
+    long child_sys_ms = (times_buf.tms_cstime % ticks_per_sec) * 1000 / ticks_per_sec;
+
+    // Print in format: Xm0.XXXs Xm0.XXXs
+    printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
+           shell_user_sec / 60, shell_user_sec % 60, shell_user_ms,
+           shell_sys_sec / 60, shell_sys_sec % 60, shell_sys_ms);
+    printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
+           child_user_sec / 60, child_user_sec % 60, child_user_ms,
+           child_sys_sec / 60, child_sys_sec % 60, child_sys_ms);
+
+    last_command_exit_code = 0;
+    return 1;
+}
+
+int shell_type(char **args) {
+    // type is equivalent to command -V
+    if (!args[1]) {
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    int all_found = 1;
+
+    for (int i = 1; args[i]; i++) {
+        const char *cmd = args[i];
+        int found = 0;
+
+        // Check for alias
+        const char *alias_val = config_get_alias(cmd);
+        if (alias_val) {
+            printf("%s is aliased to '%s'\n", cmd, alias_val);
+            found = 1;
+        }
+
+        // Check for keyword
+        if (is_posix_keyword(cmd)) {
+            printf("%s is a shell keyword\n", cmd);
+            found = 1;
+        }
+
+        // Check for builtin
+        if (is_builtin_name(cmd)) {
+            printf("%s is a shell builtin\n", cmd);
+            found = 1;
+        }
+
+        // Check for function
+        if (script_get_function(cmd)) {
+            printf("%s is a function\n", cmd);
+            found = 1;
+        }
+
+        // Check for external command
+        if (!found) {
+            char *path = find_in_path(cmd);
+            if (path) {
+                printf("%s is %s\n", cmd, path);
+                free(path);
+                found = 1;
+            }
+        }
+
+        if (!found) {
+            fprintf(stderr, "%s: type: %s: not found\n", HASH_NAME, cmd);
+            all_found = 0;
+        }
+    }
+
+    last_command_exit_code = all_found ? 0 : 1;
     return 1;
 }
 

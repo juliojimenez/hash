@@ -99,6 +99,9 @@ typedef struct {
     size_t func_body_len;   // Current length of body
     size_t func_body_cap;   // Capacity of body buffer
     int brace_depth;        // Brace nesting depth
+
+    // For lexical scoping of break/continue
+    int function_call_depth; // Function call depth when this context was created
 } ScriptContext;
 
 // ============================================================================
@@ -133,6 +136,9 @@ typedef struct {
     // Positional parameters ($1, $2, etc.)
     char **positional_params;
     int positional_count;
+
+    // Function call tracking for lexical scoping
+    int function_call_depth; // Current depth of function calls (0 = not in function)
 } ScriptState;
 
 extern ScriptState script_state;
@@ -201,6 +207,12 @@ int script_process_line(const char *line);
  * Check if we're currently inside a control structure
  */
 bool script_in_control_structure(void);
+
+/**
+ * Count loops at the current function call depth (for lexical break/continue)
+ * Returns the number of for/while/until loops that can be broken out of
+ */
+int script_count_loops_at_current_depth(void);
 
 /**
  * Check if commands should currently execute
