@@ -360,8 +360,13 @@ CompletionResult *completion_generate(const char *line, size_t pos) {
     }
 
     if (is_first_word) {
-        // Complete commands
-        complete_commands(result, word);
+        // If it looks like a path, complete files instead of commands
+        if (strchr(word, '/') != NULL || word[0] == '.' || word[0] == '~') {
+            complete_files(result, word);
+        } else {
+            // Complete commands
+            complete_commands(result, word);
+        }
     } else {
         // Complete files/directories
         complete_files(result, word);
