@@ -108,8 +108,12 @@ jobs:
           run: |
             set -e
             uname -a
+            
+            # Install GNU make
+            sudo pkg install -y gmake
+            
             cc --version
-            make --version
+            gmake --version
 
             # Build
             gmake clean || true
@@ -186,6 +190,10 @@ jobs:
           shell: sh
           run: |
             set -e
+            
+            # Install GNU make
+            sudo pkg install -y gmake
+            
             gmake clean || true
             gmake CC=cc CFLAGS="-Wall -Wextra -Werror -O2 -std=gnu99"
 
