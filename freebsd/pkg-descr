@@ -1,5 +1,5 @@
-Hash is a modern command line interpreter (shell) for Unix-like operating
-systems. It provides a feature-rich alternative to traditional shells with
+Hash is a modern command line interpreter (shell) for Linux, macOS, and 
+BSD. It provides a feature-rich alternative to traditional shells with
 a focus on usability and modern development workflows.
 
 Features include:

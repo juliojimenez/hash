@@ -1,6 +1,7 @@
-hash-shell (25-1) unstable; urgency=medium
+hash-shell (26-1) unstable; urgency=medium
 
-  * Fixed bug with tab completions starting with tilde
-  * APT GitHub Page logo fix
+  * Update hash description across documentation
+  * Fix tab completion from just a path
+  * Static builds for BSD
 
  -- Julio Jimenez <julio@julioj.com>  Thu, 08 Jan 2026 12:00:00 +0000

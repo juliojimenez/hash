@@ -67,8 +67,8 @@ When releasing a new version:
 
 The package version follows: `VERSION-REVISION~CODENAME`
 
-- `VERSION` - From git tag (e.g., `25`)
+- `VERSION` - From git tag (e.g., `26`)
 - `REVISION` - Debian revision (usually `1`)
 - `CODENAME` - Distribution codename (e.g., `jammy`, `noble`, `bookworm`)
 
-Example: `25-1~noble` for version 25 on Ubuntu 24.04
+Example: `26-1~noble` for version 26 on Ubuntu 24.04
