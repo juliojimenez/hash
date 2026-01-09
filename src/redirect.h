@@ -10,7 +10,8 @@ typedef enum {
     REDIR_ERROR,       // 2> file
     REDIR_ERROR_APPEND,// 2>> file
     REDIR_BOTH,        // &> file (stdout and stderr)
-    REDIR_ERROR_TO_OUT // 2>&1 (stderr to stdout)
+    REDIR_ERROR_TO_OUT, // 2>&1 (stderr to stdout)
+    REDIR_OUT_TO_ERROR  // >&2 or 1>&2 (stdout to stderr)
 } RedirType;
 
 // A single redirection

@@ -113,6 +113,9 @@ RedirInfo *redirect_parse(char **args) {
         } else if (strncmp(arg, "2>&", 3) == 0 && arg[3] == '1' && arg[4] == '\0') {
             // Handle 2>&1 as single token
             add_redirection(info, REDIR_ERROR_TO_OUT, NULL);
+        } else if (strcmp(arg, ">&2") == 0 || strcmp(arg, "1>&2") == 0) {
+            // Redirect stdout to stderr
+            add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
         } else {
             // Regular argument - keep it
             info->args[new_arg_idx++] = arg;
@@ -208,6 +211,12 @@ int redirect_apply(const RedirInfo *info) {
             case REDIR_ERROR_TO_OUT: {
                 // 2>&1 (stderr to stdout)
                 dup2(STDOUT_FILENO, STDERR_FILENO);
+                break;
+            }
+
+            case REDIR_OUT_TO_ERROR: {
+                // >&2 or 1>&2 (stdout to stderr)
+                dup2(STDERR_FILENO, STDOUT_FILENO);
                 break;
             }
 

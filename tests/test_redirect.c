@@ -132,6 +132,39 @@ void test_parse_no_redirects(void) {
     redirect_free(info);
 }
 
+// Test parsing >&2 (stdout to stderr)
+void test_parse_output_to_error(void) {
+    char *args[] = {"echo", "error", ">&2", NULL};
+
+    RedirInfo *info = redirect_parse(args);
+
+    TEST_ASSERT_NOT_NULL(info);
+    TEST_ASSERT_EQUAL_INT(1, info->count);
+    TEST_ASSERT_EQUAL_INT(REDIR_OUT_TO_ERROR, info->redirs[0].type);
+    TEST_ASSERT_NULL(info->redirs[0].filename);
+
+    // Check cleaned args
+    TEST_ASSERT_EQUAL_STRING("echo", info->args[0]);
+    TEST_ASSERT_EQUAL_STRING("error", info->args[1]);
+    TEST_ASSERT_NULL(info->args[2]);
+
+    redirect_free(info);
+}
+
+// Test parsing 1>&2 (explicit stdout to stderr)
+void test_parse_explicit_output_to_error(void) {
+    char *args[] = {"echo", "error", "1>&2", NULL};
+
+    RedirInfo *info = redirect_parse(args);
+
+    TEST_ASSERT_NOT_NULL(info);
+    TEST_ASSERT_EQUAL_INT(1, info->count);
+    TEST_ASSERT_EQUAL_INT(REDIR_OUT_TO_ERROR, info->redirs[0].type);
+    TEST_ASSERT_NULL(info->redirs[0].filename);
+
+    redirect_free(info);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -143,6 +176,8 @@ int main(void) {
     RUN_TEST(test_parse_both_redirect);
     RUN_TEST(test_parse_multiple_redirects);
     RUN_TEST(test_parse_no_redirects);
+    RUN_TEST(test_parse_output_to_error);
+    RUN_TEST(test_parse_explicit_output_to_error);
 
     return UNITY_END();
 }
