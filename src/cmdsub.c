@@ -11,6 +11,7 @@
 #include "cmdsub.h"
 #include "safe_string.h"
 #include "arith.h"
+#include "script.h"
 
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
@@ -24,6 +25,9 @@ static char *execute_and_capture(const char *cmd) {
         return NULL;
     }
 
+    // Flush stdout before forking to avoid duplicating buffered output
+    fflush(stdout);
+
     pid_t pid = fork();
     if (pid == -1) {
         close(pipefd[0]);
@@ -36,8 +40,11 @@ static char *execute_and_capture(const char *cmd) {
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
-        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
-        _exit(127);
+
+        // Use hash's own script execution to preserve function definitions
+        int result = script_execute_string(cmd);
+        fflush(stdout);  // Ensure output is flushed before exit
+        _exit(result);
     }
 
     // Parent process

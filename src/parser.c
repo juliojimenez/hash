@@ -95,6 +95,44 @@ char **parse_line(char *line) {
             // Toggle double quote mode
             in_double_quote = !in_double_quote;
             read_pos++;
+        } else if (*read_pos == '$' && !in_single_quote) {
+            // Handle $(...) command substitution and $((...)) arithmetic
+            if (*(read_pos + 1) == '(' && *(read_pos + 2) == '(') {
+                // $((...)) arithmetic - keep everything until matching ))
+                *write_pos++ = *read_pos++;  // $
+                *write_pos++ = *read_pos++;  // (
+                *write_pos++ = *read_pos++;  // (
+                int depth = 1;
+                while (*read_pos && depth > 0) {
+                    if (*read_pos == '(' && *(read_pos + 1) == '(') {
+                        depth++;
+                        *write_pos++ = *read_pos++;
+                        *write_pos++ = *read_pos++;
+                    } else if (*read_pos == ')' && *(read_pos + 1) == ')') {
+                        depth--;
+                        *write_pos++ = *read_pos++;
+                        *write_pos++ = *read_pos++;
+                    } else {
+                        *write_pos++ = *read_pos++;
+                    }
+                }
+            } else if (*(read_pos + 1) == '(') {
+                // $(...) command substitution - keep everything until matching )
+                *write_pos++ = *read_pos++;  // $
+                *write_pos++ = *read_pos++;  // (
+                int depth = 1;
+                while (*read_pos && depth > 0) {
+                    if (*read_pos == '(') {
+                        depth++;
+                    } else if (*read_pos == ')') {
+                        depth--;
+                    }
+                    *write_pos++ = *read_pos++;
+                }
+            } else {
+                // Just a $ (variable)
+                *write_pos++ = *read_pos++;
+            }
         } else if (isspace(*read_pos) && !in_single_quote && !in_double_quote) {
             // End of token
             *write_pos = '\0';

@@ -92,6 +92,13 @@ typedef struct {
     // For case
     char *case_word;        // Word being matched in case statement
     bool case_matched;      // Has a pattern matched?
+
+    // For function definitions
+    char *func_name;        // Function name being defined
+    char *func_body;        // Function body being collected
+    size_t func_body_len;   // Current length of body
+    size_t func_body_cap;   // Capacity of body buffer
+    int brace_depth;        // Brace nesting depth
 } ScriptContext;
 
 // ============================================================================

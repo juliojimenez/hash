@@ -232,6 +232,105 @@ void test_parse_line_empty_quotes(void) {
     free(args);
 }
 
+// ============================================================================
+// Arithmetic Expression Tokenization Tests
+// ============================================================================
+
+// Test $(()) kept as single token with spaces
+void test_parse_arith_with_spaces(void) {
+    char line[] = "echo $(( 5 * 2 ))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$(( 5 * 2 ))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test $(()) without spaces
+void test_parse_arith_no_spaces(void) {
+    char line[] = "echo $((5*2))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$((5*2))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test nested $(()) expressions
+void test_parse_arith_nested(void) {
+    char line[] = "echo $(( 1 + $((2 + 3)) ))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$(( 1 + $((2 + 3)) ))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// ============================================================================
+// Command Substitution Tokenization Tests
+// ============================================================================
+
+// Test $() kept as single token with spaces
+void test_parse_cmdsub_with_spaces(void) {
+    char line[] = "echo $(echo hello world)";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$(echo hello world)", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test nested $() expressions
+void test_parse_cmdsub_nested(void) {
+    char line[] = "echo $(echo $(echo nested))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$(echo $(echo nested))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test $() with $(()) inside (command sub containing arithmetic)
+void test_parse_cmdsub_with_arith(void) {
+    char line[] = "echo $(echo $((5 + 3)))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$(echo $((5 + 3)))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
+// Test $(()) with $() inside (arithmetic containing command sub)
+void test_parse_arith_with_cmdsub(void) {
+    char line[] = "echo $((5 * $(echo 2)))";
+    char **args = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_STRING("echo", args[0]);
+    TEST_ASSERT_EQUAL_STRING("$((5 * $(echo 2)))", args[1]);
+    TEST_ASSERT_NULL(args[2]);
+
+    free(args);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -252,5 +351,17 @@ int main(void) {
     RUN_TEST(test_parse_line_escaped_tab);
     RUN_TEST(test_parse_line_single_quote_literal_backslash);
     RUN_TEST(test_parse_line_empty_quotes);
+
+    // Arithmetic tokenization
+    RUN_TEST(test_parse_arith_with_spaces);
+    RUN_TEST(test_parse_arith_no_spaces);
+    RUN_TEST(test_parse_arith_nested);
+
+    // Command substitution tokenization
+    RUN_TEST(test_parse_cmdsub_with_spaces);
+    RUN_TEST(test_parse_cmdsub_nested);
+    RUN_TEST(test_parse_cmdsub_with_arith);
+    RUN_TEST(test_parse_arith_with_cmdsub);
+
     return UNITY_END();
 }

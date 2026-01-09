@@ -78,6 +78,8 @@ void script_cleanup(void) {
             free(ctx->loop_values);
         }
         free(ctx->case_word);
+        free(ctx->func_name);
+        free(ctx->func_body);
     }
 
     // Free positional parameters
@@ -182,6 +184,11 @@ int script_pop_context(void) {
 
     free(ctx->case_word);
     ctx->case_word = NULL;
+
+    free(ctx->func_name);
+    ctx->func_name = NULL;
+    free(ctx->func_body);
+    ctx->func_body = NULL;
 
     return 0;
 }
@@ -449,14 +456,26 @@ static int process_if(const char *line) {
 }
 
 static int process_then(const char *line) {
-    (void)line;
-
     ContextType ctx_type = script_current_context();
     if (ctx_type != CTX_IF && ctx_type != CTX_ELIF) {
         if (!script_state.silent_errors) {
             fprintf(stderr, "%s: syntax error: unexpected 'then'\n", HASH_NAME);
         }
         return -1;
+    }
+
+    // Check if there's a command after 'then'
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+    if (strncmp(p, "then", 4) == 0) {
+        p += 4;
+        while (*p && isspace(*p)) p++;
+        if (*p && *p != '#') {
+            // There's a command after 'then', execute it
+            if (script_should_execute()) {
+                return execute_simple_line(p);
+            }
+        }
     }
     return 0;
 }
@@ -496,8 +515,6 @@ static int process_elif(const char *line) {
 }
 
 static int process_else(const char *line) {
-    (void)line;
-
     ScriptContext *ctx = get_current_context();
     if (!ctx || (ctx->type != CTX_IF && ctx->type != CTX_ELIF)) {
         if (!script_state.silent_errors) {
@@ -512,6 +529,20 @@ static int process_else(const char *line) {
         script_state.context_stack[script_state.context_depth - 2].should_execute;
 
     ctx->should_execute = parent_executing && !ctx->condition_met;
+
+    // Check if there's a command after 'else'
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+    if (strncmp(p, "else", 4) == 0) {
+        p += 4;
+        while (*p && isspace(*p)) p++;
+        if (*p && *p != '#') {
+            // There's a command after 'else', execute it
+            if (script_should_execute()) {
+                return execute_simple_line(p);
+            }
+        }
+    }
 
     return 0;
 }
@@ -528,6 +559,231 @@ static int process_fi(const char *line) {
     }
 
     return script_pop_context();
+}
+
+// Extract function name from "name() {" or "function name {"
+static char *extract_function_name(const char *line) {
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+
+    // Check for "function name" syntax
+    if (strncmp(p, "function", 8) == 0 && isspace(p[8])) {
+        p += 8;
+        while (*p && isspace(*p)) p++;
+    }
+
+    // Now p points to the function name
+    const char *name_start = p;
+    while (*p && (isalnum(*p) || *p == '_')) p++;
+
+    if (p == name_start) return NULL;
+
+    size_t name_len = p - name_start;
+    char *name = malloc(name_len + 1);
+    if (!name) return NULL;
+    memcpy(name, name_start, name_len);
+    name[name_len] = '\0';
+
+    return name;
+}
+
+// Append a line to the function body buffer
+static int append_to_func_body(ScriptContext *ctx, const char *line) {
+    size_t line_len = strlen(line);
+    size_t needed = ctx->func_body_len + line_len + 2; // +1 for newline, +1 for null
+
+    if (needed > ctx->func_body_cap) {
+        size_t new_cap = ctx->func_body_cap ? ctx->func_body_cap * 2 : 1024;
+        if (new_cap < needed) new_cap = needed;
+        if (new_cap > MAX_FUNC_BODY) new_cap = MAX_FUNC_BODY;
+        if (needed > MAX_FUNC_BODY) {
+            fprintf(stderr, "%s: function body too large\n", HASH_NAME);
+            return -1;
+        }
+
+        char *new_body = realloc(ctx->func_body, new_cap);
+        if (!new_body) return -1;
+        ctx->func_body = new_body;
+        ctx->func_body_cap = new_cap;
+    }
+
+    if (ctx->func_body_len > 0) {
+        ctx->func_body[ctx->func_body_len++] = '\n';
+    }
+    memcpy(ctx->func_body + ctx->func_body_len, line, line_len);
+    ctx->func_body_len += line_len;
+    ctx->func_body[ctx->func_body_len] = '\0';
+
+    return 0;
+}
+
+// Count brace depth change in a line
+static int count_braces(const char *line) {
+    int delta = 0;
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+
+    for (const char *p = line; *p; p++) {
+        if (*p == '\\' && *(p + 1)) {
+            p++;  // Skip escaped character
+            continue;
+        }
+        if (*p == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+        } else if (*p == '"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;
+        } else if (!in_single_quote && !in_double_quote) {
+            if (*p == '{') delta++;
+            else if (*p == '}') delta--;
+        }
+    }
+    return delta;
+}
+
+static int process_function(const char *line) {
+    char *name = extract_function_name(line);
+    if (!name) {
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: invalid function definition\n", HASH_NAME);
+        }
+        return -1;
+    }
+
+    if (script_push_context(CTX_FUNCTION) != 0) {
+        free(name);
+        return -1;
+    }
+
+    ScriptContext *ctx = get_current_context();
+    if (!ctx) {
+        free(name);
+        return -1;
+    }
+
+    ctx->func_name = name;
+    ctx->func_body = NULL;
+    ctx->func_body_len = 0;
+    ctx->func_body_cap = 0;
+    ctx->should_execute = false;  // Don't execute lines inside function definition
+
+    // Check if line contains opening brace
+    const char *brace = strchr(line, '{');
+    if (brace) {
+        ctx->brace_depth = 1;
+        // Check for content after the brace
+        const char *after_brace = brace + 1;
+        while (*after_brace && isspace(*after_brace)) after_brace++;
+        if (*after_brace && *after_brace != '#') {
+            // There's content after {
+            // Find the closing } for the function body
+            int depth = 1;
+            const char *p = after_brace;
+            const char *body_end = NULL;
+            bool in_sq = false, in_dq = false;
+
+            while (*p && depth > 0) {
+                if (*p == '\\' && *(p + 1)) {
+                    p += 2;
+                    continue;
+                }
+                if (*p == '\'' && !in_dq) in_sq = !in_sq;
+                else if (*p == '"' && !in_sq) in_dq = !in_dq;
+                else if (!in_sq && !in_dq) {
+                    if (*p == '{') depth++;
+                    else if (*p == '}') {
+                        depth--;
+                        if (depth == 0) {
+                            body_end = p;
+                        }
+                    }
+                }
+                p++;
+            }
+
+            if (body_end) {
+                // Function body ends on this line
+                size_t body_len = body_end - after_brace;
+                char *body = malloc(body_len + 1);
+                if (body) {
+                    memcpy(body, after_brace, body_len);
+                    body[body_len] = '\0';
+                    // Trim trailing whitespace
+                    while (body_len > 0 && isspace(body[body_len - 1])) {
+                        body[--body_len] = '\0';
+                    }
+                    script_define_function(ctx->func_name, body);
+                    free(body);
+                }
+                script_pop_context();
+
+                // Execute any commands after the function definition
+                const char *after_func = body_end + 1;
+                while (*after_func && isspace(*after_func)) after_func++;
+                if (*after_func == ';') after_func++;
+                while (*after_func && isspace(*after_func)) after_func++;
+                if (*after_func && *after_func != '#') {
+                    return execute_simple_line(after_func);
+                }
+                return 0;
+            } else {
+                // Body continues on next line
+                append_to_func_body(ctx, after_brace);
+                ctx->brace_depth += count_braces(after_brace);
+            }
+        }
+    } else {
+        ctx->brace_depth = 0;  // Waiting for opening brace
+    }
+
+    return 0;
+}
+
+static int process_lbrace(const char *line) {
+    ScriptContext *ctx = get_current_context();
+
+    // If we're in a function context waiting for opening brace
+    if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth == 0) {
+        ctx->brace_depth = 1;
+        // Check for content after the brace
+        const char *p = line;
+        while (*p && isspace(*p)) p++;
+        if (*p == '{') p++;
+        while (*p && isspace(*p)) p++;
+        if (*p && *p != '#') {
+            append_to_func_body(ctx, p);
+            ctx->brace_depth += count_braces(p);
+        }
+        return 0;
+    }
+
+    // Otherwise treat as simple command
+    if (script_should_execute()) {
+        return execute_simple_line(line);
+    }
+    return 0;
+}
+
+static int process_rbrace(const char *line) {
+    (void)line;
+
+    ScriptContext *ctx = get_current_context();
+    if (ctx && ctx->type == CTX_FUNCTION) {
+        ctx->brace_depth--;
+        if (ctx->brace_depth <= 0) {
+            // Function definition complete
+            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            return script_pop_context();
+        }
+        // Still inside nested braces, add line to body
+        append_to_func_body(ctx, line);
+        return 0;
+    }
+
+    // Otherwise treat as simple command
+    if (script_should_execute()) {
+        return execute_simple_line(line);
+    }
+    return 0;
 }
 
 static int process_for(const char *line) {
@@ -669,14 +925,26 @@ static int process_until(const char *line) {
 }
 
 static int process_do(const char *line) {
-    (void)line;
-
     ContextType ctx_type = script_current_context();
     if (ctx_type != CTX_FOR && ctx_type != CTX_WHILE && ctx_type != CTX_UNTIL) {
         if (!script_state.silent_errors) {
             fprintf(stderr, "%s: syntax error: unexpected 'do'\n", HASH_NAME);
         }
         return -1;
+    }
+
+    // Check if there's a command after 'do'
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+    if (strncmp(p, "do", 2) == 0) {
+        p += 2;
+        while (*p && isspace(*p)) p++;
+        if (*p && *p != '#') {
+            // There's a command after 'do', execute it
+            if (script_should_execute()) {
+                return execute_simple_line(p);
+            }
+        }
     }
     return 0;
 }
@@ -719,6 +987,34 @@ int script_process_line(const char *line) {
     LineType ltype = script_classify_line(line);
 
     if (ltype == LINE_EMPTY) {
+        // Even empty lines need to be counted for function body
+        ScriptContext *ctx = get_current_context();
+        if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
+            append_to_func_body(ctx, "");
+        }
+        return 0;
+    }
+
+    // If we're inside a function definition, accumulate lines
+    ScriptContext *ctx = get_current_context();
+    if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
+        // Check for closing brace
+        if (ltype == LINE_RBRACE) {
+            return process_rbrace(line);
+        }
+
+        // Track brace depth and add line to body
+        int delta = count_braces(line);
+        ctx->brace_depth += delta;
+
+        // If this is the closing brace, don't add it to the body
+        if (ctx->brace_depth <= 0) {
+            // Function definition complete
+            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            return script_pop_context();
+        }
+
+        append_to_func_body(ctx, line);
         return 0;
     }
 
@@ -743,6 +1039,12 @@ int script_process_line(const char *line) {
             return process_do(line);
         case LINE_DONE:
             return process_done(line);
+        case LINE_FUNCTION_START:
+            return process_function(line);
+        case LINE_LBRACE:
+            return process_lbrace(line);
+        case LINE_RBRACE:
+            return process_rbrace(line);
         case LINE_SIMPLE:
         default:
             if (script_should_execute()) {

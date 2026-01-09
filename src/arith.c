@@ -7,6 +7,7 @@
 #include <errno.h>
 #include "arith.h"
 #include "safe_string.h"
+#include "cmdsub.h"
 
 #define MAX_ARITH_LENGTH 8192
 
@@ -696,6 +697,13 @@ char *arith_expand(const char *str) {
             }
             memcpy(expr, p, expr_len);
             expr[expr_len] = '\0';
+
+            // First, expand any command substitutions in the expression
+            char *cmdsub_expanded = cmdsub_expand(expr);
+            if (cmdsub_expanded) {
+                free(expr);
+                expr = cmdsub_expanded;
+            }
 
             // Evaluate
             long value;

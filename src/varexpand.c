@@ -6,12 +6,22 @@
 #include "varexpand.h"
 #include "safe_string.h"
 #include "hash.h"
+#include "script.h"
 
 #define MAX_EXPANDED_LENGTH 8192
 
 // Check if character is valid in variable name
 static int is_varname_char(char c) {
     return isalnum(c) || c == '_';
+}
+
+// Get positional parameter value ($1, $2, etc.)
+// Returns NULL if not found
+static const char *get_positional_param(int n) {
+    if (n < 0 || n >= script_state.positional_count) {
+        return NULL;
+    }
+    return script_state.positional_params[n];
 }
 
 // Expand environment variables in a string
@@ -69,9 +79,27 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                     var_name[name_len] = '\0';
 
                     if (name_len > 0) {
-                        var_value = getenv(var_name);
+                        // Check if it's a positional parameter (all digits)
+                        int is_positional = 1;
+                        for (size_t i = 0; i < name_len; i++) {
+                            if (!isdigit(var_name[i])) {
+                                is_positional = 0;
+                                break;
+                            }
+                        }
+                        if (is_positional) {
+                            int param_num = atoi(var_name);
+                            var_value = get_positional_param(param_num);
+                        } else {
+                            var_value = getenv(var_name);
+                        }
                     }
                 }
+            } else if (isdigit(*p)) {
+                // $N positional parameter (single digit for POSIX compliance)
+                int param_num = *p - '0';
+                p++;
+                var_value = get_positional_param(param_num);
             } else if (is_varname_char(*p)) {
                 // $VAR syntax
                 size_t name_len = 0;

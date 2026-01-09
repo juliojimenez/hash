@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <termios.h>
 #include <errno.h>
+#include <ctype.h>
 #include "hash.h"
 #include "execute.h"
 #include "builtins.h"
@@ -227,6 +228,40 @@ int execute(char **args) {
         }
     }
 
+    // Check for variable assignment (VAR=VALUE with no command following)
+    // Must have = and start with valid variable name character
+    if (args[0] && args[1] == NULL) {
+        char *equals = strchr(args[0], '=');
+        if (equals && equals != args[0]) {
+            // Check if it's a valid variable name before the =
+            int valid = 1;
+            for (char *p = args[0]; p < equals; p++) {
+                if (p == args[0]) {
+                    if (!isalpha(*p) && *p != '_') {
+                        valid = 0;
+                        break;
+                    }
+                } else {
+                    if (!isalnum(*p) && *p != '_') {
+                        valid = 0;
+                        break;
+                    }
+                }
+            }
+            if (valid) {
+                // This is a variable assignment
+                *equals = '\0';
+                const char *name = args[0];
+                const char *value = equals + 1;
+                setenv(name, value, 1);
+                *equals = '=';  // Restore in case it's in shared memory
+                last_command_exit_code = 0;
+                free_expanded_args(expanded_args, expanded_count);
+                return 1;
+            }
+        }
+    }
+
     int result = 1;  // Default: continue shell
 
     // Check if command is an alias
@@ -346,6 +381,19 @@ int execute(char **args) {
         return result;
     }
     redirect_free(redir);
+
+    // Check for user-defined functions
+    ShellFunction *func = script_get_function(args[0]);
+    if (func) {
+        // Count arguments (including function name as $0)
+        int argc = 0;
+        while (args[argc]) argc++;
+
+        result = script_execute_function(func, argc, args);
+        last_command_exit_code = result;
+        free_expanded_args(expanded_args, expanded_count);
+        return result;
+    }
 
     // Build command string for job display
     char *cmd_string = build_cmd_string(args);
