@@ -1,0 +1,17 @@
+Hash is a modern command line interpreter (shell) for Unix-like operating
+systems. It provides a feature-rich alternative to traditional shells with
+a focus on usability and modern development workflows.
+
+Features include:
+- Tab completion for commands, files, and directories
+- Unix pipes and I/O redirection
+- Command chaining with ;, &&, and ||
+- Aliases and environment variables
+- Command history with bash-compatible expansion (!, !!, !n)
+- Customizable PS1 prompt with git integration
+- Tilde and variable expansion
+- .hashrc configuration file support
+- Line editing with arrow keys, Ctrl+A/E, Ctrl+U/K, etc.
+
+Hash aims for POSIX compliance while providing modern conveniences
+expected by developers working with version control and build systems.

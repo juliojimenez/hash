@@ -28,6 +28,24 @@ sudo mv hash-shell-v25-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
+#### FreeBSD x86_64
+
+```bash
+fetch https://github.com/juliojimenez/hash/releases/download/v25/hash-shell-v25-freebsd-x86_64
+chmod +x hash-shell-v25-freebsd-x86_64
+sudo mv hash-shell-v25-freebsd-x86_64 /usr/local/bin/hash-shell
+hash-shell
+```
+
+#### FreeBSD ARM64
+
+```bash
+fetch https://github.com/juliojimenez/hash/releases/download/v25/hash-shell-v25-freebsd-aarch64
+chmod +x hash-shell-v25-freebsd-aarch64
+sudo mv hash-shell-v25-freebsd-aarch64 /usr/local/bin/hash-shell
+hash-shell
+```
+
 #### macOS (Apple Silicon)
 
 ```bash
@@ -138,6 +156,13 @@ sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" >> /etc/shells'
 chsh -s "$(brew --prefix)/bin/hash-shell"
 ```
 
+#### chsh (FreeBSD)
+
+```bash
+sudo sh -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+```
+
 ## Command Line Options
 
 | Option | Description |
@@ -176,6 +201,7 @@ chsh -s "$(brew --prefix)/bin/hash-shell"
 - [Update Notifications](./docs/UPDATE.md)
 - [Safe String Utilities](./docs/SAFE_STRING.md)
 - [APT Installation](./docs/APT_INSTALL.md)
+- [FreeBSD Port](./freebsd/README.md)
 - [Testing](./docs/TESTING.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)

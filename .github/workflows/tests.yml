@@ -5,24 +5,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Build and Test
+  test-linux:
+    name: Build and Test (Linux)
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: [ubuntu-latest, ubuntu-22.04, macos-latest, macos-14, macos-15, macos-26]
         cc: [gcc, clang]
-        exclude:
-          # On macOS, gcc is actually clang, so only test with clang
-          - os: macos-latest
-            cc: gcc
-          - os: macos-14
-            cc: gcc
-          - os: macos-15
-            cc: gcc
-          - os: macos-26
-            cc: gcc
 
     steps:
       - name: Checkout
@@ -65,6 +55,74 @@ jobs:
           ./test.sh
           make test-clean
           make test
+
+  test-macos:
+    name: Build and Test (macOS)
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, macos-14, macos-15, macos-26]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Compiler Version
+        run: |
+          clang --version
+          make --version
+
+      - name: Build hash
+        run: |
+          make clean
+          CC=clang make
+
+      - name: Check Binary
+        run: |
+          ls -lh hash-shell
+          file hash-shell
+
+      - name: Make Test Script Executable
+        run: chmod +x test.sh
+
+      - name: Run Tests
+        run: ./test.sh
+
+      - name: Run Unit Tests
+        run: make test
+
+  test-freebsd:
+    name: Build and Test (FreeBSD)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build and Test on FreeBSD
+        uses: cross-platform-actions/action@v0.25.0
+        with:
+          operating_system: freebsd
+          version: '14.2'
+          run: |
+            uname -a
+            cc --version
+            make --version
+
+            # Build
+            make clean
+            make CC=cc
+
+            # Check binary
+            ls -lh hash-shell
+            file hash-shell
+
+            # Run the shell briefly to test it works
+            echo "echo 'Hello from FreeBSD'" | ./hash-shell
+
+            # Run unit tests
+            make test
 
   build-check:
     name: Build Validation
@@ -110,6 +168,29 @@ jobs:
           make
           make clean
           make
+
+  build-check-freebsd:
+    name: Build Validation (FreeBSD)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check Compiler Warnings on FreeBSD
+        uses: cross-platform-actions/action@v0.25.0
+        with:
+          operating_system: freebsd
+          version: '14.2'
+          run: |
+            make clean
+            make CC=cc CFLAGS="-Wall -Wextra -Werror -O2 -std=gnu99"
+
+            # Verify clean rebuild
+            make clean
+            make CC=cc
+            make clean
+            make CC=cc
 
   security-scan:
     name: Security Scan

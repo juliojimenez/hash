@@ -122,9 +122,9 @@ jobs:
       - name: Build hash
         run: |
           make clean
-          make CFLAGS="-Wall -Wextra -O2 -std=gnu99"
+          make CC=clang CFLAGS="-Wall -Wextra -O2 -std=gnu99"
 
-          # Rename binary with platform suffix
+          # Rename binary
           mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
 
           # Create tarball
@@ -162,10 +162,92 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-freebsd:
+    name: Build FreeBSD Binaries
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            vm_arch: x86-64
+          - arch: aarch64
+            vm_arch: arm64
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get Version From Tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Build on FreeBSD
+        uses: cross-platform-actions/action@v0.25.0
+        with:
+          operating_system: freebsd
+          version: '14.2'
+          architecture: ${{ matrix.vm_arch }}
+          run: |
+            uname -a
+            # Build (FreeBSD uses make, not gmake for simple projects)
+            make clean
+            make CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
+
+            # Rename binary
+            mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}
+
+      - name: Create Tarball and Checksums
+        run: |
+          # Create tarball
+          tar -czf hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz \
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }} \
+            README.md
+
+          # Generate checksums
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }} > \
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.sha256
+          sha256sum hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz > \
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz.sha256
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: hash-shell-freebsd-${{ matrix.arch }}
+          path: |
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz.sha256
+
+      - name: Upload To Release
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b
+        with:
+          files: |
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.sha256
+            hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz.sha256
+          tag_name: ${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   create-release-notes:
     name: Create Release Notes
     runs-on: ubuntu-latest
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-freebsd]
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
 
     permissions:
@@ -182,17 +264,17 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v7
-        with:
-          path: artifacts
-
       - name: Get Version Number
         id: version_num
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
           VERSION_NUM="${VERSION#v}"
           echo "version_num=$VERSION_NUM" >> $GITHUB_OUTPUT
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
 
       - name: Generate Installation Instructions
         run: |
@@ -258,6 +340,22 @@ jobs:
           sudo mv hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64 /usr/local/bin/hash-shell
           ```
 
+          ### FreeBSD x86_64
+
+          ```bash
+          fetch https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64 /usr/local/bin/hash-shell
+          ```
+
+          ### FreeBSD ARM64
+
+          ```bash
+          fetch https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64
+          chmod +x hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64
+          sudo mv hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64 /usr/local/bin/hash-shell
+          ```
+
           ### Verify Checksums
 
           ```bash
@@ -268,6 +366,10 @@ jobs:
           # macOS
           curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
           shasum -a 256 -c hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.sha256
+
+          # FreeBSD
+          fetch https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64.sha256
+          sha256 -c hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64 hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64.sha256
           ```
 
           ## Available Downloads
@@ -278,9 +380,19 @@ jobs:
           - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb` - Debian Bookworm
 
           ### Static Binaries
-          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64` - Linux x86_64 binary
-          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64` - Linux ARM64 binary
+
+          #### Linux
+          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64` - Linux x86_64 static binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64` - Linux ARM64 static binary
+
+          #### macOS
           - `hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64` - macOS Apple Silicon binary
+
+          #### FreeBSD
+          - `hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64` - FreeBSD x86_64 binary
+          - `hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64` - FreeBSD ARM64 binary
+
+          ### Archives & Checksums
           - `*.tar.gz` - Tarball with binary and README
           - `*.sha256` - SHA256 checksums for verification
 
