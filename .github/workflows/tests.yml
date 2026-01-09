@@ -126,8 +126,8 @@ jobs:
             # Run the shell briefly to test it works
             echo "echo 'Hello from FreeBSD'" | ./hash-shell
 
-            # Run unit tests
-            gmake test
+            # Run unit tests (must pass CC=cc for FreeBSD)
+            gmake CC=cc test
 
   build-check:
     name: Build Validation
