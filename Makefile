@@ -66,7 +66,7 @@ help:
 test-setup:
 	@if [ ! -d "$(UNITY_DIR)" ]; then \
 		echo "Setting up Unity test framework..."; \
-		$(TEST_DIR)/setup_unity.sh; \
+		sh $(TEST_DIR)/setup_unity.sh; \
 	else \
 		echo "Unity already set up. Run 'make test-clean' to remove and reinstall."; \
 	fi
