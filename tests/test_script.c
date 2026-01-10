@@ -136,14 +136,14 @@ void test_initial_context(void) {
 }
 
 void test_push_context(void) {
-    TEST_ASSERT_EQUAL(0, script_push_context(CTX_IF));
+    TEST_ASSERT_EQUAL(1, script_push_context(CTX_IF));  // 1 = success, continue
     TEST_ASSERT_TRUE(script_in_control_structure());
     TEST_ASSERT_EQUAL(CTX_IF, script_current_context());
 }
 
 void test_pop_context(void) {
     script_push_context(CTX_IF);
-    TEST_ASSERT_EQUAL(0, script_pop_context());
+    TEST_ASSERT_EQUAL(1, script_pop_context());  // 1 = success, continue
     TEST_ASSERT_FALSE(script_in_control_structure());
     TEST_ASSERT_EQUAL(CTX_NONE, script_current_context());
 }
@@ -234,12 +234,12 @@ void test_redefine_function(void) {
 // ============================================================================
 
 void test_process_empty_line(void) {
-    TEST_ASSERT_EQUAL(0, script_process_line(""));
-    TEST_ASSERT_EQUAL(0, script_process_line("   "));
+    TEST_ASSERT_EQUAL(1, script_process_line(""));  // 1 = continue processing
+    TEST_ASSERT_EQUAL(1, script_process_line("   "));
 }
 
 void test_process_comment(void) {
-    TEST_ASSERT_EQUAL(0, script_process_line("# this is a comment"));
+    TEST_ASSERT_EQUAL(1, script_process_line("# this is a comment"));  // 1 = continue
 }
 
 void test_process_simple_command(void) {

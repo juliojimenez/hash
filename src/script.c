@@ -175,7 +175,7 @@ int script_push_context(ContextType type) {
     ctx->function_call_depth = script_state.function_call_depth;  // Track when this context was created
 
     script_state.context_depth++;
-    return 0;
+    return 1;  // Success, continue processing
 }
 
 int script_pop_context(void) {
@@ -209,7 +209,7 @@ int script_pop_context(void) {
     free(ctx->func_body);
     ctx->func_body = NULL;
 
-    return 0;
+    return 1;  // Success, continue processing
 }
 
 ContextType script_current_context(void) {
@@ -454,7 +454,7 @@ static int execute_simple_line(const char *line) {
 // ============================================================================
 
 static int process_if(const char *line) {
-    if (script_push_context(CTX_IF) != 0) return -1;
+    if (script_push_context(CTX_IF) < 0) return -1;
 
     ScriptContext *ctx = get_current_context();
     if (!ctx) return -1;
@@ -477,7 +477,7 @@ static int process_if(const char *line) {
         ctx->should_execute = false;
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_then(const char *line) {
@@ -502,7 +502,7 @@ static int process_then(const char *line) {
             }
         }
     }
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_elif(const char *line) {
@@ -536,7 +536,7 @@ static int process_elif(const char *line) {
         ctx->should_execute = false;
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_else(const char *line) {
@@ -569,7 +569,7 @@ static int process_else(const char *line) {
         }
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_fi(const char *line) {
@@ -674,7 +674,7 @@ static int process_function(const char *line) {
         return -1;
     }
 
-    if (script_push_context(CTX_FUNCTION) != 0) {
+    if (script_push_context(CTX_FUNCTION) < 0) {
         free(name);
         return -1;
     }
@@ -749,7 +749,7 @@ static int process_function(const char *line) {
                 if (*after_func && *after_func != '#') {
                     return execute_simple_line(after_func);
                 }
-                return 0;
+                return 1;  // Continue processing
             } else {
                 // Body continues on next line
                 append_to_func_body(ctx, after_brace);
@@ -760,7 +760,7 @@ static int process_function(const char *line) {
         ctx->brace_depth = 0;  // Waiting for opening brace
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_lbrace(const char *line) {
@@ -778,14 +778,14 @@ static int process_lbrace(const char *line) {
             append_to_func_body(ctx, p);
             ctx->brace_depth += count_braces(p);
         }
-        return 0;
+        return 1;  // Continue processing
     }
 
     // Otherwise treat as simple command
     if (script_should_execute()) {
         return execute_simple_line(line);
     }
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_rbrace(const char *line) {
@@ -801,18 +801,18 @@ static int process_rbrace(const char *line) {
         }
         // Still inside nested braces, add line to body
         append_to_func_body(ctx, line);
-        return 0;
+        return 1;  // Continue processing
     }
 
     // Otherwise treat as simple command
     if (script_should_execute()) {
         return execute_simple_line(line);
     }
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_for(const char *line) {
-    if (script_push_context(CTX_FOR) != 0) return -1;
+    if (script_push_context(CTX_FOR) < 0) return -1;
 
     ScriptContext *ctx = get_current_context();
     if (!ctx) return -1;
@@ -896,11 +896,11 @@ static int process_for(const char *line) {
         setenv(ctx->loop_var, ctx->loop_values[0], 1);
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_while(const char *line) {
-    if (script_push_context(CTX_WHILE) != 0) return -1;
+    if (script_push_context(CTX_WHILE) < 0) return -1;
 
     ScriptContext *ctx = get_current_context();
     if (!ctx) return -1;
@@ -921,11 +921,11 @@ static int process_while(const char *line) {
         ctx->should_execute = false;
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_until(const char *line) {
-    if (script_push_context(CTX_UNTIL) != 0) return -1;
+    if (script_push_context(CTX_UNTIL) < 0) return -1;
 
     ScriptContext *ctx = get_current_context();
     if (!ctx) return -1;
@@ -946,7 +946,7 @@ static int process_until(const char *line) {
         ctx->should_execute = false;
     }
 
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_do(const char *line) {
@@ -971,7 +971,7 @@ static int process_do(const char *line) {
             }
         }
     }
-    return 0;
+    return 1;  // Continue processing
 }
 
 static int process_done(const char *line) {
@@ -1017,7 +1017,7 @@ int script_process_line(const char *line) {
         if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
             append_to_func_body(ctx, "");
         }
-        return 0;
+        return 1;  // Continue processing
     }
 
     // If we're inside a function definition, accumulate lines
@@ -1040,7 +1040,7 @@ int script_process_line(const char *line) {
         }
 
         append_to_func_body(ctx, line);
-        return 0;
+        return 1;  // Continue processing
     }
 
     switch (ltype) {
@@ -1075,7 +1075,7 @@ int script_process_line(const char *line) {
             if (script_should_execute()) {
                 return execute_simple_line(line);
             }
-            return 0;
+            return 1;  // Continue processing (not executing due to context)
     }
 }
 
@@ -1125,10 +1125,15 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     }
 
     char line[MAX_SCRIPT_LINE];
-    int result = 0;
+    int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
 
     // Skip shebang line if present
     if (fgets(line, sizeof(line), fp)) {
+        // Remove trailing newline from first line too
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+        }
         if (line[0] != '#' || line[1] != '!') {
             // Not a shebang, process this line
             script_state.script_line = 0;  // Will be incremented by process_line
@@ -1136,8 +1141,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         }
     }
 
-    // Process remaining lines
-    while (fgets(line, sizeof(line), fp) && result >= 0) {
+    // Process remaining lines (stop if result == 0 means exit was called)
+    while (fgets(line, sizeof(line), fp) && result > 0) {
         // Remove trailing newline
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
@@ -1181,11 +1186,11 @@ int script_execute_string(const char *script) {
     bool old_in_script = script_state.in_script;
     script_state.in_script = true;
 
-    int result = 0;
+    int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
     char *saveptr;
     const char *line = strtok_r(script_copy, "\n", &saveptr);
 
-    while (line && result >= 0) {
+    while (line && result > 0) {
         result = script_process_line(line);
         line = strtok_r(NULL, "\n", &saveptr);
     }

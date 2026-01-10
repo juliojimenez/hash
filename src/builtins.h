@@ -100,4 +100,8 @@ void builtins_set_login_shell(bool is_login);
 // Returns -1 if not a built-in, otherwise returns the result
 int try_builtin(char **args);
 
+// Check if a command name is a built-in (without executing it)
+// Returns true if it's a builtin, false otherwise
+bool is_builtin(const char *cmd);
+
 #endif // BUILTINS_H

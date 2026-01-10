@@ -346,36 +346,37 @@ int execute(char **args) {
     RedirInfo *redir = redirect_parse(args);
     char **exec_args = redir ? redir->args : args;
 
-    // Try built-in commands first
+    // Check if this is a builtin first (without executing it)
+    int is_builtin_cmd = exec_args[0] ? is_builtin(exec_args[0]) : 0;
+
+    // If it's a builtin with redirections, run in child process
+    if (is_builtin_cmd && redir && redir->count > 0) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Child process - apply redirections and run builtin
+            if (redirect_apply(redir) != 0) {
+                exit(EXIT_FAILURE);
+            }
+            try_builtin(exec_args);
+            // The builtin sets last_command_exit_code, use that as exit code
+            redirect_free(redir);
+            exit(last_command_exit_code);
+        } else if (pid > 0) {
+            // Parent - wait for child
+            int status;
+            waitpid(pid, &status, 0);
+            if (WIFEXITED(status)) {
+                last_command_exit_code = WEXITSTATUS(status);
+            }
+        }
+        redirect_free(redir);
+        free_expanded_args(expanded_args, expanded_count);
+        return 1;
+    }
+
+    // Try built-in commands (no redirections, or will be handled below)
     result = try_builtin(exec_args);
     if (result != -1) {
-        // If there were redirections for a builtin, we need to handle them
-        // Run builtin in a child process if redirections are present
-        if (redir && redir->count > 0) {
-            // Need to re-execute with redirections in a child
-            pid_t pid = fork();
-            if (pid == 0) {
-                // Child process - apply redirections and run builtin
-                if (redirect_apply(redir) != 0) {
-                    exit(EXIT_FAILURE);
-                }
-                // Re-run the builtin (result already computed, but we need output redirected)
-                int builtin_result = try_builtin(exec_args);
-                redirect_free(redir);
-                exit(builtin_result == 0 ? EXIT_SUCCESS :
-                     (builtin_result == 1 ? EXIT_SUCCESS : EXIT_FAILURE));
-            } else if (pid > 0) {
-                // Parent - wait for child
-                int status;
-                waitpid(pid, &status, 0);
-                if (WIFEXITED(status)) {
-                    last_command_exit_code = WEXITSTATUS(status);
-                }
-            }
-            redirect_free(redir);
-            free_expanded_args(expanded_args, expanded_count);
-            return 1;
-        }
         redirect_free(redir);
         free_expanded_args(expanded_args, expanded_count);
         return result;

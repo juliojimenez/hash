@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include "redirect.h"
 #include "safe_string.h"
 #include "hash.h"
@@ -70,7 +71,7 @@ RedirInfo *redirect_parse(char **args) {
     for (int i = 0; args[i] != NULL; i++) {
         char *arg = args[i];
 
-        // Check for redirection operators
+        // Check for standalone redirection operators
         if (strcmp(arg, "<") == 0) {
             // Input redirection
             if (args[i + 1]) {
@@ -116,6 +117,103 @@ RedirInfo *redirect_parse(char **args) {
         } else if (strcmp(arg, ">&2") == 0 || strcmp(arg, "1>&2") == 0) {
             // Redirect stdout to stderr
             add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
+        }
+        // Handle attached redirections: >file, <file, >>file, etc.
+        else if (arg[0] == '<' && arg[1] != '\0' && arg[1] != '&') {
+            // <file (input redirection with attached filename)
+            add_redirection(info, REDIR_INPUT, arg + 1);
+        } else if (arg[0] == '>' && arg[1] != '\0') {
+            // >file or >>file or >&
+            if (arg[1] == '>') {
+                // >>file or >> file
+                if (arg[2] != '\0') {
+                    add_redirection(info, REDIR_APPEND, arg + 2);
+                } else if (args[i + 1]) {
+                    add_redirection(info, REDIR_APPEND, args[i + 1]);
+                    i++;
+                }
+            } else if (arg[1] == '&') {
+                // >&N
+                if (arg[2] == '2' && arg[3] == '\0') {
+                    add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
+                } else {
+                    info->args[new_arg_idx++] = arg;
+                }
+            } else {
+                // >file
+                add_redirection(info, REDIR_OUTPUT, arg + 1);
+            }
+        }
+        // Handle N>file, N<file, N>>file patterns
+        else if (isdigit(arg[0])) {
+            const char *p = arg;
+            while (*p && isdigit(*p)) p++;
+
+            if (*p == '>' || *p == '<') {
+                int fd = atoi(arg);
+                if (*p == '<') {
+                    p++;
+                    if (*p == '&') {
+                        // N<&M - not fully supported
+                        info->args[new_arg_idx++] = arg;
+                    } else if (*p != '\0') {
+                        // N<file
+                        if (fd == 0) {
+                            add_redirection(info, REDIR_INPUT, p);
+                        } else {
+                            info->args[new_arg_idx++] = arg;
+                        }
+                    } else if (args[i + 1]) {
+                        if (fd == 0) {
+                            add_redirection(info, REDIR_INPUT, args[i + 1]);
+                            i++;
+                        } else {
+                            info->args[new_arg_idx++] = arg;
+                        }
+                    }
+                } else {
+                    // N> or N>>
+                    p++;
+                    int append = 0;
+                    if (*p == '>') {
+                        append = 1;
+                        p++;
+                    }
+                    if (*p == '&') {
+                        // N>&M
+                        p++;
+                        if (*p == '1' && *(p + 1) == '\0' && fd == 2) {
+                            add_redirection(info, REDIR_ERROR_TO_OUT, NULL);
+                        } else if (*p == '2' && *(p + 1) == '\0' && fd == 1) {
+                            add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
+                        } else {
+                            info->args[new_arg_idx++] = arg;
+                        }
+                    } else if (*p != '\0') {
+                        // N>file or N>>file
+                        if (fd == 1) {
+                            add_redirection(info, append ? REDIR_APPEND : REDIR_OUTPUT, p);
+                        } else if (fd == 2) {
+                            add_redirection(info, append ? REDIR_ERROR_APPEND : REDIR_ERROR, p);
+                        } else {
+                            info->args[new_arg_idx++] = arg;
+                        }
+                    } else if (args[i + 1]) {
+                        if (fd == 1) {
+                            add_redirection(info, append ? REDIR_APPEND : REDIR_OUTPUT, args[i + 1]);
+                            i++;
+                        } else if (fd == 2) {
+                            add_redirection(info, append ? REDIR_ERROR_APPEND : REDIR_ERROR, args[i + 1]);
+                            i++;
+                        } else {
+                            info->args[new_arg_idx++] = arg;
+                        }
+                    }
+                }
+            } else {
+                // Regular argument starting with digit
+                info->args[new_arg_idx++] = arg;
+            }
         } else {
             // Regular argument - keep it
             info->args[new_arg_idx++] = arg;

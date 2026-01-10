@@ -180,9 +180,9 @@ int shell_exit(char **args) {
         }
     }
 
-    // Check for running jobs
+    // Check for running jobs (only relevant in interactive mode)
     int job_count = jobs_count();
-    if (job_count > 0) {
+    if (job_count > 0 && isatty(STDIN_FILENO)) {
         color_warning("There are %d running job(s).", job_count);
         printf("Use 'exit' again to force exit, or 'jobs' to see them.\n");
 
@@ -198,7 +198,10 @@ int shell_exit(char **args) {
         return 1;
     }
 
-    fprintf(stdout, "Bye :)\n");
+    // Only print goodbye message in interactive mode
+    if (isatty(STDIN_FILENO)) {
+        fprintf(stdout, "Bye :)\n");
+    }
     last_command_exit_code = exit_code;
     return 0;
 }
@@ -458,7 +461,7 @@ int shell_logout(char **args) {
     }
 
     int job_count = jobs_count();
-    if (job_count > 0) {
+    if (job_count > 0 && isatty(STDIN_FILENO)) {
         color_warning("There are %d running job(s).", job_count);
         printf("Use 'logout' again to force logout, or 'jobs' to see them.\n");
 
@@ -474,7 +477,10 @@ int shell_logout(char **args) {
         return 1;
     }
 
-    fprintf(stdout, "Bye :)\n");
+    // Only print goodbye message in interactive mode
+    if (isatty(STDIN_FILENO)) {
+        fprintf(stdout, "Bye :)\n");
+    }
     last_command_exit_code = 0;
     return 0;
 }
@@ -1306,4 +1312,18 @@ int try_builtin(char **args) {
     }
 
     return -1;
+}
+
+bool is_builtin(const char *cmd) {
+    if (cmd == NULL) {
+        return false;
+    }
+
+    for (int i = 0; i < num_builtins(); i++) {
+        if (strcmp(cmd, builtin_str[i]) == 0) {
+            return true;
+        }
+    }
+
+    return false;
 }

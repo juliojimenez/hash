@@ -638,7 +638,7 @@ int has_arith(const char *str) {
 
 // Find matching )) for $((
 static const char *find_arith_end(const char *start) {
-    // start points to first char after $(( 
+    // start points to first char after $((
     int depth = 1;
     const char *p = start;
 

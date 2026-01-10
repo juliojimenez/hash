@@ -327,6 +327,7 @@ int main(int argc, char *argv[]) {
         char line[MAX_LINE];
         script_state.in_script = true;
 
+        int result = 1;
         while (fgets(line, sizeof(line), stdin)) {
             // Remove trailing newline
             size_t len = strlen(line);
@@ -334,7 +335,11 @@ int main(int argc, char *argv[]) {
                 line[len - 1] = '\0';
             }
 
-            script_process_line(line);
+            result = script_process_line(line);
+            // Exit if the exit command was called (returns 0)
+            if (result == 0) {
+                break;
+            }
         }
 
         script_state.in_script = false;
