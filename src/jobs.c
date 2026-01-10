@@ -188,7 +188,7 @@ void jobs_check_completed(void) {
 }
 
 // List all jobs
-void jobs_list(void) {
+void jobs_list(JobsFormat format) {
     int found = 0;
 
     for (int i = 0; i < MAX_JOBS; i++) {
@@ -201,23 +201,42 @@ void jobs_list(void) {
                 jobs_update_status(jobs[i].pid, status);
             }
 
-            // Print job info
-            char current_marker = (jobs[i].job_id == current_job) ? '+' : '-';
-
-            color_print(COLOR_CYAN, "[%d]%c ", jobs[i].job_id, current_marker);
-            printf("%-12s  ", state_string(jobs[i].state));
-            printf("%s", jobs[i].command);
-
-            if (jobs[i].state == JOB_RUNNING) {
-                color_print(COLOR_DIM, " &");
-            }
-            printf("\n");
-
             found++;
+
+            // Print based on format
+            if (format == JOBS_FORMAT_PID_ONLY) {
+                // -p: Just print PIDs
+                printf("%d\n", jobs[i].pid);
+            } else {
+                // Default or -l format
+                char current_marker = (jobs[i].job_id == current_job) ? '+' : '-';
+
+                if (format == JOBS_FORMAT_LONG) {
+                    // -l: Include PID
+                    printf("[%d]%c %d %-12s %s",
+                        jobs[i].job_id,
+                        current_marker,
+                        jobs[i].pid,
+                        state_string(jobs[i].state),
+                        jobs[i].command);
+                } else {
+                    // Default format
+                    printf("[%d]%c %-12s %s",
+                        jobs[i].job_id,
+                        current_marker,
+                        state_string(jobs[i].state),
+                        jobs[i].command);
+                }
+
+                if (jobs[i].state == JOB_RUNNING) {
+                    printf(" &");
+                }
+                printf("\n");
+            }
         }
     }
 
-    if (found == 0) {
+    if (found == 0 && format != JOBS_FORMAT_PID_ONLY) {
         printf("No jobs\n");
     }
 }

@@ -151,6 +151,28 @@ CommandChain *chain_parse(char *line) {
                 op = CHAIN_AND;
                 op_len = 2;
             }
+            // Check for single & (background + continue) - must not be followed by &
+            else if (*current == '&' && *(current + 1) != '&') {
+                // Single & acts as separator - command before it runs in background
+                // Null-terminate at & position
+                *current = '\0';
+
+                // Trim whitespace from command
+                safe_trim(cmd_start);
+
+                // Add command to chain if not empty, marked as background
+                if (*cmd_start != '\0') {
+                    if (chain_add(chain, cmd_start, CHAIN_ALWAYS, true) != 0) {
+                        chain_free(chain);
+                        return NULL;
+                    }
+                }
+
+                // Move past &
+                current++;
+                cmd_start = current;
+                continue;
+            }
             // Check for ||
             else if (*current == '|' && *(current + 1) == '|') {
                 op = CHAIN_OR;

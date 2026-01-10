@@ -23,6 +23,38 @@ void config_init(void) {
     shell_config.colors_enabled = true;
     shell_config.show_welcome = true;
     memset(shell_config.aliases, 0, sizeof(shell_config.aliases));
+    shell_options_init();
+}
+
+// Initialize shell options to defaults
+void shell_options_init(void) {
+    shell_config.options.nounset = false;
+    shell_config.options.errexit = false;
+    shell_config.options.xtrace = false;
+    shell_config.options.verbose = false;
+    shell_config.options.noclobber = false;
+    shell_config.options.allexport = false;
+    shell_config.options.monitor = false;
+}
+
+// Get the nounset option value
+bool shell_option_nounset(void) {
+    return shell_config.options.nounset;
+}
+
+// Set the nounset option value
+void shell_option_set_nounset(bool value) {
+    shell_config.options.nounset = value;
+}
+
+// Get the monitor option value
+bool shell_option_monitor(void) {
+    return shell_config.options.monitor;
+}
+
+// Set the monitor option value
+void shell_option_set_monitor(bool value) {
+    shell_config.options.monitor = value;
 }
 
 // Trim whitespace from string

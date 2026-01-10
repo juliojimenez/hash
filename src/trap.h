@@ -31,6 +31,9 @@ const char *trap_get(int signum);
 // Execute EXIT trap (called when shell exits)
 void trap_execute_exit(void);
 
+// Reset traps for subshell (POSIX: traps are not inherited by subshells)
+void trap_reset_for_subshell(void);
+
 // List all traps
 void trap_list(void);
 

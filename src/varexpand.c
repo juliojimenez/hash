@@ -8,8 +8,33 @@
 #include "hash.h"
 #include "script.h"
 #include "jobs.h"
+#include "config.h"
 
 #define MAX_EXPANDED_LENGTH 8192
+
+// Track if an unset variable error occurred during expansion
+static bool varexpand_error = false;
+
+// Check and report unset variable error when -u is set
+// Returns true if error occurred
+static bool check_unset_error(const char *var_name) {
+    if (shell_option_nounset()) {
+        fprintf(stderr, "%s: %s: unbound variable\n", HASH_NAME, var_name);
+        varexpand_error = true;
+        return true;
+    }
+    return false;
+}
+
+// Get the last expansion error status
+bool varexpand_had_error(void) {
+    return varexpand_error;
+}
+
+// Clear the expansion error flag
+void varexpand_clear_error(void) {
+    varexpand_error = false;
+}
 
 // Check if character is valid in variable name
 static int is_varname_char(char c) {
@@ -240,7 +265,12 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             }
                         } else {
                             // No modifier, simple expansion
-                            var_value = val;
+                            if (is_unset && check_unset_error(var_name)) {
+                                // Unset variable with -u option
+                                var_value = "";
+                            } else {
+                                var_value = val;
+                            }
                         }
 
                         // Handle ${#var} - return length instead of value
@@ -256,6 +286,12 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 int param_num = *p - '0';
                 p++;
                 var_value = get_positional_param(param_num);
+                // Check for unset positional parameter (except $0)
+                if (var_value == NULL && param_num > 0) {
+                    char param_name[16];
+                    snprintf(param_name, sizeof(param_name), "%d", param_num);
+                    check_unset_error(param_name);
+                }
             } else if (is_varname_char(*p)) {
                 // $VAR syntax
                 size_t name_len = 0;
@@ -266,6 +302,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
 
                 if (name_len > 0) {
                     var_value = getenv(var_name);
+                    // Check for unset variable with -u option
+                    if (var_value == NULL) {
+                        check_unset_error(var_name);
+                    }
                 }
             } else {
                 // Just a $ followed by something else, keep the $

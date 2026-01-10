@@ -14,12 +14,24 @@ typedef struct {
     char value[MAX_ALIAS_VALUE];
 } Alias;
 
+// Shell options (POSIX set options)
+typedef struct {
+    bool nounset;      // -u: Treat unset variables as an error
+    bool errexit;      // -e: Exit on error (not fully implemented)
+    bool xtrace;       // -x: Print commands before execution (not fully implemented)
+    bool verbose;      // -v: Print input lines (not fully implemented)
+    bool noclobber;    // -C: Don't overwrite files with > (not fully implemented)
+    bool allexport;    // -a: Export all variables (not fully implemented)
+    bool monitor;      // -m: Enable job control (monitor mode)
+} ShellOptions;
+
 // Configuration structure
 typedef struct {
     Alias aliases[MAX_ALIASES];
     int alias_count;
     bool colors_enabled;
     bool show_welcome;
+    ShellOptions options;
 } Config;
 
 // Global config
@@ -59,5 +71,12 @@ void config_load_startup_files(bool is_login_shell);
 // Load logout files for login shell exit
 // Executes ~/.hash_logout if it exists (for login shells only)
 void config_load_logout_files(void);
+
+// Shell option functions
+void shell_options_init(void);
+bool shell_option_nounset(void);
+void shell_option_set_nounset(bool value);
+bool shell_option_monitor(void);
+void shell_option_set_monitor(bool value);
 
 #endif // CONFIG_H

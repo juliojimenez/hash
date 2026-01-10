@@ -152,6 +152,20 @@ void trap_execute_exit(void) {
     }
 }
 
+// Reset traps for subshell - POSIX says traps are not inherited
+void trap_reset_for_subshell(void) {
+    for (int i = 0; i < MAX_TRAPS; i++) {
+        if (traps[i]) {
+            free(traps[i]);
+            traps[i] = NULL;
+        }
+        // Reset signal handlers to default for non-EXIT signals
+        if (i > 0 && i != SIGKILL && i != SIGSTOP) {
+            signal(i, SIG_DFL);
+        }
+    }
+}
+
 void trap_list(void) {
     for (int i = 0; i < MAX_TRAPS; i++) {
         if (traps[i]) {

@@ -16,6 +16,7 @@
 #include "test_builtin.h"
 #include "jobs.h"
 #include "redirect.h"
+#include "trap.h"
 
 // Global script state
 ScriptState script_state;
@@ -725,9 +726,13 @@ static int execute_simple_line(const char *line) {
 
             if (pid == 0) {
                 // Child process - execute the subshell commands
+                // POSIX: Traps are not inherited by subshells - reset them
+                trap_reset_for_subshell();
                 // Note: don't close stdin for subshells as they run synchronously
                 int result = script_execute_string(subshell_cmd);
                 free(subshell_cmd);
+                // Execute EXIT trap before exiting subshell (only if set in this subshell)
+                trap_execute_exit();
                 // Flush output before exit to ensure all output is visible
                 fflush(stdout);
                 fflush(stderr);

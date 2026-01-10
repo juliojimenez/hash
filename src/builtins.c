@@ -11,6 +11,9 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
+#include <strings.h>
+#include <signal.h>
 #include "hash.h"
 #include "builtins.h"
 #include "colors.h"
@@ -72,7 +75,8 @@ static char *builtin_str[] = {
     "type",
     "readonly",
     "trap",
-    "wait"
+    "wait",
+    "kill"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -109,7 +113,8 @@ static int (*builtin_func[])(char **) = {
     &shell_type,
     &shell_readonly,
     &shell_trap,
-    &shell_wait
+    &shell_wait,
+    &shell_kill
 };
 
 static int num_builtins(void) {
@@ -145,6 +150,18 @@ static int parse_job_id(const char *arg) {
 int shell_cd(char **args) {
     const char *path = args[1];
 
+    // Handle cd - (go to previous directory)
+    if (path != NULL && strcmp(path, "-") == 0) {
+        path = getenv("OLDPWD");
+        if (!path) {
+            color_error("%s: cd: OLDPWD not set", HASH_NAME);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        // Print the directory when using cd -
+        printf("%s\n", path);
+    }
+
     if (path == NULL) {
         path = getenv("HOME");
 
@@ -163,10 +180,21 @@ int shell_cd(char **args) {
         }
     }
 
+    // Save current directory as OLDPWD before changing
+    char oldpwd[PATH_MAX];
+    if (getcwd(oldpwd, sizeof(oldpwd)) != NULL) {
+        setenv("OLDPWD", oldpwd, 1);
+    }
+
     if (chdir(path) != 0) {
         perror(HASH_NAME);
         last_command_exit_code = 1;
     } else {
+        // Update PWD after successful change
+        char newpwd[PATH_MAX];
+        if (getcwd(newpwd, sizeof(newpwd)) != NULL) {
+            setenv("PWD", newpwd, 1);
+        }
         last_command_exit_code = 0;
     }
 
@@ -377,6 +405,47 @@ int shell_set(char **args) {
     for (int i = 1; args[i] != NULL; i++) {
         const char *arg = args[i];
 
+        // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
+        if (strcmp(arg, "-u") == 0) {
+            shell_option_set_nounset(true);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "+u") == 0) {
+            shell_option_set_nounset(false);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "-m") == 0) {
+            shell_option_set_monitor(true);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "+m") == 0) {
+            shell_option_set_monitor(false);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "-o") == 0 && args[i + 1] != NULL) {
+            // Handle -o option_name
+            const char *opt = args[++i];
+            if (strcmp(opt, "nounset") == 0) {
+                shell_option_set_nounset(true);
+            } else if (strcmp(opt, "monitor") == 0) {
+                shell_option_set_monitor(true);
+            }
+            // Silently ignore unknown -o options for compatibility
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "+o") == 0 && args[i + 1] != NULL) {
+            // Handle +o option_name (disable option)
+            const char *opt = args[++i];
+            if (strcmp(opt, "nounset") == 0) {
+                shell_option_set_nounset(false);
+            } else if (strcmp(opt, "monitor") == 0) {
+                shell_option_set_monitor(false);
+            }
+            // Silently ignore unknown +o options for compatibility
+            last_command_exit_code = 0;
+            continue;
+        }
+
         // Handle colors option
         if (strcmp(arg, "colors=on") == 0) {
             shell_config.colors_enabled = true;
@@ -437,8 +506,18 @@ int shell_set(char **args) {
 // ============================================================================
 
 int shell_jobs(char **args) {
-    (void)args;
-    jobs_list();
+    JobsFormat format = JOBS_FORMAT_DEFAULT;
+
+    // Parse options
+    for (int i = 1; args[i] != NULL; i++) {
+        if (strcmp(args[i], "-l") == 0) {
+            format = JOBS_FORMAT_LONG;
+        } else if (strcmp(args[i], "-p") == 0) {
+            format = JOBS_FORMAT_PID_ONLY;
+        }
+    }
+
+    jobs_list(format);
     last_command_exit_code = 0;
     return 1;
 }
@@ -1519,6 +1598,154 @@ int shell_wait(char **args) {
         }
     }
 
+    return 1;
+}
+
+// Signal name to number mapping
+static int signal_name_to_number(const char *name) {
+    // Skip optional "SIG" prefix
+    if (strncasecmp(name, "SIG", 3) == 0) {
+        name += 3;
+    }
+
+    // Common signals
+    if (strcasecmp(name, "HUP") == 0) return SIGHUP;
+    if (strcasecmp(name, "INT") == 0) return SIGINT;
+    if (strcasecmp(name, "QUIT") == 0) return SIGQUIT;
+    if (strcasecmp(name, "ILL") == 0) return SIGILL;
+    if (strcasecmp(name, "TRAP") == 0) return SIGTRAP;
+    if (strcasecmp(name, "ABRT") == 0) return SIGABRT;
+    if (strcasecmp(name, "FPE") == 0) return SIGFPE;
+    if (strcasecmp(name, "KILL") == 0) return SIGKILL;
+    if (strcasecmp(name, "BUS") == 0) return SIGBUS;
+    if (strcasecmp(name, "SEGV") == 0) return SIGSEGV;
+    if (strcasecmp(name, "SYS") == 0) return SIGSYS;
+    if (strcasecmp(name, "PIPE") == 0) return SIGPIPE;
+    if (strcasecmp(name, "ALRM") == 0) return SIGALRM;
+    if (strcasecmp(name, "TERM") == 0) return SIGTERM;
+    if (strcasecmp(name, "URG") == 0) return SIGURG;
+    if (strcasecmp(name, "STOP") == 0) return SIGSTOP;
+    if (strcasecmp(name, "TSTP") == 0) return SIGTSTP;
+    if (strcasecmp(name, "CONT") == 0) return SIGCONT;
+    if (strcasecmp(name, "CHLD") == 0) return SIGCHLD;
+    if (strcasecmp(name, "TTIN") == 0) return SIGTTIN;
+    if (strcasecmp(name, "TTOU") == 0) return SIGTTOU;
+#ifdef SIGIO
+    if (strcasecmp(name, "IO") == 0) return SIGIO;
+#endif
+    if (strcasecmp(name, "XCPU") == 0) return SIGXCPU;
+    if (strcasecmp(name, "XFSZ") == 0) return SIGXFSZ;
+    if (strcasecmp(name, "VTALRM") == 0) return SIGVTALRM;
+    if (strcasecmp(name, "PROF") == 0) return SIGPROF;
+#ifdef SIGWINCH
+    if (strcasecmp(name, "WINCH") == 0) return SIGWINCH;
+#endif
+    if (strcasecmp(name, "USR1") == 0) return SIGUSR1;
+    if (strcasecmp(name, "USR2") == 0) return SIGUSR2;
+
+    return -1;  // Unknown signal
+}
+
+int shell_kill(char **args) {
+    int sig = SIGTERM;  // Default signal
+    int start_idx = 1;
+
+    // Check for -l option (list signals)
+    if (args[1] && strcmp(args[1], "-l") == 0) {
+        printf("HUP INT QUIT ILL TRAP ABRT FPE KILL BUS SEGV SYS PIPE ALRM TERM\n");
+        printf("URG STOP TSTP CONT CHLD TTIN TTOU IO XCPU XFSZ VTALRM PROF WINCH USR1 USR2\n");
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Parse signal specification
+    if (args[1] && args[1][0] == '-') {
+        const char *sigspec = args[1] + 1;
+
+        if (strcmp(sigspec, "s") == 0) {
+            // -s SIG format
+            if (!args[2]) {
+                fprintf(stderr, "%s: kill: -s requires an argument\n", HASH_NAME);
+                last_command_exit_code = 1;
+                return 1;
+            }
+            sigspec = args[2];
+            start_idx = 3;
+        } else {
+            start_idx = 2;
+        }
+
+        // Check if it's a number
+        char *endptr;
+        long num = strtol(sigspec, &endptr, 10);
+        if (*endptr == '\0') {
+            sig = (int)num;
+        } else {
+            // It's a signal name
+            sig = signal_name_to_number(sigspec);
+            if (sig == -1) {
+                fprintf(stderr, "%s: kill: %s: invalid signal specification\n", HASH_NAME, sigspec);
+                last_command_exit_code = 1;
+                return 1;
+            }
+        }
+    }
+
+    // No targets specified
+    if (!args[start_idx]) {
+        fprintf(stderr, "usage: kill [-s sigspec | -sigspec] pid | jobspec ...\n");
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    // Process each target
+    int result = 0;
+    for (int i = start_idx; args[i]; i++) {
+        pid_t pid = 0;
+        const char *target = args[i];
+
+        // Check for job specification
+        if (target[0] == '%') {
+            Job *job = NULL;
+            if (target[1] == '%' || target[1] == '+' || target[1] == '\0') {
+                // %%, %+, or just % - current job
+                job = jobs_get_current();
+            } else if (target[1] == '-') {
+                // %- - previous job (we don't track this, use current)
+                job = jobs_get_current();
+            } else if (isdigit(target[1])) {
+                // %n - job number
+                int job_id = atoi(target + 1);
+                job = jobs_get(job_id);
+            }
+
+            if (job) {
+                pid = job->pid;
+            } else {
+                fprintf(stderr, "%s: kill: %s: no such job\n", HASH_NAME, target);
+                result = 1;
+                continue;
+            }
+        } else {
+            // PID
+            char *endptr;
+            long num = strtol(target, &endptr, 10);
+            if (*endptr != '\0') {
+                fprintf(stderr, "%s: kill: %s: arguments must be process or job IDs\n", HASH_NAME, target);
+                result = 1;
+                continue;
+            }
+            pid = (pid_t)num;
+        }
+
+        // Send signal
+        if (kill(pid, sig) == -1) {
+            fprintf(stderr, "%s: kill: (%d) - %s\n", HASH_NAME, pid, strerror(errno));
+            result = 1;
+        }
+    }
+
+    last_command_exit_code = result;
     return 1;
 }
 

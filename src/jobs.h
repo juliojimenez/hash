@@ -86,9 +86,20 @@ void jobs_update_status(pid_t pid, int status);
 void jobs_check_completed(void);
 
 /**
- * List all jobs (for 'jobs' builtin)
+ * Jobs output format
  */
-void jobs_list(void);
+typedef enum {
+    JOBS_FORMAT_DEFAULT,  // Default format
+    JOBS_FORMAT_LONG,     // -l: Include PID
+    JOBS_FORMAT_PID_ONLY  // -p: Only show PIDs
+} JobsFormat;
+
+/**
+ * List all jobs (for 'jobs' builtin)
+ *
+ * @param format Output format (default, long, or PID-only)
+ */
+void jobs_list(JobsFormat format);
 
 /**
  * Get number of active jobs

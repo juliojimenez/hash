@@ -308,6 +308,8 @@ int main(int argc, char *argv[]) {
     if (script_file != NULL) {
         int result = script_execute_file(script_file, script_argc, script_argv);
 
+        // Execute EXIT trap before cleanup
+        trap_execute_exit();
         script_cleanup();
         return result;
     }
