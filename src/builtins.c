@@ -71,7 +71,8 @@ static char *builtin_str[] = {
     "times",
     "type",
     "readonly",
-    "trap"
+    "trap",
+    "wait"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -107,7 +108,8 @@ static int (*builtin_func[])(char **) = {
     &shell_times,
     &shell_type,
     &shell_readonly,
-    &shell_trap
+    &shell_trap,
+    &shell_wait
 };
 
 static int num_builtins(void) {
@@ -1455,6 +1457,68 @@ int shell_trap(char **args) {
     }
 
     last_command_exit_code = 0;
+    return 1;
+}
+
+int shell_wait(char **args) {
+    // wait with no args: wait for all background jobs
+    if (args[1] == NULL) {
+        int status;
+        pid_t pid;
+
+        // Wait for all child processes
+        while ((pid = waitpid(-1, &status, 0)) > 0) {
+            // Update job status
+            jobs_update_status(pid, status);
+        }
+
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // wait with arguments: wait for specific PIDs or job IDs
+    for (int i = 1; args[i]; i++) {
+        const char *arg = args[i];
+        pid_t pid = 0;
+
+        // Check for job ID (%n)
+        if (arg[0] == '%') {
+            Job *job = NULL;
+            if (arg[1] == '%' || arg[1] == '+' || arg[1] == '\0') {
+                // %%, %+, or just % - current job
+                job = jobs_get_current();
+            } else {
+                int job_id = atoi(arg + 1);
+                job = jobs_get(job_id);
+            }
+            if (job) {
+                pid = job->pid;
+            } else {
+                fprintf(stderr, "%s: wait: %s: no such job\n", HASH_NAME, arg);
+                last_command_exit_code = 127;
+                continue;
+            }
+        } else {
+            // PID
+            pid = atoi(arg);
+        }
+
+        if (pid > 0) {
+            int status;
+            if (waitpid(pid, &status, 0) > 0) {
+                if (WIFEXITED(status)) {
+                    last_command_exit_code = WEXITSTATUS(status);
+                } else {
+                    last_command_exit_code = 128 + WTERMSIG(status);
+                }
+                jobs_update_status(pid, status);
+            } else {
+                // Process already exited or doesn't exist
+                last_command_exit_code = 127;
+            }
+        }
+    }
+
     return 1;
 }
 

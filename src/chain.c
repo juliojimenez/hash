@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include "chain.h"
 #include "parser.h"
 #include "execute.h"
@@ -231,6 +232,11 @@ void chain_free(CommandChain *chain) {
 
 // Execute a single command in background
 static int execute_background(const char *cmd_line) {
+    // Flush stdout/stderr before forking to prevent child from inheriting
+    // buffered content that it would then flush on exit
+    fflush(stdout);
+    fflush(stderr);
+
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -244,6 +250,17 @@ static int execute_background(const char *cmd_line) {
         // Create new process group
         setpgid(0, 0);
 
+        // Redirect stdin from /dev/null to prevent interference with parent's stdin reading
+        // This is critical when the shell is reading from a pipe
+        // Simply closing isn't enough - we need to replace it to avoid fd reuse issues
+        int devnull = open("/dev/null", O_RDONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            if (devnull != STDIN_FILENO) {
+                close(devnull);
+            }
+        }
+
         // Parse and execute command
         char *line_copy = strdup(cmd_line);
         if (!line_copy) _exit(EXIT_FAILURE);
@@ -255,6 +272,8 @@ static int execute_background(const char *cmd_line) {
             int exit_code = pipeline_execute(pipe);
             pipeline_free(pipe);
             free(line_copy);
+            fflush(stdout);
+            fflush(stderr);
             _exit(exit_code);
         } else {
             char **args = parse_line(line_copy);
@@ -263,6 +282,8 @@ static int execute_background(const char *cmd_line) {
                 free(args);
             }
             free(line_copy);
+            fflush(stdout);
+            fflush(stderr);
             _exit(EXIT_SUCCESS);
         }
     }
@@ -271,7 +292,8 @@ static int execute_background(const char *cmd_line) {
     // Add job to job table
     int job_id = jobs_add(pid, cmd_line);
 
-    if (job_id > 0) {
+    // Only print job notification in interactive mode
+    if (job_id > 0 && isatty(STDIN_FILENO)) {
         printf("[%d] %d\n", job_id, pid);
     }
 

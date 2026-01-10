@@ -99,6 +99,9 @@ int shell_readonly(char **args);
 // Built-in command: trap - set signal handlers
 int shell_trap(char **args);
 
+// Built-in command: wait - wait for background jobs
+int shell_wait(char **args);
+
 // Set login shell status (called from main)
 void builtins_set_login_shell(bool is_login);
 

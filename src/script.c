@@ -14,6 +14,7 @@
 #include "chain.h"
 #include "colors.h"
 #include "test_builtin.h"
+#include "jobs.h"
 
 // Global script state
 ScriptState script_state;
@@ -585,6 +586,130 @@ static char *extract_condition(const char *line, const char *keyword) {
 
 static int execute_simple_line(const char *line) {
     if (!line) return 0;
+
+    // Skip leading whitespace
+    while (*line && isspace(*line)) line++;
+    if (!*line) return 1;
+
+    // Check for subshell syntax: (commands)
+    if (*line == '(') {
+        // Find matching closing paren
+        const char *start = line + 1;
+        const char *end = line + strlen(line) - 1;
+
+        // Skip trailing whitespace to find the closing paren
+        while (end > start && isspace(*end)) end--;
+
+        if (*end == ')') {
+            // Extract the subshell content
+            size_t len = end - start;
+            char *subshell_cmd = malloc(len + 1);
+            if (!subshell_cmd) return -1;
+            memcpy(subshell_cmd, start, len);
+            subshell_cmd[len] = '\0';
+
+            // Flush stdout/stderr before forking to prevent child from
+            // inheriting buffered content that it would then flush on exit
+            fflush(stdout);
+            fflush(stderr);
+
+            // Fork a child process for the subshell
+            pid_t pid = fork();
+            if (pid < 0) {
+                perror(HASH_NAME);
+                free(subshell_cmd);
+                return 1;
+            }
+
+            if (pid == 0) {
+                // Child process - execute the subshell commands
+                // Note: don't close stdin for subshells as they run synchronously
+                int result = script_execute_string(subshell_cmd);
+                free(subshell_cmd);
+                // Flush output before exit to ensure all output is visible
+                fflush(stdout);
+                fflush(stderr);
+                _exit(result == 0 ? last_command_exit_code : 1);
+            }
+
+            // Parent process - wait for child
+            free(subshell_cmd);
+            int status;
+            waitpid(pid, &status, 0);
+            if (WIFEXITED(status)) {
+                last_command_exit_code = WEXITSTATUS(status);
+            } else {
+                last_command_exit_code = 1;
+            }
+            return 1;
+        }
+    }
+
+    // Check for brace group syntax: { commands; } [&]
+    // Note: { must be followed by space, and } must be preceded by ; or newline
+    if (*line == '{' && (line[1] == '\0' || isspace(line[1]))) {
+        // Find matching closing brace
+        const char *p = line + 1;
+        while (*p && isspace(*p)) p++;
+
+        // Find the closing } (might have & after it)
+        const char *end = line + strlen(line) - 1;
+        while (end > p && isspace(*end)) end--;
+
+        // Check for background operator
+        bool background = false;
+        if (*end == '&') {
+            background = true;
+            end--;
+            while (end > p && isspace(*end)) end--;
+        }
+
+        if (*end == '}') {
+            // Extract the brace group content
+            size_t len = end - p;
+            char *group_cmd = malloc(len + 1);
+            if (!group_cmd) return -1;
+            memcpy(group_cmd, p, len);
+            group_cmd[len] = '\0';
+
+            if (background) {
+                // Flush stdout/stderr before forking to prevent child from
+                // inheriting buffered content that it would then flush on exit
+                fflush(stdout);
+                fflush(stderr);
+
+                // Fork to run in background
+                pid_t pid = fork();
+                if (pid < 0) {
+                    perror(HASH_NAME);
+                    free(group_cmd);
+                    return 1;
+                }
+                if (pid == 0) {
+                    // Child process - close stdin to avoid interference with parent
+                    close(STDIN_FILENO);
+                    script_execute_string(group_cmd);
+                    free(group_cmd);
+                    fflush(stdout);
+                    fflush(stderr);
+                    _exit(last_command_exit_code);
+                }
+                // Parent - add to job table but don't print in non-interactive
+                free(group_cmd);
+                int job_id = jobs_add(pid, line);
+                if (job_id > 0 && isatty(STDIN_FILENO)) {
+                    printf("[%d] %d\n", job_id, pid);
+                }
+                last_command_exit_code = 0;
+                return 1;
+            } else {
+                // Execute the commands in the current shell (not a subshell)
+                int result = script_execute_string(group_cmd);
+                free(group_cmd);
+                return result == 0 ? 1 : result;
+            }
+        }
+    }
 
     char *line_copy = strdup(line);
     if (!line_copy) return -1;
