@@ -56,6 +56,7 @@ Pipeline *pipeline_parse(char *line) {
     char *cmd_start = line;
     int in_single_quote = 0;
     int in_double_quote = 0;
+    int paren_depth = 0;  // Track $() and $(()) depth
     int escaped = 0;
 
     while (*current) {
@@ -79,8 +80,21 @@ Pipeline *pipeline_parse(char *line) {
             in_double_quote = !in_double_quote;
         }
 
-        // Look for pipe outside quotes
-        if (!in_single_quote && !in_double_quote && *current == '|') {
+        // Track $() and $(()) depth when not in single quotes
+        if (!in_single_quote) {
+            if (*current == '$' && *(current + 1) == '(') {
+                paren_depth++;
+                current += 2;  // Skip past $(
+                continue;
+            } else if (*current == '(' && paren_depth > 0) {
+                paren_depth++;
+            } else if (*current == ')' && paren_depth > 0) {
+                paren_depth--;
+            }
+        }
+
+        // Look for pipe outside quotes and command substitution
+        if (!in_single_quote && !in_double_quote && paren_depth == 0 && *current == '|') {
             // Check if it's || (OR operator) - skip both characters
             if (*(current + 1) == '|') {
                 current += 2;  // Skip both | characters

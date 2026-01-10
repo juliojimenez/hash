@@ -230,21 +230,19 @@ void test_expand_positional_undefined(void) {
     free(result);
 }
 
-// Test $0 returns script name / shell name
+// Test $0 returns script name when set (POSIX behavior)
 void test_expand_positional_0_with_params(void) {
     script_state.positional_params = malloc(2 * sizeof(char*));
     script_state.positional_params[0] = strdup("myscript.sh");
     script_state.positional_params[1] = strdup("arg1");
     script_state.positional_count = 2;
 
-    // $0 without positional params returns shell name
     // With positional params, $0 should be script_state.positional_params[0]
     char *result = varexpand_expand("$0", 0);
 
     TEST_ASSERT_NOT_NULL(result);
-    // Note: $0 currently always returns HASH_NAME, not the script name
-    // This test documents current behavior
-    TEST_ASSERT_EQUAL_STRING("hash", result);
+    // POSIX: $0 returns the script name when set
+    TEST_ASSERT_EQUAL_STRING("myscript.sh", result);
 
     free(result);
 }

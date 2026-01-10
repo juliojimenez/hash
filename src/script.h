@@ -88,6 +88,12 @@ typedef struct {
     int loop_index;         // Current index in loop
     int loop_count;         // Total number of values
     long loop_body_start;   // File position of loop body start
+    char *loop_body;        // Buffered loop body for replay
+    size_t loop_body_len;   // Current length of loop body
+    size_t loop_body_cap;   // Capacity of loop body buffer
+    bool collecting_body;   // Are we currently collecting loop body?
+    int body_nesting_depth; // Nesting depth of nested loops during collection
+    char *loop_condition;   // Condition for while/until loops
 
     // For case
     char *case_word;        // Word being matched in case statement
@@ -139,6 +145,9 @@ typedef struct {
 
     // Function call tracking for lexical scoping
     int function_call_depth; // Current depth of function calls (0 = not in function)
+
+    // Exit tracking
+    bool exit_requested;     // True if exit was explicitly called
 } ScriptState;
 
 extern ScriptState script_state;
@@ -333,5 +342,13 @@ typedef enum {
  * Classify a line to determine how to handle it
  */
 LineType script_classify_line(const char *line);
+
+/**
+ * Get a positional parameter value
+ *
+ * @param index Parameter index (0 for $0, 1 for $1, etc.)
+ * @return Parameter value or NULL if not set
+ */
+const char *script_get_positional_param(int index);
 
 #endif // SCRIPT_H

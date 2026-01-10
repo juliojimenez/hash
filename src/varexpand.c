@@ -57,8 +57,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_value = var_name;
                 p++;
             } else if (*p == '0') {
-                // $0 - shell name
-                var_value = HASH_NAME;
+                // $0 - script name or shell name
+                const char *param0 = get_positional_param(0);
+                var_value = param0 ? param0 : HASH_NAME;
                 p++;
             } else if (*p == '{') {
                 // ${VAR} syntax

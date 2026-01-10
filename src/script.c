@@ -60,6 +60,7 @@ void script_init(void) {
     script_state.positional_params = NULL;
     script_state.positional_count = 0;
     script_state.function_call_depth = 0;
+    script_state.exit_requested = false;
 }
 
 void script_cleanup(void) {
@@ -78,6 +79,8 @@ void script_cleanup(void) {
             }
             free(ctx->loop_values);
         }
+        free(ctx->loop_body);
+        free(ctx->loop_condition);
         free(ctx->case_word);
         free(ctx->func_name);
         free(ctx->func_body);
@@ -92,6 +95,134 @@ void script_cleanup(void) {
     }
 
     script_init();  // Reset to clean state
+}
+
+// ============================================================================
+// Line Splitting (handle semicolons in compound commands)
+// ============================================================================
+
+// Split a line by semicolons, respecting quotes, parens, and braces
+// Returns array of strings (must be freed by caller), NULL-terminated
+// Used to handle single-line compound commands like: while cond; do body; done
+static char **split_by_semicolons(const char *line, int *count) {
+    if (!line || !count) return NULL;
+
+    *count = 0;
+
+    // First pass: count semicolons (outside quotes, parens, and braces)
+    int num_parts = 1;
+    bool in_single = false;
+    bool in_double = false;
+    int paren_depth = 0;
+    int brace_depth = 0;
+
+    for (const char *p = line; *p; p++) {
+        if (*p == '\\' && p[1]) {
+            p++;  // Skip escaped char
+            continue;
+        }
+        if (*p == '\'' && !in_double) {
+            in_single = !in_single;
+        } else if (*p == '"' && !in_single) {
+            in_double = !in_double;
+        } else if (!in_single && !in_double) {
+            if (*p == '(' || (*p == '$' && p[1] == '(')) {
+                paren_depth++;
+                if (*p == '$') p++;  // Skip past $(
+            } else if (*p == ')' && paren_depth > 0) {
+                paren_depth--;
+            } else if (*p == '{') {
+                brace_depth++;
+            } else if (*p == '}' && brace_depth > 0) {
+                brace_depth--;
+            } else if (*p == ';' && paren_depth == 0 && brace_depth == 0) {
+                num_parts++;
+            }
+        }
+    }
+
+    // Allocate array
+    char **parts = malloc((num_parts + 1) * sizeof(char *));
+    if (!parts) return NULL;
+
+    // Second pass: extract parts
+    const char *start = line;
+    int part_idx = 0;
+    in_single = false;
+    in_double = false;
+    paren_depth = 0;
+    brace_depth = 0;
+
+    for (const char *p = line; ; p++) {
+        if (*p == '\\' && p[1]) {
+            p++;  // Skip escaped char
+            continue;
+        }
+
+        bool at_end = (*p == '\0');
+        bool at_semi = false;
+
+        if (!at_end) {
+            if (*p == '\'' && !in_double) {
+                in_single = !in_single;
+            } else if (*p == '"' && !in_single) {
+                in_double = !in_double;
+            } else if (!in_single && !in_double) {
+                if (*p == '(' || (*p == '$' && p[1] == '(')) {
+                    paren_depth++;
+                    if (*p == '$') p++;
+                } else if (*p == ')' && paren_depth > 0) {
+                    paren_depth--;
+                } else if (*p == '{') {
+                    brace_depth++;
+                } else if (*p == '}' && brace_depth > 0) {
+                    brace_depth--;
+                } else if (*p == ';' && paren_depth == 0 && brace_depth == 0) {
+                    at_semi = true;
+                }
+            }
+        }
+
+        if (at_end || at_semi) {
+            size_t len = p - start;
+            // Trim leading whitespace
+            while (len > 0 && isspace(*start)) {
+                start++;
+                len--;
+            }
+            // Trim trailing whitespace
+            while (len > 0 && isspace(start[len-1])) {
+                len--;
+            }
+
+            if (len > 0) {
+                parts[part_idx] = strndup(start, len);
+                if (!parts[part_idx]) {
+                    // Cleanup on error
+                    for (int i = 0; i < part_idx; i++) free(parts[i]);
+                    free(parts);
+                    return NULL;
+                }
+                part_idx++;
+            }
+
+            if (at_end) break;
+            start = p + 1;
+        }
+    }
+
+    parts[part_idx] = NULL;
+    *count = part_idx;
+    return parts;
+}
+
+// Free array from split_by_semicolons
+static void free_split_parts(char **parts, int count) {
+    if (!parts) return;
+    for (int i = 0; i < count; i++) {
+        free(parts[i]);
+    }
+    free(parts);
 }
 
 // ============================================================================
@@ -200,6 +331,14 @@ int script_pop_context(void) {
         free(ctx->loop_values);
         ctx->loop_values = NULL;
     }
+
+    free(ctx->loop_body);
+    ctx->loop_body = NULL;
+    ctx->loop_body_len = 0;
+    ctx->loop_body_cap = 0;
+
+    free(ctx->loop_condition);
+    ctx->loop_condition = NULL;
 
     free(ctx->case_word);
     ctx->case_word = NULL;
@@ -378,22 +517,35 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
 
     char **old_params = script_state.positional_params;
     int old_count = script_state.positional_count;
+    bool old_exit_requested = script_state.exit_requested;
 
     script_state.positional_params = argv;
     script_state.positional_count = argc;
+    script_state.exit_requested = false;  // Reset for this function
 
     // Increment function call depth for lexical scoping of break/continue
     script_state.function_call_depth++;
 
-    int result = script_execute_string(func->body);
+    (void)script_execute_string(func->body);  // Result handled via last_command_exit_code
 
     // Decrement function call depth
     script_state.function_call_depth--;
 
+    // Check if exit was called inside the function
+    bool exit_called = script_state.exit_requested;
+
     script_state.positional_params = old_params;
     script_state.positional_count = old_count;
 
-    return result;
+    // If exit was called inside function, propagate it
+    if (exit_called) {
+        script_state.exit_requested = true;
+        return 0;  // Stop execution
+    }
+
+    // Restore old exit_requested state (in case we're in nested functions)
+    script_state.exit_requested = old_exit_requested;
+    return 1;  // Continue execution
 }
 
 // ============================================================================
@@ -638,6 +790,36 @@ static int append_to_func_body(ScriptContext *ctx, const char *line) {
     memcpy(ctx->func_body + ctx->func_body_len, line, line_len);
     ctx->func_body_len += line_len;
     ctx->func_body[ctx->func_body_len] = '\0';
+
+    return 0;
+}
+
+// Append a line to the loop body buffer
+static int append_to_loop_body(ScriptContext *ctx, const char *line) {
+    size_t line_len = strlen(line);
+    size_t needed = ctx->loop_body_len + line_len + 2; // +1 for newline, +1 for null
+
+    if (needed > ctx->loop_body_cap) {
+        size_t new_cap = ctx->loop_body_cap ? ctx->loop_body_cap * 2 : 1024;
+        if (new_cap < needed) new_cap = needed;
+        if (new_cap > MAX_FUNC_BODY) new_cap = MAX_FUNC_BODY;  // Use same limit
+        if (needed > MAX_FUNC_BODY) {
+            fprintf(stderr, "%s: loop body too large\n", HASH_NAME);
+            return -1;
+        }
+
+        char *new_body = realloc(ctx->loop_body, new_cap);
+        if (!new_body) return -1;
+        ctx->loop_body = new_body;
+        ctx->loop_body_cap = new_cap;
+    }
+
+    if (ctx->loop_body_len > 0) {
+        ctx->loop_body[ctx->loop_body_len++] = '\n';
+    }
+    memcpy(ctx->loop_body + ctx->loop_body_len, line, line_len);
+    ctx->loop_body_len += line_len;
+    ctx->loop_body[ctx->loop_body_len] = '\0';
 
     return 0;
 }
@@ -911,9 +1093,10 @@ static int process_while(const char *line) {
     if (parent_executing) {
         char *condition = extract_condition(line, "while");
         if (condition) {
-            bool result = script_eval_condition(condition);
-            ctx->should_execute = result;
-            free(condition);
+            // Store the condition for re-evaluation
+            ctx->loop_condition = condition;
+            // Don't evaluate yet - we'll evaluate in process_done
+            ctx->should_execute = true;  // Allow body collection
         } else {
             ctx->should_execute = false;
         }
@@ -936,9 +1119,10 @@ static int process_until(const char *line) {
     if (parent_executing) {
         char *condition = extract_condition(line, "until");
         if (condition) {
-            bool result = script_eval_condition(condition);
-            ctx->should_execute = !result;
-            free(condition);
+            // Store the condition for re-evaluation
+            ctx->loop_condition = condition;
+            // Don't evaluate yet - we'll evaluate in process_done
+            ctx->should_execute = true;  // Allow body collection
         } else {
             ctx->should_execute = false;
         }
@@ -950,13 +1134,21 @@ static int process_until(const char *line) {
 }
 
 static int process_do(const char *line) {
+    ScriptContext *ctx = get_current_context();
     ContextType ctx_type = script_current_context();
-    if (ctx_type != CTX_FOR && ctx_type != CTX_WHILE && ctx_type != CTX_UNTIL) {
+    if (!ctx || (ctx_type != CTX_FOR && ctx_type != CTX_WHILE && ctx_type != CTX_UNTIL)) {
         if (!script_state.silent_errors) {
             fprintf(stderr, "%s: syntax error: unexpected 'do'\n", HASH_NAME);
         }
         return -1;
     }
+
+    // Start collecting the loop body
+    ctx->collecting_body = true;
+    ctx->body_nesting_depth = 0;  // Track nested loops during collection
+    ctx->loop_body = NULL;
+    ctx->loop_body_len = 0;
+    ctx->loop_body_cap = 0;
 
     // Check if there's a command after 'do'
     const char *p = line;
@@ -965,13 +1157,37 @@ static int process_do(const char *line) {
         p += 2;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
-            // There's a command after 'do', execute it
-            if (script_should_execute()) {
-                return execute_simple_line(p);
-            }
+            // There's a command after 'do', add it to the body
+            append_to_loop_body(ctx, p);
         }
     }
     return 1;  // Continue processing
+}
+
+// Execute a buffered loop body (multi-line string)
+static int execute_loop_body(const char *body) {
+    if (!body || *body == '\0') return 1;
+
+    char *body_copy = strdup(body);
+    if (!body_copy) return -1;
+
+    char *saveptr;
+    char *line = strtok_r(body_copy, "\n", &saveptr);
+    int result = 1;
+
+    while (line && result > 0) {
+        // Skip empty lines
+        const char *p = line;
+        while (*p && isspace(*p)) p++;
+        if (*p && *p != '#') {
+            // Use script_process_line to handle nested control structures
+            result = script_process_line(line);
+        }
+        line = strtok_r(NULL, "\n", &saveptr);
+    }
+
+    free(body_copy);
+    return result;
 }
 
 static int process_done(const char *line) {
@@ -987,14 +1203,82 @@ static int process_done(const char *line) {
         return -1;
     }
 
+    // Stop collecting the loop body
+    ctx->collecting_body = false;
+
+    // Check if parent context allows execution
+    bool parent_executing = (script_state.context_depth <= 1) ||
+        script_state.context_stack[script_state.context_depth - 2].should_execute;
+
+    if (!parent_executing) {
+        return script_pop_context();
+    }
+
+    // POSIX: Exit status of loop is exit status of last body command, or 0 if none executed
+    extern int last_command_exit_code;
+    int body_exit_code = 0;  // Default if body never executes
+    bool body_executed = false;
+
     if (ctx_type == CTX_FOR) {
-        ctx->loop_index++;
-        if (ctx->loop_index < ctx->loop_count) {
+        // Execute the loop body for each value
+        while (ctx->loop_index < ctx->loop_count) {
             if (ctx->loop_var && ctx->loop_values) {
                 setenv(ctx->loop_var, ctx->loop_values[ctx->loop_index], 1);
             }
-            return 1;  // Continue loop
+            ctx->should_execute = true;
+            int result = execute_loop_body(ctx->loop_body);
+            body_executed = true;
+            body_exit_code = last_command_exit_code;
+            if (result == 0) {
+                // Exit was called
+                return script_pop_context();
+            }
+            if (result < 0) {
+                // Error or break
+                break;
+            }
+            ctx->loop_index++;
         }
+    } else if (ctx_type == CTX_WHILE) {
+        // Execute while condition is true
+        while (ctx->loop_condition && script_eval_condition(ctx->loop_condition)) {
+            ctx->should_execute = true;
+            int result = execute_loop_body(ctx->loop_body);
+            body_executed = true;
+            body_exit_code = last_command_exit_code;
+            if (result == 0) {
+                // Exit was called
+                return script_pop_context();
+            }
+            if (result < 0) {
+                // Error or break
+                break;
+            }
+        }
+    } else if (ctx_type == CTX_UNTIL) {
+        // Execute until condition is true (while condition is false)
+        while (ctx->loop_condition && !script_eval_condition(ctx->loop_condition)) {
+            ctx->should_execute = true;
+            int result = execute_loop_body(ctx->loop_body);
+            body_executed = true;
+            body_exit_code = last_command_exit_code;
+            if (result == 0) {
+                // Exit was called
+                return script_pop_context();
+            }
+            if (result < 0) {
+                // Error or break
+                break;
+            }
+        }
+    }
+
+    // Restore exit code to last body execution (or 0 if body never executed)
+    // This ensures condition check doesn't override the loop's exit status
+    if (body_executed) {
+        last_command_exit_code = body_exit_code;
+    } else {
+        last_command_exit_code = 0;
     }
 
     return script_pop_context();
@@ -1004,7 +1288,47 @@ static int process_done(const char *line) {
 // Script Line Processing
 // ============================================================================
 
+// Internal function that processes a single logical line (no semicolons)
+static int process_single_line(const char *line);
+
 int script_process_line(const char *line) {
+    if (!line) return 0;
+
+    // Check if we're inside a function body or loop body being collected
+    // If so, don't split - buffer the full line
+    ScriptContext *ctx = get_current_context();
+    bool collecting = false;
+    if (ctx) {
+        if (ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
+            collecting = true;
+        } else if (ctx->collecting_body &&
+                   (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL)) {
+            collecting = true;
+        }
+    }
+
+    // If not collecting and line contains semicolons, split and process each part
+    if (!collecting && strchr(line, ';')) {
+        int count;
+        char **parts = split_by_semicolons(line, &count);
+        if (parts && count > 1) {
+            int result = 1;
+            for (int i = 0; i < count && result > 0; i++) {
+                result = process_single_line(parts[i]);
+            }
+            free_split_parts(parts, count);
+            return result;
+        }
+        if (parts) {
+            free_split_parts(parts, count);
+        }
+        // Fall through to process as single line if splitting failed or only 1 part
+    }
+
+    return process_single_line(line);
+}
+
+static int process_single_line(const char *line) {
     if (!line) return 0;
 
     script_state.script_line++;
@@ -1012,10 +1336,13 @@ int script_process_line(const char *line) {
     LineType ltype = script_classify_line(line);
 
     if (ltype == LINE_EMPTY) {
-        // Even empty lines need to be counted for function body
+        // Even empty lines need to be counted for function/loop bodies
         ScriptContext *ctx = get_current_context();
         if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
             append_to_func_body(ctx, "");
+        } else if (ctx && ctx->collecting_body &&
+                   (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL)) {
+            append_to_loop_body(ctx, "");
         }
         return 1;  // Continue processing
     }
@@ -1040,6 +1367,31 @@ int script_process_line(const char *line) {
         }
 
         append_to_func_body(ctx, line);
+        return 1;  // Continue processing
+    }
+
+    // If we're collecting a loop body, buffer lines until 'done'
+    if (ctx && ctx->collecting_body &&
+        (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL)) {
+        // Track nested loops - increment depth for for/while/until
+        if (ltype == LINE_FOR_START || ltype == LINE_WHILE_START || ltype == LINE_UNTIL_START) {
+            ctx->body_nesting_depth++;
+            append_to_loop_body(ctx, line);
+            return 1;
+        }
+        // Check for 'done' - only end collection when nesting depth is 0
+        if (ltype == LINE_DONE) {
+            if (ctx->body_nesting_depth > 0) {
+                // This 'done' is for a nested loop, just append it
+                ctx->body_nesting_depth--;
+                append_to_loop_body(ctx, line);
+                return 1;
+            }
+            // This 'done' is for our loop - process it
+            return process_done(line);
+        }
+        // Buffer the line for later execution
+        append_to_loop_body(ctx, line);
         return 1;  // Continue processing
     }
 
@@ -1125,6 +1477,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     }
 
     char line[MAX_SCRIPT_LINE];
+    memset(line, 0, sizeof(line));  // Clear buffer to prevent corruption
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
 
     // Skip shebang line if present
@@ -1142,7 +1495,10 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     }
 
     // Process remaining lines (stop if result == 0 means exit was called)
-    while (fgets(line, sizeof(line), fp) && result > 0) {
+    while (result > 0) {
+        memset(line, 0, sizeof(line));  // Clear buffer before each read
+        if (!fgets(line, sizeof(line), fp)) break;
+
         // Remove trailing newline
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
@@ -1198,5 +1554,14 @@ int script_execute_string(const char *script) {
     script_state.in_script = old_in_script;
     free(script_copy);
 
+    // Return exit code for compatibility with main.c and cmdsub.c
     return result < 0 ? 1 : execute_get_last_exit_code();
+}
+
+// Get a positional parameter value
+const char *script_get_positional_param(int index) {
+    if (index < 0 || index >= script_state.positional_count) {
+        return NULL;
+    }
+    return script_state.positional_params ? script_state.positional_params[index] : NULL;
 }

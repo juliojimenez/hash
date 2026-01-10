@@ -328,7 +328,11 @@ int main(int argc, char *argv[]) {
         script_state.in_script = true;
 
         int result = 1;
-        while (fgets(line, sizeof(line), stdin)) {
+        while (1) {
+            // Clear buffer before each read to prevent corruption
+            // when lines don't end with newline
+            memset(line, 0, sizeof(line));
+            if (!fgets(line, sizeof(line), stdin)) break;
             // Remove trailing newline
             size_t len = strlen(line);
             if (len > 0 && line[len - 1] == '\n') {

@@ -191,6 +191,7 @@ int shell_exit(char **args) {
             exit_attempted = 0;
             fprintf(stdout, "Bye :)\n");
             last_command_exit_code = exit_code;
+            script_state.exit_requested = true;
             return 0;
         }
         exit_attempted = 1;
@@ -203,6 +204,7 @@ int shell_exit(char **args) {
         fprintf(stdout, "Bye :)\n");
     }
     last_command_exit_code = exit_code;
+    script_state.exit_requested = true;  // Mark that exit was explicitly called
     return 0;
 }
 

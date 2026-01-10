@@ -5,9 +5,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <stdbool.h>
 #include "arith.h"
 #include "safe_string.h"
 #include "cmdsub.h"
+
+// Forward declaration to access positional parameters
+// (We can't include script.h due to TokenType name collision)
+const char *script_get_positional_param(int index);
 
 #define MAX_ARITH_LENGTH 8192
 
@@ -89,8 +94,37 @@ static void skip_whitespace(Parser *p) {
     }
 }
 
-// Get variable value from environment
+// Get variable value from environment or positional parameters
 static long get_variable(const char *name) {
+    // Check for positional parameters first ($1, $2, etc.)
+    // Single digit positional params
+    if (name[0] >= '0' && name[0] <= '9' && name[1] == '\0') {
+        int idx = name[0] - '0';
+        const char *val = script_get_positional_param(idx);
+        if (val) {
+            return strtol(val, NULL, 10);
+        }
+        return 0;
+    }
+
+    // Also check for multi-digit positional params like ${10}
+    bool all_digits = true;
+    for (const char *p = name; *p; p++) {
+        if (*p < '0' || *p > '9') {
+            all_digits = false;
+            break;
+        }
+    }
+    if (all_digits && name[0] != '\0') {
+        int idx = (int)strtol(name, NULL, 10);
+        const char *val = script_get_positional_param(idx);
+        if (val) {
+            return strtol(val, NULL, 10);
+        }
+        return 0;
+    }
+
+    // Regular environment variable
     const char *val = getenv(name);
     if (!val) return 0;
     return strtol(val, NULL, 10);
