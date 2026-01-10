@@ -15,9 +15,18 @@
 #include "colors.h"
 #include "test_builtin.h"
 #include "jobs.h"
+#include "redirect.h"
 
 // Global script state
 ScriptState script_state;
+
+// Heredoc state for collecting heredoc content
+static char *heredoc_content = NULL;
+static size_t heredoc_content_len = 0;
+static size_t heredoc_content_cap = 0;
+
+// Pending heredoc content for the next command
+static char *pending_heredoc = NULL;
 
 // ============================================================================
 // Keywords Table
@@ -96,6 +105,99 @@ void script_cleanup(void) {
     }
 
     script_init();  // Reset to clean state
+}
+
+// ============================================================================
+// Heredoc Support
+// ============================================================================
+
+// Reset heredoc state
+static void heredoc_reset(void) {
+    free(heredoc_content);
+    heredoc_content = NULL;
+    heredoc_content_len = 0;
+    heredoc_content_cap = 0;
+}
+
+// Append line to heredoc content
+static int heredoc_append(const char *line, int strip_tabs) {
+    size_t line_len = strlen(line);
+    const char *start = line;
+
+    // Strip leading tabs if <<- was used
+    if (strip_tabs) {
+        while (*start == '\t') start++;
+        line_len = strlen(start);
+    }
+
+    size_t needed = heredoc_content_len + line_len + 2; // +1 for newline, +1 for null
+
+    if (needed > heredoc_content_cap) {
+        size_t new_cap = heredoc_content_cap ? heredoc_content_cap * 2 : 1024;
+        if (new_cap < needed) new_cap = needed;
+
+        char *new_content = realloc(heredoc_content, new_cap);
+        if (!new_content) return -1;
+        heredoc_content = new_content;
+        heredoc_content_cap = new_cap;
+    }
+
+    memcpy(heredoc_content + heredoc_content_len, start, line_len);
+    heredoc_content_len += line_len;
+    heredoc_content[heredoc_content_len++] = '\n';
+    heredoc_content[heredoc_content_len] = '\0';
+
+    return 0;
+}
+
+// Collect heredoc content from file until delimiter is found
+// Returns the collected content (caller must free), or NULL on error
+static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs) {
+    heredoc_reset();
+
+    char line[MAX_SCRIPT_LINE];
+
+    while (fgets(line, sizeof(line), fp)) {
+        // Remove trailing newline
+        size_t len = strlen(line);
+        if (len > 0 && line[len-1] == '\n') {
+            line[len-1] = '\0';
+            len--;
+        }
+
+        // Check for delimiter
+        const char *check = line;
+        if (strip_tabs) {
+            while (*check == '\t') check++;
+        }
+
+        if (strcmp(check, delimiter) == 0) {
+            // Found delimiter - return collected content
+            char *result = heredoc_content;
+            heredoc_content = NULL;
+            heredoc_content_len = 0;
+            heredoc_content_cap = 0;
+            return result;
+        }
+
+        // Add line to heredoc content
+        if (heredoc_append(line, strip_tabs) < 0) {
+            heredoc_reset();
+            return NULL;
+        }
+    }
+
+    // EOF without delimiter - return what we have (POSIX allows this with warning)
+    if (!script_state.silent_errors) {
+        fprintf(stderr, "%s: warning: here-document delimited by end-of-file (wanted '%s')\n",
+                HASH_NAME, delimiter);
+    }
+
+    char *result = heredoc_content;
+    heredoc_content = NULL;
+    heredoc_content_len = 0;
+    heredoc_content_cap = 0;
+    return result;
 }
 
 // ============================================================================
@@ -694,8 +796,9 @@ static int execute_simple_line(const char *line) {
                     fflush(stderr);
                     _exit(last_command_exit_code);
                 }
-                // Parent - add to job table but don't print in non-interactive
+                // Parent - set last background PID and add to job table
                 free(group_cmd);
+                jobs_set_last_bg_pid(pid);
                 int job_id = jobs_add(pid, line);
                 if (job_id > 0 && isatty(STDIN_FILENO)) {
                     printf("[%d] %d\n", job_id, pid);
@@ -1614,8 +1717,21 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         }
         if (line[0] != '#' || line[1] != '!') {
             // Not a shebang, process this line
+            // Check for heredoc and collect content if present
+            if (redirect_has_heredoc(line)) {
+                int strip_tabs = 0;
+                char *delim = redirect_get_heredoc_delim(line, &strip_tabs);
+                if (delim) {
+                    free(pending_heredoc);
+                    pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                    free(delim);
+                }
+            }
             script_state.script_line = 0;  // Will be incremented by process_line
             result = script_process_line(line);
+            // Clear pending heredoc after processing
+            free(pending_heredoc);
+            pending_heredoc = NULL;
         }
     }
 
@@ -1630,7 +1746,22 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             line[len-1] = '\0';
         }
 
+        // Check for heredoc and collect content if present
+        if (redirect_has_heredoc(line)) {
+            int strip_tabs = 0;
+            char *delim = redirect_get_heredoc_delim(line, &strip_tabs);
+            if (delim) {
+                free(pending_heredoc);
+                pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                free(delim);
+            }
+        }
+
         result = script_process_line(line);
+
+        // Clear pending heredoc after processing
+        free(pending_heredoc);
+        pending_heredoc = NULL;
     }
 
     fclose(fp);
@@ -1686,4 +1817,9 @@ const char *script_get_positional_param(int index) {
         return NULL;
     }
     return script_state.positional_params ? script_state.positional_params[index] : NULL;
+}
+
+// Get the pending heredoc content (for heredoc execution)
+const char *script_get_pending_heredoc(void) {
+    return pending_heredoc;
 }

@@ -351,4 +351,12 @@ LineType script_classify_line(const char *line);
  */
 const char *script_get_positional_param(int index);
 
+/**
+ * Get the pending heredoc content
+ * Used during command execution to pass heredoc content to stdin
+ *
+ * @return Heredoc content string, or NULL if none pending
+ */
+const char *script_get_pending_heredoc(void);
+
 #endif // SCRIPT_H

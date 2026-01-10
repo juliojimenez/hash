@@ -35,6 +35,12 @@ static int launch(char **args, const char *cmd_string) {
     // Parse redirections
     RedirInfo *redir = redirect_parse(args);
 
+    // Set heredoc content if pending
+    const char *heredoc = script_get_pending_heredoc();
+    if (heredoc && redir) {
+        redirect_set_heredoc_content(redir, heredoc);
+    }
+
     // Use cleaned args (or original if no redirections)
     char **exec_args = redir ? redir->args : args;
 
@@ -346,6 +352,13 @@ int execute(char **args) {
 
     // Check for redirections
     RedirInfo *redir = redirect_parse(args);
+
+    // Set heredoc content if pending
+    const char *heredoc = script_get_pending_heredoc();
+    if (heredoc && redir) {
+        redirect_set_heredoc_content(redir, heredoc);
+    }
+
     char **exec_args = redir ? redir->args : args;
 
     // Check if this is a builtin first (without executing it)

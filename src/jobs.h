@@ -126,4 +126,20 @@ int jobs_background(int job_id);
  */
 void jobs_sigchld_handler(int sig);
 
+/**
+ * Get the PID of the most recently started background job
+ * Used for $! expansion
+ *
+ * @return PID of last background job, or 0 if none
+ */
+pid_t jobs_get_last_bg_pid(void);
+
+/**
+ * Set the PID of the most recently started background job
+ * Called when a background job is started
+ *
+ * @param pid PID of the background job
+ */
+void jobs_set_last_bg_pid(pid_t pid);
+
 #endif // JOBS_H

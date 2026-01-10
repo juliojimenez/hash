@@ -34,6 +34,8 @@ static int add_redirection(RedirInfo *info, RedirType type, const char *filename
     if (!info || info->count >= MAX_REDIRECTS) return -1;
 
     info->redirs[info->count].type = type;
+    info->redirs[info->count].heredoc_delim = NULL;
+    info->redirs[info->count].heredoc_content = NULL;
 
     if (filename) {
         info->redirs[info->count].filename = strdup(filename);
@@ -42,6 +44,27 @@ static int add_redirection(RedirInfo *info, RedirType type, const char *filename
         }
     } else {
         info->redirs[info->count].filename = NULL;
+    }
+
+    info->count++;
+    return 0;
+}
+
+// Add a heredoc redirection
+static int add_heredoc(RedirInfo *info, RedirType type, const char *delimiter) {
+    if (!info || info->count >= MAX_REDIRECTS) return -1;
+
+    info->redirs[info->count].type = type;
+    info->redirs[info->count].filename = NULL;
+    info->redirs[info->count].heredoc_content = NULL;
+
+    if (delimiter) {
+        info->redirs[info->count].heredoc_delim = strdup(delimiter);
+        if (!info->redirs[info->count].heredoc_delim) {
+            return -1;
+        }
+    } else {
+        info->redirs[info->count].heredoc_delim = NULL;
     }
 
     info->count++;
@@ -90,6 +113,24 @@ RedirInfo *redirect_parse(char **args) {
                 add_redirection(info, REDIR_APPEND, args[i + 1]);
                 i++;
             }
+        } else if (strcmp(arg, "<<-") == 0) {
+            // Heredoc with tab stripping
+            if (args[i + 1]) {
+                add_heredoc(info, REDIR_HEREDOC_NOTAB, args[i + 1]);
+                i++;
+            }
+        } else if (strcmp(arg, "<<") == 0) {
+            // Heredoc
+            if (args[i + 1]) {
+                add_heredoc(info, REDIR_HEREDOC, args[i + 1]);
+                i++;
+            }
+        } else if (strncmp(arg, "<<-", 3) == 0 && arg[3] != '\0') {
+            // <<-DELIM attached
+            add_heredoc(info, REDIR_HEREDOC_NOTAB, arg + 3);
+        } else if (strncmp(arg, "<<", 2) == 0 && arg[2] != '\0' && arg[2] != '-') {
+            // <<DELIM attached
+            add_heredoc(info, REDIR_HEREDOC, arg + 2);
         } else if (strcmp(arg, "2>") == 0) {
             // Error redirection
             if (args[i + 1]) {
@@ -318,6 +359,31 @@ int redirect_apply(const RedirInfo *info) {
                 break;
             }
 
+            case REDIR_HEREDOC:
+            case REDIR_HEREDOC_NOTAB: {
+                // << DELIMITER or <<- DELIMITER
+                if (redir->heredoc_content) {
+                    int pipefd[2];
+                    if (pipe(pipefd) == -1) {
+                        perror(HASH_NAME);
+                        return -1;
+                    }
+
+                    // Write heredoc content to pipe
+                    const char *content = redir->heredoc_content;
+                    size_t len = strlen(content);
+                    ssize_t written = write(pipefd[1], content, len);
+                    (void)written;  // Ignore write result for simplicity
+
+                    close(pipefd[1]);  // Close write end
+
+                    // Replace stdin with read end of pipe
+                    dup2(pipefd[0], STDIN_FILENO);
+                    close(pipefd[0]);
+                }
+                break;
+            }
+
             case REDIR_NONE:
             default:
                 break;
@@ -334,6 +400,8 @@ void redirect_free(RedirInfo *info) {
     if (info->redirs) {
         for (int i = 0; i < info->count; i++) {
             free(info->redirs[i].filename);
+            free(info->redirs[i].heredoc_delim);
+            free(info->redirs[i].heredoc_content);
         }
         free(info->redirs);
     }
@@ -341,4 +409,89 @@ void redirect_free(RedirInfo *info) {
     // Don't free info->args - those are pointers into original args array
     free(info->args);
     free(info);
+}
+
+// Check if a line contains a heredoc operator
+int redirect_has_heredoc(const char *line) {
+    if (!line) return 0;
+
+    const char *p = line;
+    int in_single_quote = 0;
+    int in_double_quote = 0;
+
+    while (*p) {
+        if (*p == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+        } else if (*p == '"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;
+        } else if (!in_single_quote && !in_double_quote) {
+            if (*p == '<' && *(p + 1) == '<') {
+                return 1;
+            }
+        }
+        p++;
+    }
+    return 0;
+}
+
+// Extract heredoc delimiter from a line
+char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
+    if (!line) return NULL;
+
+    *strip_tabs = 0;
+    const char *p = line;
+    int in_single_quote = 0;
+    int in_double_quote = 0;
+
+    while (*p) {
+        if (*p == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+        } else if (*p == '"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;
+        } else if (!in_single_quote && !in_double_quote) {
+            if (*p == '<' && *(p + 1) == '<') {
+                p += 2;  // Skip <<
+
+                // Check for <<-
+                if (*p == '-') {
+                    *strip_tabs = 1;
+                    p++;
+                }
+
+                // Skip whitespace
+                while (*p && isspace(*p)) p++;
+
+                // Extract delimiter
+                const char *start = p;
+                while (*p && !isspace(*p) && *p != '\n') p++;
+
+                if (start != p) {
+                    size_t len = p - start;
+                    char *delim = malloc(len + 1);
+                    if (delim) {
+                        memcpy(delim, start, len);
+                        delim[len] = '\0';
+                        return delim;
+                    }
+                }
+                return NULL;
+            }
+        }
+        p++;
+    }
+    return NULL;
+}
+
+// Set heredoc content for a redirection info
+void redirect_set_heredoc_content(RedirInfo *info, const char *content) {
+    if (!info || !content) return;
+
+    for (int i = 0; i < info->count; i++) {
+        if (info->redirs[i].type == REDIR_HEREDOC ||
+            info->redirs[i].type == REDIR_HEREDOC_NOTAB) {
+            free(info->redirs[i].heredoc_content);
+            info->redirs[i].heredoc_content = strdup(content);
+            return;
+        }
+    }
 }

@@ -289,6 +289,9 @@ static int execute_background(const char *cmd_line) {
     }
 
     // Parent process
+    // Set the last background PID for $! expansion
+    jobs_set_last_bg_pid(pid);
+
     // Add job to job table
     int job_id = jobs_add(pid, cmd_line);
 

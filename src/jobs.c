@@ -17,6 +17,7 @@
 static Job jobs[MAX_JOBS];
 static int next_job_id = 1;
 static int current_job = 0;  // Most recent job
+static pid_t last_bg_pid = 0;  // PID of most recent background job (for $!)
 
 // Initialize job control
 void jobs_init(void) {
@@ -400,4 +401,14 @@ void jobs_sigchld_handler(int sig) {
     }
 
     errno = saved_errno;
+}
+
+// Get last background PID (for $!)
+pid_t jobs_get_last_bg_pid(void) {
+    return last_bg_pid;
+}
+
+// Set last background PID
+void jobs_set_last_bg_pid(pid_t pid) {
+    last_bg_pid = pid;
 }

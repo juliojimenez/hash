@@ -7,6 +7,7 @@
 #include "safe_string.h"
 #include "hash.h"
 #include "script.h"
+#include "jobs.h"
 
 #define MAX_EXPANDED_LENGTH 8192
 
@@ -56,14 +57,87 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 snprintf(var_name, sizeof(var_name), "%d", getpid());
                 var_value = var_name;
                 p++;
+            } else if (*p == '!') {
+                // $! - PID of last background job
+                pid_t bg_pid = jobs_get_last_bg_pid();
+                if (bg_pid > 0) {
+                    snprintf(var_name, sizeof(var_name), "%d", bg_pid);
+                    var_value = var_name;
+                } else {
+                    var_value = "";
+                }
+                p++;
+            } else if (*p == '#') {
+                // $# - number of positional parameters (excluding $0)
+                int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
+                snprintf(var_name, sizeof(var_name), "%d", count);
+                var_value = var_name;
+                p++;
+            } else if (*p == '*') {
+                // $* - all positional parameters as single string
+                static char star_buf[MAX_EXPANDED_LENGTH];
+                star_buf[0] = '\0';
+                size_t pos = 0;
+                for (int i = 1; i < script_state.positional_count && pos < sizeof(star_buf) - 1; i++) {
+                    const char *param = get_positional_param(i);
+                    if (param) {
+                        if (i > 1 && pos < sizeof(star_buf) - 1) {
+                            star_buf[pos++] = ' ';
+                        }
+                        size_t plen = strlen(param);
+                        if (pos + plen < sizeof(star_buf)) {
+                            memcpy(star_buf + pos, param, plen);
+                            pos += plen;
+                        }
+                    }
+                }
+                star_buf[pos] = '\0';
+                var_value = star_buf;
+                p++;
+            } else if (*p == '@') {
+                // $@ - all positional parameters (same as $* in this context)
+                static char at_buf[MAX_EXPANDED_LENGTH];
+                at_buf[0] = '\0';
+                size_t pos = 0;
+                for (int i = 1; i < script_state.positional_count && pos < sizeof(at_buf) - 1; i++) {
+                    const char *param = get_positional_param(i);
+                    if (param) {
+                        if (i > 1 && pos < sizeof(at_buf) - 1) {
+                            at_buf[pos++] = ' ';
+                        }
+                        size_t plen = strlen(param);
+                        if (pos + plen < sizeof(at_buf)) {
+                            memcpy(at_buf + pos, param, plen);
+                            pos += plen;
+                        }
+                    }
+                }
+                at_buf[pos] = '\0';
+                var_value = at_buf;
+                p++;
             } else if (*p == '0') {
                 // $0 - script name or shell name
                 const char *param0 = get_positional_param(0);
                 var_value = param0 ? param0 : HASH_NAME;
                 p++;
             } else if (*p == '{') {
-                // ${VAR} or ${VAR-default} or ${VAR:-default} etc syntax
+                // ${VAR} or ${VAR-default} or ${VAR:-default} or ${#VAR} etc syntax
                 p++;  // Skip {
+
+                // Check for ${#VAR} - string length syntax
+                bool get_length = false;
+                if (*p == '#' && *(p + 1) == '}') {
+                    // ${#} - same as $#, number of positional parameters
+                    int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
+                    snprintf(var_name, sizeof(var_name), "%d", count);
+                    var_value = var_name;
+                    p += 2;  // Skip # and }
+                    goto append_value;
+                } else if (*p == '#') {
+                    // ${#var} - get length of variable
+                    get_length = true;
+                    p++;  // Skip #
+                }
 
                 // Parse variable name
                 size_t name_len = 0;
@@ -168,6 +242,13 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // No modifier, simple expansion
                             var_value = val;
                         }
+
+                        // Handle ${#var} - return length instead of value
+                        if (get_length) {
+                            size_t len = var_value ? strlen(var_value) : 0;
+                            snprintf(var_name, sizeof(var_name), "%zu", len);
+                            var_value = var_name;
+                        }
                     }
                 }
             } else if (isdigit(*p)) {
@@ -193,6 +274,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 }
             }
 
+append_value:
             // Append variable value if found
             if (var_value) {
                 size_t val_len = strlen(var_value);
