@@ -204,12 +204,12 @@ int pipeline_execute(const Pipeline *pipeline) {
 
             // Parse and execute command
             char *line_copy = strdup(pipeline->commands[i].cmd_line);
-            if (!line_copy) exit(EXIT_FAILURE);
+            if (!line_copy) _exit(EXIT_FAILURE);
 
             char **args = parse_line(line_copy);
             if (!args) {
                 free(line_copy);
-                exit(EXIT_FAILURE);
+                _exit(EXIT_FAILURE);
             }
 
             // Parse redirections
@@ -221,7 +221,7 @@ int pipeline_execute(const Pipeline *pipeline) {
                 redirect_free(redir);
                 free(args);
                 free(line_copy);
-                exit(EXIT_FAILURE);
+                _exit(EXIT_FAILURE);
             }
 
             // Execute (this will handle expansions, built-ins, etc.)
@@ -236,7 +236,7 @@ int pipeline_execute(const Pipeline *pipeline) {
             redirect_free(redir);
             free(args);
             free(line_copy);
-            exit(EXIT_SUCCESS);
+            _exit(EXIT_SUCCESS);
         }
     }
 

@@ -30,6 +30,8 @@ Julio Jimenez, julio@julioj.com
 #include "jobs.h"
 #include "script.h"
 #include "update.h"
+#include "shellvar.h"
+#include "trap.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
@@ -262,6 +264,12 @@ int main(int argc, char *argv[]) {
     // Initialize scripting subsystem (always needed)
     script_init();
 
+    // Initialize shell variables (readonly, export tracking)
+    shellvar_init();
+
+    // Initialize trap system
+    trap_init();
+
     // Initialize colors
     colors_init();
 
@@ -351,10 +359,13 @@ int main(int argc, char *argv[]) {
         // Check for unclosed control structures
         if (script_state.context_depth > 0) {
             fprintf(stderr, "%s: unexpected end of file\n", HASH_NAME);
+            trap_execute_exit();
             script_cleanup();
             return 1;
         }
 
+        // Execute EXIT trap before cleanup
+        trap_execute_exit();
         script_cleanup();
         return execute_get_last_exit_code();
     }
@@ -412,6 +423,9 @@ int main(int argc, char *argv[]) {
     if (is_login_shell_global) {
         config_load_logout_files();
     }
+
+    // Execute EXIT trap
+    trap_execute_exit();
 
     // Cleanup
     lineedit_cleanup();

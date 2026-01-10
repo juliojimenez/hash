@@ -25,6 +25,8 @@
 #include "parser.h"
 #include "safe_string.h"
 #include "update.h"
+#include "shellvar.h"
+#include "trap.h"
 
 extern int last_command_exit_code;
 
@@ -67,7 +69,9 @@ static char *builtin_str[] = {
     "command",
     "exec",
     "times",
-    "type"
+    "type",
+    "readonly",
+    "trap"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -101,7 +105,9 @@ static int (*builtin_func[])(char **) = {
     &shell_command,
     &shell_exec,
     &shell_times,
-    &shell_type
+    &shell_type,
+    &shell_readonly,
+    &shell_trap
 };
 
 static int num_builtins(void) {
@@ -282,10 +288,7 @@ int shell_source(char **args) {
 
 int shell_export(char **args) {
     if (args[1] == NULL) {
-        extern char **environ;
-        for (char **env = environ; *env != NULL; env++) {
-            printf("export %s\n", *env);
-        }
+        shellvar_list_exported();
         last_command_exit_code = 0;
         return 1;
     }
@@ -293,12 +296,12 @@ int shell_export(char **args) {
     for (int i = 1; args[i] != NULL; i++) {
         char *equals = strchr(args[i], '=');
         if (!equals) {
-            // Just marking for export - check if variable exists
-            const char *val = getenv(args[i]);
-            if (!val) {
-                // Variable doesn't exist, but that's OK for export
-                last_command_exit_code = 0;
+            // Just marking for export - mark variable for export
+            if (shellvar_is_readonly(args[i])) {
+                // It's OK to export a readonly variable
             }
+            shellvar_set_export(args[i]);
+            last_command_exit_code = 0;
             continue;
         }
 
@@ -306,12 +309,25 @@ int shell_export(char **args) {
         const char *name = args[i];
         const char *value = equals + 1;
 
-        if (setenv(name, value, 1) == 0) {
+        // Check if readonly
+        if (shellvar_is_readonly(name)) {
+            fprintf(stderr, "%s: %s: readonly variable\n", HASH_NAME, name);
+            last_command_exit_code = 1;
+            *equals = '=';  // Restore for next iteration
+            return 0;  // Exit shell in non-interactive mode per POSIX
+        }
+
+        // Set and export the variable
+        if (shellvar_set(name, value) == 0) {
+            shellvar_set_export(name);
+            setenv(name, value, 1);
             last_command_exit_code = 0;
         } else {
-            perror(HASH_NAME);
             last_command_exit_code = 1;
+            *equals = '=';
+            return 0;  // Exit shell on error
         }
+        *equals = '=';  // Restore
     }
 
     return 1;
@@ -535,7 +551,12 @@ int shell_unset(char **args) {
 
     for (int i = start; args[i] != NULL; i++) {
         if (unset_var) {
-            unsetenv(args[i]);
+            // Check for readonly variable
+            if (shellvar_unset(args[i]) != 0) {
+                // shellvar_unset prints error for readonly
+                last_command_exit_code = 1;
+                return 0;  // Exit shell in non-interactive mode per POSIX
+            }
         }
         if (unset_func) {
             // TODO: Implement function unset when functions are fully implemented
@@ -1188,6 +1209,9 @@ int shell_exec(char **args) {
             while (*p && isdigit(*p)) p++;
             if (*p != '<' && *p != '>') {
                 // This is the command
+                // Flush all output buffers before replacing the process
+                fflush(stdout);
+                fflush(stderr);
                 execvp(args[i], args + i);
                 // If we get here, exec failed
                 fprintf(stderr, "%s: %s: %s\n", HASH_NAME, args[i], strerror(errno));
@@ -1295,6 +1319,142 @@ int shell_type(char **args) {
     }
 
     last_command_exit_code = all_found ? 0 : 1;
+    return 1;
+}
+
+int shell_readonly(char **args) {
+    // readonly with no args: list all readonly variables
+    if (args[1] == NULL) {
+        shellvar_list_readonly();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Handle -p option (same as no args, print in reusable format)
+    int start = 1;
+    if (args[1] && strcmp(args[1], "-p") == 0) {
+        if (args[2] == NULL) {
+            shellvar_list_readonly();
+            last_command_exit_code = 0;
+            return 1;
+        }
+        start = 2;
+    }
+
+    // Process each argument
+    for (int i = start; args[i] != NULL; i++) {
+        char *arg = args[i];
+        char *equals = strchr(arg, '=');
+
+        if (equals) {
+            // readonly name=value: set and mark as readonly
+            *equals = '\0';
+            const char *name = arg;
+            const char *value = equals + 1;
+
+            // Check if already readonly with different value
+            if (shellvar_is_readonly(name)) {
+                const char *old_val = shellvar_get(name);
+                if (old_val && strcmp(old_val, value) != 0) {
+                    fprintf(stderr, "%s: %s: readonly variable\n", HASH_NAME, name);
+                    last_command_exit_code = 1;
+                    *equals = '=';
+                    return 0;  // Exit shell per POSIX
+                }
+            }
+
+            // Set the value first
+            if (shellvar_set(name, value) != 0) {
+                last_command_exit_code = 1;
+                *equals = '=';
+                return 0;
+            }
+
+            // Then mark as readonly
+            shellvar_set_readonly(name);
+
+            // Also set in environment
+            setenv(name, value, 1);
+
+            *equals = '=';
+        } else {
+            // readonly name: just mark as readonly
+            shellvar_set_readonly(arg);
+        }
+    }
+
+    last_command_exit_code = 0;
+    return 1;
+}
+
+int shell_trap(char **args) {
+    // trap with no args: list all traps
+    if (args[1] == NULL) {
+        trap_list();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // trap -p: print traps (same as no args for now)
+    if (strcmp(args[1], "-p") == 0) {
+        if (args[2] == NULL) {
+            trap_list();
+        } else {
+            // Print specific traps
+            for (int i = 2; args[i]; i++) {
+                int signum = trap_parse_signal(args[i]);
+                if (signum >= 0) {
+                    const char *action = trap_get(signum);
+                    if (action) {
+                        const char *name = trap_signal_name(signum);
+                        if (name) {
+                            printf("trap -- '%s' %s\n", action, name);
+                        } else {
+                            printf("trap -- '%s' %d\n", action, signum);
+                        }
+                    }
+                }
+            }
+        }
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // trap -l: list signal names
+    if (strcmp(args[1], "-l") == 0) {
+        // Print common signal numbers and names
+        printf(" 1) SIGHUP\t 2) SIGINT\t 3) SIGQUIT\t 4) SIGILL\n");
+        printf(" 5) SIGTRAP\t 6) SIGABRT\t 7) SIGBUS\t 8) SIGFPE\n");
+        printf(" 9) SIGKILL\t10) SIGUSR1\t11) SIGSEGV\t12) SIGUSR2\n");
+        printf("13) SIGPIPE\t14) SIGALRM\t15) SIGTERM\t16) SIGSTKFLT\n");
+        printf("17) SIGCHLD\t18) SIGCONT\t19) SIGSTOP\t20) SIGTSTP\n");
+        printf("21) SIGTTIN\t22) SIGTTOU\n");
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Check if first arg is a signal name (reset to default)
+    // trap signal [signal...]: reset signals to default
+    // trap '' signal [signal...]: ignore signals
+    // trap action signal [signal...]: set trap
+
+    const char *action = args[1];
+    int start = 2;
+
+    // If action is "-", it means reset to default
+    if (action[0] == '-' && action[1] == '\0') {
+        action = NULL;
+    }
+
+    // Set traps for all specified signals
+    for (int i = start; args[i]; i++) {
+        if (trap_set(action, args[i]) != 0) {
+            last_command_exit_code = 1;
+            return 1;
+        }
+    }
+
+    last_command_exit_code = 0;
     return 1;
 }
 

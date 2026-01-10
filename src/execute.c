@@ -54,7 +54,7 @@ static int launch(char **args, const char *cmd_string) {
 
         // Apply redirections
         if (redir && redirect_apply(redir) != 0) {
-            exit(EXIT_FAILURE);
+            _exit(EXIT_FAILURE);
         }
 
         // Execute command
@@ -63,7 +63,9 @@ static int launch(char **args, const char *cmd_string) {
                 perror(HASH_NAME);
             }
         }
-        exit(EXIT_FAILURE);
+        // Use _exit() instead of exit() to avoid flushing parent's stdio buffers
+        // This prevents file position corruption when reading scripts
+        _exit(EXIT_FAILURE);
     } else if (pid < 0) {
         // Fork error
         if (!script_state.silent_errors) {
@@ -365,12 +367,13 @@ int execute(char **args) {
         if (pid == 0) {
             // Child process - apply redirections and run builtin
             if (redirect_apply(redir) != 0) {
-                exit(EXIT_FAILURE);
+                _exit(EXIT_FAILURE);
             }
             try_builtin(exec_args);
             // The builtin sets last_command_exit_code, use that as exit code
             redirect_free(redir);
-            exit(last_command_exit_code);
+            // Use _exit() to avoid flushing parent's stdio buffers
+            _exit(last_command_exit_code);
         } else if (pid > 0) {
             // Parent - wait for child
             int status;

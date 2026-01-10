@@ -246,7 +246,7 @@ static int execute_background(const char *cmd_line) {
 
         // Parse and execute command
         char *line_copy = strdup(cmd_line);
-        if (!line_copy) exit(EXIT_FAILURE);
+        if (!line_copy) _exit(EXIT_FAILURE);
 
         // Check for pipes
         Pipeline *pipe = pipeline_parse(line_copy);
@@ -255,7 +255,7 @@ static int execute_background(const char *cmd_line) {
             int exit_code = pipeline_execute(pipe);
             pipeline_free(pipe);
             free(line_copy);
-            exit(exit_code);
+            _exit(exit_code);
         } else {
             char **args = parse_line(line_copy);
             if (args) {
@@ -263,7 +263,7 @@ static int execute_background(const char *cmd_line) {
                 free(args);
             }
             free(line_copy);
-            exit(EXIT_SUCCESS);
+            _exit(EXIT_SUCCESS);
         }
     }
 

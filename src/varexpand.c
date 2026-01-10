@@ -62,25 +62,51 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_value = param0 ? param0 : HASH_NAME;
                 p++;
             } else if (*p == '{') {
-                // ${VAR} syntax
+                // ${VAR} or ${VAR-default} or ${VAR:-default} etc syntax
                 p++;  // Skip {
 
+                // Parse variable name
                 size_t name_len = 0;
-                while (*p && *p != '}' && name_len < sizeof(var_name) - 1) {
-                    if (is_varname_char(*p)) {
-                        var_name[name_len++] = *p++;
-                    } else {
-                        // Invalid character in variable name
-                        break;
+                while (*p && is_varname_char(*p) && name_len < sizeof(var_name) - 1) {
+                    var_name[name_len++] = *p++;
+                }
+                var_name[name_len] = '\0';
+
+                // Check for modifiers: - + = ? (and : prefix)
+                char modifier = 0;
+                bool check_null = false;
+                char word[1024] = {0};
+
+                if (*p == ':') {
+                    check_null = true;
+                    p++;
+                }
+
+                if (*p == '-' || *p == '+' || *p == '=' || *p == '?') {
+                    modifier = *p++;
+
+                    // Parse the word until closing brace
+                    size_t word_len = 0;
+                    int brace_depth = 1;
+                    while (*p && brace_depth > 0 && word_len < sizeof(word) - 1) {
+                        if (*p == '{') brace_depth++;
+                        else if (*p == '}') {
+                            brace_depth--;
+                            if (brace_depth == 0) break;
+                        }
+                        word[word_len++] = *p++;
                     }
+                    word[word_len] = '\0';
                 }
 
                 if (*p == '}') {
                     p++;  // Skip }
-                    var_name[name_len] = '\0';
 
                     if (name_len > 0) {
-                        // Check if it's a positional parameter (all digits)
+                        // Get the variable value
+                        const char *val = NULL;
+
+                        // Check if it's a positional parameter
                         int is_positional = 1;
                         for (size_t i = 0; i < name_len; i++) {
                             if (!isdigit(var_name[i])) {
@@ -90,9 +116,57 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         }
                         if (is_positional) {
                             int param_num = atoi(var_name);
-                            var_value = get_positional_param(param_num);
+                            val = get_positional_param(param_num);
                         } else {
-                            var_value = getenv(var_name);
+                            val = getenv(var_name);
+                        }
+
+                        // Determine if variable is "unset" or "null"
+                        bool is_unset = (val == NULL);
+                        bool is_null = (val != NULL && val[0] == '\0');
+
+                        // Apply modifier
+                        if (modifier == '-') {
+                            // ${var-word}: use word if unset
+                            // ${var:-word}: use word if unset or null
+                            if (is_unset || (check_null && is_null)) {
+                                var_value = word;
+                            } else {
+                                var_value = val;
+                            }
+                        } else if (modifier == '+') {
+                            // ${var+word}: use word if set
+                            // ${var:+word}: use word if set and not null
+                            if (!is_unset && (!check_null || !is_null)) {
+                                var_value = word;
+                            } else {
+                                var_value = "";
+                            }
+                        } else if (modifier == '=') {
+                            // ${var=word}: assign word if unset
+                            // ${var:=word}: assign word if unset or null
+                            if (is_unset || (check_null && is_null)) {
+                                setenv(var_name, word, 1);
+                                var_value = word;
+                            } else {
+                                var_value = val;
+                            }
+                        } else if (modifier == '?') {
+                            // ${var?word}: error if unset
+                            // ${var:?word}: error if unset or null
+                            if (is_unset || (check_null && is_null)) {
+                                if (word[0]) {
+                                    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, var_name, word);
+                                } else {
+                                    fprintf(stderr, "%s: %s: parameter not set\n", HASH_NAME, var_name);
+                                }
+                                var_value = "";
+                            } else {
+                                var_value = val;
+                            }
+                        } else {
+                            // No modifier, simple expansion
+                            var_value = val;
                         }
                     }
                 }

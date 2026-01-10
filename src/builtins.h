@@ -93,6 +93,12 @@ int shell_times(char **args);
 // Built-in command: type - describe command type (alias for command -V)
 int shell_type(char **args);
 
+// Built-in command: readonly - mark variables as readonly
+int shell_readonly(char **args);
+
+// Built-in command: trap - set signal handlers
+int shell_trap(char **args);
+
 // Set login shell status (called from main)
 void builtins_set_login_shell(bool is_login);
 

@@ -1506,9 +1506,6 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         }
 
         result = script_process_line(line);
-
-        // Handle loop continuation
-        // (In a real implementation, we'd need to track loop body and re-execute)
     }
 
     fclose(fp);
