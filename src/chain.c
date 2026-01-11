@@ -107,6 +107,7 @@ CommandChain *chain_parse(char *line) {
     int in_single_quote = 0;
     int in_double_quote = 0;
     int paren_depth = 0;  // Track $() and $(()), () depth
+    int brace_depth = 0;  // Track {} brace groups
     int escaped = 0;
 
     while (*current) {
@@ -138,6 +139,12 @@ CommandChain *chain_parse(char *line) {
             } else if (*current == ')' && paren_depth > 0) {
                 paren_depth--;
             }
+            // Track brace groups { }
+            if (*current == '{') {
+                brace_depth++;
+            } else if (*current == '}' && brace_depth > 0) {
+                brace_depth--;
+            }
         } else if (!in_single_quote && in_double_quote) {
             // Inside double quotes, only track $()
             if (*current == '$' && *(current + 1) == '(') {
@@ -149,8 +156,8 @@ CommandChain *chain_parse(char *line) {
             }
         }
 
-        // Look for operators outside quotes and command substitution
-        if (!in_single_quote && !in_double_quote && paren_depth == 0) {
+        // Look for operators outside quotes, command substitution, and brace groups
+        if (!in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0) {
             ChainOp op = CHAIN_NONE;
             int op_len = 0;
 
@@ -291,31 +298,13 @@ static int execute_background(const char *cmd_line) {
             }
         }
 
-        // Parse and execute command
-        char *line_copy = strdup(cmd_line);
-        if (!line_copy) _exit(EXIT_FAILURE);
-
-        // Check for pipes
-        Pipeline *pipe = pipeline_parse(line_copy);
-
-        if (pipe) {
-            int exit_code = pipeline_execute(pipe);
-            pipeline_free(pipe);
-            free(line_copy);
-            fflush(stdout);
-            fflush(stderr);
-            _exit(exit_code);
-        } else {
-            char **args = parse_line(line_copy);
-            if (args) {
-                execute(args);
-                free(args);
-            }
-            free(line_copy);
-            fflush(stdout);
-            fflush(stderr);
-            _exit(EXIT_SUCCESS);
-        }
+        // Use script_process_line to handle all command types
+        // (brace groups, subshells, control structures, etc.)
+        extern int last_command_exit_code;
+        script_process_line(cmd_line);
+        fflush(stdout);
+        fflush(stderr);
+        _exit(last_command_exit_code);
     }
 
     // Parent process
