@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include <sys/types.h>
 #include <sys/times.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
