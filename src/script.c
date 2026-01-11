@@ -763,14 +763,15 @@ static int execute_simple_line(const char *line) {
                 // POSIX: Traps are not inherited by subshells - reset them
                 trap_reset_for_subshell();
                 // Note: don't close stdin for subshells as they run synchronously
-                int result = script_execute_string(subshell_cmd);
+                int exit_code = script_execute_string(subshell_cmd);
                 free(subshell_cmd);
                 // Execute EXIT trap before exiting subshell (only if set in this subshell)
                 trap_execute_exit();
                 // Flush output before exit to ensure all output is visible
                 fflush(stdout);
                 fflush(stderr);
-                _exit(result == 0 ? last_command_exit_code : 1);
+                // script_execute_string returns the exit code directly
+                _exit(exit_code);
             }
 
             // Parent process - wait for child
@@ -1916,7 +1917,9 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.script_path = NULL;
     script_state.silent_errors = old_silent;  // Restore silent flag
 
-    return result < 0 ? 1 : execute_get_last_exit_code();
+    // For return (-2), use the last exit code
+    // For other errors (< 0), return 1
+    return (result < 0 && result != -2) ? 1 : execute_get_last_exit_code();
 }
 
 int script_execute_string(const char *script) {
@@ -1941,7 +1944,9 @@ int script_execute_string(const char *script) {
     free(script_copy);
 
     // Return exit code for compatibility with main.c and cmdsub.c
-    return result < 0 ? 1 : execute_get_last_exit_code();
+    // For return (-2), use the last exit code
+    // For other errors (< 0), return 1
+    return (result < 0 && result != -2) ? 1 : execute_get_last_exit_code();
 }
 
 // Get a positional parameter value

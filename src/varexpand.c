@@ -9,6 +9,7 @@
 #include "script.h"
 #include "jobs.h"
 #include "config.h"
+#include "shellvar.h"
 
 #define MAX_EXPANDED_LENGTH 8192
 
@@ -217,7 +218,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             int param_num = atoi(var_name);
                             val = get_positional_param(param_num);
                         } else {
-                            val = getenv(var_name);
+                            val = shellvar_get(var_name);
                         }
 
                         // Determine if variable is "unset" or "null"
@@ -301,7 +302,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_name[name_len] = '\0';
 
                 if (name_len > 0) {
-                    var_value = getenv(var_name);
+                    var_value = shellvar_get(var_name);
                     // Check for unset variable with -u option
                     if (var_value == NULL) {
                         check_unset_error(var_name);

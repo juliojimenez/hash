@@ -307,10 +307,46 @@ int shell_source(char **args) {
         return 1;
     }
 
+    const char *filepath = args[1];
+    char resolved_path[PATH_MAX];
+
+    // POSIX: If filename doesn't contain '/', search PATH for it
+    if (strchr(filepath, '/') == NULL) {
+        // Use shellvar_get to see shell variables (which may not be in env)
+        const char *path_env = shellvar_get("PATH");
+        if (path_env) {
+            char *path_copy = strdup(path_env);
+            if (path_copy) {
+                char *saveptr;
+                char *dir = strtok_r(path_copy, ":", &saveptr);
+                bool found = false;
+
+                while (dir) {
+                    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", dir, filepath);
+                    // Check if file exists and is readable
+                    if (access(resolved_path, R_OK) == 0) {
+                        filepath = resolved_path;
+                        found = true;
+                        break;
+                    }
+                    dir = strtok_r(NULL, ":", &saveptr);
+                }
+                free(path_copy);
+
+                if (!found) {
+                    // File not found in PATH
+                    fprintf(stderr, "%s: %s: %s: not found\n", HASH_NAME, args[0], args[1]);
+                    last_command_exit_code = 1;
+                    return 1;
+                }
+            }
+        }
+    }
+
     // Execute the script file
     // If we're already in silent mode (e.g., sourcing system files),
     // continue in silent mode for nested sources
-    int result = script_execute_file_ex(args[1], 0, NULL, script_state.silent_errors);
+    int result = script_execute_file_ex(filepath, 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
     // POSIX: Check for pending break/continue to propagate from sourced file
@@ -815,7 +851,8 @@ int shell_read(char **args) {
 // ============================================================================
 
 int shell_return(char **args) {
-    int return_code = 0;
+    // POSIX: If no argument is provided, use the exit status of the last command
+    int return_code = last_command_exit_code;
 
     if (args[1] != NULL) {
         char *endptr;
