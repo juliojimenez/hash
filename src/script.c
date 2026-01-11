@@ -385,13 +385,11 @@ bool script_in_control_structure(void) {
 int script_count_loops_at_current_depth(void) {
     int count = 0;
 
-    // POSIX lexical scoping: Only count loops at the current function depth
-    // This ensures break/continue only affect loops within the current function
-    int current_func_depth = script_state.function_call_depth;
+    // POSIX dynamic scoping: Count ALL loops across function boundaries
+    // break/continue can affect loops that called the current function
     for (int i = 0; i < script_state.context_depth; i++) {
         const ScriptContext *ctx = &script_state.context_stack[i];
-        if ((ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) &&
-            ctx->function_call_depth == current_func_depth) {
+        if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
             count++;
         }
     }
@@ -665,12 +663,8 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     int old_count = script_state.positional_count;
     bool old_exit_requested = script_state.exit_requested;
 
-    // POSIX lexical scoping: save and reset break/continue state
-    // break/continue inside a function should NOT affect the caller's loops
-    int old_break_pending = break_pending;
-    int old_continue_pending = continue_pending;
-    break_pending = 0;
-    continue_pending = 0;
+    // POSIX dynamic scoping: break/continue inside a function CAN affect caller's loops
+    // Do NOT reset break_pending/continue_pending - let them propagate
 
     script_state.positional_params = argv;
     script_state.positional_count = argc;
@@ -692,17 +686,14 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
 
     // If exit was called inside function, propagate it
     if (exit_called) {
-        // Restore break/continue state before returning
-        break_pending = old_break_pending;
-        continue_pending = old_continue_pending;
         script_state.exit_requested = true;
         return 0;  // Stop execution
     }
 
-    // POSIX lexical scoping: restore break/continue state from before function call
-    // Any break/continue set inside the function stays inside the function
-    break_pending = old_break_pending;
-    continue_pending = old_continue_pending;
+    // POSIX dynamic scoping: if break/continue was set inside function, propagate it
+    if (break_pending > 0 || continue_pending > 0) {
+        return 0;  // Signal to caller that break/continue is pending
+    }
 
     // Restore old exit_requested state (in case we're in nested functions)
     script_state.exit_requested = old_exit_requested;
