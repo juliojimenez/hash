@@ -396,9 +396,8 @@ jobs:
           # Build fuzz targets - parser needs most dependencies due to builtins/config
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_parser fuzz/fuzz_parser.c $ALL_OBJS
 
-          # varexpand is simpler, only needs safe_string
-          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_varexpand fuzz/fuzz_varexpand.c \
-            build/varexpand.o build/safe_string.o
+          # varexpand has dependencies on jobs, script, shellvar, etc.
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_varexpand fuzz/fuzz_varexpand.c $ALL_OBJS
 
           # safe_string is standalone
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_safe_string fuzz/fuzz_safe_string.c \
