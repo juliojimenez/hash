@@ -368,6 +368,13 @@ int shell_export(char **args) {
         return 1;
     }
 
+    // Handle export -p option (same as export with no args)
+    if (strcmp(args[1], "-p") == 0) {
+        shellvar_list_exported();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
     for (int i = 1; args[i] != NULL; i++) {
         char *equals = strchr(args[i], '=');
         if (!equals) {

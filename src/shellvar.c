@@ -245,10 +245,39 @@ void shellvar_list_readonly(void) {
 }
 
 void shellvar_list_exported(void) {
-    // List from environment for full compatibility
+    // First, list variables from our internal table that are marked for export
+    // This includes variables without values (export x without assignment)
+    for (int i = 0; i < SHELLVAR_HASH_SIZE; i++) {
+        ShellVar *v = var_table[i];
+        while (v) {
+            if (v->attrs & VAR_ATTR_EXPORT) {
+                if (v->value) {
+                    printf("export %s=\"%s\"\n", v->name, v->value);
+                } else {
+                    printf("export %s\n", v->name);
+                }
+            }
+            v = v->next;
+        }
+    }
+
+    // Also list from environment for variables not in our table
     extern char **environ;
     for (char **env = environ; *env; env++) {
-        printf("export %s\n", *env);
+        // Parse name from NAME=value
+        char *equals = strchr(*env, '=');
+        if (equals) {
+            size_t name_len = equals - *env;
+            char name[256];
+            if (name_len < sizeof(name)) {
+                memcpy(name, *env, name_len);
+                name[name_len] = '\0';
+                // Only print if not already in our table
+                if (!find_var(name)) {
+                    printf("export %s\n", *env);
+                }
+            }
+        }
     }
 }
 
