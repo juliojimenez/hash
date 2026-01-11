@@ -1192,9 +1192,13 @@ int shell_command(char **args) {
 
     // Execute command, bypassing functions
     // First check builtins
+    // POSIX: 'command' removes "special" status from special builtins
+    // So errors should not cause shell to exit (always return 1)
     int result = try_builtin(args + arg_start);
     if (result != -1) {
-        return result;
+        // Always return 1 (continue) - special builtins lose their "exit on error" behavior
+        // The exit code is already set in last_command_exit_code by the builtin
+        return 1;
     }
 
     // Execute as external command (execute() will handle it)
@@ -1496,10 +1500,10 @@ int shell_readonly(char **args) {
             if (shellvar_is_readonly(name)) {
                 const char *old_val = shellvar_get(name);
                 if (old_val && strcmp(old_val, value) != 0) {
-                    fprintf(stderr, "%s: %s: readonly variable\n", HASH_NAME, name);
+                    fprintf(stderr, "readonly: %s: is read only\n", name);
                     last_command_exit_code = 1;
                     *equals = '=';
-                    return 0;  // Exit shell per POSIX
+                    return 0;  // Exit shell per POSIX (unless via 'command')
                 }
             }
 
