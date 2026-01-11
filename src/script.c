@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <fnmatch.h>
 #include "script.h"
 #include "hash.h"
@@ -764,22 +765,57 @@ static int execute_simple_line(const char *line) {
     while (*line && isspace(*line)) line++;
     if (!*line) return 1;
 
-    // Check for subshell syntax: (commands)
+    // Check if line ends with background operator &
+    // If so, let chain_parse handle it rather than processing synchronously
+    size_t len = strlen(line);
+    const char *end = line + len - 1;
+    while (end > line && isspace(*end)) end--;
+    if (*end == '&' && (end == line || *(end - 1) != '&') && (end == line || *(end - 1) != '>')) {
+        // Has background operator - let chain_parse handle it
+        goto use_chain_parse;
+    }
+
+    // Check for subshell syntax: (commands) [redirections]
     if (*line == '(') {
-        // Find matching closing paren
-        const char *start = line + 1;
-        const char *end = line + strlen(line) - 1;
+        // Find matching closing paren by tracking depth
+        const char *p = line + 1;
+        int depth = 1;
+        int in_single_quote = 0;
+        int in_double_quote = 0;
 
-        // Skip trailing whitespace to find the closing paren
-        while (end > start && isspace(*end)) end--;
+        while (*p && depth > 0) {
+            if (*p == '\'' && !in_double_quote) {
+                in_single_quote = !in_single_quote;
+            } else if (*p == '"' && !in_single_quote) {
+                in_double_quote = !in_double_quote;
+            } else if (!in_single_quote && !in_double_quote) {
+                if (*p == '(') depth++;
+                else if (*p == ')') depth--;
+            }
+            if (depth > 0) p++;
+        }
 
-        if (*end == ')') {
+        if (depth == 0 && *p == ')') {
+            // p points to matching ')'
+            const char *end_paren = p;
+
             // Extract the subshell content
-            size_t len = end - start;
+            const char *start = line + 1;
+            size_t len = end_paren - start;
             char *subshell_cmd = malloc(len + 1);
             if (!subshell_cmd) return -1;
             memcpy(subshell_cmd, start, len);
             subshell_cmd[len] = '\0';
+
+            // Check for redirections after the closing paren
+            const char *after_paren = end_paren + 1;
+            while (*after_paren && isspace(*after_paren)) after_paren++;
+
+            // Parse any external redirections (e.g., "8>pipe" after subshell)
+            char *redir_str = NULL;
+            if (*after_paren) {
+                redir_str = strdup(after_paren);
+            }
 
             // Flush stdout/stderr before forking to prevent child from
             // inheriting buffered content that it would then flush on exit
@@ -791,11 +827,108 @@ static int execute_simple_line(const char *line) {
             if (pid < 0) {
                 perror(HASH_NAME);
                 free(subshell_cmd);
+                free(redir_str);
                 return 1;
             }
 
             if (pid == 0) {
-                // Child process - execute the subshell commands
+                // Child process - apply external redirections first
+                if (redir_str) {
+                    // Parse and apply redirections
+                    // The redir_str contains things like "8>pipe" or "2>&1"
+                    char *redir_copy = strdup(redir_str);
+                    if (redir_copy) {
+                        // Simple redirect parsing for subshell external redirections
+                        char *r = redir_copy;
+                        while (*r) {
+                            while (*r && isspace(*r)) r++;
+                            if (!*r) break;
+
+                            // Parse fd number
+                            int fd = -1;
+                            if (isdigit(*r)) {
+                                fd = 0;
+                                while (isdigit(*r)) {
+                                    fd = fd * 10 + (*r - '0');
+                                    r++;
+                                }
+                            }
+
+                            if (*r == '<') {
+                                r++;
+                                if (fd < 0) fd = 0;
+                                if (*r == '&') {
+                                    r++;
+                                    if (*r == '-') {
+                                        close(fd);
+                                        r++;
+                                    } else {
+                                        int src_fd = atoi(r);
+                                        while (isdigit(*r)) r++;
+                                        dup2(src_fd, fd);
+                                    }
+                                } else {
+                                    // Get filename
+                                    while (*r && isspace(*r)) r++;
+                                    char *filename = r;
+                                    while (*r && !isspace(*r)) r++;
+                                    char saved = *r;
+                                    *r = '\0';
+                                    int new_fd = open(filename, O_RDONLY);
+                                    if (new_fd >= 0) {
+                                        if (new_fd != fd) {
+                                            dup2(new_fd, fd);
+                                            close(new_fd);
+                                        }
+                                    }
+                                    *r = saved;
+                                }
+                            } else if (*r == '>') {
+                                r++;
+                                if (fd < 0) fd = 1;
+                                int append = 0;
+                                if (*r == '>') {
+                                    append = 1;
+                                    r++;
+                                }
+                                if (*r == '&') {
+                                    r++;
+                                    if (*r == '-') {
+                                        close(fd);
+                                        r++;
+                                    } else {
+                                        int src_fd = atoi(r);
+                                        while (isdigit(*r)) r++;
+                                        dup2(src_fd, fd);
+                                    }
+                                } else {
+                                    // Get filename
+                                    while (*r && isspace(*r)) r++;
+                                    char *filename = r;
+                                    while (*r && !isspace(*r)) r++;
+                                    char saved = *r;
+                                    *r = '\0';
+                                    int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+                                    int new_fd = open(filename, flags, 0644);
+                                    if (new_fd >= 0) {
+                                        if (new_fd != fd) {
+                                            dup2(new_fd, fd);
+                                            close(new_fd);
+                                        }
+                                    }
+                                    *r = saved;
+                                }
+                            } else {
+                                // Unknown, skip this char
+                                r++;
+                            }
+                        }
+                        free(redir_copy);
+                    }
+                    free(redir_str);
+                }
+
+                // Execute the subshell commands
                 // POSIX: Traps are not inherited by subshells - reset them
                 trap_reset_for_subshell();
                 // Note: don't close stdin for subshells as they run synchronously
@@ -812,6 +945,7 @@ static int execute_simple_line(const char *line) {
 
             // Parent process - wait for child
             free(subshell_cmd);
+            free(redir_str);
             int status;
             waitpid(pid, &status, 0);
             if (WIFEXITED(status)) {
@@ -890,6 +1024,7 @@ static int execute_simple_line(const char *line) {
         }
     }
 
+use_chain_parse:;
     char *line_copy = strdup(line);
     if (!line_copy) return -1;
 

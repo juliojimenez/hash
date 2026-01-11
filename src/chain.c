@@ -374,18 +374,44 @@ int chain_execute(const CommandChain *chain) {
             while (*trimmed && isspace(*trimmed)) trimmed++;
         }
 
-        // Check for subshell syntax: (commands)
+        // Check for subshell syntax: (commands) [redirections]
         if (*trimmed == '(') {
-            const char *end = trimmed + strlen(trimmed) - 1;
-            while (end > trimmed && isspace(*end)) end--;
+            // Find matching closing paren by tracking depth
+            const char *p = trimmed + 1;
+            int depth = 1;
+            int in_single_quote = 0;
+            int in_double_quote = 0;
 
-            if (*end == ')' && end > trimmed) {
+            while (*p && depth > 0) {
+                if (*p == '\'' && !in_double_quote) {
+                    in_single_quote = !in_single_quote;
+                } else if (*p == '"' && !in_single_quote) {
+                    in_double_quote = !in_double_quote;
+                } else if (!in_single_quote && !in_double_quote) {
+                    if (*p == '(') depth++;
+                    else if (*p == ')') depth--;
+                }
+                if (depth > 0) p++;
+            }
+
+            if (depth == 0 && *p == ')') {
+                // p points to matching ')'
+                const char *end_paren = p;
+
                 // Extract subshell content
-                size_t len = (size_t)(end - (trimmed + 1));
+                size_t len = (size_t)(end_paren - (trimmed + 1));
                 char *subshell_cmd = malloc(len + 1);
                 if (subshell_cmd) {
                     memcpy(subshell_cmd, trimmed + 1, len);
                     subshell_cmd[len] = '\0';
+
+                    // Check for redirections after the closing paren
+                    const char *after_paren = end_paren + 1;
+                    while (*after_paren && isspace(*after_paren)) after_paren++;
+                    char *redir_str = NULL;
+                    if (*after_paren) {
+                        redir_str = strdup(after_paren);
+                    }
 
                     // Flush before fork
                     fflush(stdout);
@@ -393,7 +419,65 @@ int chain_execute(const CommandChain *chain) {
 
                     pid_t pid = fork();
                     if (pid == 0) {
-                        // Child process
+                        // Child process - apply external redirections first
+                        if (redir_str) {
+                            char *redir_copy = strdup(redir_str);
+                            if (redir_copy) {
+                                char *r = redir_copy;
+                                while (*r) {
+                                    while (*r && isspace(*r)) r++;
+                                    if (!*r) break;
+
+                                    int fd = -1;
+                                    if (isdigit(*r)) {
+                                        fd = 0;
+                                        while (isdigit(*r)) {
+                                            fd = fd * 10 + (*r - '0');
+                                            r++;
+                                        }
+                                    }
+
+                                    if (*r == '<') {
+                                        r++;
+                                        if (fd < 0) fd = 0;
+                                        if (*r == '&') {
+                                            r++;
+                                            if (*r == '-') { close(fd); r++; }
+                                            else { int src = atoi(r); while (isdigit(*r)) r++; dup2(src, fd); }
+                                        } else {
+                                            while (*r && isspace(*r)) r++;
+                                            char *fn = r;
+                                            while (*r && !isspace(*r)) r++;
+                                            char sv = *r; *r = '\0';
+                                            int nfd = open(fn, O_RDONLY);
+                                            if (nfd >= 0) { if (nfd != fd) { dup2(nfd, fd); close(nfd); } }
+                                            *r = sv;
+                                        }
+                                    } else if (*r == '>') {
+                                        r++;
+                                        if (fd < 0) fd = 1;
+                                        int app = 0;
+                                        if (*r == '>') { app = 1; r++; }
+                                        if (*r == '&') {
+                                            r++;
+                                            if (*r == '-') { close(fd); r++; }
+                                            else { int src = atoi(r); while (isdigit(*r)) r++; dup2(src, fd); }
+                                        } else {
+                                            while (*r && isspace(*r)) r++;
+                                            char *fn = r;
+                                            while (*r && !isspace(*r)) r++;
+                                            char sv = *r; *r = '\0';
+                                            int fl = O_WRONLY | O_CREAT | (app ? O_APPEND : O_TRUNC);
+                                            int nfd = open(fn, fl, 0644);
+                                            if (nfd >= 0) { if (nfd != fd) { dup2(nfd, fd); close(nfd); } }
+                                            *r = sv;
+                                        }
+                                    } else { r++; }
+                                }
+                                free(redir_copy);
+                            }
+                            free(redir_str);
+                        }
                         trap_reset_for_subshell();
                         int exit_code = script_execute_string(subshell_cmd);
                         free(subshell_cmd);
@@ -404,6 +488,7 @@ int chain_execute(const CommandChain *chain) {
                     } else if (pid > 0) {
                         // Parent process
                         free(subshell_cmd);
+                        free(redir_str);
                         int status;
                         waitpid(pid, &status, 0);
                         extern int last_command_exit_code;
@@ -419,6 +504,7 @@ int chain_execute(const CommandChain *chain) {
                         last_exit_code = last_command_exit_code;
                     } else {
                         free(subshell_cmd);
+                        free(redir_str);
                         last_exit_code = 1;
                     }
                 }
