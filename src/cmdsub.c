@@ -120,6 +120,10 @@ static int has_cmdsub(const char *str) {
 
     const char *p = str;
     while (*p) {
+        // Check for SOH marker (single-quoted dollar sign)
+        if (*p == '\x01' && *(p + 1) == '$') {
+            return 1;
+        }
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
                 return 1;
@@ -179,9 +183,20 @@ char *cmdsub_expand(const char *str) {
     const char *p = str;
 
     while (*p && out_pos < MAX_CMDSUB_LENGTH - 1) {
+        // Handle SOH marker (single-quoted dollar sign from parser)
+        // Convert \x01$ to \$ so varexpand will output literal $
+        if (*p == '\x01' && *(p + 1) == '$') {
+            if (out_pos < MAX_CMDSUB_LENGTH - 2) {
+                result[out_pos++] = '\\';
+                result[out_pos++] = '$';
+            }
+            p += 2;
+            continue;
+        }
         // Handle escape sequences
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
+                // Escaped $ or ` - output literal character (prevents substitution)
                 if (out_pos < MAX_CMDSUB_LENGTH - 1) {
                     result[out_pos++] = *(p + 1);
                 }

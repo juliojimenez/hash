@@ -313,6 +313,14 @@ int shell_source(char **args) {
     int result = script_execute_file_ex(args[1], 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
+    // POSIX: Check for pending break/continue to propagate from sourced file
+    if (script_get_break_pending() > 0) {
+        return -3;  // Propagate break signal
+    }
+    if (script_get_continue_pending() > 0) {
+        return -4;  // Propagate continue signal
+    }
+
     return 1;
 }
 
@@ -846,8 +854,7 @@ int shell_break(char **args) {
         levels = (int)val;
     }
 
-    // Check if we're in a loop at the current function depth (lexical scoping)
-    // This ensures break only affects loops within the current function
+    // POSIX: Check if we're in a loop (dynamic scoping across function boundaries)
     int available_loops = script_count_loops_at_current_depth();
     if (available_loops == 0) {
         fprintf(stderr, "%s: break: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
@@ -860,7 +867,8 @@ int shell_break(char **args) {
         levels = available_loops;
     }
 
-    (void)levels;  // TODO: Handle multiple levels properly
+    // Set pending break levels for dynamic scoping propagation
+    script_set_break_pending(levels);
 
     last_command_exit_code = 0;
     return -3;  // Special return code for "break from loop"
@@ -880,7 +888,7 @@ int shell_continue_cmd(char **args) {
         levels = (int)val;
     }
 
-    // Check if we're in a loop at the current function depth (lexical scoping)
+    // POSIX: Check if we're in a loop (dynamic scoping across function boundaries)
     int available_loops = script_count_loops_at_current_depth();
     if (available_loops == 0) {
         fprintf(stderr, "%s: continue: only meaningful in a `for', `while', or `until' loop\n", HASH_NAME);
@@ -893,7 +901,8 @@ int shell_continue_cmd(char **args) {
         levels = available_loops;
     }
 
-    (void)levels;  // TODO: Handle multiple levels properly
+    // Set pending continue levels for dynamic scoping propagation
+    script_set_continue_pending(levels);
 
     last_command_exit_code = 0;
     return -4;  // Special return code for "continue loop"
@@ -933,6 +942,14 @@ int shell_eval(char **args) {
     }
 
     free(cmd);
+
+    // POSIX: Check for pending break/continue to propagate from eval
+    if (script_get_break_pending() > 0) {
+        return -3;  // Propagate break signal
+    }
+    if (script_get_continue_pending() > 0) {
+        return -4;  // Propagate continue signal
+    }
 
     // Exit code already set by chain_execute
     return 1;

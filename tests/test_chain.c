@@ -128,9 +128,101 @@ void test_parse_trailing_semicolon(void) {
     chain_free(chain);
 }
 
+// ============== Background operator tests ==============
+
+// Test single & as command separator (cmd1 & cmd2)
+void test_parse_background_separator(void) {
+    char line[] = "echo first & echo second";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(2, chain->count);
+    TEST_ASSERT_EQUAL_STRING("echo first", chain->commands[0].cmd_line);
+    TEST_ASSERT_TRUE(chain->commands[0].background);  // First command is background
+    TEST_ASSERT_EQUAL_STRING("echo second", chain->commands[1].cmd_line);
+    TEST_ASSERT_FALSE(chain->commands[1].background);  // Second command is foreground
+
+    chain_free(chain);
+}
+
+// Test multiple background commands (cmd1 & cmd2 & cmd3)
+void test_parse_multiple_background(void) {
+    char line[] = "echo a & echo b & echo c";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(3, chain->count);
+    TEST_ASSERT_EQUAL_STRING("echo a", chain->commands[0].cmd_line);
+    TEST_ASSERT_TRUE(chain->commands[0].background);
+    TEST_ASSERT_EQUAL_STRING("echo b", chain->commands[1].cmd_line);
+    TEST_ASSERT_TRUE(chain->commands[1].background);
+    TEST_ASSERT_EQUAL_STRING("echo c", chain->commands[2].cmd_line);
+    TEST_ASSERT_FALSE(chain->commands[2].background);
+
+    chain_free(chain);
+}
+
+// Test trailing & (single background command)
+void test_parse_trailing_background(void) {
+    char line[] = "sleep 10 &";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(1, chain->count);
+    TEST_ASSERT_EQUAL_STRING("sleep 10", chain->commands[0].cmd_line);
+    TEST_ASSERT_TRUE(chain->commands[0].background);
+
+    chain_free(chain);
+}
+
+// Test && is not confused with single &
+void test_parse_and_vs_background(void) {
+    char line[] = "true && echo success";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(2, chain->count);
+    TEST_ASSERT_EQUAL_STRING("true", chain->commands[0].cmd_line);
+    TEST_ASSERT_FALSE(chain->commands[0].background);  // && is AND, not background
+    TEST_ASSERT_EQUAL_INT(CHAIN_AND, chain->commands[0].next_op);
+
+    chain_free(chain);
+}
+
+// Test mixing & and &&
+void test_parse_background_and_chain(void) {
+    char line[] = "echo bg & true && echo fg";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(3, chain->count);
+    TEST_ASSERT_EQUAL_STRING("echo bg", chain->commands[0].cmd_line);
+    TEST_ASSERT_TRUE(chain->commands[0].background);
+    TEST_ASSERT_EQUAL_STRING("true", chain->commands[1].cmd_line);
+    TEST_ASSERT_FALSE(chain->commands[1].background);
+    TEST_ASSERT_EQUAL_INT(CHAIN_AND, chain->commands[1].next_op);
+    TEST_ASSERT_EQUAL_STRING("echo fg", chain->commands[2].cmd_line);
+
+    chain_free(chain);
+}
+
+// Test & inside quotes is not treated as separator
+void test_parse_quoted_ampersand(void) {
+    char line[] = "echo \"a & b\"";
+    CommandChain *chain = chain_parse(line);
+
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_INT(1, chain->count);
+    TEST_ASSERT_EQUAL_STRING("echo \"a & b\"", chain->commands[0].cmd_line);
+    TEST_ASSERT_FALSE(chain->commands[0].background);
+
+    chain_free(chain);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
+    // Basic chain tests
     RUN_TEST(test_parse_single_command);
     RUN_TEST(test_parse_semicolon_chain);
     RUN_TEST(test_parse_and_chain);
@@ -140,6 +232,14 @@ int main(void) {
     RUN_TEST(test_parse_empty_line);
     RUN_TEST(test_parse_whitespace);
     RUN_TEST(test_parse_trailing_semicolon);
+
+    // Background operator tests
+    RUN_TEST(test_parse_background_separator);
+    RUN_TEST(test_parse_multiple_background);
+    RUN_TEST(test_parse_trailing_background);
+    RUN_TEST(test_parse_and_vs_background);
+    RUN_TEST(test_parse_background_and_chain);
+    RUN_TEST(test_parse_quoted_ampersand);
 
     return UNITY_END();
 }

@@ -162,6 +162,11 @@ char **parse_line(char *line) {
 
             // Start of next token
             token_start_idx = (size_t)(write_pos - line);
+        } else if (*read_pos == '$' && in_single_quote) {
+            // Dollar sign inside single quotes - use special marker (SOH + $)
+            // cmdsub and varexpand will recognize SOH (\x01) and output literal $
+            *write_pos++ = '\x01';
+            *write_pos++ = *read_pos++;
         } else {
             // Regular character
             *write_pos++ = *read_pos++;

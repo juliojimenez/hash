@@ -218,10 +218,29 @@ int script_process_line(const char *line);
 bool script_in_control_structure(void);
 
 /**
- * Count loops at the current function call depth (for lexical break/continue)
+ * Count loops in the context stack (for POSIX dynamic scoping)
  * Returns the number of for/while/until loops that can be broken out of
+ * POSIX requires break/continue to work across function boundaries
  */
 int script_count_loops_at_current_depth(void);
+
+/**
+ * Get/set break pending levels (for POSIX dynamic scoping)
+ * When break is called from a function, these track how many levels to break
+ */
+int script_get_break_pending(void);
+void script_set_break_pending(int levels);
+
+/**
+ * Get/set continue pending levels (for POSIX dynamic scoping)
+ */
+int script_get_continue_pending(void);
+void script_set_continue_pending(int levels);
+
+/**
+ * Clear break/continue pending state (call when fully handled)
+ */
+void script_clear_break_continue(void);
 
 /**
  * Check if commands should currently execute

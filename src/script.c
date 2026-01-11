@@ -21,6 +21,11 @@
 // Global script state
 ScriptState script_state;
 
+// Break/continue pending levels (for POSIX dynamic scoping)
+// These track how many loop levels to break/continue across function boundaries
+int break_pending = 0;
+int continue_pending = 0;
+
 // Heredoc state for collecting heredoc content
 static char *heredoc_content = NULL;
 static size_t heredoc_content_len = 0;
@@ -365,19 +370,40 @@ bool script_in_control_structure(void) {
 
 int script_count_loops_at_current_depth(void) {
     int count = 0;
-    int current_depth = script_state.function_call_depth;
 
-    // Count loops that were created at the current function call depth
+    // POSIX: Count ALL loops in the context stack (dynamic scoping)
+    // This allows break/continue to work across function boundaries
     for (int i = 0; i < script_state.context_depth; i++) {
         ScriptContext *ctx = &script_state.context_stack[i];
-        // Only count loops at the same function call depth (lexical scoping)
-        if (ctx->function_call_depth == current_depth) {
-            if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
-                count++;
-            }
+        if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
+            count++;
         }
     }
     return count;
+}
+
+// Get/set break pending levels (for POSIX dynamic scoping)
+int script_get_break_pending(void) {
+    return break_pending;
+}
+
+void script_set_break_pending(int levels) {
+    break_pending = levels;
+}
+
+// Get/set continue pending levels (for POSIX dynamic scoping)
+int script_get_continue_pending(void) {
+    return continue_pending;
+}
+
+void script_set_continue_pending(int levels) {
+    continue_pending = levels;
+}
+
+// Clear break/continue pending (call when handled)
+void script_clear_break_continue(void) {
+    break_pending = 0;
+    continue_pending = 0;
 }
 
 bool script_should_execute(void) {
@@ -627,7 +653,7 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     script_state.positional_count = argc;
     script_state.exit_requested = false;  // Reset for this function
 
-    // Increment function call depth for lexical scoping of break/continue
+    // Increment function call depth (still useful for tracking)
     script_state.function_call_depth++;
 
     (void)script_execute_string(func->body);  // Result handled via last_command_exit_code
@@ -645,6 +671,14 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     if (exit_called) {
         script_state.exit_requested = true;
         return 0;  // Stop execution
+    }
+
+    // POSIX: Check for pending break/continue to propagate across function boundaries
+    if (break_pending > 0) {
+        return -3;  // Propagate break signal
+    }
+    if (continue_pending > 0) {
+        return -4;  // Propagate continue signal
     }
 
     // Restore old exit_requested state (in case we're in nested functions)
@@ -1416,10 +1450,21 @@ static int execute_loop_body(const char *body) {
             // Use script_process_line to handle nested control structures
             result = script_process_line(line);
         }
+
+        // Check for pending break/continue (POSIX dynamic scoping)
+        if (break_pending > 0 || continue_pending > 0) {
+            break;  // Stop executing body lines
+        }
+
         line = strtok_r(NULL, "\n", &saveptr);
     }
 
     free(body_copy);
+
+    // Return signal if break/continue is pending
+    if (break_pending > 0) return -3;
+    if (continue_pending > 0) return -4;
+
     return result;
 }
 
@@ -1451,6 +1496,8 @@ static int process_done(const char *line) {
     extern int last_command_exit_code;
     int body_exit_code = 0;  // Default if body never executes
     bool body_executed = false;
+    bool should_propagate_break = false;
+    bool should_propagate_continue = false;
 
     if (ctx_type == CTX_FOR) {
         // Execute the loop body for each value
@@ -1462,14 +1509,39 @@ static int process_done(const char *line) {
             int result = execute_loop_body(ctx->loop_body);
             body_executed = true;
             body_exit_code = last_command_exit_code;
+
             if (result == 0) {
                 // Exit was called
-                return script_pop_context();
+                script_pop_context();
+                return 0;
             }
-            if (result < 0) {
-                // Error or break
+
+            // Handle break with level decrementing
+            if (break_pending > 0) {
+                break_pending--;
+                if (break_pending > 0) {
+                    should_propagate_break = true;
+                }
+                break;  // Exit this loop
+            }
+
+            // Handle continue with level decrementing
+            if (continue_pending > 0) {
+                continue_pending--;
+                if (continue_pending > 0) {
+                    should_propagate_continue = true;
+                    break;  // Propagate to outer loop
+                }
+                // continue_pending is now 0, continue this loop
+                ctx->loop_index++;
+                continue;
+            }
+
+            if (result < 0 && result != -3 && result != -4) {
+                // Other error
                 break;
             }
+
             ctx->loop_index++;
         }
     } else if (ctx_type == CTX_WHILE) {
@@ -1479,12 +1551,35 @@ static int process_done(const char *line) {
             int result = execute_loop_body(ctx->loop_body);
             body_executed = true;
             body_exit_code = last_command_exit_code;
+
             if (result == 0) {
                 // Exit was called
-                return script_pop_context();
+                script_pop_context();
+                return 0;
             }
-            if (result < 0) {
-                // Error or break
+
+            // Handle break with level decrementing
+            if (break_pending > 0) {
+                break_pending--;
+                if (break_pending > 0) {
+                    should_propagate_break = true;
+                }
+                break;  // Exit this loop
+            }
+
+            // Handle continue with level decrementing
+            if (continue_pending > 0) {
+                continue_pending--;
+                if (continue_pending > 0) {
+                    should_propagate_continue = true;
+                    break;  // Propagate to outer loop
+                }
+                // continue_pending is now 0, continue this loop
+                continue;
+            }
+
+            if (result < 0 && result != -3 && result != -4) {
+                // Other error
                 break;
             }
         }
@@ -1495,12 +1590,35 @@ static int process_done(const char *line) {
             int result = execute_loop_body(ctx->loop_body);
             body_executed = true;
             body_exit_code = last_command_exit_code;
+
             if (result == 0) {
                 // Exit was called
-                return script_pop_context();
+                script_pop_context();
+                return 0;
             }
-            if (result < 0) {
-                // Error or break
+
+            // Handle break with level decrementing
+            if (break_pending > 0) {
+                break_pending--;
+                if (break_pending > 0) {
+                    should_propagate_break = true;
+                }
+                break;  // Exit this loop
+            }
+
+            // Handle continue with level decrementing
+            if (continue_pending > 0) {
+                continue_pending--;
+                if (continue_pending > 0) {
+                    should_propagate_continue = true;
+                    break;  // Propagate to outer loop
+                }
+                // continue_pending is now 0, continue this loop
+                continue;
+            }
+
+            if (result < 0 && result != -3 && result != -4) {
+                // Other error
                 break;
             }
         }
@@ -1514,7 +1632,17 @@ static int process_done(const char *line) {
         last_command_exit_code = 0;
     }
 
-    return script_pop_context();
+    script_pop_context();
+
+    // Propagate break/continue to outer loops if levels remain
+    if (should_propagate_break) {
+        return -3;
+    }
+    if (should_propagate_continue) {
+        return -4;
+    }
+
+    return 1;
 }
 
 // ============================================================================

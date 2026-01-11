@@ -203,6 +203,63 @@ void test_count_loops_at_current_depth_with_if(void) {
 }
 
 // ============================================================================
+// Break/Continue Pending Tests (POSIX dynamic scoping)
+// ============================================================================
+
+void test_break_pending_initial(void) {
+    // Initially, no break is pending
+    TEST_ASSERT_EQUAL(0, script_get_break_pending());
+}
+
+void test_continue_pending_initial(void) {
+    // Initially, no continue is pending
+    TEST_ASSERT_EQUAL(0, script_get_continue_pending());
+}
+
+void test_set_break_pending(void) {
+    script_set_break_pending(2);
+    TEST_ASSERT_EQUAL(2, script_get_break_pending());
+    // Clean up
+    script_clear_break_continue();
+    TEST_ASSERT_EQUAL(0, script_get_break_pending());
+}
+
+void test_set_continue_pending(void) {
+    script_set_continue_pending(3);
+    TEST_ASSERT_EQUAL(3, script_get_continue_pending());
+    // Clean up
+    script_clear_break_continue();
+    TEST_ASSERT_EQUAL(0, script_get_continue_pending());
+}
+
+void test_clear_break_continue(void) {
+    script_set_break_pending(1);
+    script_set_continue_pending(2);
+    TEST_ASSERT_EQUAL(1, script_get_break_pending());
+    TEST_ASSERT_EQUAL(2, script_get_continue_pending());
+
+    script_clear_break_continue();
+    TEST_ASSERT_EQUAL(0, script_get_break_pending());
+    TEST_ASSERT_EQUAL(0, script_get_continue_pending());
+}
+
+void test_count_loops_dynamic_scoping(void) {
+    // POSIX requires break/continue to work across function boundaries
+    // This test verifies that loop counting works with dynamic scoping
+    script_push_context(CTX_FOR);
+
+    // Simulate entering a function (increment function_call_depth)
+    script_state.function_call_depth++;
+
+    // Even though we're in a "function", loops should still be counted
+    TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
+
+    // Restore
+    script_state.function_call_depth--;
+    script_pop_context();
+}
+
+// ============================================================================
 // Function Management Tests
 // ============================================================================
 
@@ -305,6 +362,14 @@ int main(void) {
     RUN_TEST(test_count_loops_at_current_depth_one_loop);
     RUN_TEST(test_count_loops_at_current_depth_multiple_loops);
     RUN_TEST(test_count_loops_at_current_depth_with_if);
+
+    // Break/continue pending (POSIX dynamic scoping)
+    RUN_TEST(test_break_pending_initial);
+    RUN_TEST(test_continue_pending_initial);
+    RUN_TEST(test_set_break_pending);
+    RUN_TEST(test_set_continue_pending);
+    RUN_TEST(test_clear_break_continue);
+    RUN_TEST(test_count_loops_dynamic_scoping);
 
     // Function management
     RUN_TEST(test_define_function);

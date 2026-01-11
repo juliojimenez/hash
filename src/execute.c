@@ -20,6 +20,7 @@
 #include "jobs.h"
 #include "safe_string.h"
 #include "script.h"
+#include "shellvar.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -181,6 +182,67 @@ static void free_glob_args(char **glob_args, int count) {
     free(glob_args);
 }
 
+// Check if string is a valid variable assignment (VAR=VALUE)
+// Returns pointer to '=' if valid, NULL otherwise
+static char *is_var_assignment(char *arg) {
+    if (!arg) return NULL;
+
+    char *equals = strchr(arg, '=');
+    if (!equals || equals == arg) return NULL;
+
+    // Check if characters before = form a valid variable name
+    for (char *p = arg; p < equals; p++) {
+        if (p == arg) {
+            if (!isalpha(*p) && *p != '_') return NULL;
+        } else {
+            if (!isalnum(*p) && *p != '_') return NULL;
+        }
+    }
+
+    return equals;
+}
+
+// Structure to store prefix assignments for restoration
+#define MAX_PREFIX_VARS 64
+typedef struct {
+    char *name;
+    char *old_value;   // NULL if variable wasn't set, strdup'd value otherwise
+    bool was_set;
+} PrefixVar;
+
+static PrefixVar prefix_vars[MAX_PREFIX_VARS];
+static int prefix_var_count = 0;
+
+// Save a variable's current value before prefix assignment
+static void save_prefix_var(const char *name) {
+    if (prefix_var_count >= MAX_PREFIX_VARS) return;
+
+    prefix_vars[prefix_var_count].name = strdup(name);
+    const char *old_val = getenv(name);
+    if (old_val) {
+        prefix_vars[prefix_var_count].old_value = strdup(old_val);
+        prefix_vars[prefix_var_count].was_set = true;
+    } else {
+        prefix_vars[prefix_var_count].old_value = NULL;
+        prefix_vars[prefix_var_count].was_set = false;
+    }
+    prefix_var_count++;
+}
+
+// Restore prefix variables to their original state
+static void restore_prefix_vars(void) {
+    for (int i = 0; i < prefix_var_count; i++) {
+        if (prefix_vars[i].was_set) {
+            setenv(prefix_vars[i].name, prefix_vars[i].old_value, 1);
+            free(prefix_vars[i].old_value);
+        } else {
+            unsetenv(prefix_vars[i].name);
+        }
+        free(prefix_vars[i].name);
+    }
+    prefix_var_count = 0;
+}
+
 // Execute command (built-in or external)
 int execute(char **args) {
     if (args[0] == NULL) {
@@ -300,48 +362,57 @@ int execute(char **args) {
     // Use expanded args if glob expansion happened, otherwise use original args
     char **exec_input = glob_expanded ? glob_args : args;
 
-    // Check for variable assignment (VAR=VALUE with no command following)
-    // Must have = and start with valid variable name character
-    if (args[0] && args[1] == NULL) {
-        char *equals = strchr(args[0], '=');
-        if (equals && equals != args[0]) {
-            // Check if it's a valid variable name before the =
-            int valid = 1;
-            for (char *p = args[0]; p < equals; p++) {
-                if (p == args[0]) {
-                    if (!isalpha(*p) && *p != '_') {
-                        valid = 0;
-                        break;
-                    }
-                } else {
-                    if (!isalnum(*p) && *p != '_') {
-                        valid = 0;
-                        break;
-                    }
-                }
-            }
-            if (valid) {
-                // This is a variable assignment
-                *equals = '\0';
-                const char *name = args[0];
-                const char *value = equals + 1;
+    // Handle variable assignments
+    // Count leading VAR=VALUE assignments
+    int prefix_count = 0;
+    while (exec_input[prefix_count] && is_var_assignment(exec_input[prefix_count])) {
+        prefix_count++;
+    }
 
-                // Expand tildes in the value (for PATH-like assignments)
-                char *tilde_expanded = expand_tilde_in_assignment(value);
-                if (tilde_expanded) {
-                    setenv(name, tilde_expanded, 1);
-                    free(tilde_expanded);
-                } else {
-                    setenv(name, value, 1);
-                }
+    if (prefix_count > 0 && exec_input[prefix_count] == NULL) {
+        // Only variable assignments, no command - set variables in shell
+        for (int i = 0; i < prefix_count; i++) {
+            char *equals = is_var_assignment(exec_input[i]);
+            *equals = '\0';
+            const char *name = exec_input[i];
+            const char *value = equals + 1;
 
-                *equals = '=';  // Restore in case it's in shared memory
-                last_command_exit_code = 0;
-                if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
-                free_expanded_args(expanded_args, expanded_count);
-                return 1;
+            // Expand tildes in the value (for PATH-like assignments)
+            char *tilde_expanded = expand_tilde_in_assignment(value);
+            if (tilde_expanded) {
+                shellvar_set(name, tilde_expanded);
+                free(tilde_expanded);
+            } else {
+                shellvar_set(name, value);
             }
+            *equals = '=';  // Restore
         }
+        last_command_exit_code = 0;
+        if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
+        free_expanded_args(expanded_args, expanded_count);
+        return 1;
+    }
+
+    // If there are prefix assignments followed by a command,
+    // set them temporarily in the environment for the child process
+    bool has_prefix_assignments = (prefix_count > 0 && exec_input[prefix_count] != NULL);
+    if (has_prefix_assignments) {
+        for (int i = 0; i < prefix_count; i++) {
+            char *equals = is_var_assignment(exec_input[i]);
+            *equals = '\0';
+            const char *name = exec_input[i];
+            const char *value = equals + 1;
+
+            // Save old value for restoration
+            save_prefix_var(name);
+
+            // Set in environment for child processes
+            setenv(name, value, 1);
+
+            *equals = '=';  // Restore
+        }
+        // Shift exec_input to point to the actual command
+        exec_input = &exec_input[prefix_count];
     }
 
     int result = 1;  // Default: continue shell
@@ -355,6 +426,7 @@ int execute(char **args) {
             last_command_exit_code = 1;
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
+            restore_prefix_vars();
             return 1;
         }
 
@@ -364,6 +436,7 @@ int execute(char **args) {
             last_command_exit_code = 1;
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
+            restore_prefix_vars();
             return 1;
         }
 
@@ -402,6 +475,7 @@ int execute(char **args) {
                 free(alias_line);
                 if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
                 free_expanded_args(expanded_args, expanded_count);
+                restore_prefix_vars();
                 return result;
             }
         }
@@ -425,6 +499,7 @@ int execute(char **args) {
 #if DEBUG_EXIT_CODE
         fprintf(stderr, "DEBUG: After free_expanded_args, last_command_exit_code=%d\n", last_command_exit_code);
 #endif
+        restore_prefix_vars();
         return result;
     }
 
@@ -476,6 +551,7 @@ int execute(char **args) {
         redirect_free(redir);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
+        restore_prefix_vars();
         return 1;
     }
 
@@ -505,6 +581,7 @@ int execute(char **args) {
         redirect_free(redir);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
+        restore_prefix_vars();
         return result;
     }
     redirect_free(redir);
@@ -520,6 +597,7 @@ int execute(char **args) {
         last_command_exit_code = result;
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
+        restore_prefix_vars();
         return result;
     }
 
@@ -532,6 +610,7 @@ int execute(char **args) {
     free(cmd_string);
     if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
     free_expanded_args(expanded_args, expanded_count);
+    restore_prefix_vars();
 
     return result;
 }

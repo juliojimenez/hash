@@ -149,9 +149,83 @@ void test_expand_just_tilde(void) {
     if (args[1] != orig_arg1) free(args[1]);
 }
 
+// ============== Glob expansion tests ==============
+
+// Test has_glob_chars with asterisk
+void test_has_glob_chars_asterisk(void) {
+    TEST_ASSERT_TRUE(has_glob_chars("*.txt"));
+    TEST_ASSERT_TRUE(has_glob_chars("file*"));
+    TEST_ASSERT_TRUE(has_glob_chars("*"));
+    TEST_ASSERT_TRUE(has_glob_chars("src/*.c"));
+}
+
+// Test has_glob_chars with question mark
+void test_has_glob_chars_question(void) {
+    TEST_ASSERT_TRUE(has_glob_chars("file?.txt"));
+    TEST_ASSERT_TRUE(has_glob_chars("?"));
+    TEST_ASSERT_TRUE(has_glob_chars("test?"));
+}
+
+// Test has_glob_chars with brackets
+void test_has_glob_chars_brackets(void) {
+    TEST_ASSERT_TRUE(has_glob_chars("file[abc].txt"));
+    TEST_ASSERT_TRUE(has_glob_chars("file[0-9]"));
+    TEST_ASSERT_TRUE(has_glob_chars("[abc]"));
+}
+
+// Test has_glob_chars returns false for non-glob strings
+void test_has_glob_chars_no_glob(void) {
+    TEST_ASSERT_FALSE(has_glob_chars("hello"));
+    TEST_ASSERT_FALSE(has_glob_chars("/path/to/file.txt"));
+    TEST_ASSERT_FALSE(has_glob_chars(""));
+    TEST_ASSERT_FALSE(has_glob_chars(NULL));
+}
+
+// Test has_glob_chars with escaped characters
+void test_has_glob_chars_escaped(void) {
+    TEST_ASSERT_FALSE(has_glob_chars("\\*"));
+    TEST_ASSERT_FALSE(has_glob_chars("\\?"));
+    TEST_ASSERT_FALSE(has_glob_chars("file\\*.txt"));
+}
+
+// Test has_glob_chars with incomplete brackets
+void test_has_glob_chars_incomplete_bracket(void) {
+    TEST_ASSERT_FALSE(has_glob_chars("file[abc"));  // No closing bracket
+    TEST_ASSERT_FALSE(has_glob_chars("["));
+}
+
+// Test expand_glob with no glob characters (should not modify)
+void test_expand_glob_no_glob(void) {
+    char *arg0 = strdup("echo");
+    char *arg1 = strdup("hello");
+    char **args = malloc(3 * sizeof(char *));
+    args[0] = arg0;
+    args[1] = arg1;
+    args[2] = NULL;
+    int arg_count = 2;
+
+    int result = expand_glob(&args, &arg_count);
+    TEST_ASSERT_EQUAL_INT(0, result);
+    TEST_ASSERT_EQUAL_INT(2, arg_count);
+
+    free(arg0);
+    free(arg1);
+    free(args);
+}
+
+// Test expand_glob with NULL args
+void test_expand_glob_null(void) {
+    int arg_count = 0;
+    TEST_ASSERT_EQUAL_INT(-1, expand_glob(NULL, &arg_count));
+
+    char **args = NULL;
+    TEST_ASSERT_EQUAL_INT(-1, expand_glob(&args, &arg_count));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
+    // Tilde expansion tests
     RUN_TEST(test_expand_tilde_home);
     RUN_TEST(test_expand_tilde_with_path);
     RUN_TEST(test_expand_non_tilde);
@@ -159,6 +233,16 @@ int main(void) {
     RUN_TEST(test_expand_multiple_tildes);
     RUN_TEST(test_expand_empty_args);
     RUN_TEST(test_expand_just_tilde);
+
+    // Glob expansion tests
+    RUN_TEST(test_has_glob_chars_asterisk);
+    RUN_TEST(test_has_glob_chars_question);
+    RUN_TEST(test_has_glob_chars_brackets);
+    RUN_TEST(test_has_glob_chars_no_glob);
+    RUN_TEST(test_has_glob_chars_escaped);
+    RUN_TEST(test_has_glob_chars_incomplete_bracket);
+    RUN_TEST(test_expand_glob_no_glob);
+    RUN_TEST(test_expand_glob_null);
 
     return UNITY_END();
 }
