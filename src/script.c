@@ -168,6 +168,11 @@ static int heredoc_append(const char *line, int strip_tabs) {
 static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs) {
     heredoc_reset();
 
+    // Debug: show delimiter we're looking for
+    if (getenv("HASH_DEBUG_EXEC")) {
+        fprintf(stderr, "DEBUG heredoc_collect: looking for delimiter [%s]\n", delimiter);
+    }
+
     char line[MAX_SCRIPT_LINE];
 
     while (fgets(line, sizeof(line), fp)) {
@@ -178,6 +183,11 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
             len--;
         }
 
+        // Debug: show each line read during heredoc collection
+        if (getenv("HASH_DEBUG_EXEC")) {
+            fprintf(stderr, "DEBUG heredoc_collect read: [%s]\n", line);
+        }
+
         // Check for delimiter
         const char *check = line;
         if (strip_tabs) {
@@ -185,6 +195,10 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
         }
 
         if (strcmp(check, delimiter) == 0) {
+            // Debug: found delimiter
+            if (getenv("HASH_DEBUG_EXEC")) {
+                fprintf(stderr, "DEBUG heredoc_collect: found delimiter, done\n");
+            }
             // Found delimiter - return collected content
             char *result = heredoc_content;
             heredoc_content = NULL;
@@ -2554,9 +2568,9 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             line[len-1] = '\0';
         }
 
-        // Debug: show raw line from file
-        if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
-            fprintf(stderr, "DEBUG script_execute_file raw line: [%s] len=%zu\n", line, strlen(line));
+        // Debug: show every line from file
+        if (getenv("HASH_DEBUG_EXEC")) {
+            fprintf(stderr, "DEBUG script_execute_file read line: [%s]\n", line);
         }
 
         // Check for heredoc and collect content if present
