@@ -13,7 +13,9 @@ typedef enum {
     REDIR_ERROR_TO_OUT, // 2>&1 (stderr to stdout)
     REDIR_OUT_TO_ERROR, // >&2 or 1>&2 (stdout to stderr)
     REDIR_HEREDOC,     // << DELIMITER
-    REDIR_HEREDOC_NOTAB // <<- DELIMITER (strip leading tabs)
+    REDIR_HEREDOC_NOTAB, // <<- DELIMITER (strip leading tabs)
+    REDIR_INPUT_DUP,   // <&N (dup fd N to stdin)
+    REDIR_OUTPUT_DUP   // >&N (dup fd N to stdout) - for N != 2
 } RedirType;
 
 // A single redirection

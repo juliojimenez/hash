@@ -550,20 +550,34 @@ int execute(char **args) {
     // Check if this is a builtin first (without executing it)
     int is_builtin_cmd = exec_args[0] ? is_builtin(exec_args[0]) : 0;
 
-    // Check if this is a flow-control builtin that must NOT run in a child process
-    // These builtins affect the shell's execution flow and their return values matter
-    // Also includes 'set' since it modifies shell options that must persist
-    bool is_flow_control = false;
+    // Check if this is a builtin that must NOT run in a child process
+    // These include:
+    // - Flow control: break, continue, return, exit (affect execution flow)
+    // - State modifying: read, export, unset, set, cd, alias, unalias,
+    //   readonly, eval, exec, source, ., trap (modify shell state/variables)
+    bool is_special_builtin = false;
     if (exec_args[0]) {
-        is_flow_control = (strcmp(exec_args[0], "break") == 0 ||
-                          strcmp(exec_args[0], "continue") == 0 ||
-                          strcmp(exec_args[0], "return") == 0 ||
-                          strcmp(exec_args[0], "exit") == 0 ||
-                          strcmp(exec_args[0], "set") == 0);
+        is_special_builtin = (strcmp(exec_args[0], "break") == 0 ||
+                              strcmp(exec_args[0], "continue") == 0 ||
+                              strcmp(exec_args[0], "return") == 0 ||
+                              strcmp(exec_args[0], "exit") == 0 ||
+                              strcmp(exec_args[0], "set") == 0 ||
+                              strcmp(exec_args[0], "read") == 0 ||
+                              strcmp(exec_args[0], "export") == 0 ||
+                              strcmp(exec_args[0], "unset") == 0 ||
+                              strcmp(exec_args[0], "readonly") == 0 ||
+                              strcmp(exec_args[0], "cd") == 0 ||
+                              strcmp(exec_args[0], "alias") == 0 ||
+                              strcmp(exec_args[0], "unalias") == 0 ||
+                              strcmp(exec_args[0], "eval") == 0 ||
+                              strcmp(exec_args[0], "exec") == 0 ||
+                              strcmp(exec_args[0], "source") == 0 ||
+                              strcmp(exec_args[0], ".") == 0 ||
+                              strcmp(exec_args[0], "trap") == 0);
     }
 
-    // If it's a builtin with redirections (but NOT flow control), run in child process
-    if (is_builtin_cmd && redir && redir->count > 0 && !is_flow_control) {
+    // If it's a builtin with redirections (but NOT special), run in child process
+    if (is_builtin_cmd && redir && redir->count > 0 && !is_special_builtin) {
         pid_t pid = fork();
         if (pid == 0) {
             // Child process - apply redirections and run builtin
@@ -593,10 +607,10 @@ int execute(char **args) {
         return 1;
     }
 
-    // For flow-control builtins with redirections, handle in same process
+    // For special builtins with redirections, handle in same process
     // Save and restore file descriptors
     int saved_fds[3] = {-1, -1, -1};  // stdin, stdout, stderr
-    if (is_flow_control && redir && redir->count > 0) {
+    if (is_special_builtin && redir && redir->count > 0) {
         // Save current file descriptors
         saved_fds[0] = dup(STDIN_FILENO);
         saved_fds[1] = dup(STDOUT_FILENO);

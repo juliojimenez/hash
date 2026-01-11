@@ -2083,7 +2083,6 @@ static int process_esac(const char *line) {
 
     if (parent_executing && ctx->case_word && ctx->loop_body) {
         // Expand the case word before matching
-        // TODO: Add proper variable expansion here
         // For now, use the word as-is or check for simple $var
         const char *expanded_word = ctx->case_word;
         char *allocated_word = NULL;

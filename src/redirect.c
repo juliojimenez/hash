@@ -158,6 +158,12 @@ RedirInfo *redirect_parse(char **args) {
         } else if (strcmp(arg, ">&2") == 0 || strcmp(arg, "1>&2") == 0) {
             // Redirect stdout to stderr
             add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
+        } else if (strncmp(arg, "<&", 2) == 0 && isdigit(arg[2])) {
+            // <&N - dup fd N to stdin
+            add_redirection(info, REDIR_INPUT_DUP, arg + 2);
+        } else if (strncmp(arg, ">&", 2) == 0 && isdigit(arg[2]) && arg[2] != '2') {
+            // >&N where N != 2 - dup fd N to stdout
+            add_redirection(info, REDIR_OUTPUT_DUP, arg + 2);
         }
         // Handle attached redirections: >file, <file, >>file, etc.
         else if (arg[0] == '<' && arg[1] != '\0' && arg[1] != '&') {
@@ -381,6 +387,20 @@ int redirect_apply(const RedirInfo *info) {
                     dup2(pipefd[0], STDIN_FILENO);
                     close(pipefd[0]);
                 }
+                break;
+            }
+
+            case REDIR_INPUT_DUP: {
+                // <&N - dup fd N to stdin
+                int src_fd = atoi(redir->filename);
+                dup2(src_fd, STDIN_FILENO);
+                break;
+            }
+
+            case REDIR_OUTPUT_DUP: {
+                // >&N - dup fd N to stdout
+                int src_fd = atoi(redir->filename);
+                dup2(src_fd, STDOUT_FILENO);
                 break;
             }
 
