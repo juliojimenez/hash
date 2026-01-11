@@ -638,6 +638,15 @@ int execute(char **args) {
     int saved_fds[3] = {-1, -1, -1};  // stdin, stdout, stderr
     bool is_exec_builtin = exec_args[0] && strcmp(exec_args[0], "exec") == 0;
 
+    // Debug: trace exec builtin path
+    if (getenv("HASH_DEBUG_EXEC") && is_exec_builtin) {
+        fprintf(stderr, "DEBUG execute: is_exec_builtin=true, exec_input:");
+        for (int j = 0; exec_input[j]; j++) {
+            fprintf(stderr, " [%s]", exec_input[j]);
+        }
+        fprintf(stderr, "\n");
+    }
+
     // For exec builtin, pass original args (with all redirections) so it can process them
     // in the correct order. Don't use redirect_apply which would apply in wrong order.
     if (is_exec_builtin) {

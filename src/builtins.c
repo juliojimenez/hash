@@ -1235,6 +1235,15 @@ int shell_command(char **args) {
 }
 
 int shell_exec(char **args) {
+    // Debug: print what exec receives
+    if (getenv("HASH_DEBUG_EXEC")) {
+        fprintf(stderr, "DEBUG shell_exec args:");
+        for (int j = 0; args[j]; j++) {
+            fprintf(stderr, " [%s]", args[j]);
+        }
+        fprintf(stderr, "\n");
+    }
+
     // exec with no arguments: just return success (noop)
     if (!args[1]) {
         last_command_exit_code = 0;

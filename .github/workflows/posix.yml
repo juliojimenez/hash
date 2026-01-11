@@ -48,7 +48,7 @@ jobs:
 
           # Run tests with hash-shell
           echo "Running Smoosh tests against hash-shell..."
-          TEST_SHELL=/usr/local/bin/hash-shell TEST_DEBUG=1 make test 2>&1 | tee smoosh-results.txt || true
+          HASH_DEBUG_EXEC=1 TEST_SHELL=/usr/local/bin/hash-shell TEST_DEBUG=1 make test 2>&1 | tee smoosh-results.txt || true
 
           # Extract results
           if grep -q "tests passed" smoosh-results.txt; then
