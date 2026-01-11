@@ -627,7 +627,9 @@ int execute(char **args) {
         while (exec_input[argc]) argc++;
 
         result = script_execute_function(func, argc, exec_input);
-        last_command_exit_code = result;
+        // Note: Do NOT set last_command_exit_code here - it's already set
+        // by shell_return (or the last command in the function body).
+        // The result is a control flow signal (1=continue, 0=exit, -2=return, etc.)
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         restore_prefix_vars();
