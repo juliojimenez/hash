@@ -385,11 +385,13 @@ bool script_in_control_structure(void) {
 int script_count_loops_at_current_depth(void) {
     int count = 0;
 
-    // POSIX: Count ALL loops in the context stack (dynamic scoping)
-    // This allows break/continue to work across function boundaries
+    // POSIX lexical scoping: Only count loops at the current function depth
+    // This ensures break/continue only affect loops within the current function
+    int current_func_depth = script_state.function_call_depth;
     for (int i = 0; i < script_state.context_depth; i++) {
         const ScriptContext *ctx = &script_state.context_stack[i];
-        if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
+        if ((ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) &&
+            ctx->function_call_depth == current_func_depth) {
             count++;
         }
     }
@@ -663,6 +665,13 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     int old_count = script_state.positional_count;
     bool old_exit_requested = script_state.exit_requested;
 
+    // POSIX lexical scoping: save and reset break/continue state
+    // break/continue inside a function should NOT affect the caller's loops
+    int old_break_pending = break_pending;
+    int old_continue_pending = continue_pending;
+    break_pending = 0;
+    continue_pending = 0;
+
     script_state.positional_params = argv;
     script_state.positional_count = argc;
     script_state.exit_requested = false;  // Reset for this function
@@ -683,17 +692,17 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
 
     // If exit was called inside function, propagate it
     if (exit_called) {
+        // Restore break/continue state before returning
+        break_pending = old_break_pending;
+        continue_pending = old_continue_pending;
         script_state.exit_requested = true;
         return 0;  // Stop execution
     }
 
-    // POSIX: Check for pending break/continue to propagate across function boundaries
-    if (break_pending > 0) {
-        return -3;  // Propagate break signal
-    }
-    if (continue_pending > 0) {
-        return -4;  // Propagate continue signal
-    }
+    // POSIX lexical scoping: restore break/continue state from before function call
+    // Any break/continue set inside the function stays inside the function
+    break_pending = old_break_pending;
+    continue_pending = old_continue_pending;
 
     // Restore old exit_requested state (in case we're in nested functions)
     script_state.exit_requested = old_exit_requested;
@@ -1066,6 +1075,8 @@ static int append_to_func_body(ScriptContext *ctx, const char *line) {
         ctx->func_body_cap = new_cap;
     }
 
+    if (!ctx->func_body) return -1;
+
     if (ctx->func_body_len > 0) {
         ctx->func_body[ctx->func_body_len++] = '\n';
     }
@@ -1095,6 +1106,8 @@ static int append_to_loop_body(ScriptContext *ctx, const char *line) {
         ctx->loop_body = new_body;
         ctx->loop_body_cap = new_cap;
     }
+
+    if (!ctx->loop_body) return -1;
 
     if (ctx->loop_body_len > 0) {
         ctx->loop_body[ctx->loop_body_len++] = '\n';
