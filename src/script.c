@@ -1010,8 +1010,10 @@ static int execute_simple_line(const char *line) {
                 // Parent - set last background PID and add to job table
                 free(group_cmd);
                 jobs_set_last_bg_pid(pid);
+                // Add job to job table (needed for jobs command and $!)
                 int job_id = jobs_add(pid, line);
-                if (job_id > 0 && isatty(STDIN_FILENO)) {
+                // Only print job notification in interactive mode with job control
+                if (job_id > 0 && isatty(STDIN_FILENO) && shell_option_monitor()) {
                     printf("[%d] %d\n", job_id, pid);
                 }
                 last_command_exit_code = 0;

@@ -1630,8 +1630,12 @@ int shell_wait(char **args) {
 
         // Wait for all child processes
         while ((pid = waitpid(-1, &status, 0)) > 0) {
-            // Update job status
+            // Update job status and remove completed jobs
             jobs_update_status(pid, status);
+            Job *job = jobs_get_by_pid(pid);
+            if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
+                jobs_remove(job->job_id);
+            }
         }
 
         last_command_exit_code = 0;
@@ -1642,6 +1646,7 @@ int shell_wait(char **args) {
     for (int i = 1; args[i]; i++) {
         const char *arg = args[i];
         pid_t pid = 0;
+        int job_id_to_remove = 0;
 
         // Check for job ID (%n)
         if (arg[0] == '%') {
@@ -1655,6 +1660,7 @@ int shell_wait(char **args) {
             }
             if (job) {
                 pid = job->pid;
+                job_id_to_remove = job->job_id;
             } else {
                 fprintf(stderr, "%s: wait: %s: no such job\n", HASH_NAME, arg);
                 last_command_exit_code = 127;
@@ -1663,6 +1669,11 @@ int shell_wait(char **args) {
         } else {
             // PID
             pid = atoi(arg);
+            // Find job ID if this PID is in the table
+            Job *job = jobs_get_by_pid(pid);
+            if (job) {
+                job_id_to_remove = job->job_id;
+            }
         }
 
         if (pid > 0) {
@@ -1674,9 +1685,17 @@ int shell_wait(char **args) {
                     last_command_exit_code = 128 + WTERMSIG(status);
                 }
                 jobs_update_status(pid, status);
+                // Remove the completed job from the table
+                if (job_id_to_remove > 0) {
+                    jobs_remove(job_id_to_remove);
+                }
             } else {
                 // Process already exited or doesn't exist
                 last_command_exit_code = 127;
+                // Still remove from job table if it exists
+                if (job_id_to_remove > 0) {
+                    jobs_remove(job_id_to_remove);
+                }
             }
         }
     }
@@ -1799,6 +1818,13 @@ int shell_kill(char **args) {
 
         // Check for job specification
         if (target[0] == '%') {
+            // Job specs only work when job control is enabled (set -m)
+            if (!shell_option_monitor()) {
+                fprintf(stderr, "%s: kill: %s: no job control\n", HASH_NAME, target);
+                result = 1;
+                continue;
+            }
+
             const Job *job = NULL;
             if (target[1] == '%' || target[1] == '+' || target[1] == '\0') {
                 // %%, %+, or just % - current job

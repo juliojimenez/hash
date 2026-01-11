@@ -15,6 +15,7 @@
 #include "hash.h"
 #include "script.h"
 #include "trap.h"
+#include "config.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
@@ -314,11 +315,11 @@ static int execute_background(const char *cmd_line) {
     // Set the last background PID for $! expansion
     jobs_set_last_bg_pid(pid);
 
-    // Add job to job table
+    // Add job to job table (needed for jobs command and $!)
     int job_id = jobs_add(pid, cmd_line);
 
-    // Only print job notification in interactive mode
-    if (job_id > 0 && isatty(STDIN_FILENO)) {
+    // Only print job notification in interactive mode with job control
+    if (job_id > 0 && isatty(STDIN_FILENO) && shell_option_monitor()) {
         printf("[%d] %d\n", job_id, pid);
     }
 

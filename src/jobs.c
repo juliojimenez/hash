@@ -93,6 +93,18 @@ int jobs_remove(int job_id) {
                 }
             }
 
+            // Check if job table is now empty, reset job ID counter
+            bool table_empty = true;
+            for (int j = 0; j < MAX_JOBS; j++) {
+                if (jobs[j].pid != 0) {
+                    table_empty = false;
+                    break;
+                }
+            }
+            if (table_empty) {
+                next_job_id = 1;
+            }
+
             return 0;
         }
     }
