@@ -5,6 +5,6 @@
 char *read_line(const char *prompt);
 
 // Parse line into tokens
-char **parse_line(char *line);
+char **parse_line(const char *line);
 
 #endif
