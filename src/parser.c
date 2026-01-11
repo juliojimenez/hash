@@ -34,16 +34,24 @@ char **parse_line(char *line) {
         exit(EXIT_FAILURE);
     }
 
+    // Allocate output buffer - worst case is 2x input size (every char gets a marker)
+    size_t line_len = strlen(line);
+    char *output = malloc(line_len * 2 + 1);
+    if (!output) {
+        free(tokens);
+        fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+        exit(EXIT_FAILURE);
+    }
+
     read_pos = line;
-    write_pos = line;
+    write_pos = output;
 
     // Skip leading whitespace
     while (*read_pos && isspace(*read_pos)) {
         read_pos++;
-        write_pos++;
     }
 
-    token_start_idx = (size_t)(write_pos - line);
+    token_start_idx = (size_t)(write_pos - output);
 
     while (*read_pos) {
         if (*read_pos == '\\' && *(read_pos + 1)) {
@@ -140,17 +148,20 @@ char **parse_line(char *line) {
             *write_pos = '\0';
 
             // Add token to array if it's not empty
-            if (line[token_start_idx] != '\0') {
-                tokens[position] = &line[token_start_idx];
+            if (output[token_start_idx] != '\0') {
+                tokens[position] = &output[token_start_idx];
                 position++;
 
                 if (position >= bufsize) {
                     bufsize += MAX_ARGS;
-                    tokens = realloc(tokens, bufsize * sizeof(char*));
-                    if (!tokens) {
+                    char **new_tokens = realloc(tokens, bufsize * sizeof(char*));
+                    if (!new_tokens) {
+                        free(tokens);
+                        free(output);
                         fprintf(stderr, "%s: allocation error\n", HASH_NAME);
                         exit(EXIT_FAILURE);
                     }
+                    tokens = new_tokens;
                 }
             }
 
@@ -159,11 +170,10 @@ char **parse_line(char *line) {
             read_pos++;
             while (*read_pos && isspace(*read_pos)) {
                 read_pos++;
-                write_pos++;
             }
 
             // Start of next token
-            token_start_idx = (size_t)(write_pos - line);
+            token_start_idx = (size_t)(write_pos - output);
         } else if (*read_pos == '$' && in_single_quote) {
             // Dollar sign inside single quotes - use special marker (SOH + $)
             // cmdsub and varexpand will recognize SOH (\x01) and output literal $
@@ -182,11 +192,21 @@ char **parse_line(char *line) {
 
     // Handle last token
     *write_pos = '\0';
-    if (line[token_start_idx] != '\0') {
-        tokens[position] = &line[token_start_idx];
+    if (output[token_start_idx] != '\0') {
+        tokens[position] = &output[token_start_idx];
         position++;
     }
 
     tokens[position] = NULL;
+
+    // Store output buffer pointer after the NULL terminator in tokens array
+    // This allows the caller to free it if needed (tokens array was allocated with space)
+    // Actually, we use a static to track it for freeing on next call
+    static char *prev_output = NULL;
+    if (prev_output) {
+        free(prev_output);
+    }
+    prev_output = output;
+
     return tokens;
 }
