@@ -1629,12 +1629,30 @@ int shell_wait(char **args) {
         pid_t pid;
 
         // Wait for all child processes
-        while ((pid = waitpid(-1, &status, 0)) > 0) {
-            // Update job status and remove completed jobs
-            jobs_update_status(pid, status);
-            Job *job = jobs_get_by_pid(pid);
-            if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
-                jobs_remove(job->job_id);
+        // Keep trying until no more children (ECHILD) or interrupted
+        while (1) {
+            pid = waitpid(-1, &status, 0);
+            if (pid > 0) {
+                // Successfully waited for a child
+                jobs_update_status(pid, status);
+                Job *job = jobs_get_by_pid(pid);
+                if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
+                    jobs_remove(job->job_id);
+                }
+            } else if (pid == -1) {
+                if (errno == ECHILD) {
+                    // No more children to wait for
+                    break;
+                } else if (errno == EINTR) {
+                    // Interrupted by signal, try again
+                    continue;
+                } else {
+                    // Other error, stop waiting
+                    break;
+                }
+            } else {
+                // pid == 0 shouldn't happen without WNOHANG, but handle it
+                break;
             }
         }
 
