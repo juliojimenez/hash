@@ -9,6 +9,7 @@
 #include "arith.h"
 #include "safe_string.h"
 #include "cmdsub.h"
+#include "shellvar.h"
 
 // Forward declaration to access positional parameters
 // (We can't include script.h due to TokenType name collision)
@@ -124,17 +125,17 @@ static long get_variable(const char *name) {
         return 0;
     }
 
-    // Regular environment variable
-    const char *val = getenv(name);
+    // Regular shell variable (checks shell vars first, then environment)
+    const char *val = shellvar_get(name);
     if (!val) return 0;
     return strtol(val, NULL, 10);
 }
 
-// Set variable in environment
+// Set variable in shell variable system
 static void set_variable(const char *name, long value) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%ld", value);
-    setenv(name, buf, 1);
+    shellvar_set(name, buf);
 }
 
 // Get next token

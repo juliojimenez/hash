@@ -1,9 +1,12 @@
 #include "unity.h"
 #include "../src/arith.h"
+#include "../src/shellvar.h"
 #include <stdlib.h>
 #include <string.h>
 
 void setUp(void) {
+    // Initialize shell variable system
+    shellvar_init();
     // Clear test variables
     unsetenv("x");
     unsetenv("y");
@@ -11,6 +14,7 @@ void setUp(void) {
 }
 
 void tearDown(void) {
+    shellvar_cleanup();
 }
 
 // Test basic addition
@@ -87,7 +91,7 @@ void test_arith_undefined_var(void) {
 
 // Test variable (defined)
 void test_arith_defined_var(void) {
-    setenv("x", "10", 1);
+    shellvar_set("x", "10");
     long result;
     int ret = arith_evaluate("x + 5", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
@@ -96,7 +100,7 @@ void test_arith_defined_var(void) {
 
 // Test variable with $ prefix
 void test_arith_dollar_var(void) {
-    setenv("n", "7", 1);
+    shellvar_set("n", "7");
     long result;
     int ret = arith_evaluate("$n * 2", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
@@ -175,26 +179,26 @@ void test_arith_assignment(void) {
     int ret = arith_evaluate("x = 42", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
     TEST_ASSERT_EQUAL_INT(42, result);
-    TEST_ASSERT_EQUAL_STRING("42", getenv("x"));
+    TEST_ASSERT_EQUAL_STRING("42", shellvar_get("x"));
 }
 
 // Test increment
 void test_arith_pre_increment(void) {
-    setenv("x", "5", 1);
+    shellvar_set("x", "5");
     long result;
     int ret = arith_evaluate("++x", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
     TEST_ASSERT_EQUAL_INT(6, result);
-    TEST_ASSERT_EQUAL_STRING("6", getenv("x"));
+    TEST_ASSERT_EQUAL_STRING("6", shellvar_get("x"));
 }
 
 void test_arith_post_increment(void) {
-    setenv("x", "5", 1);
+    shellvar_set("x", "5");
     long result;
     int ret = arith_evaluate("x++", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
     TEST_ASSERT_EQUAL_INT(5, result);  // Returns old value
-    TEST_ASSERT_EQUAL_STRING("6", getenv("x"));  // But variable is incremented
+    TEST_ASSERT_EQUAL_STRING("6", shellvar_get("x"));  // But variable is incremented
 }
 
 // Test has_arith function
@@ -240,7 +244,7 @@ void test_arith_divide_by_zero(void) {
 
 // Test complex expression (like factorial)
 void test_arith_complex(void) {
-    setenv("n", "5", 1);
+    shellvar_set("n", "5");
     long result;
     int ret = arith_evaluate("n * 4", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
@@ -249,7 +253,7 @@ void test_arith_complex(void) {
 
 // Test n - 1 (important for factorial)
 void test_arith_n_minus_1(void) {
-    setenv("n", "5", 1);
+    shellvar_set("n", "5");
     long result;
     int ret = arith_evaluate("$n - 1", &result);
     TEST_ASSERT_EQUAL_INT(0, ret);
