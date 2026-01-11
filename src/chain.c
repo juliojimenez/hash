@@ -167,7 +167,10 @@ CommandChain *chain_parse(char *line) {
                 op_len = 2;
             }
             // Check for single & (background + continue) - must not be followed by &
-            else if (*current == '&' && *(current + 1) != '&') {
+            // and must not be part of >&N or N>&M redirection (where & is preceded by > and/or followed by digit)
+            else if (*current == '&' && *(current + 1) != '&' &&
+                     !(current > cmd_start && *(current - 1) == '>') &&
+                     !isdigit(*(current + 1))) {
                 // Single & acts as separator - command before it runs in background
                 // Null-terminate at & position
                 *current = '\0';

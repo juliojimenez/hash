@@ -14,6 +14,13 @@
 #include "execute.h"
 #include "safe_string.h"
 #include "redirect.h"
+#include "builtins.h"
+#include "varexpand.h"
+#include "expand.h"
+#include "cmdsub.h"
+#include "arith.h"
+
+extern int last_command_exit_code;
 
 #define INITIAL_PIPE_CAPACITY 8
 
@@ -212,6 +219,12 @@ int pipeline_execute(const Pipeline *pipeline) {
                 _exit(EXIT_FAILURE);
             }
 
+            // Perform variable expansion, command substitution, and arithmetic expansion
+            expand_tilde(args);
+            cmdsub_args(args);
+            arith_args(args);
+            varexpand_args(args, last_command_exit_code);
+
             // Parse redirections
             RedirInfo *redir = redirect_parse(args);
             char **exec_args = redir ? redir->args : args;
@@ -224,19 +237,27 @@ int pipeline_execute(const Pipeline *pipeline) {
                 _exit(EXIT_FAILURE);
             }
 
-            // Execute (this will handle expansions, built-ins, etc.)
-            // execute(args);
+            // Try builtin first (handles times, echo, etc. in pipelines)
+            int builtin_result = try_builtin(exec_args);
+            if (builtin_result != -1) {
+                // It was a builtin - flush output and exit with appropriate code
+                fflush(stdout);
+                fflush(stderr);
+                redirect_free(redir);
+                free(args);
+                free(line_copy);
+                _exit(builtin_result == 1 ? 0 : builtin_result);
+            }
 
-            // Execute (this will handle expansions, but not built-ins in pipes)
+            // Not a builtin - execute as external command
             if (execvp(exec_args[0], exec_args) == -1) {
                 perror(HASH_NAME);
             }
 
-            // Should not reach here for built-ins that continue
             redirect_free(redir);
             free(args);
             free(line_copy);
-            _exit(EXIT_SUCCESS);
+            _exit(EXIT_FAILURE);
         }
     }
 
