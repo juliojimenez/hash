@@ -285,17 +285,17 @@ void test_clear_break_continue(void) {
     TEST_ASSERT_EQUAL(0, script_get_continue_pending());
 }
 
-void test_count_loops_dynamic_scoping(void) {
-    // POSIX requires dynamic scoping for break/continue
-    // break/continue inside a function CAN affect the caller's loops
+void test_count_loops_lexical_scoping(void) {
+    // By default, use lexical scoping for break/continue
+    // break/continue inside a function should NOT affect the caller's loops
     script_push_context(CTX_FOR);  // This loop is at function_call_depth 0
 
     // Simulate entering a function (increment function_call_depth)
     script_state.function_call_depth++;
 
     // Loop was pushed at depth 0, but we're now at depth 1
-    // With dynamic scoping, ALL loops should be counted regardless of depth
-    TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
+    // With lexical scoping (default), only loops at current depth should be counted
+    TEST_ASSERT_EQUAL(0, script_count_loops_at_current_depth());
 
     // Restore
     script_state.function_call_depth--;
@@ -448,7 +448,7 @@ int main(void) {
     RUN_TEST(test_set_break_pending);
     RUN_TEST(test_set_continue_pending);
     RUN_TEST(test_clear_break_continue);
-    RUN_TEST(test_count_loops_dynamic_scoping);
+    RUN_TEST(test_count_loops_lexical_scoping);
 
     // Function management
     RUN_TEST(test_define_function);

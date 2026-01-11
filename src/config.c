@@ -57,6 +57,16 @@ void shell_option_set_monitor(bool value) {
     shell_config.options.monitor = value;
 }
 
+// Get the nonlexicalctrl option value
+bool shell_option_nonlexicalctrl(void) {
+    return shell_config.options.nonlexicalctrl;
+}
+
+// Set the nonlexicalctrl option value
+void shell_option_set_nonlexicalctrl(bool value) {
+    shell_config.options.nonlexicalctrl = value;
+}
+
 // Trim whitespace from string
 static char *trim_whitespace(char *str) {
     char *end;

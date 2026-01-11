@@ -479,6 +479,11 @@ int chain_execute(const CommandChain *chain) {
         if (shell_continue == 0) {
             return 0;
         }
+
+        // If break or continue was called, stop processing chain
+        if (script_get_break_pending() > 0 || script_get_continue_pending() > 0) {
+            return shell_continue;
+        }
     }
 
     return shell_continue;

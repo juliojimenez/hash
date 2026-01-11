@@ -19,6 +19,7 @@
 #include "redirect.h"
 #include "trap.h"
 #include "shellvar.h"
+#include "config.h"
 
 // Global script state
 ScriptState script_state;
@@ -384,13 +385,17 @@ bool script_in_control_structure(void) {
 
 int script_count_loops_at_current_depth(void) {
     int count = 0;
+    bool dynamic_scoping = shell_option_nonlexicalctrl();
 
-    // POSIX dynamic scoping: Count ALL loops across function boundaries
-    // break/continue can affect loops that called the current function
+    int current_func_depth = script_state.function_call_depth;
     for (int i = 0; i < script_state.context_depth; i++) {
         const ScriptContext *ctx = &script_state.context_stack[i];
         if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
-            count++;
+            // With dynamic scoping (nonlexicalctrl), count ALL loops
+            // With lexical scoping (default), only count loops at current function depth
+            if (dynamic_scoping || ctx->function_call_depth == current_func_depth) {
+                count++;
+            }
         }
     }
     return count;
@@ -662,9 +667,16 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
     char **old_params = script_state.positional_params;
     int old_count = script_state.positional_count;
     bool old_exit_requested = script_state.exit_requested;
+    bool dynamic_scoping = shell_option_nonlexicalctrl();
 
-    // POSIX dynamic scoping: break/continue inside a function CAN affect caller's loops
-    // Do NOT reset break_pending/continue_pending - let them propagate
+    // For lexical scoping (default): save and reset break/continue state
+    // For dynamic scoping (nonlexicalctrl): let them propagate
+    int old_break_pending = break_pending;
+    int old_continue_pending = continue_pending;
+    if (!dynamic_scoping) {
+        break_pending = 0;
+        continue_pending = 0;
+    }
 
     script_state.positional_params = argv;
     script_state.positional_count = argc;
@@ -686,13 +698,23 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
 
     // If exit was called inside function, propagate it
     if (exit_called) {
+        if (!dynamic_scoping) {
+            break_pending = old_break_pending;
+            continue_pending = old_continue_pending;
+        }
         script_state.exit_requested = true;
         return 0;  // Stop execution
     }
 
-    // POSIX dynamic scoping: if break/continue was set inside function, propagate it
-    if (break_pending > 0 || continue_pending > 0) {
+    // Dynamic scoping: if break/continue was set inside function, propagate it
+    if (dynamic_scoping && (break_pending > 0 || continue_pending > 0)) {
         return 0;  // Signal to caller that break/continue is pending
+    }
+
+    // Lexical scoping: restore break/continue state (don't propagate)
+    if (!dynamic_scoping) {
+        break_pending = old_break_pending;
+        continue_pending = old_continue_pending;
     }
 
     // Restore old exit_requested state (in case we're in nested functions)

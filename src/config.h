@@ -23,6 +23,7 @@ typedef struct {
     bool noclobber;    // -C: Don't overwrite files with > (not fully implemented)
     bool allexport;    // -a: Export all variables (not fully implemented)
     bool monitor;      // -m: Enable job control (monitor mode)
+    bool nonlexicalctrl; // Enable dynamic scoping for break/continue across functions
 } ShellOptions;
 
 // Configuration structure
@@ -78,5 +79,7 @@ bool shell_option_nounset(void);
 void shell_option_set_nounset(bool value);
 bool shell_option_monitor(void);
 void shell_option_set_monitor(bool value);
+bool shell_option_nonlexicalctrl(void);
+void shell_option_set_nonlexicalctrl(bool value);
 
 #endif // CONFIG_H

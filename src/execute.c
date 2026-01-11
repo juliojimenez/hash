@@ -552,12 +552,14 @@ int execute(char **args) {
 
     // Check if this is a flow-control builtin that must NOT run in a child process
     // These builtins affect the shell's execution flow and their return values matter
+    // Also includes 'set' since it modifies shell options that must persist
     bool is_flow_control = false;
     if (exec_args[0]) {
         is_flow_control = (strcmp(exec_args[0], "break") == 0 ||
                           strcmp(exec_args[0], "continue") == 0 ||
                           strcmp(exec_args[0], "return") == 0 ||
-                          strcmp(exec_args[0], "exit") == 0);
+                          strcmp(exec_args[0], "exit") == 0 ||
+                          strcmp(exec_args[0], "set") == 0);
     }
 
     // If it's a builtin with redirections (but NOT flow control), run in child process
