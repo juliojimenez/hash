@@ -379,9 +379,9 @@ int chain_execute(const CommandChain *chain) {
             const char *end = trimmed + strlen(trimmed) - 1;
             while (end > trimmed && isspace(*end)) end--;
 
-            if (*end == ')') {
+            if (*end == ')' && end > trimmed) {
                 // Extract subshell content
-                size_t len = end - (trimmed + 1);
+                size_t len = (size_t)(end - (trimmed + 1));
                 char *subshell_cmd = malloc(len + 1);
                 if (subshell_cmd) {
                     memcpy(subshell_cmd, trimmed + 1, len);
