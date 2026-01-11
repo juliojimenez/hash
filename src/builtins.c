@@ -336,11 +336,18 @@ int shell_source(char **args) {
 
                 if (!found) {
                     // File not found in PATH
-                    fprintf(stderr, "%s: %s: %s: not found\n", HASH_NAME, args[0], args[1]);
+                    fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
                     last_command_exit_code = 1;
                     return 1;
                 }
             }
+        }
+    } else {
+        // Filepath contains '/' - check if it exists
+        if (access(filepath, R_OK) != 0) {
+            fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
+            last_command_exit_code = 1;
+            return 1;
         }
     }
 
