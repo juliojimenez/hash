@@ -13,6 +13,8 @@
 #include "pipeline.h"
 #include "jobs.h"
 #include "hash.h"
+#include "script.h"
+#include "trap.h"
 
 #define INITIAL_CHAIN_CAPACITY 8
 
@@ -128,14 +130,20 @@ CommandChain *chain_parse(char *line) {
             in_double_quote = !in_double_quote;
         }
 
-        // Track $() and $(()) depth when not in single quotes
-        if (!in_single_quote) {
+        // Track (), $() and $(()) depth when not in single quotes
+        // Need to track both subshells () and command substitutions $()
+        if (!in_single_quote && !in_double_quote) {
+            if (*current == '(') {
+                paren_depth++;
+            } else if (*current == ')' && paren_depth > 0) {
+                paren_depth--;
+            }
+        } else if (!in_single_quote && in_double_quote) {
+            // Inside double quotes, only track $()
             if (*current == '$' && *(current + 1) == '(') {
                 paren_depth++;
                 current += 2;  // Skip past $(
                 continue;
-            } else if (*current == '(' && paren_depth > 0) {
-                paren_depth++;
             } else if (*current == ')' && paren_depth > 0) {
                 paren_depth--;
             }
@@ -361,8 +369,83 @@ int chain_execute(const CommandChain *chain) {
         char *line_copy = strdup(cmd->cmd_line);
         if (!line_copy) continue;
 
+        // Skip leading whitespace
+        char *trimmed = line_copy;
+        while (*trimmed && isspace(*trimmed)) trimmed++;
+
+        // Check for pipeline negation: ! command
+        // POSIX: ! inverts the exit status of the pipeline
+        bool negate = false;
+        if (*trimmed == '!' && (isspace(*(trimmed + 1)) || *(trimmed + 1) == '\0')) {
+            negate = true;
+            trimmed++;
+            while (*trimmed && isspace(*trimmed)) trimmed++;
+        }
+
+        // Check for subshell syntax: (commands)
+        if (*trimmed == '(') {
+            const char *end = trimmed + strlen(trimmed) - 1;
+            while (end > trimmed && isspace(*end)) end--;
+
+            if (*end == ')') {
+                // Extract subshell content
+                size_t len = end - (trimmed + 1);
+                char *subshell_cmd = malloc(len + 1);
+                if (subshell_cmd) {
+                    memcpy(subshell_cmd, trimmed + 1, len);
+                    subshell_cmd[len] = '\0';
+
+                    // Flush before fork
+                    fflush(stdout);
+                    fflush(stderr);
+
+                    pid_t pid = fork();
+                    if (pid == 0) {
+                        // Child process
+                        trap_reset_for_subshell();
+                        int exit_code = script_execute_string(subshell_cmd);
+                        free(subshell_cmd);
+                        trap_execute_exit();
+                        fflush(stdout);
+                        fflush(stderr);
+                        _exit(exit_code);
+                    } else if (pid > 0) {
+                        // Parent process
+                        free(subshell_cmd);
+                        int status;
+                        waitpid(pid, &status, 0);
+                        extern int last_command_exit_code;
+                        if (WIFEXITED(status)) {
+                            last_command_exit_code = WEXITSTATUS(status);
+                        } else {
+                            last_command_exit_code = 1;
+                        }
+                        // Apply negation if needed
+                        if (negate) {
+                            last_command_exit_code = (last_command_exit_code == 0) ? 1 : 0;
+                        }
+                        last_exit_code = last_command_exit_code;
+                    } else {
+                        free(subshell_cmd);
+                        last_exit_code = 1;
+                    }
+                }
+                free(line_copy);
+                continue;
+            }
+        }
+
+        // If negation flag is set but no subshell, we need to execute the rest
+        // and negate the exit code
+        // Need to make a copy since pipeline_parse/parse_line may modify the string
+        char *exec_cmd = negate ? strdup(trimmed) : line_copy;
+        if (negate && !exec_cmd) {
+            free(line_copy);
+            continue;
+        }
+
         // Check if this command contains pipes
-        Pipeline *pipe = pipeline_parse(line_copy);
+        Pipeline *pipe = pipeline_parse(exec_cmd);
 
         if (pipe) {
             // Execute as pipeline
@@ -371,15 +454,25 @@ int chain_execute(const CommandChain *chain) {
             // Update global exit code
             extern int last_command_exit_code;
             last_command_exit_code = pipe_exit;
-            last_exit_code = pipe_exit;
+            // Apply negation if needed
+            if (negate) {
+                last_command_exit_code = (last_command_exit_code == 0) ? 1 : 0;
+            }
+            last_exit_code = last_command_exit_code;
 
             pipeline_free(pipe);
         } else {
             // No pipes - execute normally
-            char **args = parse_line(line_copy);
+            char **args = parse_line(exec_cmd);
             if (args) {
                 shell_continue = execute(args);
                 last_exit_code = execute_get_last_exit_code();
+                // Apply negation if needed
+                if (negate) {
+                    extern int last_command_exit_code;
+                    last_command_exit_code = (last_command_exit_code == 0) ? 1 : 0;
+                    last_exit_code = last_command_exit_code;
+                }
 #if DEBUG_EXIT_CODE
                 fprintf(stderr, "DEBUG: chain_execute() after execute, last_exit_code=%d\n", last_exit_code);
 #endif
@@ -387,6 +480,7 @@ int chain_execute(const CommandChain *chain) {
             }
         }
 
+        if (negate) free(exec_cmd);
         free(line_copy);
 
         // If command was "exit", stop processing chain

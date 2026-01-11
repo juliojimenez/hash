@@ -206,38 +206,71 @@ static char *is_var_assignment(char *arg) {
 #define MAX_PREFIX_VARS 64
 typedef struct {
     char *name;
-    char *old_value;   // NULL if variable wasn't set, strdup'd value otherwise
-    bool was_set;
+    char *old_env_value;    // Old value from environment
+    char *old_shell_value;  // Old value from shell variable table
+    bool env_was_set;
+    bool shell_was_set;
 } PrefixVar;
 
 static PrefixVar prefix_vars[MAX_PREFIX_VARS];
 static int prefix_var_count = 0;
 
-// Save a variable's current value before prefix assignment
+// Save a variable's current value before prefix assignment (from both env and shell table)
 static void save_prefix_var(const char *name) {
     if (prefix_var_count >= MAX_PREFIX_VARS) return;
 
     prefix_vars[prefix_var_count].name = strdup(name);
-    const char *old_val = getenv(name);
-    if (old_val) {
-        prefix_vars[prefix_var_count].old_value = strdup(old_val);
-        prefix_vars[prefix_var_count].was_set = true;
+
+    // Save from environment
+    const char *env_val = getenv(name);
+    if (env_val) {
+        prefix_vars[prefix_var_count].old_env_value = strdup(env_val);
+        prefix_vars[prefix_var_count].env_was_set = true;
     } else {
-        prefix_vars[prefix_var_count].old_value = NULL;
-        prefix_vars[prefix_var_count].was_set = false;
+        prefix_vars[prefix_var_count].old_env_value = NULL;
+        prefix_vars[prefix_var_count].env_was_set = false;
     }
+
+    // Save from shell variable table
+    const char *shell_val = shellvar_get(name);
+    if (shell_val) {
+        prefix_vars[prefix_var_count].old_shell_value = strdup(shell_val);
+        prefix_vars[prefix_var_count].shell_was_set = true;
+    } else {
+        prefix_vars[prefix_var_count].old_shell_value = NULL;
+        prefix_vars[prefix_var_count].shell_was_set = false;
+    }
+
     prefix_var_count++;
+}
+
+// Set prefix variable in both environment and shell table
+static void set_prefix_var(const char *name, const char *value) {
+    // Set in environment for child processes
+    setenv(name, value, 1);
+    // Set in shell variable table for shell expansion
+    shellvar_set(name, value);
 }
 
 // Restore prefix variables to their original state
 static void restore_prefix_vars(void) {
     for (int i = 0; i < prefix_var_count; i++) {
-        if (prefix_vars[i].was_set) {
-            setenv(prefix_vars[i].name, prefix_vars[i].old_value, 1);
-            free(prefix_vars[i].old_value);
+        // Restore environment
+        if (prefix_vars[i].env_was_set) {
+            setenv(prefix_vars[i].name, prefix_vars[i].old_env_value, 1);
+            free(prefix_vars[i].old_env_value);
         } else {
             unsetenv(prefix_vars[i].name);
         }
+
+        // Restore shell variable table
+        if (prefix_vars[i].shell_was_set) {
+            shellvar_set(prefix_vars[i].name, prefix_vars[i].old_shell_value);
+            free(prefix_vars[i].old_shell_value);
+        } else {
+            shellvar_unset(prefix_vars[i].name);
+        }
+
         free(prefix_vars[i].name);
     }
     prefix_var_count = 0;
@@ -394,7 +427,7 @@ int execute(char **args) {
     }
 
     // If there are prefix assignments followed by a command,
-    // set them temporarily in the environment for the child process
+    // set them temporarily for the command (both in environment and shell table)
     bool has_prefix_assignments = (prefix_count > 0 && exec_input[prefix_count] != NULL);
     if (has_prefix_assignments) {
         for (int i = 0; i < prefix_count; i++) {
@@ -406,8 +439,8 @@ int execute(char **args) {
             // Save old value for restoration
             save_prefix_var(name);
 
-            // Set in environment for child processes
-            setenv(name, value, 1);
+            // Set in environment and shell table for visibility to command
+            set_prefix_var(name, value);
 
             *equals = '=';  // Restore
         }
