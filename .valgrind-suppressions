@@ -1,0 +1,14 @@
+# Valgrind suppression file for hash shell
+# These suppressions are for intentional memory patterns, not bugs.
+
+# The parser intentionally doesn't free output buffers to avoid use-after-free
+# during alias expansion. Memory is reclaimed by OS at process exit.
+# See src/parser.c parse_line() comments for details.
+{
+   parse_line_output_buffer
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:parse_line
+   ...
+}

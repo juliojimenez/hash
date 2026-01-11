@@ -171,39 +171,39 @@ jobs:
 
       - name: Run Valgrind - Basic Commands
         run: |
-          echo -e "echo hello\npwd\nls\nexit" | valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./hash-shell
+          echo -e "echo hello\npwd\nls\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Navigation
         run: |
-          echo -e "cd /tmp\npwd\ncd ~\npwd\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "cd /tmp\npwd\ncd ~\npwd\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Aliases
         run: |
-          echo -e "alias ll='ls -la'\nll\nalias\nunalias ll\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "alias ll='ls -la'\nll\nalias\nunalias ll\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Variables
         run: |
-          echo -e "export TEST=hello\necho \$TEST\necho \$HOME\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "export TEST=hello\necho \$TEST\necho \$HOME\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Pipes and Redirection
         run: |
-          echo -e "echo test | cat\necho hello > /tmp/vg_test.txt\ncat /tmp/vg_test.txt\nrm /tmp/vg_test.txt\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "echo test | cat\necho hello > /tmp/vg_test.txt\ncat /tmp/vg_test.txt\nrm /tmp/vg_test.txt\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Command Chaining
         run: |
-          echo -e "true && echo success\nfalse || echo fallback\necho a ; echo b\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "true && echo success\nfalse || echo fallback\necho a ; echo b\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - History
         run: |
-          echo -e "echo first\necho second\nhistory\n!!\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell
+          echo -e "echo first\necho second\nhistory\n!!\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Background Jobs
         run: |
-          echo -e "sleep 0.1 &\njobs\nwait\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell || true
+          echo -e "sleep 0.1 &\njobs\nwait\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell || true
 
       - name: Run Valgrind - Multiple Background Jobs
         run: |
-          echo -e "sleep 0.1 &\nsleep 0.2 &\njobs\nwait\nexit" | valgrind --leak-check=full --error-exitcode=1 ./hash-shell || true
+          echo -e "sleep 0.1 &\nsleep 0.2 &\njobs\nwait\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell || true
 
   # Fuzz testing with AFL++ or libFuzzer
   fuzz:
