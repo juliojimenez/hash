@@ -6,14 +6,37 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include "arith.h"
 #include "safe_string.h"
 #include "cmdsub.h"
 #include "shellvar.h"
+#include "jobs.h"
 
 // Forward declaration to access positional parameters
 // (We can't include script.h due to TokenType name collision)
 const char *script_get_positional_param(int index);
+
+// External reference to last command exit code (from builtins.c)
+extern int last_command_exit_code;
+
+// External reference to script_state for positional_count
+typedef struct {
+    void *context_stack;
+    int context_depth;
+    void *functions;
+    int function_count;
+    bool in_script;
+    const char *script_path;
+    int script_line;
+    bool silent_errors;
+    char **positional_params;
+    int positional_count;
+    int function_call_depth;
+    bool exit_requested;
+} ScriptStateArith;
+extern ScriptStateArith script_state;
 
 #define MAX_ARITH_LENGTH 8192
 
@@ -97,9 +120,35 @@ static void skip_whitespace(Parser *p) {
 
 // Get variable value from environment or positional parameters
 static long get_variable(const char *name) {
-    // Check for positional parameters first ($1, $2, etc.)
+    // Handle special parameters
+    if (name[0] != '\0' && name[1] == '\0') {
+        switch (name[0]) {
+            case '$':  // $$ - shell PID
+                return (long)getpid();
+            case '?':  // $? - last exit code
+                return (long)last_command_exit_code;
+            case '!':  // $! - last background PID
+                return (long)jobs_get_last_bg_pid();
+            case '#':  // $# - number of positional params
+                return (long)script_state.positional_count;
+            case '-':  // $- - current options (return 0 for arithmetic)
+                return 0;
+            case '0':  // $0 - script/shell name
+                {
+                    const char *val = script_get_positional_param(0);
+                    if (val) {
+                        return strtol(val, NULL, 10);
+                    }
+                    return 0;
+                }
+            default:
+                break;
+        }
+    }
+
+    // Check for positional parameters ($1, $2, etc.)
     // Single digit positional params
-    if (name[0] >= '0' && name[0] <= '9' && name[1] == '\0') {
+    if (name[0] >= '1' && name[0] <= '9' && name[1] == '\0') {
         int idx = name[0] - '0';
         const char *val = script_get_positional_param(idx);
         if (val) {
@@ -178,15 +227,25 @@ static void next_token(Parser *p) {
                 }
                 if (p->input[p->pos] == '}') p->pos++;
             } else {
-                // Handle $var syntax
-                start = p->pos;
-                while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
+                // Handle special variables like $$, $?, $!, $#, $@, $*, $-, $0
+                char special = p->input[p->pos];
+                if (special == '$' || special == '?' || special == '!' ||
+                    special == '#' || special == '@' || special == '*' ||
+                    special == '-' || special == '0') {
+                    p->current.name[0] = special;
+                    p->current.name[1] = '\0';
                     p->pos++;
-                }
-                size_t len = p->pos - start;
-                if (len < sizeof(p->current.name)) {
-                    memcpy(p->current.name, p->input + start, len);
-                    p->current.name[len] = '\0';
+                } else {
+                    // Handle $var syntax
+                    start = p->pos;
+                    while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
+                        p->pos++;
+                    }
+                    size_t len = p->pos - start;
+                    if (len < sizeof(p->current.name)) {
+                        memcpy(p->current.name, p->input + start, len);
+                        p->current.name[len] = '\0';
+                    }
                 }
             }
         } else {
