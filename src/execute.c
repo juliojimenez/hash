@@ -416,6 +416,7 @@ int execute(char **args) {
 
     if (prefix_count > 0 && exec_input[prefix_count] == NULL) {
         // Only variable assignments, no command - set variables in shell
+        int assignment_failed = 0;
         for (int i = 0; i < prefix_count; i++) {
             char *equals = is_var_assignment(exec_input[i]);
             *equals = '\0';
@@ -424,15 +425,28 @@ int execute(char **args) {
 
             // Expand tildes in the value (for PATH-like assignments)
             char *tilde_expanded = expand_tilde_in_assignment(value);
+            int result;
             if (tilde_expanded) {
-                shellvar_set(name, tilde_expanded);
+                result = shellvar_set(name, tilde_expanded);
                 free(tilde_expanded);
             } else {
-                shellvar_set(name, value);
+                result = shellvar_set(name, value);
+            }
+            if (result < 0) {
+                assignment_failed = 1;
+                // In non-interactive mode, readonly assignment error should exit
+                // In interactive mode, continue processing
+                if (!is_interactive) {
+                    *equals = '=';  // Restore
+                    last_command_exit_code = 1;
+                    if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
+                    free_expanded_args(expanded_args, expanded_count);
+                    return 0;  // Signal to exit shell
+                }
             }
             *equals = '=';  // Restore
         }
-        last_command_exit_code = 0;
+        last_command_exit_code = assignment_failed ? 1 : 0;
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         return 1;

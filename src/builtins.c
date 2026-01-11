@@ -692,13 +692,19 @@ int shell_unset(char **args) {
         }
     }
 
+    int error = 0;
     for (int i = start; args[i] != NULL; i++) {
         if (unset_var) {
             // Check for readonly variable
             if (shellvar_unset(args[i]) != 0) {
                 // shellvar_unset prints error for readonly
-                last_command_exit_code = 1;
-                return 0;  // Exit shell in non-interactive mode per POSIX
+                error = 1;
+                // In non-interactive mode, exit shell per POSIX
+                // In interactive mode, continue processing
+                if (!is_interactive) {
+                    last_command_exit_code = 1;
+                    return 0;  // Exit shell
+                }
             }
         }
         if (unset_func) {
@@ -706,7 +712,7 @@ int shell_unset(char **args) {
         }
     }
 
-    last_command_exit_code = 0;
+    last_command_exit_code = error ? 1 : 0;
     return 1;
 }
 

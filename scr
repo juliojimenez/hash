@@ -1,0 +1,7 @@
+foo=bar
+readonly -- foo
+readonly -- baz=quux
+echo $foo $baz >&3
+foo=nope
+unset baz
+echo $foo $baz >&3
