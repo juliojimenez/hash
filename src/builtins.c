@@ -1479,7 +1479,7 @@ int shell_readonly(char **args) {
 
     // Process each argument
     for (int i = start; args[i] != NULL; i++) {
-        char *arg = args[i];
+        const char *arg = args[i];
         char *equals = strchr(arg, '=');
 
         if (equals) {
