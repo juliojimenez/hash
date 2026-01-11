@@ -62,3 +62,4 @@ examples/color_demo
 fuzz/fuzz_*
 fuzz/output
 fuzz/*.o
+.claude
