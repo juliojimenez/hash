@@ -418,18 +418,47 @@ jobs:
       - name: Check for crashes
         run: |
           echo "=== Fuzzing Results ==="
+          has_crashes=false
           for target in parser varexpand safe_string; do
             if [ -d "fuzz/output/$target/default/crashes" ]; then
-              crash_count=$(ls -1 fuzz/output/$target/default/crashes 2>/dev/null | wc -l)
+              crash_count=$(ls -1 fuzz/output/$target/default/crashes 2>/dev/null | grep -v README.txt | wc -l)
               if [ "$crash_count" -gt 0 ]; then
                 echo "❌ CRASHES FOUND in $target: $crash_count"
                 ls -la fuzz/output/$target/default/crashes/
-                exit 1
+                # Show crash input contents (hex dump for binary safety)
+                echo "--- Crash inputs for $target ---"
+                for crash in fuzz/output/$target/default/crashes/id:*; do
+                  echo "File: $crash"
+                  xxd "$crash" | head -20
+                  echo "---"
+                done
+                has_crashes=true
               else
                 echo "✅ No crashes in $target"
               fi
             else
               echo "✅ No crashes directory for $target (likely no crashes)"
+            fi
+          done
+          if [ "$has_crashes" = true ]; then
+            exit 1
+          fi
+
+      - name: Prepare crash artifacts
+        if: failure()
+        run: |
+          # Copy crash files with sanitized names (replace commas/colons with underscores)
+          mkdir -p fuzz/crashes-sanitized
+          for target in parser varexpand safe_string; do
+            if [ -d "fuzz/output/$target/default/crashes" ]; then
+              mkdir -p "fuzz/crashes-sanitized/$target"
+              for file in fuzz/output/$target/default/crashes/*; do
+                if [ -f "$file" ]; then
+                  # Sanitize filename: replace colons and commas with underscores
+                  sanitized=$(basename "$file" | tr ':,' '__')
+                  cp "$file" "fuzz/crashes-sanitized/$target/$sanitized"
+                fi
+              done
             fi
           done
 
@@ -438,7 +467,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: fuzz-crashes
-          path: fuzz/output/*/default/crashes/
+          path: fuzz/crashes-sanitized/
           retention-days: 30
 
   # Combined ASan + UBSan for thorough checking
