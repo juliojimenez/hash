@@ -184,14 +184,14 @@ static void free_glob_args(char **glob_args, int count) {
 
 // Check if string is a valid variable assignment (VAR=VALUE)
 // Returns pointer to '=' if valid, NULL otherwise
-static char *is_var_assignment(char *arg) {
+static char *is_var_assignment(const char *arg) {
     if (!arg) return NULL;
 
     char *equals = strchr(arg, '=');
     if (!equals || equals == arg) return NULL;
 
     // Check if characters before = form a valid variable name
-    for (char *p = arg; p < equals; p++) {
+    for (const char *p = arg; p < equals; p++) {
         if (p == arg) {
             if (!isalpha(*p) && *p != '_') return NULL;
         } else {
@@ -623,7 +623,7 @@ int execute(char **args) {
     redirect_free(redir);
 
     // Check for user-defined functions
-    ShellFunction *func = script_get_function(exec_input[0]);
+    const ShellFunction *func = script_get_function(exec_input[0]);
     if (func) {
         // Count arguments (including function name as $0)
         int argc = 0;

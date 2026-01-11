@@ -102,7 +102,7 @@ const char *shellvar_get(const char *name) {
     if (!name) return NULL;
 
     // First check our internal table
-    ShellVar *v = find_var(name);
+    const ShellVar *v = find_var(name);
     if (v && v->value) {
         return v->value;
     }
@@ -150,7 +150,7 @@ int shellvar_unset(const char *name) {
 bool shellvar_isset(const char *name) {
     if (!name) return false;
 
-    ShellVar *v = find_var(name);
+    const ShellVar *v = find_var(name);
     if (v) return true;
 
     return getenv(name) != NULL;
@@ -188,7 +188,7 @@ int shellvar_set_readonly(const char *name) {
 bool shellvar_is_readonly(const char *name) {
     if (!name) return false;
 
-    ShellVar *v = find_var(name);
+    const ShellVar *v = find_var(name);
     return v && (v->attrs & VAR_ATTR_READONLY);
 }
 
@@ -224,7 +224,7 @@ int shellvar_set_export(const char *name) {
 bool shellvar_is_exported(const char *name) {
     if (!name) return false;
 
-    ShellVar *v = find_var(name);
+    const ShellVar *v = find_var(name);
     return v && (v->attrs & VAR_ATTR_EXPORT);
 }
 
@@ -253,7 +253,7 @@ void shellvar_list_exported(void) {
 }
 
 void shellvar_sync_to_env(const char *name) {
-    ShellVar *v = find_var(name);
+    const ShellVar *v = find_var(name);
     if (v && (v->attrs & VAR_ATTR_EXPORT) && v->value) {
         setenv(name, v->value, 1);
     }
@@ -264,7 +264,7 @@ void shellvar_sync_from_env(void) {
     // This is called at shell startup
     extern char **environ;
     for (char **env = environ; *env; env++) {
-        char *eq = strchr(*env, '=');
+        const char *eq = strchr(*env, '=');
         if (eq) {
             size_t namelen = eq - *env;
             char *name = malloc(namelen + 1);

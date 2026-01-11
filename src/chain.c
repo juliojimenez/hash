@@ -359,7 +359,7 @@ int chain_execute(const CommandChain *chain) {
         if (!line_copy) continue;
 
         // Skip leading whitespace
-        char *trimmed = line_copy;
+        const char *trimmed = line_copy;
         while (*trimmed && isspace(*trimmed)) trimmed++;
 
         // Check for pipeline negation: ! command

@@ -1617,7 +1617,7 @@ int shell_wait(char **args) {
 
         // Check for job ID (%n)
         if (arg[0] == '%') {
-            Job *job = NULL;
+            const Job *job = NULL;
             if (arg[1] == '%' || arg[1] == '+' || arg[1] == '\0') {
                 // %%, %+, or just % - current job
                 job = jobs_get_current();
@@ -1771,7 +1771,7 @@ int shell_kill(char **args) {
 
         // Check for job specification
         if (target[0] == '%') {
-            Job *job = NULL;
+            const Job *job = NULL;
             if (target[1] == '%' || target[1] == '+' || target[1] == '\0') {
                 // %%, %+, or just % - current job
                 job = jobs_get_current();

@@ -19,7 +19,7 @@ char *read_line(const char *prompt) {
     return line;
 }
 
-char **parse_line(char *line) {
+char **parse_line(const char *line) {
     int bufsize = MAX_ARGS;
     int position = 0;
     char **tokens = malloc(bufsize * sizeof(char*));

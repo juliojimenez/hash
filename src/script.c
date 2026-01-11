@@ -386,7 +386,7 @@ int script_count_loops_at_current_depth(void) {
     // POSIX: Count ALL loops in the context stack (dynamic scoping)
     // This allows break/continue to work across function boundaries
     for (int i = 0; i < script_state.context_depth; i++) {
-        ScriptContext *ctx = &script_state.context_stack[i];
+        const ScriptContext *ctx = &script_state.context_stack[i];
         if (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL) {
             count++;
         }
@@ -1452,7 +1452,7 @@ static int execute_loop_body(const char *body) {
     if (!body_copy) return -1;
 
     char *saveptr;
-    char *line = strtok_r(body_copy, "\n", &saveptr);
+    const char *line = strtok_r(body_copy, "\n", &saveptr);
     int result = 1;
 
     while (line && result > 0) {
@@ -1689,7 +1689,7 @@ static int execute_case_body(const char *body, const char *word) {
     char *body_copy = strdup(body);
     if (!body_copy) return 1;
 
-    char *line = body_copy;
+    const char *line = body_copy;
     char *next_line;
 
     while (line && *line) {
@@ -1713,7 +1713,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Pattern format: pattern) or (pattern) or pattern|pattern)
         // Skip if we're in a matched clause executing commands
 
-        char *trimmed = line;
+        const char *trimmed = line;
         while (*trimmed && isspace(*trimmed)) trimmed++;
 
         // Check for ;; which ends a clause
@@ -1753,7 +1753,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Not in a matched clause - this should be a pattern
         // Look for pattern ending with )
         // Skip leading ( if present
-        char *p = trimmed;
+        const char *p = trimmed;
         if (*p == '(') {
             p++;
             while (*p && isspace(*p)) p++;
@@ -1982,7 +1982,7 @@ static int process_case(const char *line) {
             // Execute the case body if parent allows
             extern int last_command_exit_code;
             if (parent_executing) {
-                char *expanded_word = ctx->case_word;
+                const char *expanded_word = ctx->case_word;
                 char *allocated_word = NULL;
 
                 if (ctx->case_word[0] == '$') {
@@ -2057,7 +2057,7 @@ static int process_esac(const char *line) {
         // Expand the case word before matching
         // TODO: Add proper variable expansion here
         // For now, use the word as-is or check for simple $var
-        char *expanded_word = ctx->case_word;
+        const char *expanded_word = ctx->case_word;
         char *allocated_word = NULL;
 
         if (ctx->case_word[0] == '$') {
@@ -2098,7 +2098,7 @@ int script_process_line(const char *line) {
 
     // Check if we're inside a function body or loop/case body being collected
     // If so, don't split - buffer the full line
-    ScriptContext *ctx = get_current_context();
+    const ScriptContext *ctx = get_current_context();
     bool collecting = false;
     if (ctx) {
         if (ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
