@@ -296,6 +296,15 @@ int execute(char **args) {
         return 1;
     }
 
+    // Debug: show raw args at entry to execute()
+    if (getenv("HASH_DEBUG_EXEC") && args[0] && strcmp(args[0], "exec") == 0) {
+        fprintf(stderr, "DEBUG execute() entry args:");
+        for (int j = 0; args[j]; j++) {
+            fprintf(stderr, " [%s]", args[j]);
+        }
+        fprintf(stderr, "\n");
+    }
+
     // Track original args to know which ones we allocated
     // We need to free expanded args later
     char *expanded_args[MAX_ARGS];
