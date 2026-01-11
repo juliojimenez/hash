@@ -723,6 +723,7 @@ int shell_echo(char **args) {
     bool newline = true;
     bool interpret_escapes = false;
     int start = 1;
+    int write_error = 0;
 
     // Handle options
     while (args[start] != NULL && args[start][0] == '-') {
@@ -743,7 +744,7 @@ int shell_echo(char **args) {
     // Print arguments
     for (int i = start; args[i] != NULL; i++) {
         if (i > start) {
-            putchar(' ');
+            if (putchar(' ') == EOF) write_error = 1;
         }
 
         if (interpret_escapes) {
@@ -753,33 +754,39 @@ int shell_echo(char **args) {
                 if (*s == '\\' && *(s + 1)) {
                     s++;
                     switch (*s) {
-                        case 'n': putchar('\n'); break;
-                        case 't': putchar('\t'); break;
-                        case 'r': putchar('\r'); break;
-                        case '\\': putchar('\\'); break;
-                        case 'a': putchar('\a'); break;
-                        case 'b': putchar('\b'); break;
-                        case 'f': putchar('\f'); break;
-                        case 'v': putchar('\v'); break;
+                        case 'n': if (putchar('\n') == EOF) write_error = 1; break;
+                        case 't': if (putchar('\t') == EOF) write_error = 1; break;
+                        case 'r': if (putchar('\r') == EOF) write_error = 1; break;
+                        case '\\': if (putchar('\\') == EOF) write_error = 1; break;
+                        case 'a': if (putchar('\a') == EOF) write_error = 1; break;
+                        case 'b': if (putchar('\b') == EOF) write_error = 1; break;
+                        case 'f': if (putchar('\f') == EOF) write_error = 1; break;
+                        case 'v': if (putchar('\v') == EOF) write_error = 1; break;
                         case 'c': goto done;  // Stop output
-                        default: putchar('\\'); putchar(*s); break;
+                        default:
+                            if (putchar('\\') == EOF) write_error = 1;
+                            if (putchar(*s) == EOF) write_error = 1;
+                            break;
                     }
                 } else {
-                    putchar(*s);
+                    if (putchar(*s) == EOF) write_error = 1;
                 }
                 s++;
             }
         } else {
-            printf("%s", args[i]);
+            if (printf("%s", args[i]) < 0) write_error = 1;
         }
     }
 
 done:
     if (newline) {
-        putchar('\n');
+        if (putchar('\n') == EOF) write_error = 1;
     }
 
-    last_command_exit_code = 0;
+    // Check for write errors on flush
+    if (fflush(stdout) == EOF) write_error = 1;
+
+    last_command_exit_code = write_error ? 1 : 0;
     return 1;
 }
 
