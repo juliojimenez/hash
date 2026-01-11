@@ -63,3 +63,4 @@ fuzz/fuzz_*
 fuzz/output
 fuzz/*.o
 .claude
+.vscode
