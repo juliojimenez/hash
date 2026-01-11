@@ -481,17 +481,42 @@ char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
                 // Skip whitespace
                 while (*p && isspace(*p)) p++;
 
-                // Extract delimiter
+                // Extract delimiter, handling quotes
+                // POSIX: <<'EOF' means delimiter is EOF (no expansion)
+                //        <<"EOF" means delimiter is EOF (some expansion)
+                //        <<EOF means delimiter is EOF (full expansion)
                 const char *start = p;
-                while (*p && !isspace(*p) && *p != '\n') p++;
+                char quote_char = 0;
 
-                if (start != p) {
-                    size_t len = p - start;
-                    char *delim = malloc(len + 1);
-                    if (delim) {
-                        memcpy(delim, start, len);
-                        delim[len] = '\0';
-                        return delim;
+                // Check if delimiter is quoted
+                if (*p == '\'' || *p == '"') {
+                    quote_char = *p;
+                    p++;  // Skip opening quote
+                    start = p;
+                    // Find closing quote
+                    while (*p && *p != quote_char && *p != '\n') p++;
+                    if (*p == quote_char) {
+                        // Found closing quote - extract content between quotes
+                        size_t len = p - start;
+                        char *delim = malloc(len + 1);
+                        if (delim) {
+                            memcpy(delim, start, len);
+                            delim[len] = '\0';
+                            return delim;
+                        }
+                    }
+                } else {
+                    // Unquoted delimiter
+                    while (*p && !isspace(*p) && *p != '\n') p++;
+
+                    if (start != p) {
+                        size_t len = p - start;
+                        char *delim = malloc(len + 1);
+                        if (delim) {
+                            memcpy(delim, start, len);
+                            delim[len] = '\0';
+                            return delim;
+                        }
                     }
                 }
                 return NULL;

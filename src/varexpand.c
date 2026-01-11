@@ -175,7 +175,8 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 // Check for modifiers: - + = ? (and : prefix)
                 char modifier = 0;
                 bool check_null = false;
-                char word[1024] = {0};
+                static char word[1024];  // static to persist after scope
+                word[0] = '\0';
 
                 if (*p == ':') {
                     check_null = true;
