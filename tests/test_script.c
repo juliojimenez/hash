@@ -48,6 +48,18 @@ void test_is_keyword_done(void) {
     TEST_ASSERT_TRUE(script_is_keyword("done"));
 }
 
+void test_is_keyword_case(void) {
+    TEST_ASSERT_TRUE(script_is_keyword("case"));
+}
+
+void test_is_keyword_esac(void) {
+    TEST_ASSERT_TRUE(script_is_keyword("esac"));
+}
+
+void test_is_keyword_in(void) {
+    TEST_ASSERT_TRUE(script_is_keyword("in"));
+}
+
 void test_is_not_keyword(void) {
     TEST_ASSERT_FALSE(script_is_keyword("echo"));
     TEST_ASSERT_FALSE(script_is_keyword("ls"));
@@ -63,6 +75,9 @@ void test_get_keyword_type(void) {
     TEST_ASSERT_EQUAL(TOK_WHILE, script_get_keyword_type("while"));
     TEST_ASSERT_EQUAL(TOK_DO, script_get_keyword_type("do"));
     TEST_ASSERT_EQUAL(TOK_DONE, script_get_keyword_type("done"));
+    TEST_ASSERT_EQUAL(TOK_CASE, script_get_keyword_type("case"));
+    TEST_ASSERT_EQUAL(TOK_ESAC, script_get_keyword_type("esac"));
+    TEST_ASSERT_EQUAL(TOK_IN, script_get_keyword_type("in"));
     TEST_ASSERT_EQUAL(TOK_WORD, script_get_keyword_type("echo"));
 }
 
@@ -118,6 +133,17 @@ void test_classify_do(void) {
 
 void test_classify_done(void) {
     TEST_ASSERT_EQUAL(LINE_DONE, script_classify_line("done"));
+}
+
+void test_classify_case(void) {
+    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("case x in"));
+    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("case $var in"));
+    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("   case word in"));
+}
+
+void test_classify_esac(void) {
+    TEST_ASSERT_EQUAL(LINE_ESAC, script_classify_line("esac"));
+    TEST_ASSERT_EQUAL(LINE_ESAC, script_classify_line("   esac"));
 }
 
 void test_classify_simple(void) {
@@ -197,6 +223,22 @@ void test_count_loops_at_current_depth_with_if(void) {
     // Non-loop contexts shouldn't be counted
     script_push_context(CTX_IF);
     script_push_context(CTX_WHILE);
+    TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
+    script_pop_context();
+    script_pop_context();
+}
+
+void test_push_case_context(void) {
+    TEST_ASSERT_EQUAL(1, script_push_context(CTX_CASE));  // 1 = success, continue
+    TEST_ASSERT_TRUE(script_in_control_structure());
+    TEST_ASSERT_EQUAL(CTX_CASE, script_current_context());
+    script_pop_context();
+}
+
+void test_count_loops_with_case(void) {
+    // Case contexts shouldn't be counted as loops
+    script_push_context(CTX_CASE);
+    script_push_context(CTX_FOR);
     TEST_ASSERT_EQUAL(1, script_count_loops_at_current_depth());
     script_pop_context();
     script_pop_context();
@@ -322,6 +364,35 @@ void test_execute_failing_command(void) {
     TEST_ASSERT_EQUAL(1, result);
 }
 
+// ============================================================================
+// Case Statement Tests
+// ============================================================================
+
+void test_execute_simple_case(void) {
+    int result = script_execute_string("case a in\na) true;;\nesac");
+    TEST_ASSERT_EQUAL(0, result);
+}
+
+void test_execute_case_no_match(void) {
+    int result = script_execute_string("case x in\na) true;;\nesac");
+    TEST_ASSERT_EQUAL(0, result);  // No match = exit 0
+}
+
+void test_execute_case_wildcard(void) {
+    int result = script_execute_string("case abc in\n*) true;;\nesac");
+    TEST_ASSERT_EQUAL(0, result);
+}
+
+void test_execute_case_multiple_patterns(void) {
+    int result = script_execute_string("case b in\na|b|c) true;;\nesac");
+    TEST_ASSERT_EQUAL(0, result);
+}
+
+void test_execute_case_exit_code(void) {
+    int result = script_execute_string("case a in\na) false;;\nesac");
+    TEST_ASSERT_EQUAL(1, result);  // false returns 1
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -334,6 +405,9 @@ int main(void) {
     RUN_TEST(test_is_keyword_while);
     RUN_TEST(test_is_keyword_do);
     RUN_TEST(test_is_keyword_done);
+    RUN_TEST(test_is_keyword_case);
+    RUN_TEST(test_is_keyword_esac);
+    RUN_TEST(test_is_keyword_in);
     RUN_TEST(test_is_not_keyword);
     RUN_TEST(test_get_keyword_type);
 
@@ -349,6 +423,8 @@ int main(void) {
     RUN_TEST(test_classify_while);
     RUN_TEST(test_classify_do);
     RUN_TEST(test_classify_done);
+    RUN_TEST(test_classify_case);
+    RUN_TEST(test_classify_esac);
     RUN_TEST(test_classify_simple);
 
     // Context stack
@@ -362,6 +438,8 @@ int main(void) {
     RUN_TEST(test_count_loops_at_current_depth_one_loop);
     RUN_TEST(test_count_loops_at_current_depth_multiple_loops);
     RUN_TEST(test_count_loops_at_current_depth_with_if);
+    RUN_TEST(test_push_case_context);
+    RUN_TEST(test_count_loops_with_case);
 
     // Break/continue pending (POSIX dynamic scoping)
     RUN_TEST(test_break_pending_initial);
@@ -385,6 +463,13 @@ int main(void) {
     RUN_TEST(test_execute_empty_string);
     RUN_TEST(test_execute_simple_command);
     RUN_TEST(test_execute_failing_command);
+
+    // Case statement tests
+    RUN_TEST(test_execute_simple_case);
+    RUN_TEST(test_execute_case_no_match);
+    RUN_TEST(test_execute_case_wildcard);
+    RUN_TEST(test_execute_case_multiple_patterns);
+    RUN_TEST(test_execute_case_exit_code);
 
     return UNITY_END();
 }

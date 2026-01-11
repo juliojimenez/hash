@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fnmatch.h>
 #include "script.h"
 #include "hash.h"
 #include "safe_string.h"
@@ -17,6 +18,7 @@
 #include "jobs.h"
 #include "redirect.h"
 #include "trap.h"
+#include "shellvar.h"
 
 // Global script state
 ScriptState script_state;
@@ -245,7 +247,12 @@ static char **split_by_semicolons(const char *line, int *count) {
             } else if (*p == '}' && brace_depth > 0) {
                 brace_depth--;
             } else if (*p == ';' && paren_depth == 0 && brace_depth == 0) {
-                num_parts++;
+                // Skip ;; (case clause terminator) - don't split on it
+                if (p[1] == ';') {
+                    p++;  // Skip the second ;
+                } else {
+                    num_parts++;
+                }
             }
         }
     }
@@ -287,7 +294,12 @@ static char **split_by_semicolons(const char *line, int *count) {
                 } else if (*p == '}' && brace_depth > 0) {
                     brace_depth--;
                 } else if (*p == ';' && paren_depth == 0 && brace_depth == 0) {
-                    at_semi = true;
+                    // Skip ;; (case clause terminator) - don't split on it
+                    if (p[1] == ';') {
+                        p++;  // Skip the second ;
+                    } else {
+                        at_semi = true;
+                    }
                 }
             }
         }
@@ -1647,6 +1659,434 @@ static int process_done(const char *line) {
 }
 
 // ============================================================================
+// Case Statement Processing
+// ============================================================================
+
+// Append line to case body buffer (reuses loop_body fields)
+static int append_to_case_body(ScriptContext *ctx, const char *line) {
+    return append_to_loop_body(ctx, line);  // Same implementation
+}
+
+// Check if a pattern matches a word using fnmatch
+// Handles POSIX shell pattern matching with *, ?, [...]
+static bool case_pattern_matches(const char *pattern, const char *word) {
+    if (!pattern || !word) return false;
+
+    // fnmatch returns 0 on match
+    return fnmatch(pattern, word, 0) == 0;
+}
+
+// Parse and execute the case body
+// Returns exit code of last executed command, or 0 if no match
+static int execute_case_body(const char *body, const char *word) {
+    if (!body || !word) return 0;
+
+    extern int last_command_exit_code;
+    int result_exit_code = 0;  // Default exit code if no match
+    bool matched = false;
+    bool in_matched_clause = false;
+
+    char *body_copy = strdup(body);
+    if (!body_copy) return 1;
+
+    char *line = body_copy;
+    char *next_line;
+
+    while (line && *line) {
+        // Find end of current line
+        next_line = strchr(line, '\n');
+        if (next_line) {
+            *next_line = '\0';
+            next_line++;
+        }
+
+        // Skip leading whitespace
+        while (*line && isspace(*line)) line++;
+
+        // Skip empty lines and comments
+        if (!*line || *line == '#') {
+            line = next_line;
+            continue;
+        }
+
+        // Check if this line is a pattern (ends with ) and has pattern before it)
+        // Pattern format: pattern) or (pattern) or pattern|pattern)
+        // Skip if we're in a matched clause executing commands
+
+        char *trimmed = line;
+        while (*trimmed && isspace(*trimmed)) trimmed++;
+
+        // Check for ;; which ends a clause
+        if (strncmp(trimmed, ";;", 2) == 0) {
+            if (in_matched_clause) {
+                // End of matched clause
+                in_matched_clause = false;
+            }
+            line = next_line;
+            continue;
+        }
+
+        // Check if this is a pattern line
+        // Patterns can be: pattern) or (pattern) or pat1|pat2)
+        // A pattern line ends with ) but not ;;
+        char *close_paren = NULL;
+
+        // Skip commands that might contain subshells
+        // A pattern line is: [whitespace][(][pattern][|pattern...][)]
+        // We need to detect pattern lines vs command lines
+
+        // If we're in a matched clause, this should be a command, not a pattern
+        // Use script_process_line to handle nested control structures (case, if, for, etc.)
+        if (in_matched_clause) {
+            // Execute this command using script_process_line to handle nested structures
+            int cmd_result = script_process_line(line);
+            result_exit_code = last_command_exit_code;
+            if (cmd_result == 0) {
+                // Exit was called
+                free(body_copy);
+                return result_exit_code;
+            }
+            line = next_line;
+            continue;
+        }
+
+        // Not in a matched clause - this should be a pattern
+        // Look for pattern ending with )
+        // Skip leading ( if present
+        char *p = trimmed;
+        if (*p == '(') {
+            p++;
+            while (*p && isspace(*p)) p++;
+        }
+
+        // Find the closing ) for this pattern
+        // Need to handle patterns with | separators
+        close_paren = strchr(p, ')');
+        if (!close_paren) {
+            // Not a valid pattern line, treat as command (shouldn't happen in valid case)
+            line = next_line;
+            continue;
+        }
+
+        // Extract the pattern(s)
+        size_t pattern_len = close_paren - p;
+        char *patterns = malloc(pattern_len + 1);
+        if (!patterns) {
+            line = next_line;
+            continue;
+        }
+        memcpy(patterns, p, pattern_len);
+        patterns[pattern_len] = '\0';
+
+        // Trim trailing whitespace from pattern
+        size_t plen = strlen(patterns);
+        while (plen > 0 && isspace(patterns[plen - 1])) {
+            patterns[--plen] = '\0';
+        }
+
+        // Check if any pattern in the list matches (patterns separated by |)
+        bool this_matches = false;
+        if (!matched) {  // Only check if we haven't matched yet
+            char *pat_copy = strdup(patterns);
+            if (pat_copy) {
+                char *saveptr;
+                char *single_pat = strtok_r(pat_copy, "|", &saveptr);
+                while (single_pat) {
+                    // Trim whitespace from individual pattern
+                    while (*single_pat && isspace(*single_pat)) single_pat++;
+                    char *end = single_pat + strlen(single_pat) - 1;
+                    while (end > single_pat && isspace(*end)) *end-- = '\0';
+
+                    if (case_pattern_matches(single_pat, word)) {
+                        this_matches = true;
+                        break;
+                    }
+                    single_pat = strtok_r(NULL, "|", &saveptr);
+                }
+                free(pat_copy);
+            }
+        }
+
+        free(patterns);
+
+        if (this_matches) {
+            matched = true;
+            in_matched_clause = true;
+
+            // Check if there are commands after the ) on this line
+            char *after_paren = close_paren + 1;
+            while (*after_paren && isspace(*after_paren)) after_paren++;
+
+            // Check for ;; immediately after pattern
+            if (strncmp(after_paren, ";;", 2) == 0) {
+                // Empty clause, matched but no commands
+                in_matched_clause = false;
+            } else if (*after_paren && *after_paren != '#') {
+                // There's a command on the same line as the pattern
+                // Need to handle commands that might end with ;;
+                // But we must find the RIGHT ;; - not one inside a nested case
+                char *double_semi = NULL;
+                int nested_depth = 0;
+                for (char *s = after_paren; *s; s++) {
+                    // Track nested case statements
+                    if (strncmp(s, "case", 4) == 0 &&
+                        (s == after_paren || isspace(*(s-1)) || *(s-1) == ';') &&
+                        (isspace(s[4]) || s[4] == '\0')) {
+                        nested_depth++;
+                        s += 3;  // Skip past 'case' (loop will add 1 more)
+                        continue;
+                    }
+                    if (strncmp(s, "esac", 4) == 0 &&
+                        (s == after_paren || isspace(*(s-1)) || *(s-1) == ';') &&
+                        (s[4] == '\0' || isspace(s[4]) || s[4] == ';')) {
+                        if (nested_depth > 0) nested_depth--;
+                        s += 3;  // Skip past 'esac'
+                        continue;
+                    }
+                    // Check for ;; at the right nesting level
+                    if (nested_depth == 0 && s[0] == ';' && s[1] == ';') {
+                        double_semi = s;
+                        break;
+                    }
+                }
+
+                if (double_semi) {
+                    // Command ends with ;; on this line
+                    *double_semi = '\0';
+                    if (*after_paren) {
+                        int cmd_result = script_process_line(after_paren);
+                        result_exit_code = last_command_exit_code;
+                        if (cmd_result == 0) {
+                            free(body_copy);
+                            return result_exit_code;
+                        }
+                    }
+                    in_matched_clause = false;
+                } else {
+                    // Command continues, no ;; on this line
+                    int cmd_result = script_process_line(after_paren);
+                    result_exit_code = last_command_exit_code;
+                    if (cmd_result == 0) {
+                        free(body_copy);
+                        return result_exit_code;
+                    }
+                }
+            }
+        }
+
+        line = next_line;
+    }
+
+    free(body_copy);
+    return result_exit_code;
+}
+
+static int process_case(const char *line) {
+    if (script_push_context(CTX_CASE) < 0) return -1;
+
+    ScriptContext *ctx = get_current_context();
+    if (!ctx) return -1;
+
+    bool parent_executing = (script_state.context_depth <= 1) ||
+        script_state.context_stack[script_state.context_depth - 2].should_execute;
+
+    // Parse: case word in
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+    if (strncmp(p, "case", 4) != 0) return -1;
+    p += 4;
+    while (*p && isspace(*p)) p++;
+
+    // Extract the word (may be quoted)
+    char word[256];
+    size_t wi = 0;
+    bool in_single = false, in_double = false;
+
+    while (*p && wi < sizeof(word) - 1) {
+        if (*p == '\'' && !in_double) {
+            in_single = !in_single;
+            p++;
+            continue;
+        }
+        if (*p == '"' && !in_single) {
+            in_double = !in_double;
+            p++;
+            continue;
+        }
+        if (!in_single && !in_double && isspace(*p)) {
+            break;
+        }
+        word[wi++] = *p++;
+    }
+    word[wi] = '\0';
+
+    // Skip to 'in' keyword
+    while (*p && isspace(*p)) p++;
+    if (strncmp(p, "in", 2) != 0 || (!isspace(p[2]) && p[2] != '\0')) {
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: expected 'in' after case word\n", HASH_NAME);
+        }
+        script_pop_context();
+        return -1;
+    }
+
+    // Expand the word (variable expansion, etc.)
+    // For now, store the raw word - expansion happens at match time
+    ctx->case_word = strdup(word);
+    ctx->case_matched = false;
+    ctx->should_execute = parent_executing;
+
+    // Check if 'esac' is on the same line (single-line case statement)
+    // Skip past 'in'
+    p += 2;  // Skip 'in'
+    while (*p && isspace(*p)) p++;
+
+    // Look for matching 'esac' in the remaining line
+    // Need to handle nested case statements by counting case/esac pairs
+    const char *esac_pos = NULL;
+    int case_depth = 1;  // We're already inside one case
+    const char *scan = p;
+
+    while (*scan) {
+        // Check for 'case' keyword (increases depth)
+        if (strncmp(scan, "case", 4) == 0 &&
+            (scan == p || isspace(*(scan - 1)) || *(scan - 1) == ';') &&
+            (isspace(scan[4]) || scan[4] == '\0')) {
+            case_depth++;
+            scan += 4;
+            continue;
+        }
+        // Check for 'esac' keyword (decreases depth)
+        if (strncmp(scan, "esac", 4) == 0 &&
+            (scan == p || isspace(*(scan - 1)) || *(scan - 1) == ';') &&
+            (scan[4] == '\0' || isspace(scan[4]) || scan[4] == ';')) {
+            case_depth--;
+            if (case_depth == 0) {
+                esac_pos = scan;
+                break;
+            }
+            scan += 4;
+            continue;
+        }
+        scan++;
+    }
+
+    if (esac_pos) {
+        // Single-line case statement - extract body between 'in' and 'esac'
+        size_t body_len = esac_pos - p;
+        char *body = malloc(body_len + 1);
+        if (body) {
+            memcpy(body, p, body_len);
+            body[body_len] = '\0';
+
+            // Execute the case body if parent allows
+            extern int last_command_exit_code;
+            if (parent_executing) {
+                char *expanded_word = ctx->case_word;
+                char *allocated_word = NULL;
+
+                if (ctx->case_word[0] == '$') {
+                    const char *var_name = ctx->case_word + 1;
+                    const char *val = shellvar_get(var_name);
+                    if (val) {
+                        allocated_word = strdup(val);
+                        expanded_word = allocated_word;
+                    } else {
+                        allocated_word = strdup("");
+                        expanded_word = allocated_word;
+                    }
+                }
+
+                int exit_code = execute_case_body(body, expanded_word);
+                last_command_exit_code = exit_code;
+
+                free(allocated_word);
+            }
+
+            free(body);
+        }
+
+        // Pop context
+        script_pop_context();
+
+        // Check for content after 'esac' and process it
+        const char *after_esac = esac_pos + 4;  // Skip 'esac'
+        while (*after_esac && isspace(*after_esac)) after_esac++;
+        if (*after_esac == ';') after_esac++;  // Skip optional semicolon
+        while (*after_esac && isspace(*after_esac)) after_esac++;
+
+        if (*after_esac && *after_esac != '#') {
+            // There's more content after the case statement
+            return script_process_line(after_esac);
+        }
+
+        return 1;
+    }
+
+    // Multi-line case - start collecting the case body
+    ctx->collecting_body = true;
+    ctx->body_nesting_depth = 0;  // Track nested case statements
+    ctx->loop_body = NULL;
+    ctx->loop_body_len = 0;
+    ctx->loop_body_cap = 0;
+
+    return 1;  // Continue processing
+}
+
+static int process_esac(const char *line) {
+    (void)line;
+
+    ScriptContext *ctx = get_current_context();
+    if (!ctx || ctx->type != CTX_CASE) {
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: syntax error: unexpected 'esac'\n", HASH_NAME);
+        }
+        return -1;
+    }
+
+    // Stop collecting the case body
+    ctx->collecting_body = false;
+
+    // Check if parent context allows execution
+    bool parent_executing = (script_state.context_depth <= 1) ||
+        script_state.context_stack[script_state.context_depth - 2].should_execute;
+
+    extern int last_command_exit_code;
+
+    if (parent_executing && ctx->case_word && ctx->loop_body) {
+        // Expand the case word before matching
+        // TODO: Add proper variable expansion here
+        // For now, use the word as-is or check for simple $var
+        char *expanded_word = ctx->case_word;
+        char *allocated_word = NULL;
+
+        if (ctx->case_word[0] == '$') {
+            // Simple variable expansion
+            const char *var_name = ctx->case_word + 1;
+            const char *val = shellvar_get(var_name);
+            if (val) {
+                allocated_word = strdup(val);
+                expanded_word = allocated_word;
+            } else {
+                allocated_word = strdup("");
+                expanded_word = allocated_word;
+            }
+        }
+
+        // Execute the case body
+        int exit_code = execute_case_body(ctx->loop_body, expanded_word);
+        last_command_exit_code = exit_code;
+
+        free(allocated_word);
+    } else if (parent_executing && ctx->case_word && !ctx->loop_body) {
+        // Empty case body - exit code is 0
+        last_command_exit_code = 0;
+    }
+
+    return script_pop_context();
+}
+
+// ============================================================================
 // Script Line Processing
 // ============================================================================
 
@@ -1656,7 +2096,7 @@ static int process_single_line(const char *line);
 int script_process_line(const char *line) {
     if (!line) return 0;
 
-    // Check if we're inside a function body or loop body being collected
+    // Check if we're inside a function body or loop/case body being collected
     // If so, don't split - buffer the full line
     ScriptContext *ctx = get_current_context();
     bool collecting = false;
@@ -1664,13 +2104,19 @@ int script_process_line(const char *line) {
         if (ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
             collecting = true;
         } else if (ctx->collecting_body &&
-                   (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL)) {
+                   (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL || ctx->type == CTX_CASE)) {
             collecting = true;
         }
     }
 
-    // If not collecting and line contains semicolons, split and process each part
-    if (!collecting && strchr(line, ';')) {
+    // Check if this line starts a case statement - don't split on semicolons
+    // because ;; is the clause terminator and shouldn't be split
+    const char *p = line;
+    while (*p && isspace(*p)) p++;
+    bool starts_case = (strncmp(p, "case", 4) == 0 && (isspace(p[4]) || p[4] == '\0'));
+
+    // If not collecting and line contains semicolons (and not starting a case), split and process each part
+    if (!collecting && !starts_case && strchr(line, ';')) {
         int count;
         char **parts = split_by_semicolons(line, &count);
         if (parts && count > 1) {
@@ -1698,13 +2144,15 @@ static int process_single_line(const char *line) {
     LineType ltype = script_classify_line(line);
 
     if (ltype == LINE_EMPTY) {
-        // Even empty lines need to be counted for function/loop bodies
+        // Even empty lines need to be counted for function/loop/case bodies
         ScriptContext *ctx = get_current_context();
         if (ctx && ctx->type == CTX_FUNCTION && ctx->brace_depth > 0) {
             append_to_func_body(ctx, "");
         } else if (ctx && ctx->collecting_body &&
                    (ctx->type == CTX_FOR || ctx->type == CTX_WHILE || ctx->type == CTX_UNTIL)) {
             append_to_loop_body(ctx, "");
+        } else if (ctx && ctx->collecting_body && ctx->type == CTX_CASE) {
+            append_to_case_body(ctx, "");
         }
         return 1;  // Continue processing
     }
@@ -1757,6 +2205,30 @@ static int process_single_line(const char *line) {
         return 1;  // Continue processing
     }
 
+    // If we're collecting a case body, buffer lines until 'esac'
+    if (ctx && ctx->collecting_body && ctx->type == CTX_CASE) {
+        // Track nested case statements
+        if (ltype == LINE_CASE_START) {
+            ctx->body_nesting_depth++;
+            append_to_case_body(ctx, line);
+            return 1;
+        }
+        // Check for 'esac' - only end collection when nesting depth is 0
+        if (ltype == LINE_ESAC) {
+            if (ctx->body_nesting_depth > 0) {
+                // This 'esac' is for a nested case, just append it
+                ctx->body_nesting_depth--;
+                append_to_case_body(ctx, line);
+                return 1;
+            }
+            // This 'esac' is for our case - process it
+            return process_esac(line);
+        }
+        // Buffer the line for later execution
+        append_to_case_body(ctx, line);
+        return 1;  // Continue processing
+    }
+
     switch (ltype) {
         case LINE_IF_START:
             return process_if(line);
@@ -1778,6 +2250,10 @@ static int process_single_line(const char *line) {
             return process_do(line);
         case LINE_DONE:
             return process_done(line);
+        case LINE_CASE_START:
+            return process_case(line);
+        case LINE_ESAC:
+            return process_esac(line);
         case LINE_FUNCTION_START:
             return process_function(line);
         case LINE_LBRACE:
