@@ -2325,6 +2325,19 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         script_state.silent_errors = true;
     }
 
+    // POSIX lexical scoping: save and reset break/continue state for sourced files
+    // break/continue inside a sourced file should NOT affect the caller's loops
+    int old_break_pending = break_pending;
+    int old_continue_pending = continue_pending;
+    break_pending = 0;
+    continue_pending = 0;
+
+    // Increment function call depth so break/continue only see loops in this file
+    script_state.function_call_depth++;
+
+    // Save context depth to detect unclosed structures only from THIS file
+    int saved_context_depth = script_state.context_depth;
+
     // Set up script state
     script_state.in_script = true;
     script_state.script_path = filepath;
@@ -2403,13 +2416,13 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
 
     fclose(fp);
 
-    // Check for unclosed control structures
-    if (script_state.context_depth > 0) {
+    // Check for unclosed control structures (only those added by THIS file)
+    if (script_state.context_depth > saved_context_depth) {
         if (!silent_errors && !script_state.silent_errors) {
             fprintf(stderr, "%s: %s: unexpected end of file\n", HASH_NAME, filepath);
         }
-        // Clear context stack on error to prevent cascading issues
-        while (script_state.context_depth > 0) {
+        // Clear only the contexts added by this file
+        while (script_state.context_depth > saved_context_depth) {
             script_pop_context();
         }
         result = 1;
@@ -2419,6 +2432,12 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.in_script = false;
     script_state.script_path = NULL;
     script_state.silent_errors = old_silent;  // Restore silent flag
+
+    // POSIX lexical scoping: restore break/continue state
+    // Any break/continue set inside the sourced file stays inside that file
+    script_state.function_call_depth--;
+    break_pending = old_break_pending;
+    continue_pending = old_continue_pending;
 
     // For return (-2), use the last exit code
     // For other errors (< 0), return 1

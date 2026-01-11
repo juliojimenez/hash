@@ -347,16 +347,9 @@ int shell_source(char **args) {
     // Execute the script file
     // If we're already in silent mode (e.g., sourcing system files),
     // continue in silent mode for nested sources
+    // Note: break/continue have lexical scope - they don't propagate from sourced files
     int result = script_execute_file_ex(filepath, 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
-
-    // POSIX: Check for pending break/continue to propagate from sourced file
-    if (script_get_break_pending() > 0) {
-        return -3;  // Propagate break signal
-    }
-    if (script_get_continue_pending() > 0) {
-        return -4;  // Propagate continue signal
-    }
 
     return 1;
 }
