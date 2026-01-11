@@ -45,6 +45,12 @@ static int launch(char **args, const char *cmd_string) {
     // Use cleaned args (or original if no redirections)
     char **exec_args = redir ? redir->args : args;
 
+    // Find and cache the command path before forking
+    char *cmd_path = NULL;
+    if (exec_args[0] && strchr(exec_args[0], '/') == NULL) {
+        cmd_path = find_in_path(exec_args[0]);
+    }
+
     pid = fork();
     if (pid == 0) {
         // Child process
@@ -137,9 +143,15 @@ static int launch(char **args, const char *cmd_string) {
             // The child may have been reaped unexpectedly
             last_command_exit_code = 1;
         }
+
+        // Add command to hash table if we found its path
+        if (cmd_path) {
+            cmd_hash_add(exec_args[0], cmd_path);
+        }
     }
 
     // Clean up
+    free(cmd_path);
     redirect_free(redir);
 
     return 1;

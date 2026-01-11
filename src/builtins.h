@@ -105,6 +105,15 @@ int shell_wait(char **args);
 // Built-in command: kill - send signal to process or job
 int shell_kill(char **args);
 
+// Built-in command: hash - manage command path hash table
+int shell_hash(char **args);
+
+// Add a command to the hash table (called when external commands are executed)
+void cmd_hash_add(const char *name, const char *path);
+
+// Find command in PATH and return full path (caller must free)
+char *find_in_path(const char *cmd);
+
 // Set login shell status (called from main)
 void builtins_set_login_shell(bool is_login);
 

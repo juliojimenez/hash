@@ -77,7 +77,8 @@ static char *builtin_str[] = {
     "readonly",
     "trap",
     "wait",
-    "kill"
+    "kill",
+    "hash"
 };
 
 static int (*builtin_func[])(char **) = {
@@ -115,7 +116,8 @@ static int (*builtin_func[])(char **) = {
     &shell_readonly,
     &shell_trap,
     &shell_wait,
-    &shell_kill
+    &shell_kill,
+    &shell_hash
 };
 
 static int num_builtins(void) {
@@ -1042,7 +1044,7 @@ static bool is_builtin_name(const char *name) {
 }
 
 // Find command in PATH and return full path (caller must free)
-static char *find_in_path(const char *cmd) {
+char *find_in_path(const char *cmd) {
     // If cmd contains /, it's already a path
     if (strchr(cmd, '/') != NULL) {
         if (access(cmd, X_OK) == 0) {
@@ -1833,6 +1835,138 @@ int shell_kill(char **args) {
     }
 
     last_command_exit_code = result;
+    return 1;
+}
+
+// ============================================================================
+// Command Hash Table (for hash builtin)
+// ============================================================================
+
+#define CMD_HASH_SIZE 64
+
+typedef struct CmdHashEntry {
+    char *name;
+    char *path;
+    int hits;
+    struct CmdHashEntry *next;
+} CmdHashEntry;
+
+static CmdHashEntry *cmd_hash_table[CMD_HASH_SIZE];
+
+// Simple hash function for command names
+static unsigned int cmd_hash_func(const char *s) {
+    unsigned int hash = 0;
+    while (*s) {
+        hash = hash * 31 + (unsigned char)*s++;
+    }
+    return hash % CMD_HASH_SIZE;
+}
+
+// Add a command to the hash table
+void cmd_hash_add(const char *name, const char *path) {
+    unsigned int h = cmd_hash_func(name);
+
+    // Check if already exists
+    CmdHashEntry *e = cmd_hash_table[h];
+    while (e) {
+        if (strcmp(e->name, name) == 0) {
+            // Update path if different
+            if (strcmp(e->path, path) != 0) {
+                free(e->path);
+                e->path = strdup(path);
+            }
+            e->hits++;
+            return;
+        }
+        e = e->next;
+    }
+
+    // Add new entry
+    CmdHashEntry *new_entry = malloc(sizeof(CmdHashEntry));
+    if (new_entry) {
+        new_entry->name = strdup(name);
+        new_entry->path = strdup(path);
+        new_entry->hits = 1;
+        new_entry->next = cmd_hash_table[h];
+        cmd_hash_table[h] = new_entry;
+    }
+}
+
+// Clear all entries from hash table
+static void cmd_hash_clear(void) {
+    for (int i = 0; i < CMD_HASH_SIZE; i++) {
+        CmdHashEntry *e = cmd_hash_table[i];
+        while (e) {
+            CmdHashEntry *next = e->next;
+            free(e->name);
+            free(e->path);
+            free(e);
+            e = next;
+        }
+        cmd_hash_table[i] = NULL;
+    }
+}
+
+// List all hashed commands
+static void cmd_hash_list(void) {
+    for (int i = 0; i < CMD_HASH_SIZE; i++) {
+        CmdHashEntry *e = cmd_hash_table[i];
+        while (e) {
+            printf("hits\tcommand\n");
+            break;  // Only print header once
+        }
+        if (cmd_hash_table[i]) break;
+    }
+
+    // Print header and entries
+    bool has_entries = false;
+    for (int i = 0; i < CMD_HASH_SIZE; i++) {
+        if (cmd_hash_table[i]) {
+            has_entries = true;
+            break;
+        }
+    }
+
+    if (has_entries) {
+        for (int i = 0; i < CMD_HASH_SIZE; i++) {
+            CmdHashEntry *e = cmd_hash_table[i];
+            while (e) {
+                printf("%4d\t%s\n", e->hits, e->path);
+                e = e->next;
+            }
+        }
+    }
+}
+
+int shell_hash(char **args) {
+    // hash with no args: list all hashed commands
+    if (args[1] == NULL) {
+        cmd_hash_list();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // hash -r: clear hash table
+    if (strcmp(args[1], "-r") == 0) {
+        cmd_hash_clear();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // hash name [name...]: look up and hash commands
+    for (int i = 1; args[i]; i++) {
+        char *path = find_in_path(args[i]);
+        if (path) {
+            cmd_hash_add(args[i], path);
+            free(path);
+        } else {
+            fprintf(stderr, "%s: hash: %s: not found\n", HASH_NAME, args[i]);
+            last_command_exit_code = 1;
+            return 1;
+        }
+    }
+
+    last_command_exit_code = 0;
     return 1;
 }
 
