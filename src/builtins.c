@@ -1623,6 +1623,13 @@ int shell_trap(char **args) {
 }
 
 int shell_wait(char **args) {
+    // Block SIGCHLD during wait to prevent race condition where
+    // the SIGCHLD handler reaps children before waitpid can see them
+    sigset_t block_mask, old_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
     // wait with no args: wait for all background jobs
     if (args[1] == NULL) {
         int status;
@@ -1656,6 +1663,7 @@ int shell_wait(char **args) {
             }
         }
 
+        sigprocmask(SIG_SETMASK, &old_mask, NULL);
         last_command_exit_code = 0;
         return 1;
     }
@@ -1718,6 +1726,7 @@ int shell_wait(char **args) {
         }
     }
 
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
     return 1;
 }
 
