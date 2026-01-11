@@ -1668,7 +1668,9 @@ static int signal_name_to_number(const char *name) {
     if (strcasecmp(name, "INT") == 0) return SIGINT;
     if (strcasecmp(name, "QUIT") == 0) return SIGQUIT;
     if (strcasecmp(name, "ILL") == 0) return SIGILL;
+#ifdef SIGTRAP
     if (strcasecmp(name, "TRAP") == 0) return SIGTRAP;
+#endif
     if (strcasecmp(name, "ABRT") == 0) return SIGABRT;
     if (strcasecmp(name, "FPE") == 0) return SIGFPE;
     if (strcasecmp(name, "KILL") == 0) return SIGKILL;
@@ -1688,10 +1690,18 @@ static int signal_name_to_number(const char *name) {
 #ifdef SIGIO
     if (strcasecmp(name, "IO") == 0) return SIGIO;
 #endif
+#ifdef SIGXCPU
     if (strcasecmp(name, "XCPU") == 0) return SIGXCPU;
+#endif
+#ifdef SIGXFSZ
     if (strcasecmp(name, "XFSZ") == 0) return SIGXFSZ;
+#endif
+#ifdef SIGVTALRM
     if (strcasecmp(name, "VTALRM") == 0) return SIGVTALRM;
+#endif
+#ifdef SIGPROF
     if (strcasecmp(name, "PROF") == 0) return SIGPROF;
+#endif
 #ifdef SIGWINCH
     if (strcasecmp(name, "WINCH") == 0) return SIGWINCH;
 #endif
