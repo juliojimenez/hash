@@ -181,27 +181,29 @@ void test_parse_line_escaped_backslash(void) {
     free(args);
 }
 
-// Test parse_line with newline escape
+// Test parse_line with backslash-n in double quotes (POSIX: stays literal)
 void test_parse_line_escaped_newline(void) {
     char line[] = "echo \"line1\\nline2\"";
     char **args = parse_line(line);
 
     TEST_ASSERT_NOT_NULL(args);
     TEST_ASSERT_EQUAL_STRING("echo", args[0]);
-    TEST_ASSERT_EQUAL_STRING("line1\nline2", args[1]);
+    // POSIX: \n in double quotes is NOT interpreted - stays as backslash-n
+    TEST_ASSERT_EQUAL_STRING("line1\\nline2", args[1]);
     TEST_ASSERT_NULL(args[2]);
 
     free(args);
 }
 
-// Test parse_line with tab escape
+// Test parse_line with backslash-t in double quotes (POSIX: stays literal)
 void test_parse_line_escaped_tab(void) {
     char line[] = "echo \"col1\\tcol2\"";
     char **args = parse_line(line);
 
     TEST_ASSERT_NOT_NULL(args);
     TEST_ASSERT_EQUAL_STRING("echo", args[0]);
-    TEST_ASSERT_EQUAL_STRING("col1\tcol2", args[1]);
+    // POSIX: \t in double quotes is NOT interpreted - stays as backslash-t
+    TEST_ASSERT_EQUAL_STRING("col1\\tcol2", args[1]);
     TEST_ASSERT_NULL(args[2]);
 
     free(args);

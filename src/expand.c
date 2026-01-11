@@ -213,6 +213,13 @@ int expand_tilde(char **args) {
     if (!args) return -1;
 
     for (int i = 0; args[i] != NULL; i++) {
+        // Check for quoted tilde marker (\x01~)
+        if (args[i][0] == '\x01' && args[i][1] == '~') {
+            // Remove the marker - tilde was quoted, don't expand
+            // Shift the string left by 1 to remove the \x01
+            memmove(args[i], args[i] + 1, strlen(args[i]));
+            continue;
+        }
         if (args[i][0] == '~') {
             char *expanded = expand_tilde_path(args[i]);
             if (expanded) {

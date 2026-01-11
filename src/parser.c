@@ -51,40 +51,42 @@ char **parse_line(char *line) {
             read_pos++; // Skip the backslash
 
             if (in_single_quote) {
-                // In single quotes, only \' is special
-                if (*read_pos == '\'') {
-                    *write_pos++ = '\'';
-                    read_pos++;
-                } else {
-                    // Keep backslash literal
-                    *write_pos++ = '\\';
-                    *write_pos++ = *read_pos++;
-                }
-            } else {
-                // In double quotes or unquoted, handle common escapes
+                // In single quotes, backslash has no special meaning (POSIX)
+                // Keep both backslash and the following character
+                *write_pos++ = '\\';
+                *write_pos++ = *read_pos++;
+            } else if (in_double_quote) {
+                // In double quotes, backslash is special only before $ ` " \ newline
                 switch (*read_pos) {
-                    case '"':
-                    case '\\':
-                    case '\'':
+                    case '$':
+                        // Use marker to prevent variable expansion
+                        *write_pos++ = '\x01';
                         *write_pos++ = *read_pos++;
                         break;
-                    case 'n':
-                        *write_pos++ = '\n';
-                        read_pos++;
+                    case '`':
+                    case '"':
+                    case '\\':
+                        // Remove backslash, keep the character
+                        *write_pos++ = *read_pos++;
                         break;
-                    case 't':
-                        *write_pos++ = '\t';
-                        read_pos++;
-                        break;
-                    case 'r':
-                        *write_pos++ = '\r';
+                    case '\n':
+                        // Line continuation - skip both backslash and newline
                         read_pos++;
                         break;
                     default:
-                        // Unknown escape, keep both characters
+                        // Keep both backslash and character
                         *write_pos++ = '\\';
                         *write_pos++ = *read_pos++;
                         break;
+                }
+            } else {
+                // Unquoted: backslash quotes the next character (removes itself)
+                if (*read_pos == '\n') {
+                    // Line continuation - skip both backslash and newline
+                    read_pos++;
+                } else {
+                    // Remove backslash, keep the character
+                    *write_pos++ = *read_pos++;
                 }
             }
         } else if (*read_pos == '\'' && !in_double_quote) {
@@ -165,6 +167,11 @@ char **parse_line(char *line) {
         } else if (*read_pos == '$' && in_single_quote) {
             // Dollar sign inside single quotes - use special marker (SOH + $)
             // cmdsub and varexpand will recognize SOH (\x01) and output literal $
+            *write_pos++ = '\x01';
+            *write_pos++ = *read_pos++;
+        } else if (*read_pos == '~' && (in_single_quote || in_double_quote)) {
+            // Tilde inside quotes - use special marker to prevent expansion
+            // expand_tilde will recognize SOH (\x01) and output literal ~
             *write_pos++ = '\x01';
             *write_pos++ = *read_pos++;
         } else {
