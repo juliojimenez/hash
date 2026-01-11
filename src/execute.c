@@ -634,9 +634,25 @@ int execute(char **args) {
     }
 
     // For special builtins with redirections, handle in same process
-    // Save and restore file descriptors
+    // Save and restore file descriptors (except for exec which persists redirections)
     int saved_fds[3] = {-1, -1, -1};  // stdin, stdout, stderr
-    if (is_special_builtin && redir && redir->count > 0) {
+    bool is_exec_builtin = exec_args[0] && strcmp(exec_args[0], "exec") == 0;
+
+    // For exec builtin, pass original args (with all redirections) so it can process them
+    // in the correct order. Don't use redirect_apply which would apply in wrong order.
+    if (is_exec_builtin) {
+        // shell_exec handles ALL redirections itself, in order
+        result = try_builtin(exec_input);
+        if (result != -1) {
+            redirect_free(redir);
+            if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
+            free_expanded_args(expanded_args, expanded_count);
+            restore_prefix_vars();
+            return result;
+        }
+    }
+
+    if (is_special_builtin && redir && redir->count > 0 && !is_exec_builtin) {
         // Save current file descriptors
         saved_fds[0] = dup(STDIN_FILENO);
         saved_fds[1] = dup(STDOUT_FILENO);
@@ -646,9 +662,11 @@ int execute(char **args) {
     }
 
     // Try built-in commands (no redirections, or will be handled below)
-    result = try_builtin(exec_args);
+    if (!is_exec_builtin) {
+        result = try_builtin(exec_args);
+    }
 
-    // Restore file descriptors if we saved them for flow-control builtins
+    // Restore file descriptors if we saved them
     if (saved_fds[0] != -1 || saved_fds[1] != -1 || saved_fds[2] != -1) {
         if (saved_fds[0] != -1) { dup2(saved_fds[0], STDIN_FILENO); close(saved_fds[0]); }
         if (saved_fds[1] != -1) { dup2(saved_fds[1], STDOUT_FILENO); close(saved_fds[1]); }

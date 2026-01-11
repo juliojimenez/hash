@@ -234,6 +234,8 @@ RedirInfo *redirect_parse(char **args) {
                         } else if (*p == '2' && *(p + 1) == '\0' && fd == 1) {
                             add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
                         } else {
+                            // For exec builtin with arbitrary FD duplication (like 3>&1),
+                            // keep as argument so shell_exec can handle it directly
                             info->args[new_arg_idx++] = arg;
                         }
                     } else if (*p != '\0') {
@@ -393,14 +395,20 @@ int redirect_apply(const RedirInfo *info) {
             case REDIR_INPUT_DUP: {
                 // <&N - dup fd N to stdin
                 int src_fd = atoi(redir->filename);
-                dup2(src_fd, STDIN_FILENO);
+                if (dup2(src_fd, STDIN_FILENO) < 0) {
+                    fprintf(stderr, "%s: %s: Bad file descriptor\n", HASH_NAME, redir->filename);
+                    return -1;
+                }
                 break;
             }
 
             case REDIR_OUTPUT_DUP: {
                 // >&N - dup fd N to stdout
                 int src_fd = atoi(redir->filename);
-                dup2(src_fd, STDOUT_FILENO);
+                if (dup2(src_fd, STDOUT_FILENO) < 0) {
+                    fprintf(stderr, "%s: %s: Bad file descriptor\n", HASH_NAME, redir->filename);
+                    return -1;
+                }
                 break;
             }
 
