@@ -1028,6 +1028,11 @@ static int execute_simple_line(const char *line) {
     }
 
 use_chain_parse:;
+    // Debug: show line before chain_parse
+    if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
+        fprintf(stderr, "DEBUG execute_simple_line before chain_parse: [%s]\n", line);
+    }
+
     char *line_copy = strdup(line);
     if (!line_copy) return -1;
 
@@ -2261,6 +2266,11 @@ static int process_single_line(const char *line);
 int script_process_line(const char *line) {
     if (!line) return 0;
 
+    // Debug: show line at entry to script_process_line
+    if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
+        fprintf(stderr, "DEBUG script_process_line entry: [%s] len=%zu\n", line, strlen(line));
+    }
+
     // If running in interactive mode, add commands to history (unless nolog is set)
     if (is_interactive && !shell_option_nolog() && line[0] != '\0') {
         // Skip whitespace-only lines
@@ -2542,6 +2552,11 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
             line[len-1] = '\0';
+        }
+
+        // Debug: show raw line from file
+        if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
+            fprintf(stderr, "DEBUG script_execute_file raw line: [%s] len=%zu\n", line, strlen(line));
         }
 
         // Check for heredoc and collect content if present
