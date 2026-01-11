@@ -1500,15 +1500,24 @@ int shell_readonly(char **args) {
         return 1;
     }
 
-    // Handle -p option (same as no args, print in reusable format)
+    // Handle options
     int start = 1;
-    if (args[1] && strcmp(args[1], "-p") == 0) {
-        if (args[2] == NULL) {
-            shellvar_list_readonly();
-            last_command_exit_code = 0;
-            return 1;
+    while (args[start] && args[start][0] == '-') {
+        if (strcmp(args[start], "-p") == 0) {
+            if (args[start + 1] == NULL) {
+                shellvar_list_readonly();
+                last_command_exit_code = 0;
+                return 1;
+            }
+            start++;
+        } else if (strcmp(args[start], "--") == 0) {
+            // End of options
+            start++;
+            break;
+        } else {
+            // Unknown option - just skip it for now
+            start++;
         }
-        start = 2;
     }
 
     // Process each argument
