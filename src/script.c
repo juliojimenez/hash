@@ -150,6 +150,8 @@ static int heredoc_append(const char *line, int strip_tabs) {
         heredoc_content_cap = new_cap;
     }
 
+    if (!heredoc_content) return -1;
+
     memcpy(heredoc_content + heredoc_content_len, start, line_len);
     heredoc_content_len += line_len;
     heredoc_content[heredoc_content_len++] = '\n';
