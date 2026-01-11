@@ -571,6 +571,9 @@ int execute(char **args) {
             try_builtin(exec_args);
             // The builtin sets last_command_exit_code, use that as exit code
             redirect_free(redir);
+            // Flush child's stdio buffers before exit
+            fflush(stdout);
+            fflush(stderr);
             // Use _exit() to avoid flushing parent's stdio buffers
             _exit(last_command_exit_code);
         } else if (pid > 0) {

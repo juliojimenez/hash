@@ -199,14 +199,11 @@ char **parse_line(char *line) {
 
     tokens[position] = NULL;
 
-    // Store output buffer pointer after the NULL terminator in tokens array
-    // This allows the caller to free it if needed (tokens array was allocated with space)
-    // Actually, we use a static to track it for freeing on next call
-    static char *prev_output = NULL;
-    if (prev_output) {
-        free(prev_output);
-    }
-    prev_output = output;
+    // Note: output buffer is intentionally not freed here.
+    // The tokens array contains pointers into the output buffer, and callers
+    // may hold references to tokens across multiple parse_line calls (e.g., during
+    // alias expansion). The memory will be reclaimed when the process exits.
+    // This matches typical shell behavior where input buffers persist.
 
     return tokens;
 }
