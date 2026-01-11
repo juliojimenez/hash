@@ -21,6 +21,7 @@
 #include "trap.h"
 #include "shellvar.h"
 #include "config.h"
+#include "history.h"
 
 // Global script state
 ScriptState script_state;
@@ -2257,6 +2258,16 @@ static int process_single_line(const char *line);
 
 int script_process_line(const char *line) {
     if (!line) return 0;
+
+    // If running in interactive mode, add commands to history (unless nolog is set)
+    if (is_interactive && !shell_option_nolog() && line[0] != '\0') {
+        // Skip whitespace-only lines
+        const char *p = line;
+        while (*p && isspace(*p)) p++;
+        if (*p != '\0') {
+            history_add(line);
+        }
+    }
 
     // Check if we're inside a function body or loop/case body being collected
     // If so, don't split - buffer the full line

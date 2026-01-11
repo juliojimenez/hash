@@ -39,8 +39,7 @@ static pid_t shell_pgid;
 // Track if this is a login shell (needed for logout handling)
 static bool is_login_shell_global = false;
 
-// Track if we're running interactively
-static bool is_interactive = false;
+// is_interactive is defined in config.c
 
 // Signal handler for cleanup
 static void signal_handler(int sig) {
@@ -306,6 +305,11 @@ int main(int argc, char *argv[]) {
     // Non-interactive mode: Execute script file
     // ========================================================================
     if (script_file != NULL) {
+        // If -i flag was used, initialize history for the script
+        if (force_interactive) {
+            history_init();
+        }
+
         int result = script_execute_file(script_file, script_argc, script_argv);
 
         // Execute EXIT trap before cleanup

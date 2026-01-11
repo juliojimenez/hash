@@ -485,6 +485,8 @@ int shell_set(char **args) {
                 shell_option_set_monitor(true);
             } else if (strcmp(opt, "nonlexicalctrl") == 0) {
                 shell_option_set_nonlexicalctrl(true);
+            } else if (strcmp(opt, "nolog") == 0) {
+                shell_option_set_nolog(true);
             }
             // Silently ignore unknown -o options for compatibility
             last_command_exit_code = 0;
@@ -498,6 +500,8 @@ int shell_set(char **args) {
                 shell_option_set_monitor(false);
             } else if (strcmp(opt, "nonlexicalctrl") == 0) {
                 shell_option_set_nonlexicalctrl(false);
+            } else if (strcmp(opt, "nolog") == 0) {
+                shell_option_set_nolog(false);
             }
             // Silently ignore unknown +o options for compatibility
             last_command_exit_code = 0;

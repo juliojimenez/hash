@@ -24,6 +24,7 @@ typedef struct {
     bool allexport;    // -a: Export all variables (not fully implemented)
     bool monitor;      // -m: Enable job control (monitor mode)
     bool nonlexicalctrl; // Enable dynamic scoping for break/continue across functions
+    bool nolog;        // Disable command history logging
 } ShellOptions;
 
 // Configuration structure
@@ -81,5 +82,7 @@ bool shell_option_monitor(void);
 void shell_option_set_monitor(bool value);
 bool shell_option_nonlexicalctrl(void);
 void shell_option_set_nonlexicalctrl(bool value);
+bool shell_option_nolog(void);
+void shell_option_set_nolog(bool value);
 
 #endif // CONFIG_H

@@ -17,6 +17,9 @@
 
 Config shell_config;
 
+// Track if we're running interactively (for history tracking, job control, etc.)
+bool is_interactive = false;
+
 // Initialize config with defaults
 void config_init(void) {
     shell_config.alias_count = 0;
@@ -65,6 +68,16 @@ bool shell_option_nonlexicalctrl(void) {
 // Set the nonlexicalctrl option value
 void shell_option_set_nonlexicalctrl(bool value) {
     shell_config.options.nonlexicalctrl = value;
+}
+
+// Get the nolog option value
+bool shell_option_nolog(void) {
+    return shell_config.options.nolog;
+}
+
+// Set the nolog option value
+void shell_option_set_nolog(bool value) {
+    shell_config.options.nolog = value;
 }
 
 // Trim whitespace from string
