@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <limits.h>
@@ -237,6 +238,18 @@ int expand_tilde(char **args) {
 // These markers are used to protect quoted characters from expansion
 void strip_quote_markers(char *s) {
     if (!s) return;
+
+    // First check if there are any markers - avoid writing to read-only strings
+    const char *check = s;
+    bool has_markers = false;
+    while (*check) {
+        if (*check == '\x01') {
+            has_markers = true;
+            break;
+        }
+        check++;
+    }
+    if (!has_markers) return;
 
     char *read = s;
     char *write = s;
