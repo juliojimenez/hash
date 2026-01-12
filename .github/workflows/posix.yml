@@ -1,4 +1,4 @@
-name: POSIX Compliance
+name: Smoosh POSIX Tests
 
 on:
   push:

@@ -1657,16 +1657,27 @@ static int process_for(const char *line) {
                 values_str[--len] = '\0';
             }
 
-            // Parse values
-            char **values = malloc(256 * sizeof(char*));
+            // Parse values using parse_line for proper quote handling
+            char **values = NULL;
             int count = 0;
 
-            if (values && len > 0) {
-                char *saveptr;
-                const char *token = strtok_r(values_str, " \t", &saveptr);
-                while (token && count < 255) {
-                    values[count++] = strdup(token);
-                    token = strtok_r(NULL, " \t", &saveptr);
+            if (len > 0) {
+                char **parsed = parse_line(values_str);
+                if (parsed) {
+                    // Count parsed values
+                    int parsed_count = 0;
+                    while (parsed[parsed_count]) parsed_count++;
+
+                    if (parsed_count > 0) {
+                        values = malloc((size_t)(parsed_count + 1) * sizeof(char*));
+                        if (values) {
+                            for (int i = 0; i < parsed_count && count < 255; i++) {
+                                values[count++] = strdup(parsed[i]);
+                            }
+                            values[count] = NULL;
+                        }
+                    }
+                    free(parsed);
                 }
             }
 

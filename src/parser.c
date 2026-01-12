@@ -164,6 +164,21 @@ char **parse_line(const char *line) {
                 }
                 *write_pos++ = *read_pos++;
             }
+        } else if (*read_pos == '`' && !in_single_quote) {
+            // Backtick command substitution - keep everything until matching `
+            *write_pos++ = *read_pos++;  // Opening `
+            while (*read_pos && *read_pos != '`') {
+                if (*read_pos == '\\' && *(read_pos + 1) == '`') {
+                    // Escaped backtick inside backticks
+                    *write_pos++ = *read_pos++;  // backslash
+                    *write_pos++ = *read_pos++;  // `
+                } else {
+                    *write_pos++ = *read_pos++;
+                }
+            }
+            if (*read_pos == '`') {
+                *write_pos++ = *read_pos++;  // Closing `
+            }
         } else if (isspace(*read_pos) && !in_single_quote && !in_double_quote) {
             // End of token
             *write_pos = '\0';
