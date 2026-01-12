@@ -36,6 +36,20 @@ jobs:
           echo "Smoosh test suite cloned"
           ls -la smoosh-tests/tests/
 
+      - name: Debug readonly.assign.interactive test
+        continue-on-error: true
+        run: |
+          cd smoosh-tests/tests
+          echo "=== Debugging builtin.readonly.assign.interactive ==="
+          echo ""
+          echo "Test file contents:"
+          cat shell/builtin.readonly.assign.interactive.test
+          echo ""
+          echo "Running test with debug..."
+          HASH_DEBUG_EXEC=1 /usr/local/bin/hash-shell shell/builtin.readonly.assign.interactive.test 2>&1 || true
+          echo ""
+          echo "=== End debug ==="
+
       - name: Run Smoosh Shell Tests
         id: smoosh_tests
         continue-on-error: true

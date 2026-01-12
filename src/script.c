@@ -2562,13 +2562,23 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         memset(line, 0, sizeof(line));  // Clear buffer before each read
         if (!fgets(line, sizeof(line), fp)) break;
 
+        // Debug: show raw line from fgets (before any processing)
+        if (getenv("HASH_DEBUG_EXEC")) {
+            size_t rawlen = strlen(line);
+            fprintf(stderr, "DEBUG fgets raw: len=%zu bytes=[", rawlen);
+            for (size_t j = 0; j < rawlen && j < 50; j++) {
+                fprintf(stderr, "%02x ", (unsigned char)line[j]);
+            }
+            fprintf(stderr, "]\n");
+        }
+
         // Remove trailing newline
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
             line[len-1] = '\0';
         }
 
-        // Debug: show every line from file
+        // Debug: show line after newline removal
         if (getenv("HASH_DEBUG_EXEC")) {
             fprintf(stderr, "DEBUG script_execute_file read line: [%s]\n", line);
         }
