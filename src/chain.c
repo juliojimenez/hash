@@ -542,19 +542,7 @@ int chain_execute(const CommandChain *chain) {
             pipeline_free(pipe);
         } else {
             // No pipes - execute normally
-            // Debug: show line before parse_line
-            if (getenv("HASH_DEBUG_EXEC") && strncmp(exec_cmd, "exec", 4) == 0) {
-                fprintf(stderr, "DEBUG chain_execute exec_cmd: [%s]\n", exec_cmd);
-            }
             char **args = parse_line(exec_cmd);
-            // Debug: show args after parse_line
-            if (getenv("HASH_DEBUG_EXEC") && args && args[0] && strcmp(args[0], "exec") == 0) {
-                fprintf(stderr, "DEBUG chain_execute after parse_line:");
-                for (int j = 0; args[j]; j++) {
-                    fprintf(stderr, " [%s]", args[j]);
-                }
-                fprintf(stderr, "\n");
-            }
             if (args) {
                 shell_continue = execute(args);
                 last_exit_code = execute_get_last_exit_code();

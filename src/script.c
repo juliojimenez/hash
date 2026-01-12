@@ -168,11 +168,6 @@ static int heredoc_append(const char *line, int strip_tabs) {
 static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs) {
     heredoc_reset();
 
-    // Debug: show delimiter we're looking for
-    if (getenv("HASH_DEBUG_EXEC")) {
-        fprintf(stderr, "DEBUG heredoc_collect: looking for delimiter [%s]\n", delimiter);
-    }
-
     char line[MAX_SCRIPT_LINE];
 
     while (fgets(line, sizeof(line), fp)) {
@@ -183,11 +178,6 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
             len--;
         }
 
-        // Debug: show each line read during heredoc collection
-        if (getenv("HASH_DEBUG_EXEC")) {
-            fprintf(stderr, "DEBUG heredoc_collect read: [%s]\n", line);
-        }
-
         // Check for delimiter
         const char *check = line;
         if (strip_tabs) {
@@ -195,10 +185,6 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
         }
 
         if (strcmp(check, delimiter) == 0) {
-            // Debug: found delimiter
-            if (getenv("HASH_DEBUG_EXEC")) {
-                fprintf(stderr, "DEBUG heredoc_collect: found delimiter, done\n");
-            }
             // Found delimiter - return collected content
             char *result = heredoc_content;
             heredoc_content = NULL;
@@ -1042,11 +1028,6 @@ static int execute_simple_line(const char *line) {
     }
 
 use_chain_parse:;
-    // Debug: show line before chain_parse
-    if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
-        fprintf(stderr, "DEBUG execute_simple_line before chain_parse: [%s]\n", line);
-    }
-
     char *line_copy = strdup(line);
     if (!line_copy) return -1;
 
@@ -2280,11 +2261,6 @@ static int process_single_line(const char *line);
 int script_process_line(const char *line) {
     if (!line) return 0;
 
-    // Debug: show line at entry to script_process_line
-    if (getenv("HASH_DEBUG_EXEC") && strncmp(line, "exec", 4) == 0) {
-        fprintf(stderr, "DEBUG script_process_line entry: [%s] len=%zu\n", line, strlen(line));
-    }
-
     // If running in interactive mode, add commands to history (unless nolog is set)
     if (is_interactive && !shell_option_nolog() && line[0] != '\0') {
         // Skip whitespace-only lines
@@ -2562,25 +2538,10 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         memset(line, 0, sizeof(line));  // Clear buffer before each read
         if (!fgets(line, sizeof(line), fp)) break;
 
-        // Debug: show raw line from fgets (before any processing)
-        if (getenv("HASH_DEBUG_EXEC")) {
-            size_t rawlen = strlen(line);
-            fprintf(stderr, "DEBUG fgets raw: len=%zu bytes=[", rawlen);
-            for (size_t j = 0; j < rawlen && j < 50; j++) {
-                fprintf(stderr, "%02x ", (unsigned char)line[j]);
-            }
-            fprintf(stderr, "]\n");
-        }
-
         // Remove trailing newline
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') {
             line[len-1] = '\0';
-        }
-
-        // Debug: show line after newline removal
-        if (getenv("HASH_DEBUG_EXEC")) {
-            fprintf(stderr, "DEBUG script_execute_file read line: [%s]\n", line);
         }
 
         // Check for heredoc and collect content if present

@@ -296,15 +296,6 @@ int execute(char **args) {
         return 1;
     }
 
-    // Debug: show raw args at entry to execute()
-    if (getenv("HASH_DEBUG_EXEC") && args[0] && strcmp(args[0], "exec") == 0) {
-        fprintf(stderr, "DEBUG execute() entry args:");
-        for (int j = 0; args[j]; j++) {
-            fprintf(stderr, " [%s]", args[j]);
-        }
-        fprintf(stderr, "\n");
-    }
-
     // Track original args to know which ones we allocated
     // We need to free expanded args later
     char *expanded_args[MAX_ARGS];
@@ -646,15 +637,6 @@ int execute(char **args) {
     // Save and restore file descriptors (except for exec which persists redirections)
     int saved_fds[3] = {-1, -1, -1};  // stdin, stdout, stderr
     bool is_exec_builtin = exec_args[0] && strcmp(exec_args[0], "exec") == 0;
-
-    // Debug: trace exec builtin path
-    if (getenv("HASH_DEBUG_EXEC") && is_exec_builtin) {
-        fprintf(stderr, "DEBUG execute: is_exec_builtin=true, exec_input:");
-        for (int j = 0; exec_input[j]; j++) {
-            fprintf(stderr, " [%s]", exec_input[j]);
-        }
-        fprintf(stderr, "\n");
-    }
 
     // For exec builtin, pass original args (with all redirections) so it can process them
     // in the correct order. Don't use redirect_apply which would apply in wrong order.
