@@ -73,6 +73,7 @@ jobs:
             builtin.kill.jobs
             builtin.readonly.assign.interactive
             builtin.set.quoted
+            builtin.times.ioerror
           "
 
           # Function to check if test should be skipped

@@ -1425,12 +1425,18 @@ int shell_times(char **args) {
     long child_sys_ms = (times_buf.tms_cstime % ticks_per_sec) * 1000 / ticks_per_sec;
 
     // Print in format: Xm0.XXXs Xm0.XXXs
-    printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
+    // Check for I/O errors (e.g., broken pipe)
+    if (printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
            shell_user_sec / 60, shell_user_sec % 60, shell_user_ms,
-           shell_sys_sec / 60, shell_sys_sec % 60, shell_sys_ms);
-    printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
+           shell_sys_sec / 60, shell_sys_sec % 60, shell_sys_ms) < 0 ||
+        printf("%ldm%ld.%03lds %ldm%ld.%03lds\n",
            child_user_sec / 60, child_user_sec % 60, child_user_ms,
-           child_sys_sec / 60, child_sys_sec % 60, child_sys_ms);
+           child_sys_sec / 60, child_sys_sec % 60, child_sys_ms) < 0 ||
+        fflush(stdout) != 0) {
+        fprintf(stderr, "%s: times: I/O error\n", HASH_NAME);
+        last_command_exit_code = 2;
+        return 1;
+    }
 
     last_command_exit_code = 0;
     return 1;
