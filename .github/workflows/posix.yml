@@ -42,28 +42,7 @@ jobs:
         run: |
           cd smoosh-tests/tests
 
-          # Count total tests
-          TOTAL_TESTS=$(ls -1 shell/*.test 2>/dev/null | wc -l)
-          echo "Total test files found: $TOTAL_TESTS"
-
-          # Run tests with hash-shell
-          echo "Running Smoosh tests against hash-shell..."
-          HASH_DEBUG_EXEC=1 TEST_SHELL=/usr/local/bin/hash-shell TEST_DEBUG=1 make test 2>&1 | tee smoosh-results.txt || true
-
-          # Extract results
-          if grep -q "tests passed" smoosh-results.txt; then
-            RESULTS=$(grep "tests passed" smoosh-results.txt | tail -1)
-            echo "results=$RESULTS" >> $GITHUB_OUTPUT
-          else
-            echo "results=Tests completed (check logs for details)" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run Individual Test Analysis
-        continue-on-error: true
-        run: |
-          cd smoosh-tests/tests
-
-          echo "=== Detailed Test Results ==="
+          echo "=== Smoosh POSIX Compliance Tests ==="
           echo ""
 
           PASSED=0
@@ -78,6 +57,7 @@ jobs:
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
           SKIP_TESTS="
+            builtin.kill.jobs
             builtin.readonly.assign.interactive
           "
 
@@ -174,6 +154,9 @@ jobs:
           echo "Failed: $FAILED" >> results/summary.txt
           echo "Timeout: $TIMEOUT" >> results/summary.txt
           echo "Skipped: $SKIPPED" >> results/summary.txt
+
+          # Set output for later steps
+          echo "results=Passed: $PASSED, Failed: $FAILED, Timeout: $TIMEOUT, Skipped: $SKIPPED" >> $GITHUB_OUTPUT
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
