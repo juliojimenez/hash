@@ -36,6 +36,14 @@ jobs:
           echo "Smoosh test suite cloned"
           ls -la smoosh-tests/tests/
 
+          # Build test utilities
+          cd smoosh-tests/tests/util
+          for src in *.c; do
+            bin="${src%.c}"
+            gcc -o "$bin" "$src" 2>/dev/null || echo "Note: Could not build $bin"
+          done
+          ls -la
+
       - name: Run Smoosh Shell Tests
         id: smoosh_tests
         continue-on-error: true
@@ -55,8 +63,9 @@ jobs:
           # Create results directory
           mkdir -p results
 
-          # Export TEST_SHELL for tests that invoke the shell internally
+          # Export TEST_SHELL and TEST_UTIL for tests
           export TEST_SHELL=/usr/local/bin/hash-shell
+          export TEST_UTIL="$(pwd)/util"
 
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
