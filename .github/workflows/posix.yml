@@ -40,6 +40,7 @@ jobs:
         id: smoosh_tests
         continue-on-error: true
         run: |
+          set +e  # Don't exit on test failures
           cd smoosh-tests/tests
 
           echo "=== Smoosh POSIX Compliance Tests ==="
