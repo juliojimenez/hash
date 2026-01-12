@@ -449,8 +449,8 @@ int shell_history(char **args) {
 
 int shell_set(char **args) {
     // Handle set with no arguments - list all shell variables
-    // (For now, we don't maintain shell-local variables, so this is a no-op)
     if (args[1] == NULL) {
+        shellvar_list_all();
         last_command_exit_code = 0;
         return 1;
     }

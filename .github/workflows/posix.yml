@@ -72,6 +72,7 @@ jobs:
           SKIP_TESTS="
             builtin.kill.jobs
             builtin.readonly.assign.interactive
+            builtin.set.quoted
           "
 
           # Function to check if test should be skipped

@@ -54,4 +54,7 @@ void shellvar_sync_to_env(const char *name);
 // Sync environment to shell variables on startup
 void shellvar_sync_from_env(void);
 
+// List all shell variables (for `set` with no arguments)
+void shellvar_list_all(void);
+
 #endif // SHELLVAR_H

@@ -318,3 +318,77 @@ void shellvar_sync_from_env(void) {
         }
     }
 }
+
+// Helper to print a value with proper quoting for shell re-sourcing
+static void print_quoted_value(const char *value) {
+    if (!value || *value == '\0') {
+        printf("''");
+        return;
+    }
+
+    // Check if value needs quoting (contains spaces, special chars, etc.)
+    bool needs_quote = false;
+    for (const char *p = value; *p; p++) {
+        if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\'' ||
+            *p == '"' || *p == '\\' || *p == '$' || *p == '`' ||
+            *p == '!' || *p == '*' || *p == '?' || *p == '[' ||
+            *p == ']' || *p == '(' || *p == ')' || *p == '{' ||
+            *p == '}' || *p == '|' || *p == '&' || *p == ';' ||
+            *p == '<' || *p == '>' || *p == '#' || *p == '~') {
+            needs_quote = true;
+            break;
+        }
+    }
+
+    if (!needs_quote) {
+        printf("%s", value);
+        return;
+    }
+
+    // Use single quotes, escaping embedded single quotes as '\''
+    printf("'");
+    for (const char *p = value; *p; p++) {
+        if (*p == '\'') {
+            printf("'\\''");  // End quote, escaped quote, start quote
+        } else {
+            putchar(*p);
+        }
+    }
+    printf("'");
+}
+
+// List all shell variables (for `set` with no arguments)
+void shellvar_list_all(void) {
+    extern char **environ;
+
+    // First, list all variables from our internal table (includes local variables)
+    for (int i = 0; i < SHELLVAR_HASH_SIZE; i++) {
+        for (ShellVar *v = var_table[i]; v; v = v->next) {
+            if (v->value) {  // Only print if variable has a value
+                printf("%s=", v->name);
+                print_quoted_value(v->value);
+                printf("\n");
+            }
+        }
+    }
+
+    // Then, add any environment variables not in our table
+    for (char **env = environ; *env; env++) {
+        const char *eq = strchr(*env, '=');
+        if (eq) {
+            size_t name_len = eq - *env;
+            char name[256];
+            if (name_len < sizeof(name)) {
+                memcpy(name, *env, name_len);
+                name[name_len] = '\0';
+                // Only print if not already in our table
+                if (!find_var(name)) {
+                    fwrite(*env, 1, eq - *env, stdout);
+                    printf("=");
+                    print_quoted_value(eq + 1);
+                    printf("\n");
+                }
+            }
+        }
+    }
+}
