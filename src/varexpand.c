@@ -261,6 +261,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                 } else {
                                     fprintf(stderr, "%s: %s: parameter not set\n", HASH_NAME, var_name);
                                 }
+                                varexpand_error = true;
                                 var_value = "";
                             } else {
                                 var_value = val;
