@@ -10,6 +10,11 @@
 // Trap storage
 static char *traps[MAX_TRAPS];
 
+// Inherited traps for display in subshells (POSIX: trap with no operands shows
+// the trap commands as they were when the subshell was entered)
+static char *inherited_traps[MAX_TRAPS];
+static int in_subshell = 0;
+
 // Signal name to number mapping
 static const struct {
     const char *name;
@@ -152,9 +157,16 @@ void trap_execute_exit(void) {
     }
 }
 
-// Reset traps for subshell - POSIX says traps are not inherited
+// Reset traps for subshell - POSIX says traps are not inherited for execution,
+// but trap with no operands should show what traps were when subshell was entered
 void trap_reset_for_subshell(void) {
+    in_subshell = 1;
     for (int i = 0; i < MAX_TRAPS; i++) {
+        // Save current trap for display purposes (if not already in nested subshell)
+        if (traps[i] && !inherited_traps[i]) {
+            inherited_traps[i] = strdup(traps[i]);
+        }
+        // Clear the active trap
         if (traps[i]) {
             free(traps[i]);
             traps[i] = NULL;
@@ -168,12 +180,17 @@ void trap_reset_for_subshell(void) {
 
 void trap_list(void) {
     for (int i = 0; i < MAX_TRAPS; i++) {
-        if (traps[i]) {
+        // Show active traps, or inherited traps if in subshell with no active trap
+        const char *action = traps[i];
+        if (!action && in_subshell) {
+            action = inherited_traps[i];
+        }
+        if (action) {
             const char *name = trap_signal_name(i);
             if (name) {
-                printf("trap -- '%s' %s\n", traps[i], name);
+                printf("trap -- '%s' %s\n", action, name);
             } else {
-                printf("trap -- '%s' %d\n", traps[i], i);
+                printf("trap -- '%s' %d\n", action, i);
             }
         }
     }

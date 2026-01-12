@@ -117,7 +117,7 @@ int shellvar_unset(const char *name) {
     ShellVar *v = find_var(name);
 
     if (v && (v->attrs & VAR_ATTR_READONLY)) {
-        fprintf(stderr, "%s: unset: %s: cannot unset: readonly variable\n", HASH_NAME, name);
+        fprintf(stderr, "unset: %s is read-only\n", name);
         return -1;
     }
 
