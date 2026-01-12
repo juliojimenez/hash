@@ -1004,14 +1004,27 @@ int shell_eval(char **args) {
         strcat(cmd, args[i]);
     }
 
-    // Execute the concatenated command
-    CommandChain *chain = chain_parse(cmd);
-    if (chain) {
-        chain_execute(chain);
-        chain_free(chain);
-    }
+    // Save context depth before eval to detect incomplete compound commands
+    int saved_context_depth = script_state.context_depth;
+
+    // Execute using script_process_line to properly handle shell keywords
+    int result = script_process_line(cmd);
 
     free(cmd);
+
+    // Check for incomplete compound command (syntax error)
+    // If context depth increased, eval introduced an incomplete structure like "if" without "then"
+    if (script_state.context_depth > saved_context_depth) {
+        fprintf(stderr, "%s: eval: syntax error: unexpected end of file\n", HASH_NAME);
+        last_command_exit_code = 2;
+        // POSIX: In non-interactive shell, syntax error causes exit
+        // Clear the incomplete contexts introduced by eval
+        while (script_state.context_depth > saved_context_depth) {
+            script_pop_context();
+        }
+        script_state.exit_requested = true;
+        return 0;  // Signal exit
+    }
 
     // POSIX: Check for pending break/continue to propagate from eval
     if (script_get_break_pending() > 0) {
@@ -1021,7 +1034,12 @@ int shell_eval(char **args) {
         return -4;  // Propagate continue signal
     }
 
-    // Exit code already set by chain_execute
+    // Handle exit request from eval
+    if (result == 0) {
+        return 0;  // Exit was called
+    }
+
+    // Exit code already set by script_process_line
     return 1;
 }
 
