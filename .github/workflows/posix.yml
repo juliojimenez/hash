@@ -79,6 +79,7 @@ jobs:
             builtin.trap.subshell.loud2
             semantics.arith.var.space
             semantics.backtick.fds
+            semantics.case.escape.modernish
           "
 
           # Function to check if test should be skipped

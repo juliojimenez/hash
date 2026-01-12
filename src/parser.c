@@ -200,25 +200,35 @@ char **parse_line(const char *line) {
             *write_pos++ = *read_pos++;
         } else if ((*read_pos == '>' || *read_pos == '<') && !in_single_quote && !in_double_quote) {
             // Redirection operator - ends current token and starts a new one
-            // First, end the current token if it has content
-            // Check if current token has content by comparing write position to token start
+            // But check if current token is just digits (fd number for redirection like 2>file)
             size_t current_token_len = (size_t)(write_pos - output) - token_start_idx;
-            if (current_token_len > 0 || token_has_content) {
-                *write_pos++ = '\0';
-                if (current_token_len > 0 || token_has_content) {
-                    tokens[position] = &output[token_start_idx];
-                    position++;
-                    if (position >= bufsize) {
-                        bufsize += MAX_ARGS;
-                        char **new_tokens = realloc(tokens, bufsize * sizeof(char*));
-                        if (!new_tokens) {
-                            free(tokens);
-                            free(output);
-                            fprintf(stderr, "%s: allocation error\n", HASH_NAME);
-                            exit(EXIT_FAILURE);
-                        }
-                        tokens = new_tokens;
+            bool token_is_fd_number = false;
+            if (current_token_len > 0 && current_token_len <= 2) {
+                // Check if all characters in current token are digits (fd number)
+                token_is_fd_number = true;
+                for (size_t i = 0; i < current_token_len; i++) {
+                    if (!isdigit((unsigned char)output[token_start_idx + i])) {
+                        token_is_fd_number = false;
+                        break;
                     }
+                }
+            }
+            // If current token is a fd number, keep it as part of the redirection
+            // Otherwise, end current token first
+            if (!token_is_fd_number && (current_token_len > 0 || token_has_content)) {
+                *write_pos++ = '\0';
+                tokens[position] = &output[token_start_idx];
+                position++;
+                if (position >= bufsize) {
+                    bufsize += MAX_ARGS;
+                    char **new_tokens = realloc(tokens, bufsize * sizeof(char*));
+                    if (!new_tokens) {
+                        free(tokens);
+                        free(output);
+                        fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+                        exit(EXIT_FAILURE);
+                    }
+                    tokens = new_tokens;
                 }
                 token_start_idx = (size_t)(write_pos - output);
                 token_has_content = 0;
@@ -227,6 +237,13 @@ char **parse_line(const char *line) {
             *write_pos++ = *read_pos++;
             // Check for >> or << or <<- or >& or <&
             while (*read_pos == '>' || *read_pos == '<' || *read_pos == '&' || *read_pos == '-') {
+                *write_pos++ = *read_pos++;
+            }
+            // For >&N or <&N patterns, also collect the fd number
+            // For >file or <file patterns, also collect the filename (until whitespace)
+            while (*read_pos && !isspace(*read_pos) && *read_pos != '>' && *read_pos != '<' &&
+                   *read_pos != '|' && *read_pos != '&' && *read_pos != ';' &&
+                   *read_pos != '(' && *read_pos != ')') {
                 *write_pos++ = *read_pos++;
             }
             // End this token
