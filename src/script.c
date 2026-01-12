@@ -2584,6 +2584,21 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         return 1;
     }
 
+    // Move script FD to high number (10+) with close-on-exec
+    // This keeps FDs 3-9 available for scripts and prevents child processes
+    // from inheriting the script file descriptor
+    int old_fd = fileno(fp);
+    int new_fd = fcntl(old_fd, F_DUPFD_CLOEXEC, 10);
+    if (new_fd >= 0) {
+        FILE *new_fp = fdopen(new_fd, "r");
+        if (new_fp) {
+            fclose(fp);
+            fp = new_fp;
+        } else {
+            close(new_fd);
+        }
+    }
+
     // Save and set silent_errors flag
     // This flag is inherited by nested source operations
     bool old_silent = script_state.silent_errors;
