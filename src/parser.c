@@ -201,9 +201,11 @@ char **parse_line(const char *line) {
         } else if ((*read_pos == '>' || *read_pos == '<') && !in_single_quote && !in_double_quote) {
             // Redirection operator - ends current token and starts a new one
             // First, end the current token if it has content
-            if (write_pos > output && output[token_start_idx] != '\0') {
+            // Check if current token has content by comparing write position to token start
+            size_t current_token_len = (size_t)(write_pos - output) - token_start_idx;
+            if (current_token_len > 0 || token_has_content) {
                 *write_pos++ = '\0';
-                if (output[token_start_idx] != '\0' || token_has_content) {
+                if (current_token_len > 0 || token_has_content) {
                     tokens[position] = &output[token_start_idx];
                     position++;
                     if (position >= bufsize) {
