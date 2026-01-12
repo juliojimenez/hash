@@ -22,6 +22,9 @@
 #include "shellvar.h"
 #include "config.h"
 #include "history.h"
+#include "varexpand.h"
+#include "arith.h"
+#include "cmdsub.h"
 
 // Global script state
 ScriptState script_state;
@@ -2127,6 +2130,38 @@ static int execute_case_body(const char *body, const char *word) {
     return result_exit_code;
 }
 
+// Expand case word using all expansion types (variable, arithmetic, command substitution)
+static char *expand_case_word(const char *word) {
+    if (!word) return strdup("");
+
+    extern int last_command_exit_code;
+    char *result = strdup(word);
+    if (!result) return strdup("");
+
+    // Apply command substitution expansion
+    char *cmdsub = cmdsub_expand(result);
+    if (cmdsub) {
+        free(result);
+        result = cmdsub;
+    }
+
+    // Apply arithmetic expansion
+    char *arith = arith_expand(result);
+    if (arith) {
+        free(result);
+        result = arith;
+    }
+
+    // Apply variable expansion
+    char *varexp = varexpand_expand(result, last_command_exit_code);
+    if (varexp) {
+        free(result);
+        result = varexp;
+    }
+
+    return result;
+}
+
 static int process_case(const char *line) {
     if (script_push_context(CTX_CASE) < 0) return -1;
 
@@ -2143,23 +2178,59 @@ static int process_case(const char *line) {
     p += 4;
     while (*p && isspace(*p)) p++;
 
-    // Extract the word (may be quoted)
+    // Extract the word (may be quoted or contain $(...) or $((...)))
     char word[256];
     size_t wi = 0;
     bool in_single = false, in_double = false;
+    int subst_depth = 0;  // Track $() and $(()) nesting level
+    int paren_depth = 0;  // Track () inside substitutions
 
     while (*p && wi < sizeof(word) - 1) {
-        if (*p == '\'' && !in_double) {
+        if (*p == '\'' && !in_double && subst_depth == 0) {
             in_single = !in_single;
-            p++;
+            word[wi++] = *p++;
             continue;
         }
-        if (*p == '"' && !in_single) {
+        if (*p == '"' && !in_single && subst_depth == 0) {
             in_double = !in_double;
-            p++;
+            word[wi++] = *p++;
             continue;
         }
-        if (!in_single && !in_double && isspace(*p)) {
+        // Track $( - entering command/arithmetic substitution
+        if (!in_single && *p == '$' && *(p + 1) == '(') {
+            subst_depth++;
+            word[wi++] = *p++;
+            word[wi++] = *p++;
+            // Check for $(( - arithmetic
+            if (*p == '(') {
+                word[wi++] = *p++;
+                paren_depth++;  // Extra ( for $((
+            }
+            continue;
+        }
+        // Track nested ( inside substitution
+        if (!in_single && subst_depth > 0 && *p == '(') {
+            paren_depth++;
+            word[wi++] = *p++;
+            continue;
+        }
+        // Track ) - could be closing substitution or nested paren
+        if (!in_single && subst_depth > 0 && *p == ')') {
+            if (paren_depth > 0) {
+                paren_depth--;
+                word[wi++] = *p++;
+            } else {
+                // Closing the substitution
+                word[wi++] = *p++;
+                if (*p == ')') {
+                    // )) for $((...))
+                    word[wi++] = *p++;
+                }
+                subst_depth--;
+            }
+            continue;
+        }
+        if (!in_single && !in_double && subst_depth == 0 && isspace(*p)) {
             break;
         }
         word[wi++] = *p++;
@@ -2228,25 +2299,10 @@ static int process_case(const char *line) {
             // Execute the case body if parent allows
             extern int last_command_exit_code;
             if (parent_executing) {
-                const char *expanded_word = ctx->case_word;
-                char *allocated_word = NULL;
-
-                if (ctx->case_word[0] == '$') {
-                    const char *var_name = ctx->case_word + 1;
-                    const char *val = shellvar_get(var_name);
-                    if (val) {
-                        allocated_word = strdup(val);
-                        expanded_word = allocated_word;
-                    } else {
-                        allocated_word = strdup("");
-                        expanded_word = allocated_word;
-                    }
-                }
-
+                char *expanded_word = expand_case_word(ctx->case_word);
                 int exit_code = execute_case_body(body, expanded_word);
                 last_command_exit_code = exit_code;
-
-                free(allocated_word);
+                free(expanded_word);
             }
 
             free(body);
@@ -2301,28 +2357,10 @@ static int process_esac(const char *line) {
 
     if (parent_executing && ctx->case_word && ctx->loop_body) {
         // Expand the case word before matching
-        // For now, use the word as-is or check for simple $var
-        const char *expanded_word = ctx->case_word;
-        char *allocated_word = NULL;
-
-        if (ctx->case_word[0] == '$') {
-            // Simple variable expansion
-            const char *var_name = ctx->case_word + 1;
-            const char *val = shellvar_get(var_name);
-            if (val) {
-                allocated_word = strdup(val);
-                expanded_word = allocated_word;
-            } else {
-                allocated_word = strdup("");
-                expanded_word = allocated_word;
-            }
-        }
-
-        // Execute the case body
+        char *expanded_word = expand_case_word(ctx->case_word);
         int exit_code = execute_case_body(ctx->loop_body, expanded_word);
         last_command_exit_code = exit_code;
-
-        free(allocated_word);
+        free(expanded_word);
     } else if (parent_executing && ctx->case_word && !ctx->loop_body) {
         // Empty case body - exit code is 0
         last_command_exit_code = 0;

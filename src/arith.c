@@ -733,27 +733,26 @@ int has_arith(const char *str) {
 // Find matching )) for $((
 static const char *find_arith_end(const char *start) {
     // start points to first char after $((
-    int depth = 1;
+    // We need to find the matching )) while tracking nested parentheses
+    // Note: (( inside arithmetic is just two regular parens, not a nested $((
+    int paren_depth = 0;  // Track regular ( ) balance
     const char *p = start;
 
-    while (*p && depth > 0) {
-        if (*p == '(' && *(p + 1) == '(') {
-            depth++;
-            p += 2;
-            continue;
-        }
-        if (*p == ')' && *(p + 1) == ')') {
-            depth--;
-            if (depth == 0) {
+    while (*p) {
+        if (*p == '(') {
+            paren_depth++;
+        } else if (*p == ')') {
+            if (paren_depth > 0) {
+                paren_depth--;
+            } else if (*(p + 1) == ')') {
+                // Found )) with balanced inner parens - this is the end
                 return p;
             }
-            p += 2;
-            continue;
         }
         p++;
     }
 
-    return (depth == 0) ? p : NULL;
+    return NULL;  // No matching )) found
 }
 
 // Expand arithmetic substitutions in a string
