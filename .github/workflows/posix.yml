@@ -54,6 +54,9 @@ jobs:
           # Create results directory
           mkdir -p results
 
+          # Export TEST_SHELL for tests that invoke the shell internally
+          export TEST_SHELL=/usr/local/bin/hash-shell
+
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
           SKIP_TESTS="
@@ -89,8 +92,8 @@ jobs:
               ERR_FILE="shell/${TEST_NAME}.err"
               EC_FILE="shell/${TEST_NAME}.ec"
 
-              # Run test with timeout
-              timeout 5s /usr/local/bin/hash-shell < "$test_file" > "results/${TEST_NAME}.actual_out" 2> "results/${TEST_NAME}.actual_err"
+              # Run test with timeout (execute as script, not via stdin)
+              timeout 5s /usr/local/bin/hash-shell "$test_file" > "results/${TEST_NAME}.actual_out" 2> "results/${TEST_NAME}.actual_err"
               ACTUAL_EC=$?
 
               # Check if timeout occurred
