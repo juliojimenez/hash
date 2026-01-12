@@ -167,6 +167,61 @@ static int heredoc_append(const char *line, int strip_tabs) {
     return 0;
 }
 
+// Read a complete line from file, handling backslash-newline continuations
+// Returns dynamically allocated string (caller must free), or NULL on EOF/error
+static char *read_complete_line(FILE *fp) {
+    char *result = NULL;
+    size_t result_len = 0;
+    size_t result_cap = 0;
+    char buf[MAX_SCRIPT_LINE];
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        size_t len = strlen(buf);
+
+        // Grow result buffer if needed
+        size_t new_len = result_len + len + 1;
+        if (new_len > result_cap) {
+            size_t new_cap = result_cap ? result_cap * 2 : 256;
+            if (new_cap < new_len) new_cap = new_len;
+            char *new_result = realloc(result, new_cap);
+            if (!new_result) {
+                free(result);
+                return NULL;
+            }
+            result = new_result;
+            result_cap = new_cap;
+        }
+
+        // Append buffer to result
+        memcpy(result + result_len, buf, len);
+        result_len += len;
+        result[result_len] = '\0';
+
+        // Check for line continuation (backslash before newline)
+        if (result_len >= 2 && result[result_len - 1] == '\n' && result[result_len - 2] == '\\') {
+            // Remove backslash-newline and continue reading
+            result_len -= 2;
+            result[result_len] = '\0';
+            continue;
+        }
+
+        // Remove trailing newline
+        if (result_len > 0 && result[result_len - 1] == '\n') {
+            result[result_len - 1] = '\0';
+            result_len--;
+        }
+
+        return result;
+    }
+
+    // Return what we have (might be partial line at EOF)
+    if (result && result_len > 0) {
+        return result;
+    }
+    free(result);
+    return NULL;
+}
+
 // Collect heredoc content from file until delimiter is found
 // Returns the collected content (caller must free), or NULL on error
 static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs) {
@@ -320,8 +375,12 @@ static char **split_by_semicolons(const char *line, int *count) {
                 start++;
                 len--;
             }
-            // Trim trailing whitespace
+            // Trim trailing whitespace, but not if it's escaped
             while (len > 0 && isspace(start[len-1])) {
+                // Check if the whitespace is escaped (preceded by backslash)
+                if (len >= 2 && start[len-2] == '\\') {
+                    break;  // Don't trim escaped whitespace
+                }
                 len--;
             }
 
@@ -767,9 +826,13 @@ static char *extract_condition(const char *line, const char *keyword) {
         }
     }
 
-    // Trim trailing whitespace
+    // Trim trailing whitespace, but not if it's escaped
     size_t len = strlen(result);
     while (len > 0 && isspace(result[len - 1])) {
+        // Check if the whitespace is escaped (preceded by backslash)
+        if (len >= 2 && result[len - 2] == '\\') {
+            break;  // Don't trim escaped whitespace
+        }
         result[--len] = '\0';
     }
 
@@ -2859,24 +2922,18 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         }
     }
 
-    char line[MAX_SCRIPT_LINE];
-    memset(line, 0, sizeof(line));  // Clear buffer to prevent corruption
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
 
     // Skip shebang line if present
-    if (fgets(line, sizeof(line), fp)) {
-        // Remove trailing newline from first line too
-        size_t len = strlen(line);
-        if (len > 0 && line[len-1] == '\n') {
-            line[len-1] = '\0';
-        }
-        if (line[0] != '#' || line[1] != '!') {
+    char *first_line = read_complete_line(fp);
+    if (first_line) {
+        if (first_line[0] != '#' || first_line[1] != '!') {
             // Not a shebang, process this line
             // Check for heredoc and collect content if present
-            if (redirect_has_heredoc(line)) {
+            if (redirect_has_heredoc(first_line)) {
                 int strip_tabs = 0;
                 int quoted = 0;
-                char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
+                char *delim = redirect_get_heredoc_delim(first_line, &strip_tabs, &quoted);
                 if (delim) {
                     free(pending_heredoc);
                     pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
@@ -2885,30 +2942,25 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
                 }
             }
             script_state.script_line = 0;  // Will be incremented by process_line
-            result = script_process_line(line);
+            result = script_process_line(first_line);
             // Clear pending heredoc after processing
             free(pending_heredoc);
             pending_heredoc = NULL;
             pending_heredoc_quoted = 0;
         }
+        free(first_line);
     }
 
     // Process remaining lines (stop if result == 0 means exit was called)
     while (result > 0) {
-        memset(line, 0, sizeof(line));  // Clear buffer before each read
-        if (!fgets(line, sizeof(line), fp)) break;
-
-        // Remove trailing newline
-        size_t len = strlen(line);
-        if (len > 0 && line[len-1] == '\n') {
-            line[len-1] = '\0';
-        }
+        char *full_line = read_complete_line(fp);
+        if (!full_line) break;
 
         // Check for heredoc and collect content if present
-        if (redirect_has_heredoc(line)) {
+        if (redirect_has_heredoc(full_line)) {
             int strip_tabs = 0;
             int quoted = 0;
-            char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
+            char *delim = redirect_get_heredoc_delim(full_line, &strip_tabs, &quoted);
             if (delim) {
                 free(pending_heredoc);
                 pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
@@ -2917,7 +2969,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             }
         }
 
-        result = script_process_line(line);
+        result = script_process_line(full_line);
+        free(full_line);
 
         // Clear pending heredoc after processing
         free(pending_heredoc);

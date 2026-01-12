@@ -38,8 +38,31 @@ static int launch(char **args, const char *cmd_string) {
 
     // Set heredoc content if pending
     const char *heredoc = script_get_pending_heredoc();
+    char *expanded_heredoc = NULL;
     if (heredoc && redir) {
-        redirect_set_heredoc_content(redir, heredoc, script_get_pending_heredoc_quoted());
+        int heredoc_quoted = script_get_pending_heredoc_quoted();
+        if (!heredoc_quoted) {
+            // Expand heredoc content BEFORE fork so we can handle errors
+            varexpand_clear_error();
+            // Apply command substitution expansion
+            char *cmdsub_result = cmdsub_expand(heredoc);
+            const char *content = cmdsub_result ? cmdsub_result : heredoc;
+            // Apply variable expansion
+            char *var_result = varexpand_expand(content, last_command_exit_code);
+            if (cmdsub_result) free(cmdsub_result);
+
+            if (varexpand_had_error()) {
+                // Expansion error (like ${x?z}) - exit non-interactive shell
+                free(var_result);
+                redirect_free(redir);
+                last_command_exit_code = 1;
+                return is_interactive ? 1 : 0;
+            }
+            expanded_heredoc = var_result;
+            redirect_set_heredoc_content(redir, expanded_heredoc ? expanded_heredoc : heredoc, 1);
+        } else {
+            redirect_set_heredoc_content(redir, heredoc, heredoc_quoted);
+        }
     }
 
     // Use cleaned args (or original if no redirections)
@@ -152,6 +175,7 @@ static int launch(char **args, const char *cmd_string) {
 
     // Clean up
     free(cmd_path);
+    free(expanded_heredoc);
     redirect_free(redir);
 
     return 1;

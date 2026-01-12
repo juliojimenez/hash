@@ -62,7 +62,16 @@ char *varexpand_expand(const char *str, int last_exit_code) {
     const char *p = str;
 
     while (*p && out_pos < MAX_EXPANDED_LENGTH - 1) {
-        if (*p == '\\' && *(p + 1) == '$') {
+        if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
+            // Protected backslash from single quotes - output \$ or \` literally
+            result[out_pos++] = '\\';
+            result[out_pos++] = *(p + 2);
+            p += 3;
+        } else if (*p == '\x01' && *(p + 1) == '$') {
+            // Single-quoted dollar sign - output $ literally (no expansion)
+            result[out_pos++] = '$';
+            p += 2;
+        } else if (*p == '\\' && *(p + 1) == '$') {
             // Escaped dollar sign - \$ → $
             result[out_pos++] = '$';
             p += 2;
@@ -263,9 +272,9 @@ process_var_quoted:;
                             // ${var:?word}: error if unset or null
                             if (is_unset || (check_null && is_null)) {
                                 if (word[0]) {
-                                    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, var_name, word);
+                                    fprintf(stderr, "%s: %s\n", var_name, word);
                                 } else {
-                                    fprintf(stderr, "%s: %s: parameter not set\n", HASH_NAME, var_name);
+                                    fprintf(stderr, "%s: parameter not set\n", var_name);
                                 }
                                 varexpand_error = true;
                                 var_value = "";

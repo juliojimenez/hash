@@ -62,6 +62,11 @@ char **parse_line(const char *line) {
             if (in_single_quote) {
                 // In single quotes, backslash has no special meaning (POSIX)
                 // Keep both backslash and the following character
+                // Use marker before backslash when followed by $ or ` to prevent
+                // varexpand from processing \$ or \` as escape sequences
+                if (*read_pos == '$' || *read_pos == '`') {
+                    *write_pos++ = '\x01';  // Marker to protect the backslash
+                }
                 *write_pos++ = '\\';
                 *write_pos++ = *read_pos++;
             } else if (in_double_quote) {

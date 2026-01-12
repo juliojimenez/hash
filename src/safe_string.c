@@ -94,6 +94,7 @@ int safe_strcmp(const char *s1, const char *s2, size_t maxlen) {
 }
 
 // Trim whitespace from both ends (in-place)
+// Does not trim escaped whitespace (preceded by backslash)
 void safe_trim(char *str) {
     if (!str || *str == '\0') return;
 
@@ -108,9 +109,13 @@ void safe_trim(char *str) {
         return;
     }
 
-    // Trim trailing whitespace
+    // Trim trailing whitespace, but not if escaped (preceded by backslash)
     char *end = start + strlen(start) - 1;
     while (end > start && isspace(*end)) {
+        // Check if the whitespace is escaped
+        if (end > start && *(end - 1) == '\\') {
+            break;  // Don't trim escaped whitespace
+        }
         end--;
     }
     end[1] = '\0';

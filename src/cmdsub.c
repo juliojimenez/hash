@@ -149,6 +149,10 @@ static int has_cmdsub(const char *str) {
 
     const char *p = str;
     while (*p) {
+        // Check for SOH marker with protected backslash (from single quotes: \$ or \`)
+        if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
+            return 1;
+        }
         // Check for SOH marker (single-quoted dollar sign)
         if (*p == '\x01' && *(p + 1) == '$') {
             return 1;
@@ -212,14 +216,27 @@ char *cmdsub_expand(const char *str) {
     const char *p = str;
 
     while (*p && out_pos < MAX_CMDSUB_LENGTH - 1) {
+        // Handle SOH marker with protected backslash (from single quotes: \$ or \`)
+        // Pass through to varexpand which will output \$ or \` literally
+        if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
+            if (out_pos < MAX_CMDSUB_LENGTH - 3) {
+                result[out_pos++] = *p++;  // marker
+                result[out_pos++] = *p++;  // backslash
+                result[out_pos++] = *p++;  // $ or `
+            } else {
+                p += 3;
+            }
+            continue;
+        }
         // Handle SOH marker (single-quoted dollar sign from parser)
-        // Convert \x01$ to \$ so varexpand will output literal $
+        // Pass through to varexpand which will output literal $
         if (*p == '\x01' && *(p + 1) == '$') {
             if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-                result[out_pos++] = '\\';
-                result[out_pos++] = '$';
+                result[out_pos++] = *p++;  // marker
+                result[out_pos++] = *p++;  // $
+            } else {
+                p += 2;
             }
-            p += 2;
             continue;
         }
         // Handle escape sequences
