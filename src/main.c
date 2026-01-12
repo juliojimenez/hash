@@ -266,6 +266,9 @@ int main(int argc, char *argv[]) {
     // Initialize shell variables (readonly, export tracking)
     shellvar_init();
 
+    // Import environment variables (so they can be modified and synced back)
+    shellvar_sync_from_env();
+
     // Initialize trap system
     trap_init();
 

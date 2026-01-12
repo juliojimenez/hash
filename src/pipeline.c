@@ -225,6 +225,24 @@ int pipeline_execute(const Pipeline *pipeline) {
             arith_args(args);
             varexpand_args(args, last_command_exit_code);
 
+            // Count args for glob expansion
+            int arg_count = 0;
+            while (args[arg_count] != NULL) arg_count++;
+
+            // Glob (pathname) expansion
+            char **glob_args = args;
+            int glob_arg_count = arg_count;
+            expand_glob(&glob_args, &glob_arg_count);
+
+            // Use expanded args if glob expansion happened
+            if (glob_args != args) {
+                free(args);
+                args = glob_args;
+            }
+
+            // Strip quote markers after all expansions
+            strip_quote_markers_args(args);
+
             // Parse redirections
             RedirInfo *redir = redirect_parse(args);
             char **exec_args = redir ? redir->args : args;

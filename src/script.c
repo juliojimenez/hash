@@ -631,11 +631,15 @@ bool script_eval_condition(const char *condition) {
 int script_define_function(const char *name, const char *body) {
     if (!name || !body) return -1;
 
+    extern int last_command_exit_code;
+
     for (int i = 0; i < script_state.function_count; i++) {
         if (strcmp(script_state.functions[i].name, name) == 0) {
             free(script_state.functions[i].body);
             script_state.functions[i].body = strdup(body);
             script_state.functions[i].body_len = strlen(body);
+            // POSIX: function definition sets exit code to 0
+            last_command_exit_code = 0;
             return 0;
         }
     }
@@ -653,6 +657,8 @@ int script_define_function(const char *name, const char *body) {
     if (!func->body) return -1;
 
     script_state.function_count++;
+    // POSIX: function definition sets exit code to 0
+    last_command_exit_code = 0;
     return 0;
 }
 
