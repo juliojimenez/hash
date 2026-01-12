@@ -340,7 +340,8 @@ int shell_source(char **args) {
                     // File not found in PATH
                     fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
                     last_command_exit_code = 1;
-                    return 1;
+                    // Special builtin: non-interactive shell should exit on error
+                    return is_interactive ? 1 : 0;
                 }
             }
         }
@@ -349,7 +350,8 @@ int shell_source(char **args) {
         if (access(filepath, R_OK) != 0) {
             fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
             last_command_exit_code = 1;
-            return 1;
+            // Special builtin: non-interactive shell should exit on error
+            return is_interactive ? 1 : 0;
         }
     }
 
