@@ -12,6 +12,7 @@
 #include "safe_string.h"
 #include "arith.h"
 #include "script.h"
+#include "trap.h"
 
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
@@ -44,6 +45,8 @@ static char *execute_and_capture(const char *cmd) {
         // Use hash's own script execution to preserve function definitions
         int result = script_execute_string(cmd);
         fflush(stdout);  // Ensure output is flushed before exit
+        trap_execute_exit();  // Run EXIT trap before exiting subshell
+        fflush(stdout);  // Flush any trap output
         _exit(result);
     }
 
