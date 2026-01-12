@@ -282,6 +282,11 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             snprintf(var_name, sizeof(var_name), "%zu", len);
                             var_value = var_name;
                         }
+                    } else {
+                        // Empty variable name ${} is a syntax error
+                        fprintf(stderr, "%s: Bad substitution\n", HASH_NAME);
+                        varexpand_error = true;
+                        var_value = "";
                     }
                 }
             } else if (isdigit(*p)) {
