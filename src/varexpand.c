@@ -72,7 +72,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             goto process_var_quoted;
         } else if (*p == '$') {
 process_var_quoted:;
-            bool is_quoted = (*(p - 1) == '\x02');  // Check if we came from marker
+            bool is_quoted = (p > str && *(p - 1) == '\x02');  // Check if we came from marker
             p++;  // Skip $
 
             const char *var_value = NULL;
