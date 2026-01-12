@@ -371,6 +371,15 @@ LineType script_classify_line(const char *line);
 const char *script_get_positional_param(int index);
 
 /**
+ * Set positional parameters ($1, $2, etc.) from set builtin
+ * Note: $0 is preserved, only $1 onwards are replaced
+ *
+ * @param argc Number of parameters to set
+ * @param argv Array of parameter values (note: these are copied, not owned)
+ */
+void script_set_positional_params(int argc, char **argv);
+
+/**
  * Get the pending heredoc content
  * Used during command execution to pass heredoc content to stdin
  *
@@ -385,5 +394,12 @@ const char *script_get_pending_heredoc(void);
  * @return 1 if delimiter was quoted, 0 otherwise
  */
 int script_get_pending_heredoc_quoted(void);
+
+/**
+ * Track whether we're in a condition context (if/while/until condition)
+ * where errexit should not trigger
+ */
+void script_set_in_condition(bool in_condition);
+bool script_get_in_condition(void);
 
 #endif // SCRIPT_H

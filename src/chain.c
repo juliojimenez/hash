@@ -579,6 +579,22 @@ int chain_execute(const CommandChain *chain) {
         if (script_get_break_pending() > 0 || script_get_continue_pending() > 0) {
             return shell_continue;
         }
+
+        // Check errexit option: exit if command failed and we're not in a special context
+        // POSIX says errexit should NOT trigger if:
+        // - We're in an if/while/until condition (script_get_in_condition())
+        // - The command is part of a && or || chain being tested (cmd->next_op)
+        // - The command was negated with !
+        if (shell_option_errexit() && last_exit_code != 0 && !negate) {
+            // Don't trigger errexit if command is left side of && or ||
+            if (cmd->next_op != CHAIN_AND && cmd->next_op != CHAIN_OR) {
+                // Don't trigger errexit if in condition context
+                if (!script_get_in_condition()) {
+                    // Errexit triggers - exit the shell
+                    return 0;
+                }
+            }
+        }
     }
 
     return shell_continue;

@@ -6,6 +6,7 @@
 #include "trap.h"
 #include "hash.h"
 #include "script.h"
+#include "config.h"
 
 // Trap storage
 static char *traps[MAX_TRAPS];
@@ -106,7 +107,16 @@ const char *trap_signal_name(int signum) {
 static void trap_signal_handler(int signum) {
     if (signum >= 0 && signum < MAX_TRAPS && traps[signum]) {
         // Execute the trap command
-        script_execute_string(traps[signum]);
+        int result = script_execute_string(traps[signum]);
+
+        // If errexit triggered in trap handler (exit code != 0 with -e),
+        // the return value will be non-zero. Check if shell should exit.
+        extern int last_command_exit_code;
+        if (shell_option_errexit() && last_command_exit_code != 0) {
+            // Errexit triggered in trap - exit the shell
+            exit(last_command_exit_code);
+        }
+        (void)result;  // Suppress unused warning
     }
 }
 

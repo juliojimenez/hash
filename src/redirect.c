@@ -404,6 +404,9 @@ int redirect_apply(const RedirInfo *info) {
                     const char *content = redir->heredoc_content;
                     char *expanded = NULL;
                     if (!redir->heredoc_quoted) {
+                        // Clear error flag before expansion
+                        varexpand_clear_error();
+
                         // Apply command substitution expansion
                         char *cmdsub_result = cmdsub_expand(content);
                         if (cmdsub_result) {
@@ -416,6 +419,14 @@ int redirect_apply(const RedirInfo *info) {
                             free(expanded);
                             content = var_result;
                             expanded = var_result;
+                        }
+
+                        // Check for expansion error (e.g., ${x?word} with unset x)
+                        if (varexpand_had_error()) {
+                            free(expanded);
+                            close(pipefd[0]);
+                            close(pipefd[1]);
+                            return -1;
                         }
                     }
 

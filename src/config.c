@@ -50,6 +50,16 @@ void shell_option_set_nounset(bool value) {
     shell_config.options.nounset = value;
 }
 
+// Get the errexit option value
+bool shell_option_errexit(void) {
+    return shell_config.options.errexit;
+}
+
+// Set the errexit option value
+void shell_option_set_errexit(bool value) {
+    shell_config.options.errexit = value;
+}
+
 // Get the monitor option value
 bool shell_option_monitor(void) {
     return shell_config.options.monitor;

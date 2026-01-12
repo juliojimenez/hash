@@ -604,6 +604,10 @@ bool script_eval_condition(const char *condition) {
     char *line_copy = strdup(condition);
     if (!line_copy) return false;
 
+    // Set in_condition flag to suppress errexit during condition evaluation
+    bool old_in_condition = script_get_in_condition();
+    script_set_in_condition(true);
+
     CommandChain *chain = chain_parse(line_copy);
     int exit_code = 1;
 
@@ -619,6 +623,9 @@ bool script_eval_condition(const char *condition) {
             free(args);
         }
     }
+
+    // Restore in_condition flag
+    script_set_in_condition(old_in_condition);
 
     free(line_copy);
     return (exit_code == 0);
@@ -2983,6 +2990,45 @@ const char *script_get_positional_param(int index) {
     return script_state.positional_params ? script_state.positional_params[index] : NULL;
 }
 
+// Set positional parameters ($1, $2, etc.) from set builtin
+// $0 is preserved, only $1 onwards are replaced
+void script_set_positional_params(int argc, char **argv) {
+    // Save $0 if it exists
+    char *param0 = NULL;
+    if (script_state.positional_count > 0 && script_state.positional_params &&
+        script_state.positional_params[0]) {
+        param0 = strdup(script_state.positional_params[0]);
+    }
+
+    // Free existing positional parameters
+    if (script_state.positional_params) {
+        for (int i = 0; i < script_state.positional_count; i++) {
+            free(script_state.positional_params[i]);
+        }
+        free(script_state.positional_params);
+        script_state.positional_params = NULL;
+        script_state.positional_count = 0;
+    }
+
+    // Allocate new array: $0 + argc new parameters
+    int new_count = 1 + argc;  // $0 plus the new args
+    script_state.positional_params = malloc((size_t)new_count * sizeof(char*));
+    if (!script_state.positional_params) {
+        free(param0);
+        return;
+    }
+
+    // Set $0 (restore saved or use empty string)
+    script_state.positional_params[0] = param0 ? param0 : strdup("");
+
+    // Copy new parameters to $1, $2, etc.
+    for (int i = 0; i < argc; i++) {
+        script_state.positional_params[i + 1] = argv[i] ? strdup(argv[i]) : strdup("");
+    }
+
+    script_state.positional_count = new_count;
+}
+
 // Get the pending heredoc content (for heredoc execution)
 const char *script_get_pending_heredoc(void) {
     return pending_heredoc;
@@ -2991,4 +3037,16 @@ const char *script_get_pending_heredoc(void) {
 // Get whether the pending heredoc delimiter was quoted (no expansion)
 int script_get_pending_heredoc_quoted(void) {
     return pending_heredoc_quoted;
+}
+
+// Track whether we're in a condition context (if/while/until condition)
+// where errexit should not trigger
+static bool in_condition_context = false;
+
+void script_set_in_condition(bool in_condition) {
+    in_condition_context = in_condition;
+}
+
+bool script_get_in_condition(void) {
+    return in_condition_context;
 }

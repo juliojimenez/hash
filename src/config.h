@@ -78,6 +78,8 @@ void config_load_logout_files(void);
 void shell_options_init(void);
 bool shell_option_nounset(void);
 void shell_option_set_nounset(bool value);
+bool shell_option_errexit(void);
+void shell_option_set_errexit(bool value);
 bool shell_option_monitor(void);
 void shell_option_set_monitor(bool value);
 bool shell_option_nonlexicalctrl(void);

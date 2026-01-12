@@ -461,6 +461,21 @@ int shell_set(char **args) {
     for (int i = 1; args[i] != NULL; i++) {
         const char *arg = args[i];
 
+        // Handle -- to set positional parameters
+        // set -- arg1 arg2 ... sets $1, $2, etc.
+        // set -- (with no args) clears positional parameters
+        if (strcmp(arg, "--") == 0) {
+            // Count remaining arguments
+            int argc = 0;
+            for (int j = i + 1; args[j] != NULL; j++) {
+                argc++;
+            }
+            // Set positional parameters ($1, $2, ...)
+            script_set_positional_params(argc, argc > 0 ? &args[i + 1] : NULL);
+            last_command_exit_code = 0;
+            return 1;
+        }
+
         // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
         if (strcmp(arg, "-u") == 0) {
             shell_option_set_nounset(true);
@@ -468,6 +483,14 @@ int shell_set(char **args) {
             continue;
         } else if (strcmp(arg, "+u") == 0) {
             shell_option_set_nounset(false);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "-e") == 0) {
+            shell_option_set_errexit(true);
+            last_command_exit_code = 0;
+            continue;
+        } else if (strcmp(arg, "+e") == 0) {
+            shell_option_set_errexit(false);
             last_command_exit_code = 0;
             continue;
         } else if (strcmp(arg, "-m") == 0) {
@@ -483,6 +506,8 @@ int shell_set(char **args) {
             const char *opt = args[++i];
             if (strcmp(opt, "nounset") == 0) {
                 shell_option_set_nounset(true);
+            } else if (strcmp(opt, "errexit") == 0) {
+                shell_option_set_errexit(true);
             } else if (strcmp(opt, "monitor") == 0) {
                 shell_option_set_monitor(true);
             } else if (strcmp(opt, "nonlexicalctrl") == 0) {
@@ -498,6 +523,8 @@ int shell_set(char **args) {
             const char *opt = args[++i];
             if (strcmp(opt, "nounset") == 0) {
                 shell_option_set_nounset(false);
+            } else if (strcmp(opt, "errexit") == 0) {
+                shell_option_set_errexit(false);
             } else if (strcmp(opt, "monitor") == 0) {
                 shell_option_set_monitor(false);
             } else if (strcmp(opt, "nonlexicalctrl") == 0) {
