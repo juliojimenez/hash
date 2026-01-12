@@ -61,14 +61,23 @@ char **parse_line(const char *line) {
 
             if (in_single_quote) {
                 // In single quotes, backslash has no special meaning (POSIX)
-                // Keep both backslash and the following character
-                // Use marker before backslash when followed by $ or ` to prevent
-                // varexpand from processing \$ or \` as escape sequences
-                if (*read_pos == '$' || *read_pos == '`') {
-                    *write_pos++ = '\x01';  // Marker to protect the backslash
+                // A single quote CANNOT occur within single quotes, so if the
+                // character after backslash is a quote, it ends the string
+                if (*read_pos == '\'') {
+                    // Write the backslash and DON'T consume the quote
+                    // Let the main loop handle the quote to close the string
+                    *write_pos++ = '\\';
+                    // Don't advance read_pos - the quote will be handled in next iteration
+                } else {
+                    // Keep both backslash and the following character
+                    // Use marker before backslash when followed by $ or ` to prevent
+                    // varexpand from processing \$ or \` as escape sequences
+                    if (*read_pos == '$' || *read_pos == '`') {
+                        *write_pos++ = '\x01';  // Marker to protect the backslash
+                    }
+                    *write_pos++ = '\\';
+                    *write_pos++ = *read_pos++;
                 }
-                *write_pos++ = '\\';
-                *write_pos++ = *read_pos++;
             } else if (in_double_quote) {
                 // In double quotes, backslash is special only before $ ` " \ newline
                 switch (*read_pos) {
