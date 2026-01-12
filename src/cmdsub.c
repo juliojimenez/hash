@@ -42,6 +42,9 @@ static char *execute_and_capture(const char *cmd) {
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
 
+        // Reset traps for subshell - inherited traps should not execute
+        trap_reset_for_subshell();
+
         // Use hash's own script execution to preserve function definitions
         int result = script_execute_string(cmd);
         fflush(stdout);  // Ensure output is flushed before exit
