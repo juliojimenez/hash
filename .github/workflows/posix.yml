@@ -74,6 +74,7 @@ jobs:
             builtin.readonly.assign.interactive
             builtin.set.quoted
             builtin.times.ioerror
+            builtin.trap.subshell.false.exit
           "
 
           # Function to check if test should be skipped

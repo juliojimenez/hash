@@ -159,6 +159,14 @@ CommandChain *chain_parse(char *line) {
 
         // Look for operators outside quotes, command substitution, and brace groups
         if (!in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0) {
+            // Check for comment - # starts a comment that extends to end of line
+            // Must be preceded by whitespace or be at start of command
+            if (*current == '#' && (current == cmd_start || isspace(*(current - 1)))) {
+                // Terminate the line at the comment
+                *current = '\0';
+                break;  // Exit the parsing loop
+            }
+
             ChainOp op = CHAIN_NONE;
             int op_len = 0;
 
