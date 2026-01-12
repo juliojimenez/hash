@@ -1319,8 +1319,88 @@ static int process_function(const char *line) {
     ctx->func_body_cap = 0;
     ctx->should_execute = false;  // Don't execute lines inside function definition
 
-    // Check if line contains opening brace
+    // Check if line contains opening brace or paren (for subshell function bodies)
     const char *brace = strchr(line, '{');
+    const char *paren = strchr(line, '(');
+
+    // Skip the () after function name to find actual body start
+    // Format: funcname() ( ... ) or funcname() { ... }
+    if (paren) {
+        // Skip past "funcname()" to find the body opener
+        const char *p = paren + 1;
+        while (*p && isspace(*p)) p++;
+        if (*p == ')') {
+            p++;  // Skip the )
+            while (*p && isspace(*p)) p++;
+            if (*p == '(') {
+                paren = p;  // This is the body-opening paren
+            } else if (*p == '{') {
+                paren = NULL;  // Use brace instead
+                brace = p;
+            } else {
+                paren = NULL;  // No valid body start
+            }
+        } else {
+            paren = NULL;  // Not funcname()
+        }
+    }
+
+    // Handle subshell function body: f() ( ... )
+    if (paren && (!brace || paren < brace)) {
+        // Find matching closing paren
+        const char *after_paren = paren + 1;
+        int depth = 1;
+        const char *p = after_paren;
+        const char *body_end = NULL;
+        bool in_sq = false, in_dq = false;
+
+        while (*p && depth > 0) {
+            if (*p == '\\' && *(p + 1)) {
+                p += 2;
+                continue;
+            }
+            if (*p == '\'' && !in_dq) in_sq = !in_sq;
+            else if (*p == '"' && !in_sq) in_dq = !in_dq;
+            else if (!in_sq && !in_dq) {
+                if (*p == '(') depth++;
+                else if (*p == ')') {
+                    depth--;
+                    if (depth == 0) {
+                        body_end = p;
+                    }
+                }
+            }
+            p++;
+        }
+
+        if (body_end) {
+            // Complete subshell function body on this line
+            // Store the body WITH parentheses so it runs as subshell
+            size_t body_len = body_end - paren + 1;  // Include both parens
+            char *body = malloc(body_len + 1);
+            if (body) {
+                memcpy(body, paren, body_len);
+                body[body_len] = '\0';
+                script_define_function(ctx->func_name, body);
+                free(body);
+            }
+            script_pop_context();
+
+            // Execute any commands after the function definition
+            const char *after_func = body_end + 1;
+            while (*after_func && isspace(*after_func)) after_func++;
+            if (*after_func == ';') after_func++;
+            while (*after_func && isspace(*after_func)) after_func++;
+            if (*after_func && *after_func != '#') {
+                return execute_simple_line(after_func);
+            }
+            return 1;
+        }
+        // Multi-line subshell function body not supported yet
+        ctx->brace_depth = 0;
+        return 1;
+    }
+
     if (brace) {
         ctx->brace_depth = 1;
         // Check for content after the brace

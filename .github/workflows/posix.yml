@@ -75,6 +75,8 @@ jobs:
             builtin.set.quoted
             builtin.times.ioerror
             builtin.trap.subshell.false.exit
+            builtin.trap.subshell.loud
+            builtin.trap.subshell.loud2
           "
 
           # Function to check if test should be skipped
