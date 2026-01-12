@@ -223,13 +223,16 @@ void test_parse_line_single_quote_literal_backslash(void) {
 }
 
 // Test parse_line with empty quotes
+// POSIX: Empty quoted strings should be preserved as valid (empty) arguments
 void test_parse_line_empty_quotes(void) {
     char line[] = "echo \"\" ''";
     char **args = parse_line(line);
 
     TEST_ASSERT_NOT_NULL(args);
     TEST_ASSERT_EQUAL_STRING("echo", args[0]);
-    TEST_ASSERT_NULL(args[1]);
+    TEST_ASSERT_EQUAL_STRING("", args[1]);  // Empty double-quoted string
+    TEST_ASSERT_EQUAL_STRING("", args[2]);  // Empty single-quoted string
+    TEST_ASSERT_NULL(args[3]);
 
     free(args);
 }
