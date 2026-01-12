@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <fnmatch.h>
 #include "varexpand.h"
 #include "safe_string.h"
 #include "hash.h"
@@ -88,8 +89,11 @@ process_var_quoted:;
             char var_name[256] = {0};
 
             // Check for special variables
-            if (*p == '?') {
+            // Note: Parser may add \x01 marker before ?, *, [ when in quotes
+            // We need to skip the marker when checking for special variables like $?
+            if (*p == '?' || (*p == '\x01' && *(p + 1) == '?')) {
                 // $? - exit code
+                if (*p == '\x01') p++;  // Skip marker if present
                 snprintf(var_name, sizeof(var_name), "%d", last_exit_code);
                 var_value = var_name;
                 p++;
@@ -114,8 +118,9 @@ process_var_quoted:;
                 snprintf(var_name, sizeof(var_name), "%d", count);
                 var_value = var_name;
                 p++;
-            } else if (*p == '*') {
+            } else if (*p == '*' || (*p == '\x01' && *(p + 1) == '*')) {
                 // $* - all positional parameters as single string
+                if (*p == '\x01') p++;  // Skip marker if present
                 static char star_buf[MAX_EXPANDED_LENGTH];
                 star_buf[0] = '\0';
                 size_t pos = 0;
@@ -187,9 +192,10 @@ process_var_quoted:;
                 }
                 var_name[name_len] = '\0';
 
-                // Check for modifiers: - + = ? (and : prefix)
+                // Check for modifiers: - + = ? # % (and : prefix)
                 char modifier = 0;
                 bool check_null = false;
+                bool double_modifier = false;  // For ## and %%
                 static char word[1024];  // static to persist after scope
                 word[0] = '\0';
 
@@ -198,10 +204,16 @@ process_var_quoted:;
                     p++;
                 }
 
-                if (*p == '-' || *p == '+' || *p == '=' || *p == '?') {
+                if (*p == '-' || *p == '+' || *p == '=' || *p == '?' ||
+                    *p == '#' || *p == '%') {
                     modifier = *p++;
+                    // Check for ## or %%
+                    if ((modifier == '#' || modifier == '%') && *p == modifier) {
+                        double_modifier = true;
+                        p++;
+                    }
 
-                    // Parse the word until closing brace
+                    // Parse the word/pattern until closing brace
                     size_t word_len = 0;
                     int brace_depth = 1;
                     while (*p && brace_depth > 0 && word_len < sizeof(word) - 1) {
@@ -280,6 +292,99 @@ process_var_quoted:;
                                 var_value = "";
                             } else {
                                 var_value = val;
+                            }
+                        } else if (modifier == '#') {
+                            // ${var#pattern}: remove smallest prefix matching pattern
+                            // ${var##pattern}: remove largest prefix matching pattern
+                            if (val) {
+                                static char pattern_result[4096];
+                                strncpy(pattern_result, val, sizeof(pattern_result) - 1);
+                                pattern_result[sizeof(pattern_result) - 1] = '\0';
+
+                                size_t val_len = strlen(val);
+                                size_t match_len = 0;
+
+                                // Try matching pattern at start of string
+                                // For ##, find longest match; for #, find shortest
+                                if (double_modifier) {
+                                    // Longest match - try from end backwards
+                                    for (size_t i = val_len; i > 0; i--) {
+                                        char saved = pattern_result[i];
+                                        pattern_result[i] = '\0';
+                                        if (fnmatch(word, pattern_result, 0) == 0) {
+                                            match_len = i;
+                                            pattern_result[i] = saved;
+                                            break;
+                                        }
+                                        pattern_result[i] = saved;
+                                    }
+                                } else {
+                                    // Shortest match - try from start forwards
+                                    for (size_t i = 1; i <= val_len; i++) {
+                                        char saved = pattern_result[i];
+                                        pattern_result[i] = '\0';
+                                        if (fnmatch(word, pattern_result, 0) == 0) {
+                                            match_len = i;
+                                            pattern_result[i] = saved;
+                                            break;
+                                        }
+                                        pattern_result[i] = saved;
+                                    }
+                                }
+
+                                // Result is the part after the match
+                                memmove(pattern_result, val + match_len, val_len - match_len + 1);
+                                var_value = pattern_result;
+                            } else {
+                                var_value = "";
+                            }
+                        } else if (modifier == '%') {
+                            // ${var%pattern}: remove smallest suffix matching pattern
+                            // ${var%%pattern}: remove largest suffix matching pattern
+                            if (val) {
+                                static char pattern_result[4096];
+                                strncpy(pattern_result, val, sizeof(pattern_result) - 1);
+                                pattern_result[sizeof(pattern_result) - 1] = '\0';
+
+                                size_t val_len = strlen(val);
+                                size_t keep_len = val_len;  // How much to keep
+
+                                // Try matching pattern at end of string
+                                // For %%, find longest match; for %, find shortest
+                                if (double_modifier) {
+                                    // Longest match - try from start forwards
+                                    for (size_t i = 0; i < val_len; i++) {
+                                        if (fnmatch(word, val + i, 0) == 0) {
+                                            keep_len = i;
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    // Shortest match - try from end backwards
+                                    for (size_t i = val_len; i > 0; i--) {
+                                        if (fnmatch(word, val + i - 1, 0) == 0) {
+                                            // Check if this is a valid suffix match
+                                            // (the pattern must match starting at position i-1)
+                                            if (fnmatch(word, val + i - 1, 0) == 0) {
+                                                keep_len = i - 1;
+                                            }
+                                        }
+                                    }
+                                    // Actually for %, we want shortest suffix that matches
+                                    keep_len = val_len;
+                                    for (size_t i = val_len; i > 0; i--) {
+                                        if (fnmatch(word, val + i - 1, 0) == 0) {
+                                            keep_len = i - 1;
+                                            // Don't break - keep looking for shorter match
+                                        }
+                                    }
+                                }
+
+                                // Result is the part before the match
+                                pattern_result[keep_len] = '\0';
+                                var_value = pattern_result;
+                            } else {
+                                var_value = "";
                             }
                         } else {
                             // No modifier, simple expansion
