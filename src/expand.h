@@ -67,4 +67,19 @@ int has_glob_chars(const char *s);
  */
 int expand_glob(char ***args, int *arg_count);
 
+/**
+ * Remove \x01 quote markers from a string (in-place)
+ * These markers protect quoted characters from expansion
+ *
+ * @param s String to strip markers from
+ */
+void strip_quote_markers(char *s);
+
+/**
+ * Remove \x01 quote markers from all arguments
+ *
+ * @param args Null-terminated argument array
+ */
+void strip_quote_markers_args(char **args);
+
 #endif // EXPAND_H

@@ -233,12 +233,47 @@ int expand_tilde(char **args) {
     return 0;
 }
 
+// Remove \x01 markers from a string (in-place)
+// These markers are used to protect quoted characters from expansion
+void strip_quote_markers(char *s) {
+    if (!s) return;
+
+    char *read = s;
+    char *write = s;
+
+    while (*read) {
+        if (*read == '\x01' && *(read + 1)) {
+            // Skip the marker, copy the protected character
+            read++;
+            *write++ = *read++;
+        } else {
+            *write++ = *read++;
+        }
+    }
+    *write = '\0';
+}
+
+// Remove \x01 markers from all arguments
+void strip_quote_markers_args(char **args) {
+    if (!args) return;
+
+    for (int i = 0; args[i] != NULL; i++) {
+        strip_quote_markers(args[i]);
+    }
+}
+
 // Check if a string contains glob characters
+// Characters preceded by \x01 marker are protected (from quoted context)
 int has_glob_chars(const char *s) {
     if (!s) return 0;
 
     int in_bracket = 0;
     for (const char *p = s; *p; p++) {
+        if (*p == '\x01' && *(p + 1)) {
+            // Skip marker and the protected character
+            p++;
+            continue;
+        }
         if (*p == '\\' && *(p + 1)) {
             // Skip escaped character
             p++;

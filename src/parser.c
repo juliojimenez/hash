@@ -141,6 +141,10 @@ char **parse_line(const char *line) {
                 }
             } else {
                 // Just a $ (variable)
+                if (in_double_quote) {
+                    // Mark as quoted variable - \x02$ means "don't glob the expansion"
+                    *write_pos++ = '\x02';
+                }
                 *write_pos++ = *read_pos++;
             }
         } else if (isspace(*read_pos) && !in_single_quote && !in_double_quote) {
@@ -182,6 +186,12 @@ char **parse_line(const char *line) {
         } else if (*read_pos == '~' && (in_single_quote || in_double_quote)) {
             // Tilde inside quotes - use special marker to prevent expansion
             // expand_tilde will recognize SOH (\x01) and output literal ~
+            *write_pos++ = '\x01';
+            *write_pos++ = *read_pos++;
+        } else if ((*read_pos == '*' || *read_pos == '?' || *read_pos == '[') &&
+                   (in_single_quote || in_double_quote)) {
+            // Glob characters inside quotes - use special marker to prevent glob expansion
+            // expand_glob's has_glob_chars will skip characters preceded by \x01
             *write_pos++ = '\x01';
             *write_pos++ = *read_pos++;
         } else {

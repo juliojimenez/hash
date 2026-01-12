@@ -407,6 +407,9 @@ int execute(char **args) {
     // Use expanded args if glob expansion happened, otherwise use original args
     char **exec_input = glob_expanded ? glob_args : args;
 
+    // Strip quote markers from arguments (markers prevent glob expansion of quoted chars)
+    strip_quote_markers_args(exec_input);
+
     // Handle variable assignments
     // Count leading VAR=VALUE assignments
     int prefix_count = 0;

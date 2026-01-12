@@ -66,7 +66,13 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             // Escaped dollar sign - \$ → $
             result[out_pos++] = '$';
             p += 2;
+        } else if (*p == '\x02' && *(p + 1) == '$') {
+            // Quoted variable marker - skip marker and process $ with quote flag
+            p++;  // Skip \x02
+            goto process_var_quoted;
         } else if (*p == '$') {
+process_var_quoted:;
+            bool is_quoted = (*(p - 1) == '\x02');  // Check if we came from marker
             p++;  // Skip $
 
             const char *var_value = NULL;
@@ -327,11 +333,24 @@ append_value:
             if (var_value) {
                 size_t val_len = strlen(var_value);
                 if (val_len > 0) {
-                    size_t space = MAX_EXPANDED_LENGTH - 1 - out_pos;
-                    size_t to_copy = (val_len < space) ? val_len : space;
-                    if (to_copy > 0) {
-                        memcpy(result + out_pos, var_value, to_copy);
-                        out_pos += to_copy;
+                    if (is_quoted) {
+                        // Append with glob markers to prevent glob expansion
+                        for (size_t i = 0; i < val_len && out_pos < MAX_EXPANDED_LENGTH - 2; i++) {
+                            char c = var_value[i];
+                            if (c == '*' || c == '?' || c == '[') {
+                                // Add marker before glob character
+                                result[out_pos++] = '\x01';
+                            }
+                            result[out_pos++] = c;
+                        }
+                    } else {
+                        // Unquoted - simple copy
+                        size_t space = MAX_EXPANDED_LENGTH - 1 - out_pos;
+                        size_t to_copy = (val_len < space) ? val_len : space;
+                        if (to_copy > 0) {
+                            memcpy(result + out_pos, var_value, to_copy);
+                            out_pos += to_copy;
+                        }
                     }
                 }
             }
