@@ -28,6 +28,7 @@ char **parse_line(const char *line) {
     int in_single_quote = 0;
     int in_double_quote = 0;
     size_t token_start_idx = 0;
+    int token_has_content = 0;  // Track if current token has any content (including empty quotes)
 
     if (!tokens) {
         fprintf(stderr, "%s: allocation error\n", HASH_NAME);
@@ -100,10 +101,12 @@ char **parse_line(const char *line) {
         } else if (*read_pos == '\'' && !in_double_quote) {
             // Toggle single quote mode
             in_single_quote = !in_single_quote;
+            token_has_content = 1;  // Mark that this token exists (even if empty after quotes)
             read_pos++;
         } else if (*read_pos == '"' && !in_single_quote) {
             // Toggle double quote mode
             in_double_quote = !in_double_quote;
+            token_has_content = 1;  // Mark that this token exists (even if empty after quotes)
             read_pos++;
         } else if (*read_pos == '$' && !in_single_quote) {
             // Handle $(...) command substitution and $((...)) arithmetic
@@ -151,8 +154,8 @@ char **parse_line(const char *line) {
             // End of token
             *write_pos = '\0';
 
-            // Add token to array if it's not empty
-            if (output[token_start_idx] != '\0') {
+            // Add token to array if it has content (including empty quoted strings)
+            if (output[token_start_idx] != '\0' || token_has_content) {
                 tokens[position] = &output[token_start_idx];
                 position++;
 
@@ -178,6 +181,7 @@ char **parse_line(const char *line) {
 
             // Start of next token
             token_start_idx = (size_t)(write_pos - output);
+            token_has_content = 0;  // Reset for next token
         } else if (*read_pos == '$' && in_single_quote) {
             // Dollar sign inside single quotes - use special marker (SOH + $)
             // cmdsub and varexpand will recognize SOH (\x01) and output literal $
@@ -202,7 +206,7 @@ char **parse_line(const char *line) {
 
     // Handle last token
     *write_pos = '\0';
-    if (output[token_start_idx] != '\0') {
+    if (output[token_start_idx] != '\0' || token_has_content) {
         tokens[position] = &output[token_start_idx];
         position++;
     }

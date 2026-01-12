@@ -1911,6 +1911,11 @@ static int process_done(const char *line) {
 // Case Statement Processing
 // ============================================================================
 
+// Forward declarations for case pattern matching
+static char *remove_shell_quotes(const char *str);
+static char *expand_case_word(const char *word);
+static char *expand_case_pattern(const char *pattern);
+
 // Append line to case body buffer (reuses loop_body fields)
 static int append_to_case_body(ScriptContext *ctx, const char *line) {
     return append_to_loop_body(ctx, line);  // Same implementation
@@ -1920,7 +1925,6 @@ static int append_to_case_body(ScriptContext *ctx, const char *line) {
 // Handles POSIX shell pattern matching with *, ?, [...]
 static bool case_pattern_matches(const char *pattern, const char *word) {
     if (!pattern || !word) return false;
-
     // fnmatch returns 0 on match
     return fnmatch(pattern, word, 0) == 0;
 }
@@ -2046,9 +2050,15 @@ static int execute_case_body(const char *body, const char *word) {
                     char *end = single_pat + strlen(single_pat) - 1;
                     while (end > single_pat && isspace(*end)) *end-- = '\0';
 
-                    if (case_pattern_matches(single_pat, word)) {
-                        this_matches = true;
-                        break;
+                    // Expand pattern (variable expansion, then quote removal)
+                    char *expanded_pat = expand_case_pattern(single_pat);
+                    if (expanded_pat) {
+                        if (case_pattern_matches(expanded_pat, word)) {
+                            this_matches = true;
+                            free(expanded_pat);
+                            break;
+                        }
+                        free(expanded_pat);
                     }
                     single_pat = strtok_r(NULL, "|", &saveptr);
                 }
@@ -2131,12 +2141,161 @@ static int execute_case_body(const char *body, const char *word) {
 }
 
 // Expand case word using all expansion types (variable, arithmetic, command substitution)
+// Remove shell quotes from a string (for case word expansion)
+// Respects \x01 markers which indicate protected literal characters
+static char *remove_shell_quotes(const char *str) {
+    if (!str) return strdup("");
+
+    size_t len = strlen(str);
+    char *result = malloc(len + 1);
+    if (!result) return strdup("");
+
+    size_t j = 0;
+    bool in_single = false;
+    bool in_double = false;
+
+    for (size_t i = 0; i < len; i++) {
+        char c = str[i];
+
+        // Handle \x01 marker - next char is literal (from expansion)
+        if (c == '\x01' && str[i + 1]) {
+            i++;  // Skip marker
+            result[j++] = str[i];  // Copy literal character
+            continue;
+        }
+
+        if (c == '\'' && !in_double) {
+            // Single quote - toggle state, don't output the quote
+            in_single = !in_single;
+            continue;
+        }
+
+        if (c == '"' && !in_single) {
+            // Double quote - toggle state, don't output the quote
+            in_double = !in_double;
+            continue;
+        }
+
+        if (c == '\\' && !in_single && str[i + 1]) {
+            // Backslash escape outside single quotes
+            if (in_double) {
+                // In double quotes, backslash only escapes $ ` " \ newline
+                char next = str[i + 1];
+                if (next == '$' || next == '`' || next == '"' ||
+                    next == '\\' || next == '\n') {
+                    i++;  // Skip backslash
+                    if (next != '\n') {  // Backslash-newline is removed entirely
+                        result[j++] = next;
+                    }
+                    continue;
+                }
+                // Other backslashes in double quotes are literal
+            } else {
+                // Outside quotes, backslash escapes the next character
+                i++;  // Skip backslash
+                if (str[i] != '\n') {  // Backslash-newline is removed entirely
+                    result[j++] = str[i];
+                }
+                continue;
+            }
+        }
+
+        result[j++] = c;
+    }
+
+    result[j] = '\0';
+    return result;
+}
+
+// Pre-process word to add \x02 markers before $ inside double quotes
+// This tells varexpand that the expansion is in a quoted context
+static char *add_quote_markers(const char *word) {
+    if (!word) return strdup("");
+
+    size_t len = strlen(word);
+    // Worst case: every char needs a marker
+    char *result = malloc(len * 2 + 1);
+    if (!result) return strdup(word);
+
+    size_t j = 0;
+    bool in_double = false;
+    bool in_single = false;
+
+    for (size_t i = 0; i < len; i++) {
+        char c = word[i];
+
+        if (c == '\'' && !in_double) {
+            in_single = !in_single;
+            result[j++] = c;
+            continue;
+        }
+
+        if (c == '"' && !in_single) {
+            in_double = !in_double;
+            result[j++] = c;
+            continue;
+        }
+
+        // Mark $ in double quotes with \x02
+        if (c == '$' && in_double && !in_single) {
+            result[j++] = '\x02';
+        }
+
+        result[j++] = c;
+    }
+
+    result[j] = '\0';
+    return result;
+}
+
+// Pre-process pattern to mark ALL $ with \x02 (not just in double quotes)
+// For patterns, all expanded content should be literal
+static char *add_pattern_markers(const char *word) {
+    if (!word) return strdup("");
+
+    size_t len = strlen(word);
+    char *result = malloc(len * 2 + 1);
+    if (!result) return strdup(word);
+
+    size_t j = 0;
+    bool in_single = false;
+
+    for (size_t i = 0; i < len; i++) {
+        char c = word[i];
+
+        if (c == '\'' && !in_single) {
+            in_single = !in_single;
+            result[j++] = c;
+            continue;
+        }
+        if (c == '\'') {
+            in_single = !in_single;
+            result[j++] = c;
+            continue;
+        }
+
+        // Mark ALL $ with \x02 (except in single quotes where $ is literal)
+        if (c == '$' && !in_single) {
+            result[j++] = '\x02';
+        }
+
+        result[j++] = c;
+    }
+
+    result[j] = '\0';
+    return result;
+}
+
 static char *expand_case_word(const char *word) {
     if (!word) return strdup("");
 
     extern int last_command_exit_code;
-    char *result = strdup(word);
-    if (!result) return strdup("");
+
+    // Add quote markers to indicate quoted context to varexpand
+    char *marked = add_quote_markers(word);
+    if (!marked) return strdup("");
+
+    char *result = marked;
 
     // Apply command substitution expansion
     char *cmdsub = cmdsub_expand(result);
@@ -2157,6 +2316,57 @@ static char *expand_case_word(const char *word) {
     if (varexp) {
         free(result);
         result = varexp;
+    }
+
+    // Remove shell quotes (quote removal phase of word expansion)
+    char *unquoted = remove_shell_quotes(result);
+    if (unquoted) {
+        free(result);
+        result = unquoted;
+    }
+
+    return result;
+}
+
+// Expand case pattern - similar to expand_case_word but marks ALL $ as quoted
+// so expanded characters are treated as literals
+static char *expand_case_pattern(const char *pattern) {
+    if (!pattern) return strdup("");
+
+    extern int last_command_exit_code;
+
+    // Mark ALL $ to indicate all expansions should protect special chars
+    char *marked = add_pattern_markers(pattern);
+    if (!marked) return strdup("");
+
+    char *result = marked;
+
+    // Apply command substitution expansion
+    char *cmdsub = cmdsub_expand(result);
+    if (cmdsub) {
+        free(result);
+        result = cmdsub;
+    }
+
+    // Apply arithmetic expansion
+    char *arith = arith_expand(result);
+    if (arith) {
+        free(result);
+        result = arith;
+    }
+
+    // Apply variable expansion
+    char *varexp = varexpand_expand(result, last_command_exit_code);
+    if (varexp) {
+        free(result);
+        result = varexp;
+    }
+
+    // Remove shell quotes (quote removal phase)
+    char *unquoted = remove_shell_quotes(result);
+    if (unquoted) {
+        free(result);
+        result = unquoted;
     }
 
     return result;

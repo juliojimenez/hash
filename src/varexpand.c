@@ -334,11 +334,11 @@ append_value:
                 size_t val_len = strlen(var_value);
                 if (val_len > 0) {
                     if (is_quoted) {
-                        // Append with glob markers to prevent glob expansion
+                        // Append with markers to prevent glob expansion and quote interpretation
                         for (size_t i = 0; i < val_len && out_pos < MAX_EXPANDED_LENGTH - 2; i++) {
                             char c = var_value[i];
-                            if (c == '*' || c == '?' || c == '[') {
-                                // Add marker before glob character
+                            if (c == '*' || c == '?' || c == '[' || c == '"' || c == '\'' || c == '\\') {
+                                // Add marker before special characters
                                 result[out_pos++] = '\x01';
                             }
                             result[out_pos++] = c;
