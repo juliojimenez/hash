@@ -15,7 +15,8 @@ typedef enum {
     REDIR_HEREDOC,     // << DELIMITER
     REDIR_HEREDOC_NOTAB, // <<- DELIMITER (strip leading tabs)
     REDIR_INPUT_DUP,   // <&N (dup fd N to stdin)
-    REDIR_OUTPUT_DUP   // >&N (dup fd N to stdout) - for N != 2
+    REDIR_OUTPUT_DUP,  // >&N (dup fd N to stdout) - for N != 2
+    REDIR_FD_DUP       // N>&M (dup fd M to fd N)
 } RedirType;
 
 // A single redirection
@@ -24,6 +25,8 @@ typedef struct {
     char *filename;       // File to redirect to/from (or NULL for 2>&1)
     char *heredoc_delim;  // Heredoc delimiter (for <<)
     char *heredoc_content; // Heredoc content (collected after parsing)
+    int dest_fd;          // Destination FD for REDIR_FD_DUP (e.g., 2 in 2>&9)
+    int src_fd;           // Source FD for REDIR_FD_DUP (e.g., 9 in 2>&9)
 } Redirection;
 
 // Redirection info for a command

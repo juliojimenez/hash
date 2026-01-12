@@ -583,7 +583,8 @@ int execute(char **args) {
     //   readonly, eval, exec, source, ., trap (modify shell state/variables)
     bool is_special_builtin = false;
     if (exec_args[0]) {
-        is_special_builtin = (strcmp(exec_args[0], "break") == 0 ||
+        is_special_builtin = (strcmp(exec_args[0], ":") == 0 ||
+                              strcmp(exec_args[0], "break") == 0 ||
                               strcmp(exec_args[0], "continue") == 0 ||
                               strcmp(exec_args[0], "return") == 0 ||
                               strcmp(exec_args[0], "exit") == 0 ||
@@ -657,8 +658,20 @@ int execute(char **args) {
         saved_fds[0] = dup(STDIN_FILENO);
         saved_fds[1] = dup(STDOUT_FILENO);
         saved_fds[2] = dup(STDERR_FILENO);
-        // Apply redirections
-        redirect_apply(redir);
+        // Apply redirections - check for errors
+        if (redirect_apply(redir) != 0) {
+            // Restore file descriptors
+            if (saved_fds[0] != -1) { dup2(saved_fds[0], STDIN_FILENO); close(saved_fds[0]); }
+            if (saved_fds[1] != -1) { dup2(saved_fds[1], STDOUT_FILENO); close(saved_fds[1]); }
+            if (saved_fds[2] != -1) { dup2(saved_fds[2], STDERR_FILENO); close(saved_fds[2]); }
+            redirect_free(redir);
+            if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
+            free_expanded_args(expanded_args, expanded_count);
+            restore_prefix_vars();
+            last_command_exit_code = 1;
+            // Special builtin redirect error: exit non-interactive shell
+            return is_interactive ? 1 : 0;
+        }
     }
 
     // Try built-in commands (no redirections, or will be handled below)

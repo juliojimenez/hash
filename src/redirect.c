@@ -36,6 +36,8 @@ static int add_redirection(RedirInfo *info, RedirType type, const char *filename
     info->redirs[info->count].type = type;
     info->redirs[info->count].heredoc_delim = NULL;
     info->redirs[info->count].heredoc_content = NULL;
+    info->redirs[info->count].dest_fd = -1;
+    info->redirs[info->count].src_fd = -1;
 
     if (filename) {
         info->redirs[info->count].filename = strdup(filename);
@@ -45,6 +47,21 @@ static int add_redirection(RedirInfo *info, RedirType type, const char *filename
     } else {
         info->redirs[info->count].filename = NULL;
     }
+
+    info->count++;
+    return 0;
+}
+
+// Add an FD duplication redirection (N>&M)
+static int add_fd_dup(RedirInfo *info, int dest_fd, int src_fd) {
+    if (!info || info->count >= MAX_REDIRECTS) return -1;
+
+    info->redirs[info->count].type = REDIR_FD_DUP;
+    info->redirs[info->count].filename = NULL;
+    info->redirs[info->count].heredoc_delim = NULL;
+    info->redirs[info->count].heredoc_content = NULL;
+    info->redirs[info->count].dest_fd = dest_fd;
+    info->redirs[info->count].src_fd = src_fd;
 
     info->count++;
     return 0;
@@ -233,9 +250,12 @@ RedirInfo *redirect_parse(char **args) {
                             add_redirection(info, REDIR_ERROR_TO_OUT, NULL);
                         } else if (*p == '2' && *(p + 1) == '\0' && fd == 1) {
                             add_redirection(info, REDIR_OUT_TO_ERROR, NULL);
+                        } else if (isdigit(*p)) {
+                            // General FD duplication: N>&M
+                            int src_fd = atoi(p);
+                            add_fd_dup(info, fd, src_fd);
                         } else {
-                            // For exec builtin with arbitrary FD duplication (like 3>&1),
-                            // keep as argument so shell_exec can handle it directly
+                            // Unknown format, keep as argument
                             info->args[new_arg_idx++] = arg;
                         }
                     } else if (*p != '\0') {
@@ -407,6 +427,15 @@ int redirect_apply(const RedirInfo *info) {
                 int src_fd = atoi(redir->filename);
                 if (dup2(src_fd, STDOUT_FILENO) < 0) {
                     fprintf(stderr, "%s: %s: Bad file descriptor\n", HASH_NAME, redir->filename);
+                    return -1;
+                }
+                break;
+            }
+
+            case REDIR_FD_DUP: {
+                // N>&M - dup fd M (src) to fd N (dest)
+                if (dup2(redir->src_fd, redir->dest_fd) < 0) {
+                    fprintf(stderr, "%s: %d: Bad file descriptor\n", HASH_NAME, redir->src_fd);
                     return -1;
                 }
                 break;
