@@ -25,6 +25,7 @@ typedef struct {
     char *filename;       // File to redirect to/from (or NULL for 2>&1)
     char *heredoc_delim;  // Heredoc delimiter (for <<)
     char *heredoc_content; // Heredoc content (collected after parsing)
+    int heredoc_quoted;   // 1 if delimiter was quoted (no expansion)
     int dest_fd;          // Destination FD for REDIR_FD_DUP (e.g., 2 in 2>&9)
     int src_fd;           // Source FD for REDIR_FD_DUP (e.g., 9 in 2>&9)
 } Redirection;
@@ -75,16 +76,18 @@ int redirect_has_heredoc(const char *line);
  *
  * @param line The command line
  * @param strip_tabs Output: set to 1 if <<- was used
+ * @param quoted Output: set to 1 if delimiter was quoted (no expansion)
  * @return Allocated string with delimiter, or NULL if none found
  */
-char *redirect_get_heredoc_delim(const char *line, int *strip_tabs);
+char *redirect_get_heredoc_delim(const char *line, int *strip_tabs, int *quoted);
 
 /**
  * Set heredoc content for a redirection info
  *
  * @param info Redirection info
  * @param content The heredoc content
+ * @param quoted 1 if delimiter was quoted (no expansion), 0 otherwise
  */
-void redirect_set_heredoc_content(RedirInfo *info, const char *content);
+void redirect_set_heredoc_content(RedirInfo *info, const char *content, int quoted);
 
 #endif // REDIRECT_H

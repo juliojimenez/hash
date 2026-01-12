@@ -10,6 +10,9 @@
 #include "redirect.h"
 #include "safe_string.h"
 #include "hash.h"
+#include "cmdsub.h"
+#include "varexpand.h"
+#include "execute.h"
 
 #define MAX_REDIRECTS 16
 
@@ -397,11 +400,31 @@ int redirect_apply(const RedirInfo *info) {
                         return -1;
                     }
 
-                    // Write heredoc content to pipe
+                    // If delimiter was not quoted, expand variables and command substitutions
                     const char *content = redir->heredoc_content;
+                    char *expanded = NULL;
+                    if (!redir->heredoc_quoted) {
+                        // Apply command substitution expansion
+                        char *cmdsub_result = cmdsub_expand(content);
+                        if (cmdsub_result) {
+                            content = cmdsub_result;
+                            expanded = cmdsub_result;
+                        }
+                        // Apply variable expansion
+                        char *var_result = varexpand_expand(content, execute_get_last_exit_code());
+                        if (var_result) {
+                            free(expanded);
+                            content = var_result;
+                            expanded = var_result;
+                        }
+                    }
+
+                    // Write heredoc content to pipe
                     size_t len = strlen(content);
                     ssize_t written = write(pipefd[1], content, len);
                     (void)written;  // Ignore write result for simplicity
+
+                    free(expanded);  // Free expanded content if any
 
                     close(pipefd[1]);  // Close write end
 
@@ -492,10 +515,11 @@ int redirect_has_heredoc(const char *line) {
 }
 
 // Extract heredoc delimiter from a line
-char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
+char *redirect_get_heredoc_delim(const char *line, int *strip_tabs, int *quoted) {
     if (!line) return NULL;
 
     *strip_tabs = 0;
+    *quoted = 0;
     const char *p = line;
     int in_single_quote = 0;
     int in_double_quote = 0;
@@ -520,7 +544,7 @@ char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
 
                 // Extract delimiter, handling quotes
                 // POSIX: <<'EOF' means delimiter is EOF (no expansion)
-                //        <<"EOF" means delimiter is EOF (some expansion)
+                //        <<"EOF" means delimiter is EOF (no expansion)
                 //        <<EOF means delimiter is EOF (full expansion)
                 const char *start = p;
                 char quote_char = 0;
@@ -528,6 +552,7 @@ char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
                 // Check if delimiter is quoted
                 if (*p == '\'' || *p == '"') {
                     quote_char = *p;
+                    *quoted = 1;  // Mark as quoted - no expansion
                     p++;  // Skip opening quote
                     start = p;
                     // Find closing quote
@@ -543,7 +568,7 @@ char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
                         }
                     }
                 } else {
-                    // Unquoted delimiter
+                    // Unquoted delimiter - expansion happens
                     while (*p && !isspace(*p) && *p != '\n') p++;
 
                     if (start != p) {
@@ -565,7 +590,7 @@ char *redirect_get_heredoc_delim(const char *line, int *strip_tabs) {
 }
 
 // Set heredoc content for a redirection info
-void redirect_set_heredoc_content(RedirInfo *info, const char *content) {
+void redirect_set_heredoc_content(RedirInfo *info, const char *content, int quoted) {
     if (!info || !content) return;
 
     for (int i = 0; i < info->count; i++) {
@@ -573,6 +598,7 @@ void redirect_set_heredoc_content(RedirInfo *info, const char *content) {
             info->redirs[i].type == REDIR_HEREDOC_NOTAB) {
             free(info->redirs[i].heredoc_content);
             info->redirs[i].heredoc_content = strdup(content);
+            info->redirs[i].heredoc_quoted = quoted;
             return;
         }
     }

@@ -26,4 +26,17 @@ char *cmdsub_expand(const char *str);
  */
 int cmdsub_args(char **args);
 
+/**
+ * Get the exit code from the last command substitution
+ *
+ * @return Exit code from last command substitution
+ */
+int cmdsub_get_last_exit_code(void);
+
+/**
+ * Reset the command substitution exit code tracker
+ * Call this before processing a new command line
+ */
+void cmdsub_reset_exit_code(void);
+
 #endif // CMDSUB_H

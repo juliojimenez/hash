@@ -41,6 +41,7 @@ static size_t heredoc_content_cap = 0;
 
 // Pending heredoc content for the next command
 static char *pending_heredoc = NULL;
+static int pending_heredoc_quoted = 0;
 
 // ============================================================================
 // Keywords Table
@@ -2861,10 +2862,12 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             // Check for heredoc and collect content if present
             if (redirect_has_heredoc(line)) {
                 int strip_tabs = 0;
-                char *delim = redirect_get_heredoc_delim(line, &strip_tabs);
+                int quoted = 0;
+                char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
                 if (delim) {
                     free(pending_heredoc);
                     pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                    pending_heredoc_quoted = quoted;
                     free(delim);
                 }
             }
@@ -2873,6 +2876,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             // Clear pending heredoc after processing
             free(pending_heredoc);
             pending_heredoc = NULL;
+            pending_heredoc_quoted = 0;
         }
     }
 
@@ -2890,10 +2894,12 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         // Check for heredoc and collect content if present
         if (redirect_has_heredoc(line)) {
             int strip_tabs = 0;
-            char *delim = redirect_get_heredoc_delim(line, &strip_tabs);
+            int quoted = 0;
+            char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
             if (delim) {
                 free(pending_heredoc);
                 pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                pending_heredoc_quoted = quoted;
                 free(delim);
             }
         }
@@ -2903,6 +2909,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         // Clear pending heredoc after processing
         free(pending_heredoc);
         pending_heredoc = NULL;
+        pending_heredoc_quoted = 0;
     }
 
     fclose(fp);
@@ -2973,4 +2980,9 @@ const char *script_get_positional_param(int index) {
 // Get the pending heredoc content (for heredoc execution)
 const char *script_get_pending_heredoc(void) {
     return pending_heredoc;
+}
+
+// Get whether the pending heredoc delimiter was quoted (no expansion)
+int script_get_pending_heredoc_quoted(void) {
+    return pending_heredoc_quoted;
 }

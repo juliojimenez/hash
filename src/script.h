@@ -378,4 +378,12 @@ const char *script_get_positional_param(int index);
  */
 const char *script_get_pending_heredoc(void);
 
+/**
+ * Get whether the pending heredoc delimiter was quoted
+ * If quoted, no expansion should happen on the heredoc content
+ *
+ * @return 1 if delimiter was quoted, 0 otherwise
+ */
+int script_get_pending_heredoc_quoted(void);
+
 #endif // SCRIPT_H

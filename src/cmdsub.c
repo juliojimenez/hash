@@ -17,6 +17,19 @@
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
 
+// Track exit code from last command substitution
+static int last_cmdsub_exit_code = 0;
+
+// Get the exit code from the last command substitution
+int cmdsub_get_last_exit_code(void) {
+    return last_cmdsub_exit_code;
+}
+
+// Reset the command substitution exit code tracker
+void cmdsub_reset_exit_code(void) {
+    last_cmdsub_exit_code = 0;
+}
+
 // Execute a command and capture its output
 static char *execute_and_capture(const char *cmd) {
     if (!cmd || *cmd == '\0') return strdup("");
@@ -74,7 +87,17 @@ static char *execute_and_capture(const char *cmd) {
 
     close(pipefd[0]);
     output[total_read] = '\0';
-    waitpid(pid, NULL, 0);
+
+    // Wait for child and capture exit status
+    int status;
+    waitpid(pid, &status, 0);
+    if (WIFEXITED(status)) {
+        last_cmdsub_exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        last_cmdsub_exit_code = 128 + WTERMSIG(status);
+    } else {
+        last_cmdsub_exit_code = 1;
+    }
 
     // Remove trailing newlines (like bash does)
     while (total_read > 0 && output[total_read - 1] == '\n') {

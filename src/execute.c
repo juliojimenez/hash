@@ -39,7 +39,7 @@ static int launch(char **args, const char *cmd_string) {
     // Set heredoc content if pending
     const char *heredoc = script_get_pending_heredoc();
     if (heredoc && redir) {
-        redirect_set_heredoc_content(redir, heredoc);
+        redirect_set_heredoc_content(redir, heredoc, script_get_pending_heredoc_quoted());
     }
 
     // Use cleaned args (or original if no redirections)
@@ -320,6 +320,9 @@ int execute(char **args) {
         }
     }
 
+    // Reset command substitution exit code tracker before expansion
+    cmdsub_reset_exit_code();
+
     // Expand command substitutions in all arguments
     cmdsub_args(args);
 
@@ -449,7 +452,14 @@ int execute(char **args) {
             }
             *equals = '=';  // Restore
         }
-        last_command_exit_code = assignment_failed ? 1 : 0;
+        // For variable-only assignments, POSIX says the exit code should be
+        // the exit code of the last command substitution, or 0 if none/failed assignment
+        if (assignment_failed) {
+            last_command_exit_code = 1;
+        } else {
+            // Use the exit code from command substitution if any occurred
+            last_command_exit_code = cmdsub_get_last_exit_code();
+        }
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         return 1;
@@ -571,7 +581,7 @@ int execute(char **args) {
     // Set heredoc content if pending
     const char *heredoc = script_get_pending_heredoc();
     if (heredoc && redir) {
-        redirect_set_heredoc_content(redir, heredoc);
+        redirect_set_heredoc_content(redir, heredoc, script_get_pending_heredoc_quoted());
     }
 
     char **exec_args = redir ? redir->args : exec_input;
