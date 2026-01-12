@@ -198,6 +198,52 @@ char **parse_line(const char *line) {
             // expand_glob's has_glob_chars will skip characters preceded by \x01
             *write_pos++ = '\x01';
             *write_pos++ = *read_pos++;
+        } else if ((*read_pos == '>' || *read_pos == '<') && !in_single_quote && !in_double_quote) {
+            // Redirection operator - ends current token and starts a new one
+            // First, end the current token if it has content
+            if (write_pos > output && output[token_start_idx] != '\0') {
+                *write_pos++ = '\0';
+                if (output[token_start_idx] != '\0' || token_has_content) {
+                    tokens[position] = &output[token_start_idx];
+                    position++;
+                    if (position >= bufsize) {
+                        bufsize += MAX_ARGS;
+                        char **new_tokens = realloc(tokens, bufsize * sizeof(char*));
+                        if (!new_tokens) {
+                            free(tokens);
+                            free(output);
+                            fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+                            exit(EXIT_FAILURE);
+                        }
+                        tokens = new_tokens;
+                    }
+                }
+                token_start_idx = (size_t)(write_pos - output);
+                token_has_content = 0;
+            }
+            // Now collect the redirection operator (>, >>, <, <<, etc.)
+            *write_pos++ = *read_pos++;
+            // Check for >> or << or <<- or >& or <&
+            while (*read_pos == '>' || *read_pos == '<' || *read_pos == '&' || *read_pos == '-') {
+                *write_pos++ = *read_pos++;
+            }
+            // End this token
+            *write_pos++ = '\0';
+            tokens[position] = &output[token_start_idx];
+            position++;
+            if (position >= bufsize) {
+                bufsize += MAX_ARGS;
+                char **new_tokens = realloc(tokens, bufsize * sizeof(char*));
+                if (!new_tokens) {
+                    free(tokens);
+                    free(output);
+                    fprintf(stderr, "%s: allocation error\n", HASH_NAME);
+                    exit(EXIT_FAILURE);
+                }
+                tokens = new_tokens;
+            }
+            token_start_idx = (size_t)(write_pos - output);
+            token_has_content = 0;
         } else {
             // Regular character
             *write_pos++ = *read_pos++;
