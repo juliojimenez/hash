@@ -204,9 +204,11 @@ jobs:
             set -e
             uname -a
 
-            # Setup pkg (clear corrupted cache, ignore OS version mismatch)
+            # Setup pkg (use latest repo, ignore OS version mismatch)
             export ASSUME_ALWAYS_YES=yes
             export IGNORE_OSVERSION=yes
+            sudo mkdir -p /usr/local/etc/pkg/repos
+            echo 'FreeBSD: { url: "pkg+http://pkg.FreeBSD.org/${ABI}/latest" }' | sudo tee /usr/local/etc/pkg/repos/FreeBSD.conf
             sudo rm -rf /var/db/pkg/repo-*.sqlite
             sudo -E pkg update -f
 
