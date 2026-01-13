@@ -204,13 +204,14 @@ jobs:
             set -e
             uname -a
 
-            # Force pkg bootstrap and update
+            # Force pkg bootstrap and update (ignore OS version mismatch)
             export ASSUME_ALWAYS_YES=yes
+            export IGNORE_OSVERSION=yes
             sudo -E pkg bootstrap -f
-            sudo pkg update -f
+            sudo -E pkg update -f
 
             # Install GNU make
-            sudo pkg install -y gmake
+            sudo -E pkg install -y gmake
             
             # Build (FreeBSD uses make, not gmake for simple projects)
             gmake clean
