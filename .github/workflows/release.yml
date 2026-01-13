@@ -205,7 +205,8 @@ jobs:
             uname -a
 
             # Force pkg bootstrap and update
-            sudo pkg bootstrap -f
+            export ASSUME_ALWAYS_YES=yes
+            sudo -E pkg bootstrap -f
             sudo pkg update -f
 
             # Install GNU make
