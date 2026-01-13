@@ -72,13 +72,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             // Single-quoted or escaped dollar sign - output $ literally (no expansion)
             result[out_pos++] = '$';
             p += 2;
-        } else if (*p == '\x02' && *(p + 1) == '$') {
-            // Quoted variable marker - skip marker and process $ with quote flag
-            p++;  // Skip \x02
-            goto process_var_quoted;
-        } else if (*p == '$') {
-process_var_quoted:;
-            bool is_quoted = (p > str && *(p - 1) == '\x02');  // Check if we came from marker
+        } else if ((*p == '\x02' && *(p + 1) == '$') || *p == '$') {
+            // Variable expansion - check for quoted marker first
+            bool is_quoted = (*p == '\x02');
+            if (is_quoted) p++;  // Skip \x02 marker if present
             p++;  // Skip $
 
             const char *var_value = NULL;
