@@ -1059,11 +1059,11 @@ static int execute_simple_line(const char *line) {
 
         if (*brace_end == '}') {
             // Extract the brace group content
-            size_t len = brace_end - p;
-            char *group_cmd = malloc(len + 1);
+            size_t group_len = brace_end - p;
+            char *group_cmd = malloc(group_len + 1);
             if (!group_cmd) return -1;
-            memcpy(group_cmd, p, len);
-            group_cmd[len] = '\0';
+            memcpy(group_cmd, p, group_len);
+            group_cmd[group_len] = '\0';
 
             if (background) {
                 // Flush stdout/stderr before forking to prevent child from
