@@ -204,16 +204,16 @@ jobs:
             set -e
             uname -a
 
-            # Force pkg bootstrap and update (ignore OS version mismatch)
+            # Setup pkg (clear corrupted cache, ignore OS version mismatch)
             export ASSUME_ALWAYS_YES=yes
             export IGNORE_OSVERSION=yes
-            sudo -E pkg bootstrap -f
+            sudo rm -rf /var/db/pkg/repo-*.sqlite
             sudo -E pkg update -f
 
             # Install GNU make
             sudo -E pkg install -y gmake
-            
-            # Build (FreeBSD uses make, not gmake for simple projects)
+
+            # Build
             gmake clean
             gmake CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
 
