@@ -882,11 +882,11 @@ static int execute_simple_line(const char *line) {
 
             // Extract the subshell content
             const char *start = line + 1;
-            size_t len = end_paren - start;
-            char *subshell_cmd = malloc(len + 1);
+            size_t subshell_len = end_paren - start;
+            char *subshell_cmd = malloc(subshell_len + 1);
             if (!subshell_cmd) return -1;
-            memcpy(subshell_cmd, start, len);
-            subshell_cmd[len] = '\0';
+            memcpy(subshell_cmd, start, subshell_len);
+            subshell_cmd[subshell_len] = '\0';
 
             // Check for redirections after the closing paren
             const char *after_paren = end_paren + 1;
