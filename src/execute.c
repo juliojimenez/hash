@@ -30,6 +30,8 @@ int last_command_exit_code = 0;
 
 // Launch an external program
 static int launch(char **args, const char *cmd_string) {
+    if (!args || !args[0]) return 1;
+
     pid_t pid;
     int status;
 
