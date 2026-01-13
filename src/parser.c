@@ -251,7 +251,6 @@ char **parse_line(const char *line) {
                     tokens = new_tokens;
                 }
                 token_start_idx = (size_t)(write_pos - output);
-                token_has_content = 0;
             }
             // Now collect the redirection operator (>, >>, <, <<, etc.)
             *write_pos++ = *read_pos++;
