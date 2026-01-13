@@ -197,7 +197,7 @@ jobs:
         uses: cross-platform-actions/action@v0.32.0
         with:
           operating_system: freebsd
-          version: '15.0'
+          version: '14.2'
           architecture: ${{ matrix.vm_arch }}
           shell: sh
           run: |
