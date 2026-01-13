@@ -356,17 +356,7 @@ process_var_quoted:;
                                         }
                                     }
                                 } else {
-                                    // Shortest match - try from end backwards
-                                    for (size_t i = val_len; i > 0; i--) {
-                                        if (fnmatch(word, val + i - 1, 0) == 0) {
-                                            // Check if this is a valid suffix match
-                                            // (the pattern must match starting at position i-1)
-                                            if (fnmatch(word, val + i - 1, 0) == 0) {
-                                                keep_len = i - 1;
-                                            }
-                                        }
-                                    }
-                                    // Actually for %, we want shortest suffix that matches
+                                    // Shortest match - find shortest suffix that matches
                                     keep_len = val_len;
                                     for (size_t i = val_len; i > 0; i--) {
                                         if (fnmatch(word, val + i - 1, 0) == 0) {
