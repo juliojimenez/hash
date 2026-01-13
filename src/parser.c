@@ -211,20 +211,11 @@ char **parse_line(const char *line) {
             // Start of next token
             token_start_idx = (size_t)(write_pos - output);
             token_has_content = 0;  // Reset for next token
-        } else if (*read_pos == '$' && in_single_quote) {
-            // Dollar sign inside single quotes - use special marker (SOH + $)
-            // cmdsub and varexpand will recognize SOH (\x01) and output literal $
-            *write_pos++ = '\x01';
-            *write_pos++ = *read_pos++;
-        } else if (*read_pos == '~' && (in_single_quote || in_double_quote)) {
-            // Tilde inside quotes - use special marker to prevent expansion
-            // expand_tilde will recognize SOH (\x01) and output literal ~
-            *write_pos++ = '\x01';
-            *write_pos++ = *read_pos++;
-        } else if ((*read_pos == '*' || *read_pos == '?' || *read_pos == '[') &&
-                   (in_single_quote || in_double_quote)) {
-            // Glob characters inside quotes - use special marker to prevent glob expansion
-            // expand_glob's has_glob_chars will skip characters preceded by \x01
+        } else if ((*read_pos == '$' && in_single_quote) ||
+                   ((*read_pos == '~' || *read_pos == '*' || *read_pos == '?' || *read_pos == '[') &&
+                    (in_single_quote || in_double_quote))) {
+            // Special characters inside quotes - use SOH marker (\x01) to prevent expansion
+            // Handles: $ in single quotes, ~ in any quotes, glob chars (*, ?, [) in any quotes
             *write_pos++ = '\x01';
             *write_pos++ = *read_pos++;
         } else if ((*read_pos == '>' || *read_pos == '<') && !in_single_quote && !in_double_quote) {
