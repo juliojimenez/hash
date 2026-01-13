@@ -1,6 +1,6 @@
 <img style="width:128px;" src="images/hash.png" />
 
-[![Tests](https://github.com/juliojimenez/hash/actions/workflows/tests.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/tests.yml) [![Sanitizers & Fuzzing](https://github.com/juliojimenez/hash/actions/workflows/sanitizers.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/sanitizers.yml) [![POSIX Compliance](https://github.com/juliojimenez/hash/actions/workflows/posix.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/posix.yml) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hash-shell&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hash-shell) ![GitHub Release](https://img.shields.io/github/v/release/juliojimenez/hash?display_name=release)
+[![Tests](https://github.com/juliojimenez/hash/actions/workflows/tests.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/tests.yml) [![Sanitizers & Fuzzing](https://github.com/juliojimenez/hash/actions/workflows/sanitizers.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/sanitizers.yml) [![POSIX Compliance](https://github.com/juliojimenez/hash/actions/workflows/posix.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/posix.yml) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=hash-shell&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=hash-shell) [![Debian Package](https://github.com/juliojimenez/hash/actions/workflows/debian.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/debian.yml) [![Homebrew Formula](https://github.com/juliojimenez/hash/actions/workflows/update-homebrew.yml/badge.svg)](https://github.com/juliojimenez/hash/actions/workflows/update-homebrew.yml) ![GitHub Release](https://img.shields.io/github/v/release/juliojimenez/hash?display_name=release)
 
 
 # hash
@@ -13,66 +13,66 @@ A modern command line interpreter for Linux, macOS, and BSD.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell-v26-linux-x86_64
-chmod +x hash-shell-v26-linux-x86_64
-sudo mv hash-shell-v26-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell-v27-linux-x86_64
+chmod +x hash-shell-v27-linux-x86_64
+sudo mv hash-shell-v27-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell-v26-linux-aarch64
-chmod +x hash-shell-v26-linux-aarch64
-sudo mv hash-shell-v26-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell-v27-linux-aarch64
+chmod +x hash-shell-v27-linux-aarch64
+sudo mv hash-shell-v27-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### FreeBSD x86_64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v26/hash-shell-v26-freebsd-x86_64
-chmod +x hash-shell-v26-freebsd-x86_64
-sudo mv hash-shell-v26-freebsd-x86_64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v27/hash-shell-v27-freebsd-x86_64
+chmod +x hash-shell-v27-freebsd-x86_64
+sudo mv hash-shell-v27-freebsd-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### FreeBSD ARM64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v26/hash-shell-v26-freebsd-aarch64
-chmod +x hash-shell-v26-freebsd-aarch64
-sudo mv hash-shell-v26-freebsd-aarch64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v27/hash-shell-v27-freebsd-aarch64
+chmod +x hash-shell-v27-freebsd-aarch64
+sudo mv hash-shell-v27-freebsd-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell-v26-darwin-arm64
-chmod +x hash-shell-v26-darwin-arm64
-sudo mv hash-shell-v26-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell-v27-darwin-arm64
+chmod +x hash-shell-v27-darwin-arm64
+sudo mv hash-shell-v27-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 #### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell_26-1~noble_amd64.deb
-sudo dpkg -i hash-shell_26-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell_27-1~noble_amd64.deb
+sudo dpkg -i hash-shell_27-1~noble_amd64.deb
 ```
 
 #### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell_26-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_26-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell_27-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_27-1~jammy_amd64.deb
 ```
 
 #### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v26/hash-shell_26-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_26-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v27/hash-shell_27-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_27-1~bookworm_amd64.deb
 ```
 
 ### From Source

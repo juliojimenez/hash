@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to create package for'
+        description: 'Release Tag'
         required: true
-        default: 'v26'
+        default: 'v27'
 
 jobs:
   build-deb:

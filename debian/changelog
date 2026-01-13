@@ -1,7 +1,8 @@
-hash-shell (26-1) unstable; urgency=medium
+hash-shell (27-1) unstable; urgency=medium
 
-  * Update hash description across documentation
-  * Fix tab completion from just a path
-  * Static builds for BSD
+  * Merged Dependabot PRs for GitHub Actions
+  * Smoosh POSIX tests
+  * SonarQube findings fixes
+  * hash is on Product Hunt!
 
- -- Julio Jimenez <julio@julioj.com>  Thu, 08 Jan 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Thu, 12 Jan 2026 12:00:00 +0000
