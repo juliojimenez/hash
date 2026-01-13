@@ -1046,20 +1046,20 @@ static int execute_simple_line(const char *line) {
         while (*p && isspace(*p)) p++;
 
         // Find the closing } (might have & after it)
-        const char *end = line + strlen(line) - 1;
-        while (end > p && isspace(*end)) end--;
+        const char *brace_end = line + strlen(line) - 1;
+        while (brace_end > p && isspace(*brace_end)) brace_end--;
 
         // Check for background operator
         bool background = false;
-        if (*end == '&') {
+        if (*brace_end == '&') {
             background = true;
-            end--;
-            while (end > p && isspace(*end)) end--;
+            brace_end--;
+            while (brace_end > p && isspace(*brace_end)) brace_end--;
         }
 
-        if (*end == '}') {
+        if (*brace_end == '}') {
             // Extract the brace group content
-            size_t len = end - p;
+            size_t len = brace_end - p;
             char *group_cmd = malloc(len + 1);
             if (!group_cmd) return -1;
             memcpy(group_cmd, p, len);
