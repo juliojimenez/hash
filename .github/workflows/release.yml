@@ -204,6 +204,10 @@ jobs:
             set -e
             uname -a
 
+            # Force pkg bootstrap and update
+            sudo pkg bootstrap -f
+            sudo pkg update -f
+
             # Install GNU make
             sudo pkg install -y gmake
             
