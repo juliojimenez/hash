@@ -68,12 +68,8 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             result[out_pos++] = '\\';
             result[out_pos++] = *(p + 2);
             p += 3;
-        } else if (*p == '\x01' && *(p + 1) == '$') {
-            // Single-quoted dollar sign - output $ literally (no expansion)
-            result[out_pos++] = '$';
-            p += 2;
-        } else if (*p == '\\' && *(p + 1) == '$') {
-            // Escaped dollar sign - \$ → $
+        } else if ((*p == '\x01' || *p == '\\') && *(p + 1) == '$') {
+            // Single-quoted or escaped dollar sign - output $ literally (no expansion)
             result[out_pos++] = '$';
             p += 2;
         } else if (*p == '\x02' && *(p + 1) == '$') {
