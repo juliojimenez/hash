@@ -2036,9 +2036,8 @@ static void cmd_hash_clear(void) {
 static void cmd_hash_list(void) {
     for (int i = 0; i < CMD_HASH_SIZE; i++) {
         const CmdHashEntry *e = cmd_hash_table[i];
-        while (e) {
+        if (e) {
             printf("hits\tcommand\n");
-            break;  // Only print header once
         }
         if (cmd_hash_table[i]) break;
     }
