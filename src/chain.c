@@ -452,7 +452,7 @@ int chain_execute(const CommandChain *chain) {
                                         if (*r == '&') {
                                             r++;
                                             if (*r == '-') { close(fd); r++; }
-                                            else { int src = atoi(r); while (isdigit(*r)) r++; dup2(src, fd); }
+                                            else { int src = atoi(r); while (isdigit(*r)) { r++; } dup2(src, fd); }
                                         } else {
                                             while (*r && isspace(*r)) r++;
                                             const char *fn = r;
@@ -470,7 +470,7 @@ int chain_execute(const CommandChain *chain) {
                                         if (*r == '&') {
                                             r++;
                                             if (*r == '-') { close(fd); r++; }
-                                            else { int src = atoi(r); while (isdigit(*r)) r++; dup2(src, fd); }
+                                            else { int src = atoi(r); while (isdigit(*r)) { r++; } dup2(src, fd); }
                                         } else {
                                             while (*r && isspace(*r)) r++;
                                             const char *fn = r;
