@@ -251,7 +251,7 @@ void strip_quote_markers(char *s) {
     }
     if (!has_markers) return;
 
-    char *read = s;
+    const char *read = s;
     char *write = s;
 
     while (*read) {

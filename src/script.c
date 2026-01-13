@@ -951,7 +951,7 @@ static int execute_simple_line(const char *line) {
                                 } else {
                                     // Get filename
                                     while (*r && isspace(*r)) r++;
-                                    char *filename = r;
+                                    const char *filename = r;
                                     while (*r && !isspace(*r)) r++;
                                     char saved = *r;
                                     *r = '\0';
@@ -985,7 +985,7 @@ static int execute_simple_line(const char *line) {
                                 } else {
                                     // Get filename
                                     while (*r && isspace(*r)) r++;
-                                    char *filename = r;
+                                    const char *filename = r;
                                     while (*r && !isspace(*r)) r++;
                                     char saved = *r;
                                     *r = '\0';

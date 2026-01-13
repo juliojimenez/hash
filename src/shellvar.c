@@ -265,7 +265,7 @@ void shellvar_list_exported(void) {
     extern char **environ;
     for (char **env = environ; *env; env++) {
         // Parse name from NAME=value
-        char *equals = strchr(*env, '=');
+        const char *equals = strchr(*env, '=');
         if (equals) {
             size_t name_len = equals - *env;
             char name[256];

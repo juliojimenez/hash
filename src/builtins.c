@@ -1710,7 +1710,7 @@ int shell_wait(char **args) {
             if (pid > 0) {
                 // Successfully waited for a child
                 jobs_update_status(pid, status);
-                Job *job = jobs_get_by_pid(pid);
+                const Job *job = jobs_get_by_pid(pid);
                 if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
                     jobs_remove(job->job_id);
                 }
@@ -1764,7 +1764,7 @@ int shell_wait(char **args) {
             // PID
             pid = atoi(arg);
             // Find job ID if this PID is in the table
-            Job *job = jobs_get_by_pid(pid);
+            const Job *job = jobs_get_by_pid(pid);
             if (job) {
                 job_id_to_remove = job->job_id;
             }
@@ -2035,7 +2035,7 @@ static void cmd_hash_clear(void) {
 // List all hashed commands
 static void cmd_hash_list(void) {
     for (int i = 0; i < CMD_HASH_SIZE; i++) {
-        CmdHashEntry *e = cmd_hash_table[i];
+        const CmdHashEntry *e = cmd_hash_table[i];
         while (e) {
             printf("hits\tcommand\n");
             break;  // Only print header once
