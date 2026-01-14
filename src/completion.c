@@ -157,7 +157,7 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
 }
 
 // Complete files and directories
-static void complete_files(CompletionResult *result, const char *prefix) {
+static void complete_files(CompletionResult *result, const char *prefix, int is_first_word) {
     // Handle tilde expansion
     char *expanded_prefix = NULL;
     const char *working_prefix = prefix;
@@ -246,7 +246,8 @@ static void complete_files(CompletionResult *result, const char *prefix) {
             // Build full match
             char full_match[MAX_COMPLETION_LENGTH];
 
-            if (strcmp(dir_path, ".") == 0) {
+            // Preserve './' when completing the first word; otherwise strip it.
+            if (strcmp(dir_path, ".") == 0 && !is_first_word) {
                 safe_strcpy(full_match, entry->d_name, sizeof(full_match));
             } else if (has_tilde && tilde_part[0] != '\0') {
                 // Reconstruct path with original tilde prefix
@@ -359,17 +360,11 @@ CompletionResult *completion_generate(const char *line, size_t pos) {
         }
     }
 
-    if (is_first_word) {
-        // If it looks like a path, complete files instead of commands
-        if (strchr(word, '/') != NULL || word[0] == '.' || word[0] == '~') {
-            complete_files(result, word);
-        } else {
-            // Complete commands
-            complete_commands(result, word);
-        }
+    // If it is first word and doesn't looks like a path, complete commands
+    if (is_first_word && !(word[0] == '.' || word[0] == '~' || strchr(word, '/') != NULL)) {
+        complete_commands(result, word);
     } else {
-        // Complete files/directories
-        complete_files(result, word);
+        complete_files(result, word, is_first_word);
     }
 
     // Calculate common prefix
