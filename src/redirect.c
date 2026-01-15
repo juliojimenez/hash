@@ -114,6 +114,12 @@ RedirInfo *redirect_parse(char **args) {
     for (int i = 0; args[i] != NULL; i++) {
         char *arg = args[i];
 
+        // Skip args that start with quote marker - these are escaped and shouldn't be treated as operators
+        if (arg[0] == '\x01') {
+            info->args[new_arg_idx++] = arg;
+            continue;
+        }
+
         // Check for standalone redirection operators
         if (strcmp(arg, "<") == 0) {
             // Input redirection

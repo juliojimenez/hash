@@ -80,6 +80,11 @@ static bool check_background(char *cmd) {
             return false;  // It's &&, not background
         }
 
+        // Make sure it's not escaped with backslash (\&)
+        if (end > cmd && *(end - 1) == '\\') {
+            return false;  // It's escaped, not a background operator
+        }
+
         // Remove the &
         *end = '\0';
 

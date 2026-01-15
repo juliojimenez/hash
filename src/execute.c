@@ -70,6 +70,9 @@ static int launch(char **args, const char *cmd_string) {
     // Use cleaned args (or original if no redirections)
     char **exec_args = redir ? redir->args : args;
 
+    // Strip quote markers after redirect parsing (for external commands)
+    strip_quote_markers_args(exec_args);
+
     // Find and cache the command path before forking
     char *cmd_path = NULL;
     if (exec_args[0] && strchr(exec_args[0], '/') == NULL) {
@@ -439,8 +442,8 @@ int execute(char **args) {
     // Use expanded args if glob expansion happened, otherwise use original args
     char **exec_input = glob_expanded ? glob_args : args;
 
-    // Strip quote markers from arguments (markers prevent glob expansion of quoted chars)
-    strip_quote_markers_args(exec_input);
+    // Note: Don't strip quote markers here - they're needed for redirect parsing in launch()
+    // Markers will be stripped in launch() after redirections are parsed
 
     // Handle variable assignments
     // Count leading VAR=VALUE assignments
@@ -614,6 +617,9 @@ int execute(char **args) {
     }
 
     char **exec_args = redir ? redir->args : exec_input;
+
+    // Strip quote markers after redirect parsing (both for builtins and external commands)
+    strip_quote_markers_args(exec_args);
 
     // Check if this is a builtin first (without executing it)
     int is_builtin_cmd = exec_args[0] ? is_builtin(exec_args[0]) : 0;

@@ -240,12 +240,12 @@ int pipeline_execute(const Pipeline *pipeline) {
                 args = glob_args;
             }
 
-            // Strip quote markers after all expansions
-            strip_quote_markers_args(args);
-
-            // Parse redirections
+            // Parse redirections (before stripping markers, so escaped operators aren't treated as redirections)
             RedirInfo *redir = redirect_parse(args);
             char **exec_args = redir ? redir->args : args;
+
+            // Strip quote markers after redirect parsing
+            strip_quote_markers_args(exec_args);
 
             // Apply redirections
             if (redir && redirect_apply(redir) != 0) {
