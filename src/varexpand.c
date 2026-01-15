@@ -434,8 +434,9 @@ append_value:
                         // Append with markers to prevent glob expansion and quote interpretation
                         for (size_t i = 0; i < val_len && out_pos < MAX_EXPANDED_LENGTH - 2; i++) {
                             char c = var_value[i];
-                            if (c == '*' || c == '?' || c == '[' || c == '"' || c == '\'' || c == '\\') {
-                                // Add marker before special characters
+                            if (c == '*' || c == '?' || c == '[' || c == '"' || c == '\'' || c == '\\' ||
+                                c == '<' || c == '>' || c == '|' || c == '&' || c == '~') {
+                                // Add marker before special characters (globs, quotes, redirects, operators, tilde)
                                 result[out_pos++] = '\x01';
                             }
                             result[out_pos++] = c;

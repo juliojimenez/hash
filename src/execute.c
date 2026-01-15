@@ -341,8 +341,38 @@ int execute(char **args) {
         arg_count++;
     }
 
-    // Expand tilde in all arguments
+    // Expand tilde in all arguments (for args starting with ~)
     expand_tilde(args);
+
+    // Also expand tildes in assignment values BEFORE command substitution
+    // This is the correct POSIX order: tilde expansion before cmdsub
+    for (int i = 0; i < arg_count; i++) {
+        char *eq = is_var_assignment(args[i]);
+        if (eq) {
+            // This is an assignment - expand tildes in the value part
+            char *value = eq + 1;
+            char *tilde_exp = expand_tilde_in_assignment(value);
+            if (tilde_exp) {
+                // Build new argument with expanded value
+                size_t name_len = eq - args[i] + 1;  // includes '='
+                size_t new_len = name_len + strlen(tilde_exp) + 1;
+                char *new_arg = malloc(new_len);
+                if (new_arg) {
+                    memcpy(new_arg, args[i], name_len);
+                    strcpy(new_arg + name_len, tilde_exp);
+                    // Track if we need to free the original
+                    if (args[i] != original_ptrs[i]) {
+                        // Already expanded, free the old one
+                        free(args[i]);
+                    }
+                    args[i] = new_arg;
+                    expanded_args[expanded_count++] = new_arg;
+                    original_ptrs[i] = new_arg;
+                }
+                free(tilde_exp);
+            }
+        }
+    }
 
     // Track which args were expanded by tilde
     for (int i = 0; i < arg_count; i++) {
@@ -461,15 +491,9 @@ int execute(char **args) {
             const char *name = exec_input[i];
             const char *value = equals + 1;
 
-            // Expand tildes in the value (for PATH-like assignments)
-            char *tilde_expanded = expand_tilde_in_assignment(value);
-            int result;
-            if (tilde_expanded) {
-                result = shellvar_set(name, tilde_expanded);
-                free(tilde_expanded);
-            } else {
-                result = shellvar_set(name, value);
-            }
+            // Tilde expansion already happened BEFORE command substitution
+            // (in the earlier expansion phase), so just use the value directly
+            int result = shellvar_set(name, value);
             if (result < 0) {
                 assignment_failed = 1;
                 // In non-interactive mode, readonly assignment error should exit

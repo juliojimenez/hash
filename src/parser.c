@@ -109,10 +109,10 @@ char **parse_line(const char *line) {
                     read_pos++;
                 } else {
                     // Remove backslash, keep the character
-                    // If it's a glob character or redirection operator, mark it to prevent special handling
+                    // If it's a glob character, redirection operator, or tilde, mark it to prevent special handling
                     if (*read_pos == '*' || *read_pos == '?' || *read_pos == '[' ||
                         *read_pos == '<' || *read_pos == '>' || *read_pos == '|' ||
-                        *read_pos == '&' || *read_pos == ';') {
+                        *read_pos == '&' || *read_pos == ';' || *read_pos == '~') {
                         *write_pos++ = '\x01';  // Marker to prevent special interpretation
                     }
                     *write_pos++ = *read_pos++;
