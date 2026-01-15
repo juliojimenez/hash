@@ -62,7 +62,7 @@ export EDITOR=vim
 # Set your preferred pager
 export PAGER=less
 
-export PATH=$HOME/bin:/usr/local/bin:$HOME/go/bin:$PATH
+export PATH=$HOME/bin:/usr/local/bin:$HOME/go/bin:/opt/homebrew/bin/:$PATH
 
 # Note: Tilde expansion is also supported
 # You can use ~ in aliases and commands
