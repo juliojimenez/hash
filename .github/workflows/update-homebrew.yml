@@ -45,7 +45,7 @@ jobs:
           echo "SHA256: $SHA256"
 
       - name: Checkout Homebrew Tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: juliojimenez/homebrew-hash
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
