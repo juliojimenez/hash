@@ -17,6 +17,11 @@
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
 
+// Helper to check if a character is a glob metacharacter
+static int is_glob_char(char c) {
+    return c == '*' || c == '?' || c == '[';
+}
+
 // Track exit code from last command substitution
 static int last_cmdsub_exit_code = 0;
 
@@ -180,9 +185,10 @@ static int has_cmdsub(const char *str) {
 }
 
 // Extract command, execute it, and append output to result buffer
+// When in_quoted is true, protect glob characters with \x01 markers
 // Returns new position in result buffer, or -1 on allocation failure
 static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
-                                    char *result, size_t out_pos) {
+                                    char *result, size_t out_pos, int in_quoted) {
     char *cmd = malloc(cmd_len + 1);
     if (!cmd) {
         return -1;
@@ -195,10 +201,15 @@ static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
 
     if (output) {
         size_t output_len = strlen(output);
-        size_t space = MAX_CMDSUB_LENGTH - 1 - out_pos;
-        size_t to_copy = (output_len < space) ? output_len : space;
-        memcpy(result + out_pos, output, to_copy);
-        out_pos += to_copy;
+        // Copy output to result, protecting glob chars if in quoted context
+        for (size_t i = 0; i < output_len && out_pos < MAX_CMDSUB_LENGTH - 2; i++) {
+            char c = output[i];
+            if (in_quoted && is_glob_char(c)) {
+                // Protect glob character with \x01 marker
+                result[out_pos++] = '\x01';
+            }
+            result[out_pos++] = c;
+        }
         free(output);
     }
 
@@ -214,8 +225,21 @@ char *cmdsub_expand(const char *str) {
 
     size_t out_pos = 0;
     const char *p = str;
+    int in_dquote = 0;   // Track double-quote context for backticks
+    int in_squote = 0;   // Track single-quote context
 
     while (*p && out_pos < MAX_CMDSUB_LENGTH - 1) {
+        // Track quote state for backticks (which don't get \x02 markers)
+        if (*p == '"' && !in_squote) {
+            in_dquote = !in_dquote;
+            result[out_pos++] = *p++;
+            continue;
+        }
+        if (*p == '\'' && !in_dquote) {
+            in_squote = !in_squote;
+            result[out_pos++] = *p++;
+            continue;
+        }
         // Handle SOH marker with protected backslash (from single quotes: \$ or \`)
         // Pass through to varexpand which will output \$ or \` literally
         if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
@@ -291,7 +315,37 @@ char *cmdsub_expand(const char *str) {
             continue;
         }
 
-        // Handle $(...) syntax (command substitution)
+        // Handle \x02 marker (indicates $ is in double-quoted context)
+        // Consume the marker and set flag for next $ expansion
+        if (*p == '\x02' && *(p + 1) == '$') {
+            p++;  // Skip the marker, process $ next iteration with quoted flag
+            // Check if it's command substitution
+            if (*(p + 1) == '(') {
+                p += 2;  // Skip $(
+                const char *end = find_closing_paren(p);
+                if (!end) {
+                    if (out_pos < MAX_CMDSUB_LENGTH - 2) {
+                        result[out_pos++] = '$';
+                        result[out_pos++] = '(';
+                    }
+                    continue;
+                }
+                // Process with in_quoted=1 to protect glob chars
+                ssize_t new_pos = process_substitution(p, end - p, result, out_pos, 1);
+                if (new_pos < 0) {
+                    free(result);
+                    return NULL;
+                }
+                out_pos = (size_t)new_pos;
+                p = end + 1;
+                continue;
+            }
+            // Not command substitution, pass marker through for varexpand
+            result[out_pos++] = '\x02';
+            continue;
+        }
+
+        // Handle $(...) syntax (command substitution) - unquoted context
         if (*p == '$' && *(p + 1) == '(') {
             p += 2;
 
@@ -304,7 +358,7 @@ char *cmdsub_expand(const char *str) {
                 continue;
             }
 
-            ssize_t new_pos = process_substitution(p, end - p, result, out_pos);
+            ssize_t new_pos = process_substitution(p, end - p, result, out_pos, 0);
             if (new_pos < 0) {
                 free(result);
                 return NULL;
@@ -315,7 +369,9 @@ char *cmdsub_expand(const char *str) {
         }
 
         // Handle `...` syntax (backticks)
-        if (*p == '`') {
+        // Backticks in single quotes are literal, not command substitution
+        // Backticks in double quotes should protect glob chars in output
+        if (*p == '`' && !in_squote) {
             p++;
 
             const char *end = find_closing_backtick(p);
@@ -326,7 +382,7 @@ char *cmdsub_expand(const char *str) {
                 continue;
             }
 
-            ssize_t new_pos = process_substitution(p, end - p, result, out_pos);
+            ssize_t new_pos = process_substitution(p, end - p, result, out_pos, in_dquote);
             if (new_pos < 0) {
                 free(result);
                 return NULL;

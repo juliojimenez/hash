@@ -151,6 +151,10 @@ char **parse_line(const char *line) {
                 }
             } else if (*(read_pos + 1) == '(') {
                 // $(...) command substitution - keep everything until matching )
+                // Mark as quoted if inside double quotes - don't glob the expansion
+                if (in_double_quote) {
+                    *write_pos++ = '\x02';
+                }
                 *write_pos++ = *read_pos++;  // $
                 *write_pos++ = *read_pos++;  // (
                 int depth = 1;

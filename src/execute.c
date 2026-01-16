@@ -489,7 +489,10 @@ int execute(char **args) {
             char *equals = is_var_assignment(exec_input[i]);
             *equals = '\0';
             const char *name = exec_input[i];
-            const char *value = equals + 1;
+            char *value = equals + 1;
+
+            // Strip quote markers from value before storing
+            strip_quote_markers(value);
 
             // Tilde expansion already happened BEFORE command substitution
             // (in the earlier expansion phase), so just use the value directly
@@ -529,7 +532,10 @@ int execute(char **args) {
             char *equals = is_var_assignment(exec_input[i]);
             *equals = '\0';
             const char *name = exec_input[i];
-            const char *value = equals + 1;
+            char *value = equals + 1;
+
+            // Strip quote markers from value before storing
+            strip_quote_markers(value);
 
             // Save old value for restoration
             save_prefix_var(name);

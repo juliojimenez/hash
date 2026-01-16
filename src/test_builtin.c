@@ -247,6 +247,16 @@ static int test_terminal(const char *fd_str) {
 // ============================================================================
 
 // Primary expression: unary operators or atoms
+// Helper to check if a string is a binary operator
+static int is_binary_op(const char *s) {
+    return s && (strcmp(s, "=") == 0 || strcmp(s, "==") == 0 ||
+                 strcmp(s, "!=") == 0 || strcmp(s, "-eq") == 0 ||
+                 strcmp(s, "-ne") == 0 || strcmp(s, "-lt") == 0 ||
+                 strcmp(s, "-le") == 0 || strcmp(s, "-gt") == 0 ||
+                 strcmp(s, "-ge") == 0 || strcmp(s, "-nt") == 0 ||
+                 strcmp(s, "-ot") == 0 || strcmp(s, "-ef") == 0);
+}
+
 static int eval_primary(char **args, int *pos, int argc) {
     if (*pos >= argc) {
         return 1;  // No more arguments = false
@@ -254,17 +264,22 @@ static int eval_primary(char **args, int *pos, int argc) {
 
     const char *arg = args[*pos];
 
-    // Handle parentheses
+    // Handle parentheses - but only if not followed by a binary operator
+    // This allows [ "(" = "(" ] to work as a string comparison
     if (strcmp(arg, "(") == 0) {
-        (*pos)++;
-        int result = eval_expr(args, pos, argc);
-        if (*pos < argc && strcmp(args[*pos], ")") == 0) {
+        // Check if this looks like a binary comparison: ( OP arg
+        if (*pos + 1 < argc && !is_binary_op(args[*pos + 1])) {
             (*pos)++;
-        } else {
-            fprintf(stderr, "test: missing ')'\n");
-            return 2;
+            int result = eval_expr(args, pos, argc);
+            if (*pos < argc && strcmp(args[*pos], ")") == 0) {
+                (*pos)++;
+            } else {
+                fprintf(stderr, "test: missing ')'\n");
+                return 2;
+            }
+            return result;
         }
-        return result;
+        // Otherwise fall through to treat ( as a string literal
     }
 
     // Unary file operators
@@ -589,6 +604,18 @@ static int eval_double_bracket_and(char **args, int *pos, int argc);
 static int eval_double_bracket_not(char **args, int *pos, int argc);
 static int eval_double_bracket_primary(char **args, int *pos, int argc);
 
+// Helper to check if a string is a binary operator for [[ ]]
+static int is_double_bracket_binary_op(const char *s) {
+    return s && (strcmp(s, "=") == 0 || strcmp(s, "==") == 0 ||
+                 strcmp(s, "!=") == 0 || strcmp(s, "=~") == 0 ||
+                 strcmp(s, "<") == 0 || strcmp(s, ">") == 0 ||
+                 strcmp(s, "-eq") == 0 || strcmp(s, "-ne") == 0 ||
+                 strcmp(s, "-lt") == 0 || strcmp(s, "-le") == 0 ||
+                 strcmp(s, "-gt") == 0 || strcmp(s, "-ge") == 0 ||
+                 strcmp(s, "-nt") == 0 || strcmp(s, "-ot") == 0 ||
+                 strcmp(s, "-ef") == 0);
+}
+
 // Primary expression for [[ ]]
 static int eval_double_bracket_primary(char **args, int *pos, int argc) {
     if (*pos >= argc) {
@@ -597,17 +624,22 @@ static int eval_double_bracket_primary(char **args, int *pos, int argc) {
 
     const char *arg = args[*pos];
 
-    // Handle parentheses
+    // Handle parentheses - but only if not followed by a binary operator
+    // This allows [[ "(" = "(" ]] to work as a string comparison
     if (strcmp(arg, "(") == 0) {
-        (*pos)++;
-        int result = eval_double_bracket_expr(args, pos, argc);
-        if (*pos < argc && strcmp(args[*pos], ")") == 0) {
+        // Check if this looks like a binary comparison: ( OP arg
+        if (*pos + 1 < argc && !is_double_bracket_binary_op(args[*pos + 1])) {
             (*pos)++;
-        } else {
-            fprintf(stderr, "[[: missing ')'\n");
-            return 2;
+            int result = eval_double_bracket_expr(args, pos, argc);
+            if (*pos < argc && strcmp(args[*pos], ")") == 0) {
+                (*pos)++;
+            } else {
+                fprintf(stderr, "[[: missing ')'\n");
+                return 2;
+            }
+            return result;
         }
-        return result;
+        // Otherwise fall through to treat ( as a string literal
     }
 
     // Unary file operators (same as [ ])
