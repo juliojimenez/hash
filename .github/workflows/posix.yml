@@ -81,7 +81,6 @@ jobs:
             semantics.backtick.fds
             semantics.case.escape.modernish
             semantics.escaping.backslash.modernish
-            semantics.assign.noglob
           "
 
           # Function to check if test should be skipped

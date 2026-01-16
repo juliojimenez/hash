@@ -63,16 +63,24 @@ char *varexpand_expand(const char *str, int last_exit_code) {
     const char *p = str;
 
     while (*p && out_pos < MAX_EXPANDED_LENGTH - 1) {
-        if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
+        if (*p == '\x01' && *(p + 1) == '\\' && *(p + 2) == '\\') {
+            // Protected double backslash from single quotes - output both literally
+            result[out_pos++] = '\\';
+            result[out_pos++] = '\\';
+            p += 3;
+            continue;
+        } else if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
             // Protected backslash from single quotes - output \$ or \` literally
             result[out_pos++] = '\\';
             result[out_pos++] = *(p + 2);
             p += 3;
+            continue;
         } else if (*p == '\\' && *(p + 1) == '\\') {
-            // Double backslash - output one backslash and continue
+            // Double backslash outside single quotes - output one backslash and continue
             // This allows \\$ to become \ followed by expanded $var
             result[out_pos++] = '\\';
             p += 2;
+            continue;
         } else if ((*p == '\x01' || *p == '\\') && *(p + 1) == '$') {
             // Single-quoted or escaped dollar sign - output $ literally (no expansion)
             result[out_pos++] = '$';

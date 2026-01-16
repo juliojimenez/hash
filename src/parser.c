@@ -55,30 +55,23 @@ char **parse_line(const char *line) {
     token_start_idx = (size_t)(write_pos - output);
 
     while (*read_pos) {
-        if (*read_pos == '\\' && *(read_pos + 1)) {
-            // Escape sequence
+        // In single quotes, backslash has NO special meaning - treat as regular char
+        // BUT we need to mark it so varexpand doesn't process it
+        if (*read_pos == '\\' && in_single_quote) {
+            // Add marker before backslash if next char is $, `, or \
+            // so varexpand knows this is literal and not an escape sequence
+            if (*(read_pos + 1) == '$' || *(read_pos + 1) == '`' || *(read_pos + 1) == '\\') {
+                *write_pos++ = '\x01';  // Marker for literal backslash
+            }
+            *write_pos++ = *read_pos++;
+            continue;
+        }
+
+        if (*read_pos == '\\' && *(read_pos + 1) && !in_single_quote) {
+            // Escape sequence (only outside single quotes)
             read_pos++; // Skip the backslash
 
-            if (in_single_quote) {
-                // In single quotes, backslash has no special meaning (POSIX)
-                // A single quote CANNOT occur within single quotes, so if the
-                // character after backslash is a quote, it ends the string
-                if (*read_pos == '\'') {
-                    // Write the backslash and DON'T consume the quote
-                    // Let the main loop handle the quote to close the string
-                    *write_pos++ = '\\';
-                    // Don't advance read_pos - the quote will be handled in next iteration
-                } else {
-                    // Keep both backslash and the following character
-                    // Use marker before backslash when followed by $ or ` to prevent
-                    // varexpand from processing \$ or \` as escape sequences
-                    if (*read_pos == '$' || *read_pos == '`') {
-                        *write_pos++ = '\x01';  // Marker to protect the backslash
-                    }
-                    *write_pos++ = '\\';
-                    *write_pos++ = *read_pos++;
-                }
-            } else if (in_double_quote) {
+            if (in_double_quote) {
                 // In double quotes, backslash is special only before $ ` " \ newline
                 switch (*read_pos) {
                     case '$':
