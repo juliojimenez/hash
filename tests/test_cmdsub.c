@@ -79,22 +79,24 @@ void test_cmdsub_no_substitution(void) {
     TEST_ASSERT_NULL(result);  // No substitution needed
 }
 
-// Test escaped dollar sign
+// Test escaped dollar sign - preserved for varexpand to handle
 void test_cmdsub_escaped_dollar(void) {
     char *result = cmdsub_expand("\\$(echo hello)");
 
     TEST_ASSERT_NOT_NULL(result);
-    TEST_ASSERT_EQUAL_STRING("$(echo hello)", result);
+    // cmdsub_expand preserves \$ for varexpand to strip later
+    TEST_ASSERT_EQUAL_STRING("\\$(echo hello)", result);
 
     free(result);
 }
 
-// Test escaped backtick
+// Test escaped backtick - preserved for varexpand to handle
 void test_cmdsub_escaped_backtick(void) {
     char *result = cmdsub_expand("\\`echo hello\\`");
 
     TEST_ASSERT_NOT_NULL(result);
-    TEST_ASSERT_EQUAL_STRING("`echo hello`", result);
+    // cmdsub_expand preserves \` for varexpand to strip later
+    TEST_ASSERT_EQUAL_STRING("\\`echo hello\\`", result);
 
     free(result);
 }
