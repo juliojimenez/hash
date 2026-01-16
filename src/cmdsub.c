@@ -242,8 +242,9 @@ char *cmdsub_expand(const char *str) {
         // Handle escape sequences
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
-                // Escaped $ or ` - output literal character (prevents substitution)
-                if (out_pos < MAX_CMDSUB_LENGTH - 1) {
+                // Escaped $ or ` - preserve the escape for varexpand to handle
+                if (out_pos < MAX_CMDSUB_LENGTH - 2) {
+                    result[out_pos++] = '\\';
                     result[out_pos++] = *(p + 1);
                 }
                 p += 2;

@@ -1782,34 +1782,120 @@ static int process_do(const char *line) {
 }
 
 // Execute a buffered loop body (multi-line string)
+// Collect heredoc content from a string buffer, advancing the pointer past the heredoc
+// Returns allocated heredoc content string (caller must free)
+static char *heredoc_collect_from_string(const char **ptr, const char *delimiter, int strip_tabs) {
+    heredoc_reset();
+
+    const char *p = *ptr;
+
+    while (*p) {
+        // Find end of current line
+        const char *line_start = p;
+        while (*p && *p != '\n') p++;
+
+        // Extract line (without newline)
+        size_t line_len = p - line_start;
+        char *line = malloc(line_len + 1);
+        if (!line) {
+            heredoc_reset();
+            return NULL;
+        }
+        memcpy(line, line_start, line_len);
+        line[line_len] = '\0';
+
+        // Skip past newline if present
+        if (*p == '\n') p++;
+
+        // Check for delimiter
+        const char *check = line;
+        if (strip_tabs) {
+            while (*check == '\t') check++;
+        }
+
+        if (strcmp(check, delimiter) == 0) {
+            // Found delimiter - update pointer and return collected content
+            free(line);
+            *ptr = p;
+            char *result = heredoc_content;
+            heredoc_content = NULL;
+            heredoc_content_len = 0;
+            heredoc_content_cap = 0;
+            return result;
+        }
+
+        // Add line to heredoc content
+        if (heredoc_append(line, strip_tabs) < 0) {
+            free(line);
+            heredoc_reset();
+            return NULL;
+        }
+        free(line);
+    }
+
+    // End of string without delimiter - return what we have
+    *ptr = p;
+    char *result = heredoc_content;
+    heredoc_content = NULL;
+    heredoc_content_len = 0;
+    heredoc_content_cap = 0;
+    return result;
+}
+
 static int execute_loop_body(const char *body) {
     if (!body || *body == '\0') return 1;
 
-    char *body_copy = strdup(body);
-    if (!body_copy) return -1;
-
-    char *saveptr;
-    const char *line = strtok_r(body_copy, "\n", &saveptr);
+    const char *ptr = body;
     int result = 1;
 
-    while (line && result > 0) {
-        // Skip empty lines
+    while (*ptr && result > 0) {
+        // Find end of current line
+        const char *line_start = ptr;
+        while (*ptr && *ptr != '\n') ptr++;
+
+        // Extract line
+        size_t line_len = ptr - line_start;
+        char *line = malloc(line_len + 1);
+        if (!line) return -1;
+        memcpy(line, line_start, line_len);
+        line[line_len] = '\0';
+
+        // Skip past newline if present
+        if (*ptr == '\n') ptr++;
+
+        // Skip empty lines and comments
         const char *p = line;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
+            // Check for heredoc and collect content if present
+            if (redirect_has_heredoc(line)) {
+                int strip_tabs = 0;
+                int quoted = 0;
+                char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
+                if (delim) {
+                    free(pending_heredoc);
+                    pending_heredoc = heredoc_collect_from_string(&ptr, delim, strip_tabs);
+                    pending_heredoc_quoted = quoted;
+                    free(delim);
+                }
+            }
+
             // Use script_process_line to handle nested control structures
             result = script_process_line(line);
+
+            // Clear pending heredoc after processing
+            free(pending_heredoc);
+            pending_heredoc = NULL;
+            pending_heredoc_quoted = 0;
         }
+
+        free(line);
 
         // Check for pending break/continue (POSIX dynamic scoping)
         if (break_pending > 0 || continue_pending > 0) {
             break;  // Stop executing body lines
         }
-
-        line = strtok_r(NULL, "\n", &saveptr);
     }
-
-    free(body_copy);
 
     // Return signal if break/continue is pending
     if (break_pending > 0) return -3;
@@ -2793,6 +2879,17 @@ static int process_single_line(const char *line) {
         }
         // Buffer the line for later execution
         append_to_loop_body(ctx, line);
+        // If there's pending heredoc content, append it too (with delimiter)
+        if (pending_heredoc) {
+            int strip_tabs = 0;
+            int quoted = 0;
+            char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
+            if (delim) {
+                append_to_loop_body(ctx, pending_heredoc);
+                append_to_loop_body(ctx, delim);
+                free(delim);
+            }
+        }
         return 1;  // Continue processing
     }
 
@@ -3019,11 +3116,37 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     return (result < 0 && result != -2) ? 1 : execute_get_last_exit_code();
 }
 
+// Preprocess script to handle backslash-newline continuations
+// Returns newly allocated string (caller must free)
+static char *preprocess_line_continuations(const char *script) {
+    if (!script) return NULL;
+
+    size_t len = strlen(script);
+    char *result = malloc(len + 1);
+    if (!result) return NULL;
+
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++) {
+        // Check for backslash-newline (line continuation)
+        if (script[i] == '\\' && i + 1 < len && script[i + 1] == '\n') {
+            // Skip both backslash and newline
+            i++;  // Skip newline (loop will advance past backslash)
+            continue;
+        }
+        result[j++] = script[i];
+    }
+    result[j] = '\0';
+    return result;
+}
+
 int script_execute_string(const char *script) {
     if (!script) return 0;
 
-    char *script_copy = strdup(script);
-    if (!script_copy) return 1;
+    // Preprocess to handle backslash-newline continuations
+    char *preprocessed = preprocess_line_continuations(script);
+    if (!preprocessed) return 1;
+
+    char *script_copy = preprocessed;
 
     bool old_in_script = script_state.in_script;
     script_state.in_script = true;
