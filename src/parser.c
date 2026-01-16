@@ -58,8 +58,8 @@ char **parse_line(const char *line) {
         // In single quotes, backslash has NO special meaning - treat as regular char
         // BUT we need to mark it so varexpand doesn't process it
         if (*read_pos == '\\' && in_single_quote) {
-            // Add marker before backslash if next char is $, `, or \
-            // so varexpand knows this is literal and not an escape sequence
+            /* Add marker before backslash if next char is $, `, or \
+               so varexpand knows this is literal and not an escape sequence */
             if (*(read_pos + 1) == '$' || *(read_pos + 1) == '`' || *(read_pos + 1) == '\\') {
                 *write_pos++ = '\x01';  // Marker for literal backslash
             }
