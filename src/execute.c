@@ -83,8 +83,10 @@ static int launch(char **args, const char *cmd_string) {
     if (pid == 0) {
         // Child process
 
-        // Put child in its own process group
-        setpgid(0, 0);
+        // Put child in its own process group (only in interactive mode)
+        if (is_interactive) {
+            setpgid(0, 0);
+        }
 
         // Restore default signal handlers in child
         signal(SIGINT, SIG_DFL);
@@ -119,30 +121,35 @@ static int launch(char **args, const char *cmd_string) {
     } else {
         // Parent process
 
-        // Put child in its own process group
-        setpgid(pid, pid);
-
-        // Block SIGCHLD while waiting for foreground process
-        // This prevents the SIGCHLD handler from reaping our child
+        // Job control setup only in interactive mode
         sigset_t block_mask, old_mask;
-        sigemptyset(&block_mask);
-        sigaddset(&block_mask, SIGCHLD);
-        sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+        if (is_interactive) {
+            // Put child in its own process group
+            setpgid(pid, pid);
 
-        // Give terminal control to child process group
-        tcsetpgrp(STDIN_FILENO, pid);
+            // Block SIGCHLD while waiting for foreground process
+            // This prevents the SIGCHLD handler from reaping our child
+            sigemptyset(&block_mask);
+            sigaddset(&block_mask, SIGCHLD);
+            sigprocmask(SIG_BLOCK, &block_mask, &old_mask);
+
+            // Give terminal control to child process group
+            tcsetpgrp(STDIN_FILENO, pid);
+        }
 
         // Wait for child, but also handle stopped state
         pid_t wpid;
         do {
-            wpid = waitpid(pid, &status, WUNTRACED);
+            wpid = waitpid(pid, &status, is_interactive ? WUNTRACED : 0);
         } while (wpid == -1 && errno == EINTR);
 
-        // Take back terminal control
-        tcsetpgrp(STDIN_FILENO, getpgrp());
+        if (is_interactive) {
+            // Take back terminal control
+            tcsetpgrp(STDIN_FILENO, getpgrp());
 
-        // Restore SIGCHLD handling
-        sigprocmask(SIG_SETMASK, &old_mask, NULL);
+            // Restore SIGCHLD handling
+            sigprocmask(SIG_SETMASK, &old_mask, NULL);
+        }
 
         // Handle the result
         if (wpid > 0) {
