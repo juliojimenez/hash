@@ -215,10 +215,12 @@ char **parse_line(const char *line) {
             token_start_idx = (size_t)(write_pos - output);
             token_has_content = 0;  // Reset for next token
         } else if ((*read_pos == '$' && in_single_quote) ||
-                   ((*read_pos == '~' || *read_pos == '*' || *read_pos == '?' || *read_pos == '[') &&
+                   ((*read_pos == '~' || *read_pos == '*' || *read_pos == '?' || *read_pos == '[' ||
+                     *read_pos == '<' || *read_pos == '>' || *read_pos == '|' || *read_pos == '&' || *read_pos == ';') &&
                     (in_single_quote || in_double_quote))) {
-            // Special characters inside quotes - use SOH marker (\x01) to prevent expansion
-            // Handles: $ in single quotes, ~ in any quotes, glob chars (*, ?, [) in any quotes
+            // Special characters inside quotes - use SOH marker (\x01) to prevent special handling
+            // Handles: $ in single quotes, ~ in any quotes, glob chars (*, ?, [) in any quotes,
+            // redirect/pipe operators (<, >, |, &, ;) in any quotes
             *write_pos++ = '\x01';
             *write_pos++ = *read_pos++;
         } else if ((*read_pos == '>' || *read_pos == '<') && !in_single_quote && !in_double_quote) {

@@ -17,9 +17,12 @@
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
 
-// Helper to check if a character is a glob metacharacter
-static int is_glob_char(char c) {
-    return c == '*' || c == '?' || c == '[';
+// Helper to check if a character needs protection in quoted context
+// This includes glob chars, redirect operators, quote chars, and other special chars
+static int needs_quote_protection(char c) {
+    return c == '*' || c == '?' || c == '[' ||  // glob chars
+           c == '<' || c == '>' || c == '|' || c == '&' ||  // redirect/pipe operators
+           c == '"' || c == '\'' || c == '\\' || c == '~';  // quotes, backslash, tilde
 }
 
 // Track exit code from last command substitution
@@ -201,11 +204,11 @@ static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
 
     if (output) {
         size_t output_len = strlen(output);
-        // Copy output to result, protecting glob chars if in quoted context
+        // Copy output to result, protecting special chars if in quoted context
         for (size_t i = 0; i < output_len && out_pos < MAX_CMDSUB_LENGTH - 2; i++) {
             char c = output[i];
-            if (in_quoted && is_glob_char(c)) {
-                // Protect glob character with \x01 marker
+            if (in_quoted && needs_quote_protection(c)) {
+                // Protect special character with \x01 marker
                 result[out_pos++] = '\x01';
             }
             result[out_pos++] = c;
