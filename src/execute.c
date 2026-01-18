@@ -357,7 +357,7 @@ int execute(char **args) {
         const char *eq = is_var_assignment(args[i]);
         if (eq) {
             // This is an assignment - expand tildes in the value part
-            const char *value = eq + 1;
+            char *value = eq + 1;
             char *tilde_exp = expand_tilde_in_assignment(value);
             if (tilde_exp) {
                 // Build new argument with expanded value
