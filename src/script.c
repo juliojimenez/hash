@@ -25,6 +25,7 @@
 #include "varexpand.h"
 #include "arith.h"
 #include "cmdsub.h"
+#include "expand.h"
 
 // Global script state
 ScriptState script_state;
@@ -1672,7 +1673,10 @@ static int process_for(const char *line) {
                         values = malloc((size_t)(parsed_count + 1) * sizeof(char*));
                         if (values) {
                             for (int i = 0; i < parsed_count && count < 255; i++) {
-                                values[count++] = strdup(parsed[i]);
+                                values[count] = strdup(parsed[i]);
+                                // Strip quote markers so loop variable gets actual value
+                                strip_quote_markers(values[count]);
+                                count++;
                             }
                             values[count] = NULL;
                         }
