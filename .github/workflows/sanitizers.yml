@@ -25,10 +25,7 @@ jobs:
 
       - name: Run tests with ASan
         env:
-          # Disable leak detection for interactive shell tests - the parser intentionally
-          # doesn't free output buffers to avoid use-after-free during alias expansion.
-          # Memory is reclaimed by OS at process exit. Unit tests below still check for leaks.
-          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1:print_stats=1
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:print_stats=1
         run: |
           # Basic command tests
           echo -e "echo hello\npwd\nls\nexit" | ./hash-shell
@@ -59,8 +56,7 @@ jobs:
 
       - name: Run unit tests with ASan
         env:
-          # Disable leak detection - unit tests also use parse_line which has intentional leaks
-          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
         run: |
           make test-clean
           make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer -std=gnu99"
@@ -246,10 +242,8 @@ jobs:
                   input[len] = '\0';
 
                   // Test parse_line
-                  char **args = parse_line(input);
-                  if (args) {
-                      free(args);
-                  }
+                  ParseResult parsed = parse_line(input);
+                  parse_result_free(&parsed);
 
                   free(input);
               }
@@ -488,8 +482,7 @@ jobs:
 
       - name: Run comprehensive tests
         env:
-          # Disable leak detection for interactive shell tests (see ASan job comment)
-          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: |
           # Test basic commands
@@ -524,8 +517,7 @@ jobs:
 
       - name: Run unit tests with ASan + UBSan
         env:
-          # Disable leak detection - unit tests also use parse_line which has intentional leaks
-          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: |
           make test-clean

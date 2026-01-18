@@ -213,11 +213,12 @@ int pipeline_execute(const Pipeline *pipeline) {
             char *line_copy = strdup(pipeline->commands[i].cmd_line);
             if (!line_copy) _exit(EXIT_FAILURE);
 
-            char **args = parse_line(line_copy);
-            if (!args) {
+            ParseResult parsed = parse_line(line_copy);
+            if (!parsed.tokens) {
                 free(line_copy);
                 _exit(EXIT_FAILURE);
             }
+            char **args = parsed.tokens;
 
             // Perform variable expansion, command substitution, and arithmetic expansion
             expand_tilde(args);
@@ -250,6 +251,7 @@ int pipeline_execute(const Pipeline *pipeline) {
             // Apply redirections
             if (redir && redirect_apply(redir) != 0) {
                 redirect_free(redir);
+                free(parsed.buffer);
                 free(args);
                 free(line_copy);
                 _exit(EXIT_FAILURE);
@@ -262,6 +264,7 @@ int pipeline_execute(const Pipeline *pipeline) {
                 fflush(stdout);
                 fflush(stderr);
                 redirect_free(redir);
+                free(parsed.buffer);
                 free(args);
                 free(line_copy);
                 _exit(builtin_result == 1 ? 0 : builtin_result);
@@ -273,6 +276,7 @@ int pipeline_execute(const Pipeline *pipeline) {
             }
 
             redirect_free(redir);
+            free(parsed.buffer);
             free(args);
             free(line_copy);
             _exit(EXIT_FAILURE);

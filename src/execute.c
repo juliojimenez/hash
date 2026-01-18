@@ -571,8 +571,8 @@ int execute(char **args) {
             return 1;
         }
 
-        char **alias_args = parse_line(alias_line);
-        if (!alias_args) {
+        ParseResult alias_parsed = parse_line(alias_line);
+        if (!alias_parsed.tokens) {
             free(alias_line);
             last_command_exit_code = 1;
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
@@ -591,7 +591,7 @@ int execute(char **args) {
         if (orig_arg_count > 0) {
             // Count alias args
             int alias_arg_count = 0;
-            while (alias_args[alias_arg_count] != NULL) {
+            while (alias_parsed.tokens[alias_arg_count] != NULL) {
                 alias_arg_count++;
             }
 
@@ -600,7 +600,7 @@ int execute(char **args) {
             if (combined_args) {
                 // Copy alias args
                 for (int i = 0; i < alias_arg_count; i++) {
-                    combined_args[i] = alias_args[i];
+                    combined_args[i] = alias_parsed.tokens[i];
                 }
                 // Append original args (skip command name)
                 for (int i = 0; i < orig_arg_count; i++) {
@@ -612,7 +612,7 @@ int execute(char **args) {
                 result = execute(combined_args);
 
                 free(combined_args);
-                free(alias_args);
+                parse_result_free(&alias_parsed);
                 free(alias_line);
                 if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
                 free_expanded_args(expanded_args, expanded_count);
@@ -626,11 +626,11 @@ int execute(char **args) {
         fprintf(stderr, "DEBUG: Executing alias '%s' -> '%s'\n", exec_input[0], alias_value);
         fprintf(stderr, "DEBUG: Before recursive execute, last_command_exit_code=%d\n", last_command_exit_code);
 #endif
-        result = execute(alias_args);
+        result = execute(alias_parsed.tokens);
 #if DEBUG_EXIT_CODE
         fprintf(stderr, "DEBUG: After recursive execute, last_command_exit_code=%d, result=%d\n", last_command_exit_code, result);
 #endif
-        free(alias_args);
+        parse_result_free(&alias_parsed);
         free(alias_line);
 #if DEBUG_EXIT_CODE
         fprintf(stderr, "DEBUG: After freeing alias stuff, last_command_exit_code=%d\n", last_command_exit_code);

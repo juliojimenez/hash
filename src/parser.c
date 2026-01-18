@@ -19,7 +19,7 @@ char *read_line(const char *prompt) {
     return line;
 }
 
-char **parse_line(const char *line) {
+ParseResult parse_line(const char *line) {
     int bufsize = MAX_ARGS;
     int position = 0;
     char **tokens = malloc(bufsize * sizeof(char*));
@@ -302,11 +302,18 @@ char **parse_line(const char *line) {
 
     tokens[position] = NULL;
 
-    // Note: output buffer is intentionally not freed here.
-    // The tokens array contains pointers into the output buffer, and callers
-    // may hold references to tokens across multiple parse_line calls (e.g., during
-    // alias expansion). The memory will be reclaimed when the process exits.
-    // This matches typical shell behavior where input buffers persist.
+    ParseResult result = {
+        .buffer = output,
+        .tokens = tokens
+    };
+    return result;
+}
 
-    return tokens;
+void parse_result_free(ParseResult *result) {
+    if (result) {
+        free(result->buffer);
+        free(result->tokens);
+        result->buffer = NULL;
+        result->tokens = NULL;
+    }
 }

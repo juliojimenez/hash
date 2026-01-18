@@ -555,9 +555,9 @@ int chain_execute(const CommandChain *chain) {
             pipeline_free(pipe);
         } else {
             // No pipes - execute normally
-            char **args = parse_line(exec_cmd);
-            if (args) {
-                shell_continue = execute(args);
+            ParseResult parsed = parse_line(exec_cmd);
+            if (parsed.tokens) {
+                shell_continue = execute(parsed.tokens);
                 last_exit_code = execute_get_last_exit_code();
                 // Apply negation if needed
                 if (negate) {
@@ -568,7 +568,7 @@ int chain_execute(const CommandChain *chain) {
 #if DEBUG_EXIT_CODE
                 fprintf(stderr, "DEBUG: chain_execute() after execute, last_exit_code=%d\n", last_exit_code);
 #endif
-                free(args);
+                parse_result_free(&parsed);
             }
         }
 

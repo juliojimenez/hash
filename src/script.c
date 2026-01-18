@@ -676,12 +676,12 @@ bool script_eval_condition(const char *condition) {
         exit_code = execute_get_last_exit_code();
         chain_free(chain);
     } else {
-        char **args = parse_line(line_copy);
-        if (args && args[0]) {
-            execute(args);
+        ParseResult parsed = parse_line(line_copy);
+        if (parsed.tokens && parsed.tokens[0]) {
+            execute(parsed.tokens);
             exit_code = execute_get_last_exit_code();
-            free(args);
         }
+        parse_result_free(&parsed);
     }
 
     // Restore in_condition flag
@@ -1663,17 +1663,17 @@ static int process_for(const char *line) {
             int count = 0;
 
             if (len > 0) {
-                char **parsed = parse_line(values_str);
-                if (parsed) {
+                ParseResult parsed = parse_line(values_str);
+                if (parsed.tokens) {
                     // Count parsed values
                     int parsed_count = 0;
-                    while (parsed[parsed_count]) parsed_count++;
+                    while (parsed.tokens[parsed_count]) parsed_count++;
 
                     if (parsed_count > 0) {
                         values = malloc((size_t)(parsed_count + 1) * sizeof(char*));
                         if (values) {
                             for (int i = 0; i < parsed_count && count < 255; i++) {
-                                values[count] = strdup(parsed[i]);
+                                values[count] = strdup(parsed.tokens[i]);
                                 // Strip quote markers so loop variable gets actual value
                                 strip_quote_markers(values[count]);
                                 count++;
@@ -1681,7 +1681,7 @@ static int process_for(const char *line) {
                             values[count] = NULL;
                         }
                     }
-                    free(parsed);
+                    parse_result_free(&parsed);
                 }
             }
 
