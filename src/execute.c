@@ -354,7 +354,7 @@ int execute(char **args) {
     // Also expand tildes in assignment values BEFORE command substitution
     // This is the correct POSIX order: tilde expansion before cmdsub
     for (int i = 0; i < arg_count; i++) {
-        char *eq = is_var_assignment(args[i]);
+        const char *eq = is_var_assignment(args[i]);
         if (eq) {
             // This is an assignment - expand tildes in the value part
             const char *value = eq + 1;
