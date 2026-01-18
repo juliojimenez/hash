@@ -2,30 +2,30 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: ''
+labels: 'bug'
 assignees: juliojimenez
 
 ---
 
-**Description**
+## Description
 
 
 
-**Steps To Reproduce**
+## Steps To Reproduce
 
 
 
-**Expected Behavior**
+## Expected Behavior
 
 
 
-**Screenshots**
+## Screenshots
 
 
 
-**Release Information**
+## Release Information
 
 - OS:
 - Version:
 
-**Additional Context**
+## Additional Context
