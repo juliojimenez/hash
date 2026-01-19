@@ -224,11 +224,15 @@ static char *read_complete_line(FILE *fp) {
 }
 
 // Collect heredoc content from file until delimiter is found
+// For unquoted heredocs (quoted=0), backslash-newline is treated as line continuation
 // Returns the collected content (caller must free), or NULL on error
-static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs) {
+static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int strip_tabs, int quoted) {
     heredoc_reset();
 
     char line[MAX_SCRIPT_LINE];
+    char *accumulated = NULL;  // For handling line continuations
+    size_t accum_len = 0;
+    size_t accum_cap = 0;
 
     while (fgets(line, sizeof(line), fp)) {
         // Remove trailing newline
@@ -238,26 +242,92 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
             len--;
         }
 
-        // Check for delimiter
-        const char *check = line;
-        if (strip_tabs) {
-            while (*check == '\t') check++;
+        // Check for delimiter (only on raw lines, not accumulated)
+        if (!accumulated) {
+            const char *check = line;
+            if (strip_tabs) {
+                while (*check == '\t') check++;
+            }
+
+            if (strcmp(check, delimiter) == 0) {
+                // Found delimiter - return collected content
+                char *result = heredoc_content;
+                heredoc_content = NULL;
+                heredoc_content_len = 0;
+                heredoc_content_cap = 0;
+                return result;
+            }
         }
 
-        if (strcmp(check, delimiter) == 0) {
-            // Found delimiter - return collected content
-            char *result = heredoc_content;
-            heredoc_content = NULL;
-            heredoc_content_len = 0;
-            heredoc_content_cap = 0;
-            return result;
+        // Handle line continuation for unquoted heredocs
+        if (!quoted && len > 0 && line[len-1] == '\\') {
+            // Line ends with backslash - accumulate for continuation
+            line[len-1] = '\0';  // Remove trailing backslash
+            len--;
+
+            // Grow accumulated buffer
+            size_t needed = accum_len + len + 1;
+            if (needed > accum_cap) {
+                size_t new_cap = accum_cap ? accum_cap * 2 : 256;
+                if (new_cap < needed) new_cap = needed;
+                char *new_accum = realloc(accumulated, new_cap);
+                if (!new_accum) {
+                    free(accumulated);
+                    heredoc_reset();
+                    return NULL;
+                }
+                accumulated = new_accum;
+                accum_cap = new_cap;
+            }
+
+            memcpy(accumulated + accum_len, line, len);
+            accum_len += len;
+            accumulated[accum_len] = '\0';
+            continue;  // Read next line to continue
+        }
+
+        // Complete line (no continuation or quoted heredoc)
+        char *final_line;
+        if (accumulated) {
+            // Append current line to accumulated content
+            size_t needed = accum_len + len + 1;
+            if (needed > accum_cap) {
+                char *new_accum = realloc(accumulated, needed);
+                if (!new_accum) {
+                    free(accumulated);
+                    heredoc_reset();
+                    return NULL;
+                }
+                accumulated = new_accum;
+            }
+            memcpy(accumulated + accum_len, line, len + 1);
+            final_line = accumulated;
+        } else {
+            final_line = line;
         }
 
         // Add line to heredoc content
-        if (heredoc_append(line, strip_tabs) < 0) {
+        if (heredoc_append(final_line, strip_tabs) < 0) {
+            free(accumulated);
             heredoc_reset();
             return NULL;
         }
+
+        // Reset accumulator
+        free(accumulated);
+        accumulated = NULL;
+        accum_len = 0;
+        accum_cap = 0;
+    }
+
+    // Handle any remaining accumulated content (file ended mid-continuation)
+    if (accumulated && accum_len > 0) {
+        if (heredoc_append(accumulated, strip_tabs) < 0) {
+            free(accumulated);
+            heredoc_reset();
+            return NULL;
+        }
+        free(accumulated);
     }
 
     // EOF without delimiter - return what we have (POSIX allows this with warning)
@@ -1787,11 +1857,15 @@ static int process_do(const char *line) {
 
 // Execute a buffered loop body (multi-line string)
 // Collect heredoc content from a string buffer, advancing the pointer past the heredoc
+// For unquoted heredocs (quoted=0), backslash-newline is treated as line continuation
 // Returns allocated heredoc content string (caller must free)
-static char *heredoc_collect_from_string(const char **ptr, const char *delimiter, int strip_tabs) {
+static char *heredoc_collect_from_string(const char **ptr, const char *delimiter, int strip_tabs, int quoted) {
     heredoc_reset();
 
     const char *p = *ptr;
+    char *accumulated = NULL;  // For handling line continuations
+    size_t accum_len = 0;
+    size_t accum_cap = 0;
 
     while (*p) {
         // Find end of current line
@@ -1802,6 +1876,7 @@ static char *heredoc_collect_from_string(const char **ptr, const char *delimiter
         size_t line_len = p - line_start;
         char *line = malloc(line_len + 1);
         if (!line) {
+            free(accumulated);
             heredoc_reset();
             return NULL;
         }
@@ -1811,30 +1886,99 @@ static char *heredoc_collect_from_string(const char **ptr, const char *delimiter
         // Skip past newline if present
         if (*p == '\n') p++;
 
-        // Check for delimiter
-        const char *check = line;
-        if (strip_tabs) {
-            while (*check == '\t') check++;
+        // Check for delimiter (only on raw lines, not accumulated)
+        if (!accumulated) {
+            const char *check = line;
+            if (strip_tabs) {
+                while (*check == '\t') check++;
+            }
+
+            if (strcmp(check, delimiter) == 0) {
+                // Found delimiter - update pointer and return collected content
+                free(line);
+                *ptr = p;
+                char *result = heredoc_content;
+                heredoc_content = NULL;
+                heredoc_content_len = 0;
+                heredoc_content_cap = 0;
+                return result;
+            }
         }
 
-        if (strcmp(check, delimiter) == 0) {
-            // Found delimiter - update pointer and return collected content
+        // Handle line continuation for unquoted heredocs
+        if (!quoted && line_len > 0 && line[line_len-1] == '\\') {
+            // Line ends with backslash - accumulate for continuation
+            line[line_len-1] = '\0';  // Remove trailing backslash
+            line_len--;
+
+            // Grow accumulated buffer
+            size_t needed = accum_len + line_len + 1;
+            if (needed > accum_cap) {
+                size_t new_cap = accum_cap ? accum_cap * 2 : 256;
+                if (new_cap < needed) new_cap = needed;
+                char *new_accum = realloc(accumulated, new_cap);
+                if (!new_accum) {
+                    free(accumulated);
+                    free(line);
+                    heredoc_reset();
+                    return NULL;
+                }
+                accumulated = new_accum;
+                accum_cap = new_cap;
+            }
+
+            memcpy(accumulated + accum_len, line, line_len);
+            accum_len += line_len;
+            accumulated[accum_len] = '\0';
             free(line);
-            *ptr = p;
-            char *result = heredoc_content;
-            heredoc_content = NULL;
-            heredoc_content_len = 0;
-            heredoc_content_cap = 0;
-            return result;
+            continue;  // Read next line to continue
+        }
+
+        // Complete line (no continuation or quoted heredoc)
+        char *final_line;
+        if (accumulated) {
+            // Append current line to accumulated content
+            size_t needed = accum_len + line_len + 1;
+            if (needed > accum_cap) {
+                char *new_accum = realloc(accumulated, needed);
+                if (!new_accum) {
+                    free(accumulated);
+                    free(line);
+                    heredoc_reset();
+                    return NULL;
+                }
+                accumulated = new_accum;
+            }
+            memcpy(accumulated + accum_len, line, line_len + 1);
+            final_line = accumulated;
+        } else {
+            final_line = line;
         }
 
         // Add line to heredoc content
-        if (heredoc_append(line, strip_tabs) < 0) {
+        if (heredoc_append(final_line, strip_tabs) < 0) {
+            free(accumulated);
             free(line);
             heredoc_reset();
             return NULL;
         }
+
+        // Cleanup
         free(line);
+        free(accumulated);
+        accumulated = NULL;
+        accum_len = 0;
+        accum_cap = 0;
+    }
+
+    // Handle any remaining accumulated content (string ended mid-continuation)
+    if (accumulated && accum_len > 0) {
+        if (heredoc_append(accumulated, strip_tabs) < 0) {
+            free(accumulated);
+            heredoc_reset();
+            return NULL;
+        }
+        free(accumulated);
     }
 
     // End of string without delimiter - return what we have
@@ -1878,7 +2022,7 @@ static int execute_loop_body(const char *body) {
                 char *delim = redirect_get_heredoc_delim(line, &strip_tabs, &quoted);
                 if (delim) {
                     free(pending_heredoc);
-                    pending_heredoc = heredoc_collect_from_string(&ptr, delim, strip_tabs);
+                    pending_heredoc = heredoc_collect_from_string(&ptr, delim, strip_tabs, quoted);
                     pending_heredoc_quoted = quoted;
                     free(delim);
                 }
@@ -3048,7 +3192,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
                 char *delim = redirect_get_heredoc_delim(first_line, &strip_tabs, &quoted);
                 if (delim) {
                     free(pending_heredoc);
-                    pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                    pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs, quoted);
                     pending_heredoc_quoted = quoted;
                     free(delim);
                 }
@@ -3075,7 +3219,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             char *delim = redirect_get_heredoc_delim(full_line, &strip_tabs, &quoted);
             if (delim) {
                 free(pending_heredoc);
-                pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs);
+                pending_heredoc = heredoc_collect_from_file(fp, delim, strip_tabs, quoted);
                 pending_heredoc_quoted = quoted;
                 free(delim);
             }
