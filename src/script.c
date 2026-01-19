@@ -287,7 +287,7 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
         }
 
         // Complete line (no continuation or quoted heredoc)
-        char *final_line;
+        const char *final_line;
         if (accumulated) {
             // Append current line to accumulated content
             size_t needed = accum_len + len + 1;
@@ -1937,7 +1937,7 @@ static char *heredoc_collect_from_string(const char **ptr, const char *delimiter
         }
 
         // Complete line (no continuation or quoted heredoc)
-        char *final_line;
+        const char *final_line;
         if (accumulated) {
             // Append current line to accumulated content
             size_t needed = accum_len + line_len + 1;
