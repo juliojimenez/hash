@@ -321,11 +321,13 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
     }
 
     // Handle any remaining accumulated content (file ended mid-continuation)
-    if (accumulated && accum_len > 0) {
-        if (heredoc_append(accumulated, strip_tabs) < 0) {
-            free(accumulated);
-            heredoc_reset();
-            return NULL;
+    if (accumulated) {
+        if (accum_len > 0) {
+            if (heredoc_append(accumulated, strip_tabs) < 0) {
+                free(accumulated);
+                heredoc_reset();
+                return NULL;
+            }
         }
         free(accumulated);
     }
@@ -1972,11 +1974,13 @@ static char *heredoc_collect_from_string(const char **ptr, const char *delimiter
     }
 
     // Handle any remaining accumulated content (string ended mid-continuation)
-    if (accumulated && accum_len > 0) {
-        if (heredoc_append(accumulated, strip_tabs) < 0) {
-            free(accumulated);
-            heredoc_reset();
-            return NULL;
+    if (accumulated) {
+        if (accum_len > 0) {
+            if (heredoc_append(accumulated, strip_tabs) < 0) {
+                free(accumulated);
+                heredoc_reset();
+                return NULL;
+            }
         }
         free(accumulated);
     }
