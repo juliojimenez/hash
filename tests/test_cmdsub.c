@@ -3,6 +3,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Helper to strip \x03 IFS markers from result (in-place)
+static void strip_ifs_markers(char *s) {
+    if (!s) return;
+    char *read = s;
+    char *write = s;
+    while (*read) {
+        if (*read != '\x03') {
+            *write++ = *read;
+        }
+        read++;
+    }
+    *write = '\0';
+}
+
 void setUp(void) {
 }
 
@@ -14,6 +28,7 @@ void test_cmdsub_simple_dollar_paren(void) {
     char *result = cmdsub_expand("$(echo hello)");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("hello", result);
 
     free(result);
@@ -24,6 +39,7 @@ void test_cmdsub_backticks(void) {
     char *result = cmdsub_expand("`echo world`");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("world", result);
 
     free(result);
@@ -34,6 +50,7 @@ void test_cmdsub_in_string(void) {
     char *result = cmdsub_expand("Hello $(echo there) friend");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("Hello there friend", result);
 
     free(result);
@@ -44,6 +61,7 @@ void test_cmdsub_multiple(void) {
     char *result = cmdsub_expand("$(echo a) and $(echo b)");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("a and b", result);
 
     free(result);
@@ -54,6 +72,7 @@ void test_cmdsub_nested(void) {
     char *result = cmdsub_expand("$(echo $(echo nested))");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("nested", result);
 
     free(result);
@@ -64,6 +83,7 @@ void test_cmdsub_pwd(void) {
     char *result = cmdsub_expand("$(pwd)");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     // Should not be empty
     TEST_ASSERT_TRUE(strlen(result) > 0);
     // Should start with / (absolute path)
@@ -106,6 +126,7 @@ void test_cmdsub_multiline_output(void) {
     char *result = cmdsub_expand("$(printf 'line1\\nline2\\n')");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     // Trailing newlines should be stripped, but internal newline preserved
     TEST_ASSERT_EQUAL_STRING("line1\nline2", result);
 
@@ -117,6 +138,7 @@ void test_cmdsub_empty_command(void) {
     char *result = cmdsub_expand("$()");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("", result);
 
     free(result);
@@ -129,6 +151,7 @@ void test_cmdsub_with_args(void) {
     char *result = cmdsub_expand("$(printf '%s' test)");
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("test", result);
 
     free(result);

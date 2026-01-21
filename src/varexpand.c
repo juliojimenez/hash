@@ -459,12 +459,19 @@ append_value:
                             result[out_pos++] = c;
                         }
                     } else {
-                        // Unquoted - simple copy
+                        // Unquoted - wrap with \x03 markers for IFS splitting
                         size_t space = MAX_EXPANDED_LENGTH - 1 - out_pos;
-                        size_t to_copy = (val_len < space) ? val_len : space;
-                        if (to_copy > 0) {
+                        // Need space for: marker + value + marker
+                        size_t to_copy = (val_len < space - 2) ? val_len : (space > 2 ? space - 2 : 0);
+                        if (to_copy > 0 && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                            result[out_pos++] = '\x03';  // Start marker
                             memcpy(result + out_pos, var_value, to_copy);
                             out_pos += to_copy;
+                            result[out_pos++] = '\x03';  // End marker
+                        } else if (val_len == 0 && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                            // Empty expansion - still add markers so it can be removed
+                            result[out_pos++] = '\x03';
+                            result[out_pos++] = '\x03';
                         }
                     }
                 }

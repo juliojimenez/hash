@@ -204,7 +204,12 @@ static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
 
     if (output) {
         size_t output_len = strlen(output);
-        // Copy output to result, protecting special chars if in quoted context
+        // Copy output to result
+        // - If in_quoted: protect special chars with \x01 markers
+        // - If not in_quoted: wrap with \x03 markers for IFS splitting
+        if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 2) {
+            result[out_pos++] = '\x03';  // Start IFS split marker
+        }
         for (size_t i = 0; i < output_len && out_pos < MAX_CMDSUB_LENGTH - 2; i++) {
             char c = output[i];
             if (in_quoted && needs_quote_protection(c)) {
@@ -213,7 +218,14 @@ static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
             }
             result[out_pos++] = c;
         }
+        if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 1) {
+            result[out_pos++] = '\x03';  // End IFS split marker
+        }
         free(output);
+    } else if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 2) {
+        // Empty output in unquoted context - add markers so it can be removed
+        result[out_pos++] = '\x03';
+        result[out_pos++] = '\x03';
     }
 
     return (ssize_t)out_pos;

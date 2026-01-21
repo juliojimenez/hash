@@ -21,6 +21,7 @@
 #include "safe_string.h"
 #include "script.h"
 #include "shellvar.h"
+#include "ifs.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -439,6 +440,37 @@ int execute(char **args) {
         }
     }
 
+    // IFS word splitting - may change the number of arguments
+    // ifs_split_args processes \x03 markers from unquoted expansions
+    char **ifs_args = NULL;
+    int ifs_arg_count = arg_count;
+    bool ifs_expanded = false;
+
+    // Make a copy of args for ifs_split_args to potentially replace
+    ifs_args = malloc((arg_count + 1) * sizeof(char *));
+    if (ifs_args) {
+        for (int i = 0; i < arg_count; i++) {
+            ifs_args[i] = args[i];
+        }
+        ifs_args[arg_count] = NULL;
+
+        char **old_ifs_args = ifs_args;
+        if (ifs_split_args(&ifs_args, &ifs_arg_count) == 0 && ifs_args != old_ifs_args) {
+            ifs_expanded = true;
+            // ifs_split_args created a new array - free the temp one we made
+            free(old_ifs_args);
+            // Update args and arg_count for subsequent phases
+            arg_count = ifs_arg_count;
+        } else {
+            // No splitting happened or same array returned - free our temp array
+            free(ifs_args);
+            ifs_args = NULL;
+        }
+    }
+
+    // Use IFS-split args if expansion happened
+    char **glob_input = ifs_expanded ? ifs_args : args;
+
     // Glob (pathname) expansion - may change the number of arguments
     // expand_glob creates a new array with all strings strdup'd
     char **glob_args = NULL;
@@ -448,7 +480,7 @@ int execute(char **args) {
     // Check if any argument has glob characters
     bool has_globs = false;
     for (int i = 0; i < arg_count; i++) {
-        if (has_glob_chars(args[i])) {
+        if (has_glob_chars(glob_input[i])) {
             has_globs = true;
             break;
         }
@@ -459,7 +491,7 @@ int execute(char **args) {
         glob_args = malloc((arg_count + 1) * sizeof(char *));
         if (glob_args) {
             for (int i = 0; i < arg_count; i++) {
-                glob_args[i] = args[i];
+                glob_args[i] = glob_input[i];
             }
             glob_args[arg_count] = NULL;
 
@@ -476,8 +508,8 @@ int execute(char **args) {
         }
     }
 
-    // Use expanded args if glob expansion happened, otherwise use original args
-    char **exec_input = glob_expanded ? glob_args : args;
+    // Use expanded args if glob expansion happened, otherwise use IFS-split args (or original)
+    char **exec_input = glob_expanded ? glob_args : glob_input;
 
     // Note: Don't strip quote markers here - they're needed for redirect parsing in launch()
     // Markers will be stripped in launch() after redirections are parsed
@@ -511,6 +543,7 @@ int execute(char **args) {
                 if (!is_interactive) {
                     *equals = '=';  // Restore
                     last_command_exit_code = 1;
+                    if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
                     if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
                     free_expanded_args(expanded_args, expanded_count);
                     return 0;  // Signal to exit shell
@@ -526,6 +559,7 @@ int execute(char **args) {
             // Use the exit code from command substitution if any occurred
             last_command_exit_code = cmdsub_get_last_exit_code();
         }
+        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         return 1;
@@ -565,6 +599,7 @@ int execute(char **args) {
         char *alias_line = strdup(alias_value);
         if (!alias_line) {
             last_command_exit_code = 1;
+            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             restore_prefix_vars();
@@ -575,6 +610,7 @@ int execute(char **args) {
         if (!alias_parsed.tokens) {
             free(alias_line);
             last_command_exit_code = 1;
+            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             restore_prefix_vars();
@@ -614,6 +650,7 @@ int execute(char **args) {
                 free(combined_args);
                 parse_result_free(&alias_parsed);
                 free(alias_line);
+                if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
                 if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
                 free_expanded_args(expanded_args, expanded_count);
                 restore_prefix_vars();
@@ -635,6 +672,7 @@ int execute(char **args) {
 #if DEBUG_EXIT_CODE
         fprintf(stderr, "DEBUG: After freeing alias stuff, last_command_exit_code=%d\n", last_command_exit_code);
 #endif
+        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
 #if DEBUG_EXIT_CODE
@@ -716,6 +754,7 @@ int execute(char **args) {
             }
         }
         redirect_free(redir);
+        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         restore_prefix_vars();
@@ -734,6 +773,7 @@ int execute(char **args) {
         result = try_builtin(exec_input);
         if (result != -1) {
             redirect_free(redir);
+            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             restore_prefix_vars();
@@ -753,6 +793,7 @@ int execute(char **args) {
             if (saved_fds[1] != -1) { dup2(saved_fds[1], STDOUT_FILENO); close(saved_fds[1]); }
             if (saved_fds[2] != -1) { dup2(saved_fds[2], STDERR_FILENO); close(saved_fds[2]); }
             redirect_free(redir);
+            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             restore_prefix_vars();
@@ -776,6 +817,7 @@ int execute(char **args) {
 
     if (result != -1) {
         redirect_free(redir);
+        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         restore_prefix_vars();
@@ -794,6 +836,7 @@ int execute(char **args) {
         // Note: Do NOT set last_command_exit_code here - it's already set
         // by shell_return (or the last command in the function body).
         // The result is a control flow signal (1=continue, 0=exit, -2=return, etc.)
+        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         restore_prefix_vars();
@@ -807,6 +850,7 @@ int execute(char **args) {
     result = launch(exec_input, cmd_string);
 
     free(cmd_string);
+    if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
     if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
     free_expanded_args(expanded_args, expanded_count);
     restore_prefix_vars();

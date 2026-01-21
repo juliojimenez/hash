@@ -234,8 +234,9 @@ int expand_tilde(char **args) {
     return 0;
 }
 
-// Remove \x01 markers from a string (in-place)
-// These markers are used to protect quoted characters from expansion
+// Remove \x01 and \x03 markers from a string (in-place)
+// \x01 markers protect quoted characters from expansion
+// \x03 markers delimit unquoted expansion regions (for IFS splitting)
 void strip_quote_markers(char *s) {
     if (!s) return;
 
@@ -243,7 +244,7 @@ void strip_quote_markers(char *s) {
     const char *check = s;
     bool has_markers = false;
     while (*check) {
-        if (*check == '\x01') {
+        if (*check == '\x01' || *check == '\x03') {
             has_markers = true;
             break;
         }
@@ -259,6 +260,9 @@ void strip_quote_markers(char *s) {
             // Skip the marker, copy the protected character
             read++;
             *write++ = *read++;
+        } else if (*read == '\x03') {
+            // Skip IFS split marker entirely
+            read++;
         } else {
             *write++ = *read++;
         }

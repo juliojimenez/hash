@@ -5,6 +5,22 @@
 #include <string.h>
 #include <unistd.h>
 
+// Helper to strip \x03 IFS markers from expanded result (in-place)
+// These markers are added by varexpand for IFS splitting and get
+// processed later in the expansion pipeline
+static void strip_ifs_markers(char *s) {
+    if (!s) return;
+    char *read = s;
+    char *write = s;
+    while (*read) {
+        if (*read != '\x03') {
+            *write++ = *read;
+        }
+        read++;
+    }
+    *write = '\0';
+}
+
 void setUp(void) {
     script_init();
 }
@@ -20,6 +36,7 @@ void test_expand_simple_var(void) {
     char *result = varexpand_expand("$TEST_VAR", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("hello", result);
 
     free(result);
@@ -33,6 +50,7 @@ void test_expand_braced_var(void) {
     char *result = varexpand_expand("${MY_VAR}", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("world", result);
 
     free(result);
@@ -46,6 +64,7 @@ void test_expand_var_in_string(void) {
     char *result = varexpand_expand("Hello $USER!", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("Hello julio!", result);
 
     free(result);
@@ -59,6 +78,7 @@ void test_expand_multiple_vars(void) {
     char *result = varexpand_expand("$FIRST and $SECOND", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("foo and bar", result);
 
     free(result);
@@ -71,6 +91,7 @@ void test_expand_exit_code(void) {
     char *result = varexpand_expand("Exit code: $?", 42);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("Exit code: 42", result);
 
     free(result);
@@ -81,6 +102,7 @@ void test_expand_pid(void) {
     char *result = varexpand_expand("PID: $$", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
 
     // Should contain a number
     char expected[64];
@@ -95,6 +117,7 @@ void test_expand_shell_name(void) {
     char *result = varexpand_expand("Running $0", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("Running hash", result);
 
     free(result);
@@ -149,6 +172,7 @@ void test_expand_braced_concat(void) {
     char *result = varexpand_expand("${VAR}ing", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("testing", result);
 
     free(result);
@@ -180,6 +204,7 @@ void test_expand_positional_1(void) {
     char *result = varexpand_expand("arg1: $1", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("arg1: first_arg", result);
 
     free(result);
@@ -196,6 +221,7 @@ void test_expand_positional_2(void) {
     char *result = varexpand_expand("$1 and $2", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("first and second", result);
 
     free(result);
@@ -211,6 +237,7 @@ void test_expand_positional_braced(void) {
     char *result = varexpand_expand("${1}suffix", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     TEST_ASSERT_EQUAL_STRING("valuesuffix", result);
 
     free(result);
@@ -241,6 +268,7 @@ void test_expand_positional_0_with_params(void) {
     char *result = varexpand_expand("$0", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
     // POSIX: $0 returns the script name when set
     TEST_ASSERT_EQUAL_STRING("myscript.sh", result);
 
