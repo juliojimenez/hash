@@ -62,6 +62,18 @@ static int launch(char **args, const char *cmd_string) {
                 return is_interactive ? 1 : 0;
             }
             expanded_heredoc = var_result;
+            // Strip \x03 IFS markers from heredoc content (heredocs don't undergo IFS splitting)
+            if (expanded_heredoc) {
+                char *read = expanded_heredoc;
+                char *write = expanded_heredoc;
+                while (*read) {
+                    if (*read != '\x03') {
+                        *write++ = *read;
+                    }
+                    read++;
+                }
+                *write = '\0';
+            }
             redirect_set_heredoc_content(redir, expanded_heredoc ? expanded_heredoc : heredoc, 1);
         } else {
             redirect_set_heredoc_content(redir, heredoc, heredoc_quoted);
