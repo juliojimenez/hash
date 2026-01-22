@@ -383,13 +383,14 @@ jobs:
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/arith.c -o build/arith.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/shellvar.c -o build/shellvar.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/trap.c -o build/trap.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/ifs.c -o build/ifs.o
 
           # Define all object files needed for linking
           ALL_OBJS="build/parser.o build/safe_string.o build/lineedit.o build/history.o \
             build/completion.o build/config.o build/colors.o build/prompt.o build/builtins.o \
             build/execute.o build/redirect.o build/expand.o build/chain.o build/pipeline.o \
             build/script.o build/jobs.o build/test_builtin.o build/cmdsub.o build/varexpand.o \
-            build/update.o build/arith.o build/shellvar.o build/trap.o"
+            build/update.o build/arith.o build/shellvar.o build/trap.o build/ifs.o"
 
           # Build fuzz targets - parser needs most dependencies due to builtins/config
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_parser fuzz/fuzz_parser.c $ALL_OBJS
