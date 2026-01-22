@@ -154,6 +154,11 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
     if (ifs[0] == '\0') {
         // Just strip \x03 markers but don't split
         for (int i = 0; i < *arg_count; i++) {
+            // Only modify strings that actually have markers
+            // (avoid writing to read-only string literals)
+            if (!strchr(args[i], '\x03')) {
+                continue;
+            }
             // Remove \x03 markers in place
             char *src = args[i];
             char *dst = args[i];
@@ -188,9 +193,14 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         }
     }
 
-    // If no splitting needed, just strip markers
+    // If no splitting needed, just strip markers from strings that have them
     if (!has_splitting) {
         for (int i = 0; i < *arg_count; i++) {
+            // Only modify strings that actually have markers
+            // (avoid writing to read-only string literals)
+            if (!strchr(args[i], '\x03')) {
+                continue;
+            }
             char *src = args[i];
             char *dst = args[i];
             while (*src) {
