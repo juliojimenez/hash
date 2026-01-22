@@ -721,10 +721,18 @@ int has_arith(const char *str) {
     if (!str) return 0;
 
     const char *p = str;
+    const char *prev = NULL;
     while (*p) {
         if (*p == '$' && *(p + 1) == '(' && *(p + 2) == '(') {
+            // Check if $( is escaped by \ or \x01 marker (from single quotes)
+            if (prev && (*prev == '\\' || *prev == '\x01')) {
+                // Escaped, skip
+                p++;
+                continue;
+            }
             return 1;
         }
+        prev = p;
         p++;
     }
     return 0;
@@ -766,8 +774,14 @@ char *arith_expand(const char *str) {
     const char *p = str;
 
     while (*p && out_pos < MAX_ARITH_LENGTH - 1) {
-        // Look for $((
+        // Look for $(( but not if escaped
         if (*p == '$' && *(p + 1) == '(' && *(p + 2) == '(') {
+            // Check if $( is escaped by \ or \x01 marker (from single quotes)
+            if (out_pos > 0 && (result[out_pos - 1] == '\\' || result[out_pos - 1] == '\x01')) {
+                // Escaped - copy $ literally and continue
+                result[out_pos++] = *p++;
+                continue;
+            }
             p += 3;  // Skip $((
 
             const char *end = find_arith_end(p);
