@@ -1,11 +1,11 @@
-hash-shell (28-1) unstable; urgency=medium
+hash-shell (29-1) unstable; urgency=medium
 
-  * Merged Dependabot PRs for GitHub Actions
-  * Smoosh POSIX tests
+  * Update code repository issue templates
+  * Fix parse_line memory leaks (fix recommendation by @kshku)
   * SonarQube findings fixes
-  * hash is on Product Hunt!
-  * Added homebrew to PATH in example .hashrc
-  * fix(completion): preserve ./ in tab completion (by @kshku)
-  * fix(source): check for file in CWD before PATH (by @kshku)
+  * Fix Smoosh tests
+    - semantics.escaping.single
+    - semantics.eval.makeadder
+  * Implemented internal field separator (IFS)
 
- -- Julio Jimenez <julio@julioj.com>  Sun, 18 Jan 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Thu, 22 Jan 2026 12:00:00 +0000

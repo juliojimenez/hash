@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Release Tag'
         required: true
-        default: 'v28'
+        default: 'v29'
 
 jobs:
   update-homebrew:
