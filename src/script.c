@@ -2644,9 +2644,20 @@ static char *expand_case_word(const char *word) {
         result = varexp;
     }
 
-    // Strip \x01 and \x03 markers from expansion
-    // Case words don't undergo IFS splitting, but markers still need removal
-    strip_quote_markers(result);
+    // Strip \x03 IFS markers from expansion (but NOT \x01 which protect literals)
+    // Case words don't undergo IFS splitting, but \x03 markers still need removal
+    // Note: \x01 markers are handled by remove_shell_quotes below
+    {
+        char *read = result;
+        char *write = result;
+        while (*read) {
+            if (*read != '\x03') {
+                *write++ = *read;
+            }
+            read++;
+        }
+        *write = '\0';
+    }
 
     // Remove shell quotes (quote removal phase of word expansion)
     char *unquoted = remove_shell_quotes(result);
