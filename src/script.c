@@ -2648,7 +2648,7 @@ static char *expand_case_word(const char *word) {
     // Case words don't undergo IFS splitting, but \x03 markers still need removal
     // Note: \x01 markers are handled by remove_shell_quotes below
     {
-        char *read = result;
+        const char *read = result;
         char *write = result;
         while (*read) {
             if (*read != '\x03') {

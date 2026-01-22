@@ -812,7 +812,7 @@ char *arith_expand(const char *str) {
                 expr = cmdsub_expanded;
                 // Strip \x03 IFS markers from cmdsub output - they're not needed
                 // for arithmetic and would cause the parser to error
-                char *read = expr;
+                const char *read = expr;
                 char *write = expr;
                 while (*read) {
                     if (*read != '\x03') {

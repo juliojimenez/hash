@@ -64,7 +64,7 @@ static int launch(char **args, const char *cmd_string) {
             expanded_heredoc = var_result;
             // Strip \x03 IFS markers from heredoc content (heredocs don't undergo IFS splitting)
             if (expanded_heredoc) {
-                char *read = expanded_heredoc;
+                const char *read = expanded_heredoc;
                 char *write = expanded_heredoc;
                 while (*read) {
                     if (*read != '\x03') {

@@ -48,7 +48,7 @@ static int is_var_assignment(const char *arg) {
 // Strip \x03 markers from a string in place (for assignments)
 static void strip_markers_inplace(char *s) {
     if (!s) return;
-    char *src = s;
+    const char *src = s;
     char *dst = s;
     while (*src) {
         if (*src != '\x03') {
@@ -188,7 +188,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
                 continue;
             }
             // Remove \x03 markers in place
-            char *src = args[i];
+            const char *src = args[i];
             char *dst = args[i];
             while (*src) {
                 if (*src != '\x03') {
@@ -229,7 +229,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             if (!strchr(args[i], '\x03')) {
                 continue;
             }
-            char *src = args[i];
+            const char *src = args[i];
             char *dst = args[i];
             while (*src) {
                 if (*src != '\x03') {
