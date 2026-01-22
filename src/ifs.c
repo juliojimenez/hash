@@ -31,6 +31,34 @@ static int is_ifs_char(char c, const char *ifs) {
     return strchr(ifs, c) != NULL;
 }
 
+// Check if argument is a variable assignment (VAR=value)
+// POSIX: Assignment values don't undergo word splitting
+static int is_var_assignment(const char *arg) {
+    if (!arg) return 0;
+    // Must start with letter or underscore
+    if (!isalpha((unsigned char)*arg) && *arg != '_') return 0;
+    const char *p = arg + 1;
+    // Find the '=' - variable name must be alphanumeric or underscore
+    while (*p && (isalnum((unsigned char)*p) || *p == '_')) {
+        p++;
+    }
+    return *p == '=';
+}
+
+// Strip \x03 markers from a string in place (for assignments)
+static void strip_markers_inplace(char *s) {
+    if (!s) return;
+    char *src = s;
+    char *dst = s;
+    while (*src) {
+        if (*src != '\x03') {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
+}
+
 // Process a single argument that may contain \x03 markers
 // Returns array of resulting strings (may be more than one if splitting occurred)
 // Caller must free each string and the array
@@ -220,6 +248,17 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
     int new_count = 0;
 
     for (int i = 0; i < *arg_count && new_count < MAX_SPLIT_ARGS - 1; i++) {
+        // POSIX: Variable assignments don't undergo word splitting
+        // Just strip markers and keep as single argument
+        if (is_var_assignment(args[i])) {
+            char *copy = strdup(args[i]);
+            if (copy) {
+                strip_markers_inplace(copy);
+                new_args[new_count++] = copy;
+            }
+            continue;
+        }
+
         int part_count = 0;
         char **parts = process_arg_with_markers(args[i], ifs, &part_count);
 
