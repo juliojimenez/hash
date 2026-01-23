@@ -122,7 +122,7 @@ ParseResult parse_line(const char *line) {
             token_has_content = 1;  // Mark that this token exists (even if empty after quotes)
             read_pos++;
         } else if (*read_pos == '$' && !in_single_quote) {
-            // Handle $(...) command substitution and $((...)) arithmetic
+            // Handle $(...) command substitution, $((...)) arithmetic, and ${...} parameter expansion
             if (*(read_pos + 1) == '(' && *(read_pos + 2) == '(') {
                 // $((...)) arithmetic - keep everything until matching ))
                 *write_pos++ = *read_pos++;  // $
@@ -158,6 +158,51 @@ ParseResult parse_line(const char *line) {
                         depth--;
                     }
                     *write_pos++ = *read_pos++;
+                }
+            } else if (*(read_pos + 1) == '{') {
+                // ${...} parameter expansion - keep everything until matching }
+                // Must track nested braces for constructs like ${var:-${default}}
+                if (in_double_quote) {
+                    *write_pos++ = '\x02';
+                }
+                *write_pos++ = *read_pos++;  // $
+                *write_pos++ = *read_pos++;  // {
+                int depth = 1;
+                while (*read_pos && depth > 0) {
+                    if (*read_pos == '\\' && *(read_pos + 1)) {
+                        // Escaped character - copy both
+                        *write_pos++ = *read_pos++;
+                        *write_pos++ = *read_pos++;
+                    } else if (*read_pos == '\'' && !in_double_quote) {
+                        // Single quote inside ${...} - copy until closing quote
+                        *write_pos++ = *read_pos++;
+                        while (*read_pos && *read_pos != '\'') {
+                            *write_pos++ = *read_pos++;
+                        }
+                        if (*read_pos == '\'') {
+                            *write_pos++ = *read_pos++;
+                        }
+                    } else if (*read_pos == '"') {
+                        // Double quote inside ${...} - copy until closing quote
+                        *write_pos++ = *read_pos++;
+                        while (*read_pos && *read_pos != '"') {
+                            if (*read_pos == '\\' && *(read_pos + 1)) {
+                                *write_pos++ = *read_pos++;
+                            }
+                            *write_pos++ = *read_pos++;
+                        }
+                        if (*read_pos == '"') {
+                            *write_pos++ = *read_pos++;
+                        }
+                    } else if (*read_pos == '{') {
+                        depth++;
+                        *write_pos++ = *read_pos++;
+                    } else if (*read_pos == '}') {
+                        depth--;
+                        *write_pos++ = *read_pos++;
+                    } else {
+                        *write_pos++ = *read_pos++;
+                    }
                 }
             } else {
                 // Just a $ (variable)

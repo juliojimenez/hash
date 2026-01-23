@@ -178,6 +178,7 @@ static char *read_complete_line(FILE *fp) {
     char buf[MAX_SCRIPT_LINE];
     bool in_single_quote = false;
     bool in_double_quote = false;
+    int brace_depth = 0;  // Track ${...} depth - # inside braces is not a comment
 
     while (fgets(buf, sizeof(buf), fp)) {
         size_t len = strlen(buf);
@@ -218,7 +219,11 @@ static char *read_complete_line(FILE *fp) {
                 in_single_quote = !in_single_quote;
             } else if (c == '"' && !in_single_quote) {
                 in_double_quote = !in_double_quote;
-            } else if (c == '#' && !in_single_quote && !in_double_quote) {
+            } else if (c == '{' && !in_single_quote) {
+                brace_depth++;
+            } else if (c == '}' && !in_single_quote && brace_depth > 0) {
+                brace_depth--;
+            } else if (c == '#' && !in_single_quote && !in_double_quote && brace_depth == 0) {
                 // Start of comment - stop tracking quotes for rest of line
                 in_comment = true;
             }
@@ -2351,7 +2356,7 @@ static int execute_case_body(const char *body, const char *word) {
     char *body_copy = strdup(body);
     if (!body_copy) return 1;
 
-    const char *line = body_copy;
+    char *line = body_copy;
     char *next_line;
 
     while (line && *line) {
@@ -2375,7 +2380,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Pattern format: pattern) or (pattern) or pattern|pattern)
         // Skip if we're in a matched clause executing commands
 
-        const char *trimmed = line;
+        char *trimmed = line;
         while (*trimmed && isspace(*trimmed)) trimmed++;
 
         // Check for ;; which ends a clause
@@ -2391,7 +2396,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Check if this is a pattern line
         // Patterns can be: pattern) or (pattern) or pat1|pat2)
         // A pattern line ends with ) but not ;;
-        const char *close_paren = NULL;
+        char *close_paren = NULL;
 
         // Skip commands that might contain subshells
         // A pattern line is: [whitespace][(][pattern][|pattern...][)]
@@ -2415,7 +2420,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Not in a matched clause - this should be a pattern
         // Look for pattern ending with )
         // Skip leading ( if present
-        const char *p = trimmed;
+        char *p = trimmed;
         if (*p == '(') {
             p++;
             while (*p && isspace(*p)) p++;
@@ -2482,7 +2487,7 @@ static int execute_case_body(const char *body, const char *word) {
             in_matched_clause = true;
 
             // Check if there are commands after the ) on this line
-            const char *after_paren = close_paren + 1;
+            char *after_paren = close_paren + 1;
             while (*after_paren && isspace(*after_paren)) after_paren++;
 
             // Check for ;; immediately after pattern
@@ -3474,6 +3479,7 @@ static char *preprocess_line_continuations(const char *script) {
     bool in_single_quote = false;
     bool in_double_quote = false;
     bool in_comment = false;
+    int brace_depth = 0;  // Track ${...} depth - # inside braces is not a comment
 
     size_t j = 0;
     for (size_t i = 0; i < len; i++) {
@@ -3509,7 +3515,11 @@ static char *preprocess_line_continuations(const char *script) {
             in_single_quote = !in_single_quote;
         } else if (c == '"' && !in_single_quote) {
             in_double_quote = !in_double_quote;
-        } else if (c == '#' && !in_single_quote && !in_double_quote) {
+        } else if (c == '{' && !in_single_quote) {
+            brace_depth++;
+        } else if (c == '}' && !in_single_quote && brace_depth > 0) {
+            brace_depth--;
+        } else if (c == '#' && !in_single_quote && !in_double_quote && brace_depth == 0) {
             in_comment = true;
         }
     }
