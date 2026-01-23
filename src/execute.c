@@ -266,6 +266,32 @@ static char *is_var_assignment(const char *arg) {
     return equals;
 }
 
+// Check if string is a redirection operator or contains one
+// Returns true if arg is or contains a redirection target
+static bool is_redirection_arg(const char *arg) {
+    if (!arg || arg[0] == '\x01') return false;  // Skip quoted args
+
+    // Standalone operators
+    if (strcmp(arg, "<") == 0 || strcmp(arg, ">") == 0 ||
+        strcmp(arg, ">>") == 0 || strcmp(arg, "<<") == 0 ||
+        strcmp(arg, "<<-") == 0 || strcmp(arg, "2>") == 0 ||
+        strcmp(arg, "2>>") == 0 || strcmp(arg, "&>") == 0 ||
+        strcmp(arg, "2>&1") == 0 || strcmp(arg, ">&2") == 0 ||
+        strcmp(arg, "1>&2") == 0) {
+        return false;  // Operators themselves don't need expansion
+    }
+
+    // Attached redirections: >file, <file, >>file, 2>file, etc.
+    if (arg[0] == '<' || arg[0] == '>') return true;
+
+    // N>file, N>>file patterns
+    const char *p = arg;
+    while (*p && isdigit(*p)) p++;
+    if (p != arg && (*p == '>' || *p == '<')) return true;
+
+    return false;
+}
+
 // Structure to store prefix assignments for restoration
 #define MAX_PREFIX_VARS 64
 typedef struct {
@@ -430,8 +456,27 @@ int execute(char **args) {
     // Clear varexpand error flag before expansion
     varexpand_clear_error();
 
-    // Expand variables in all arguments
-    varexpand_args(args, last_command_exit_code);
+    // POSIX evaluation order: expand redirections BEFORE variable assignments
+    // This ensures ${x=redir} in redirections takes effect before ${x=assign} in assignments
+    // First pass: expand only redirection arguments
+    for (int i = 0; i < arg_count; i++) {
+        if (is_redirection_arg(args[i]) && strchr(args[i], '$') != NULL) {
+            char *expanded = varexpand_expand(args[i], last_command_exit_code);
+            if (expanded) {
+                args[i] = expanded;
+            }
+        }
+    }
+
+    // Second pass: expand non-redirection arguments (assignments and command words)
+    for (int i = 0; i < arg_count; i++) {
+        if (!is_redirection_arg(original_ptrs[i]) && strchr(args[i], '$') != NULL) {
+            char *expanded = varexpand_expand(args[i], last_command_exit_code);
+            if (expanded) {
+                args[i] = expanded;
+            }
+        }
+    }
 
     // Check for unset variable error (set -u)
     if (varexpand_had_error()) {
@@ -835,25 +880,57 @@ int execute(char **args) {
         restore_prefix_vars();
         return result;
     }
-    redirect_free(redir);
 
     // Check for user-defined functions
-    const ShellFunction *func = script_get_function(exec_input[0]);
+    const ShellFunction *func = script_get_function(exec_args[0]);
     if (func) {
         // Count arguments (including function name as $0)
         int argc = 0;
-        while (exec_input[argc]) argc++;
+        while (exec_args[argc]) argc++;
 
-        result = script_execute_function(func, argc, exec_input);
+        // Apply redirections for function calls (save/restore FDs)
+        int func_saved_fds[3] = {-1, -1, -1};
+        if (redir && redir->count > 0) {
+            func_saved_fds[0] = dup(STDIN_FILENO);
+            func_saved_fds[1] = dup(STDOUT_FILENO);
+            func_saved_fds[2] = dup(STDERR_FILENO);
+            if (redirect_apply(redir) != 0) {
+                // Restore on error
+                if (func_saved_fds[0] != -1) { dup2(func_saved_fds[0], STDIN_FILENO); close(func_saved_fds[0]); }
+                if (func_saved_fds[1] != -1) { dup2(func_saved_fds[1], STDOUT_FILENO); close(func_saved_fds[1]); }
+                if (func_saved_fds[2] != -1) { dup2(func_saved_fds[2], STDERR_FILENO); close(func_saved_fds[2]); }
+                redirect_free(redir);
+                if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
+                if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
+                free_expanded_args(expanded_args, expanded_count);
+                restore_prefix_vars();
+                last_command_exit_code = 1;
+                return 1;
+            }
+        }
+
+        result = script_execute_function(func, argc, exec_args);
+
+        // Restore file descriptors after function execution
+        if (func_saved_fds[0] != -1 || func_saved_fds[1] != -1 || func_saved_fds[2] != -1) {
+            if (func_saved_fds[0] != -1) { dup2(func_saved_fds[0], STDIN_FILENO); close(func_saved_fds[0]); }
+            if (func_saved_fds[1] != -1) { dup2(func_saved_fds[1], STDOUT_FILENO); close(func_saved_fds[1]); }
+            if (func_saved_fds[2] != -1) { dup2(func_saved_fds[2], STDERR_FILENO); close(func_saved_fds[2]); }
+        }
+
         // Note: Do NOT set last_command_exit_code here - it's already set
         // by shell_return (or the last command in the function body).
         // The result is a control flow signal (1=continue, 0=exit, -2=return, etc.)
+        redirect_free(redir);
         if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         restore_prefix_vars();
         return result;
     }
+
+    // Free redir before launching external command (launch() does its own redirect parsing)
+    redirect_free(redir);
 
     // Build command string for job display
     char *cmd_string = build_cmd_string(exec_input);
