@@ -2308,13 +2308,13 @@ static char *find_logical_line_end(char *str) {
 
 // Find closing ) that's not inside quotes
 // Returns pointer to the ), or NULL if not found
-static char *find_unquoted_close_paren(const char *str) {
+static char *find_unquoted_close_paren(char *str) {
     if (!str) return NULL;
 
     bool in_single = false;
     bool in_double = false;
 
-    for (const char *p = str; *p; p++) {
+    for (char *p = str; *p; p++) {
         if (*p == '\\' && !in_single && *(p + 1)) {
             p++;  // Skip escaped character
             continue;
@@ -2324,7 +2324,7 @@ static char *find_unquoted_close_paren(const char *str) {
         } else if (*p == '"' && !in_single) {
             in_double = !in_double;
         } else if (*p == ')' && !in_single && !in_double) {
-            return (char *)p;
+            return p;
         }
     }
     return NULL;
@@ -2391,7 +2391,7 @@ static int execute_case_body(const char *body, const char *word) {
         // Check if this is a pattern line
         // Patterns can be: pattern) or (pattern) or pat1|pat2)
         // A pattern line ends with ) but not ;;
-        char *close_paren = NULL;
+        const char *close_paren = NULL;
 
         // Skip commands that might contain subshells
         // A pattern line is: [whitespace][(][pattern][|pattern...][)]
@@ -2482,7 +2482,7 @@ static int execute_case_body(const char *body, const char *word) {
             in_matched_clause = true;
 
             // Check if there are commands after the ) on this line
-            char *after_paren = close_paren + 1;
+            const char *after_paren = close_paren + 1;
             while (*after_paren && isspace(*after_paren)) after_paren++;
 
             // Check for ;; immediately after pattern
