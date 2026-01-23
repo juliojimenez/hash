@@ -79,7 +79,6 @@ jobs:
             builtin.trap.subshell.loud2
             semantics.arith.var.space
             semantics.backtick.fds
-            semantics.case.escape.modernish
             semantics.escaping.backslash.modernish
           "
 
