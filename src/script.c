@@ -2361,7 +2361,7 @@ static int execute_case_body(const char *body, const char *word) {
 
     while (line && *line) {
         // Find end of current logical line (respecting quotes)
-        next_line = find_logical_line_end((char *)line);
+        next_line = find_logical_line_end((line);
         if (next_line) {
             *next_line = '\0';
             next_line++;
