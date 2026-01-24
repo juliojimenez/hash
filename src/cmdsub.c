@@ -13,6 +13,7 @@
 #include "arith.h"
 #include "script.h"
 #include "trap.h"
+#include "hash.h"
 
 #define MAX_CMDSUB_LENGTH 8192
 #define MAX_CMD_OUTPUT 65536
@@ -62,6 +63,9 @@ static char *execute_and_capture(const char *cmd) {
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
+
+        // Disable interactive mode in subshell to prevent job control issues
+        is_interactive = false;
 
         // Reset traps for subshell - inherited traps should not execute
         trap_reset_for_subshell();
