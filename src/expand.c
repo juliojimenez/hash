@@ -307,6 +307,42 @@ int has_glob_chars(const char *s) {
     return 0;
 }
 
+// Convert a string with \x01 markers into a glob pattern
+// Characters preceded by \x01 are escaped for glob (made literal)
+// Returns newly allocated string, caller must free
+static char *make_glob_pattern(const char *s) {
+    if (!s) return NULL;
+
+    // Allocate worst case: every char could need escaping
+    size_t len = strlen(s);
+    char *pattern = malloc(len * 2 + 1);
+    if (!pattern) return NULL;
+
+    const char *read = s;
+    char *write = pattern;
+
+    while (*read) {
+        if (*read == '\x01' && *(read + 1)) {
+            // Protected character - escape it for glob
+            read++;  // Skip marker
+            char c = *read++;
+            // Escape glob metacharacters with backslash
+            if (c == '*' || c == '?' || c == '[' || c == ']' || c == '\\') {
+                *write++ = '\\';
+            }
+            *write++ = c;
+        } else if (*read == '\x03') {
+            // Skip IFS markers
+            read++;
+        } else {
+            *write++ = *read++;
+        }
+    }
+    *write = '\0';
+
+    return pattern;
+}
+
 // Expand glob patterns in arguments
 // NOTE: This function does NOT free original strings - caller manages memory
 // If expansion happens, a new array is allocated and returned via args_ptr
@@ -322,18 +358,25 @@ int expand_glob(char ***args_ptr, int *arg_count) {
 
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
+            // Convert to proper glob pattern (escape protected chars)
+            char *pattern = make_glob_pattern(args[i]);
+            if (!pattern) {
+                total_new_args++;
+                continue;
+            }
             glob_t gl;
             int flags = GLOB_NOCHECK | GLOB_TILDE;
-            int ret = glob(args[i], flags, NULL, &gl);
+            int ret = glob(pattern, flags, NULL, &gl);
             if (ret == 0) {
                 total_new_args += (int)gl.gl_pathc;
-                if (gl.gl_pathc > 1 || (gl.gl_pathc == 1 && strcmp(gl.gl_pathv[0], args[i]) != 0)) {
+                if (gl.gl_pathc > 1 || (gl.gl_pathc == 1 && strcmp(gl.gl_pathv[0], pattern) != 0)) {
                     has_expansion = 1;
                 }
             } else {
                 total_new_args++;  // Keep original on error
             }
             globfree(&gl);
+            free(pattern);
         } else {
             total_new_args++;
         }
@@ -353,9 +396,18 @@ int expand_glob(char ***args_ptr, int *arg_count) {
     int new_idx = 0;
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
+            // Convert to proper glob pattern (escape protected chars)
+            char *pattern = make_glob_pattern(args[i]);
+            if (!pattern) {
+                // Fallback: strip markers and use as-is
+                char *stripped = strdup(args[i]);
+                if (stripped) strip_quote_markers(stripped);
+                new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
+                continue;
+            }
             glob_t gl;
             int flags = GLOB_NOCHECK | GLOB_TILDE;
-            int ret = glob(args[i], flags, NULL, &gl);
+            int ret = glob(pattern, flags, NULL, &gl);
             if (ret == 0) {
                 for (size_t j = 0; j < gl.gl_pathc; j++) {
                     new_args[new_idx++] = strdup(gl.gl_pathv[j]);
@@ -364,8 +416,12 @@ int expand_glob(char ***args_ptr, int *arg_count) {
                 // Original string NOT freed - caller manages memory
             } else {
                 // Keep original on error (strdup for uniform ownership)
-                new_args[new_idx++] = strdup(args[i]);
+                // Strip markers from the copy
+                char *stripped = strdup(args[i]);
+                if (stripped) strip_quote_markers(stripped);
+                new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
             }
+            free(pattern);
         } else {
             // No glob - strdup for uniform ownership
             new_args[new_idx++] = strdup(args[i]);
