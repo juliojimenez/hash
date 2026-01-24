@@ -151,7 +151,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_value = star_buf;
                 p++;
             } else if (*p == '@') {
-                // $@ - all positional parameters (same as $* in this context)
+                // $@ - all positional parameters
+                // When quoted ("$@"), each param becomes a separate argument (use \x04 separator)
+                // When unquoted ($@), same as $* (space-separated, subject to IFS splitting)
                 static char at_buf[MAX_EXPANDED_LENGTH];
                 at_buf[0] = '\0';
                 size_t pos = 0;
@@ -159,7 +161,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                     const char *param = get_positional_param(i);
                     if (param) {
                         if (i > 1 && pos < sizeof(at_buf) - 1) {
-                            at_buf[pos++] = ' ';
+                            // Use \x04 separator for quoted $@ (separate args)
+                            // Use space for unquoted $@ (same as $*)
+                            at_buf[pos++] = is_quoted ? '\x04' : ' ';
                         }
                         size_t plen = strlen(param);
                         if (pos + plen < sizeof(at_buf)) {

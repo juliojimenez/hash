@@ -45,13 +45,13 @@ static int is_var_assignment(const char *arg) {
     return *p == '=';
 }
 
-// Strip \x03 markers from a string in place (for assignments)
+// Strip \x03 and \x04 markers from a string in place
 static void strip_markers_inplace(char *s) {
     if (!s) return;
     const char *src = s;
     char *dst = s;
     while (*src) {
-        if (*src != '\x03') {
+        if (*src != '\x03' && *src != '\x04') {
             *dst++ = *src;
         }
         src++;
@@ -178,32 +178,49 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
     char **args = *args_ptr;
     const char *ifs = ifs_get();
 
-    // Empty IFS means no splitting
+    // Empty IFS means no IFS splitting, but $@ still splits on argument boundaries
     if (ifs[0] == '\0') {
-        // Just strip \x03 markers but don't split
+        // Check if we have \x04 markers (quoted $@) - these still need to be split
+        int has_at_split = 0;
         for (int i = 0; i < *arg_count; i++) {
-            // Only modify strings that actually have markers
-            // (avoid writing to read-only string literals)
-            if (!strchr(args[i], '\x03')) {
-                continue;
+            if (strchr(args[i], '\x04')) {
+                has_at_split = 1;
+                break;
             }
-            // Remove \x03 markers in place
-            const char *src = args[i];
-            char *dst = args[i];
-            while (*src) {
-                if (*src != '\x03') {
-                    *dst++ = *src;
-                }
-                src++;
-            }
-            *dst = '\0';
         }
-        return 0;
+
+        if (!has_at_split) {
+            // Just strip \x03 markers but don't split
+            for (int i = 0; i < *arg_count; i++) {
+                // Only modify strings that actually have markers
+                // (avoid writing to read-only string literals)
+                if (!strchr(args[i], '\x03')) {
+                    continue;
+                }
+                // Remove \x03 markers in place
+                const char *src = args[i];
+                char *dst = args[i];
+                while (*src) {
+                    if (*src != '\x03') {
+                        *dst++ = *src;
+                    }
+                    src++;
+                }
+                *dst = '\0';
+            }
+            return 0;
+        }
+        // Fall through to handle \x04 splitting
     }
 
     // First pass: check if any splitting will occur
     int has_splitting = 0;
     for (int i = 0; i < *arg_count; i++) {
+        // Check for \x04 marker (quoted $@ argument separator)
+        if (strchr(args[i], '\x04')) {
+            has_splitting = 1;
+            break;
+        }
         if (strchr(args[i], '\x03')) {
             // Has expansion markers - check if IFS chars are inside
             const char *p = args[i];
@@ -226,13 +243,13 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         for (int i = 0; i < *arg_count; i++) {
             // Only modify strings that actually have markers
             // (avoid writing to read-only string literals)
-            if (!strchr(args[i], '\x03')) {
+            if (!strchr(args[i], '\x03') && !strchr(args[i], '\x04')) {
                 continue;
             }
             const char *src = args[i];
             char *dst = args[i];
             while (*src) {
-                if (*src != '\x03') {
+                if (*src != '\x03' && *src != '\x04') {
                     *dst++ = *src;
                 }
                 src++;
@@ -256,6 +273,47 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
                 strip_markers_inplace(copy);
                 new_args[new_count++] = copy;
             }
+            continue;
+        }
+
+        // Check for \x04 marker (quoted $@ - split into separate args, no IFS splitting)
+        if (strchr(args[i], '\x04')) {
+            // Split on \x04 markers
+            char *copy = strdup(args[i]);
+            if (!copy) continue;
+
+            char *start = copy;
+            char *p = copy;
+            while (*p && new_count < MAX_SPLIT_ARGS - 1) {
+                if (*p == '\x04') {
+                    *p = '\0';  // Terminate current part
+                    // Strip \x03 markers from this part and add if non-empty
+                    char *part = strdup(start);
+                    if (part) {
+                        strip_markers_inplace(part);
+                        if (*part) {
+                            new_args[new_count++] = part;
+                        } else {
+                            free(part);
+                        }
+                    }
+                    start = p + 1;
+                }
+                p++;
+            }
+            // Handle last part after final \x04 (or entire string if no \x04)
+            if (*start && new_count < MAX_SPLIT_ARGS - 1) {
+                char *part = strdup(start);
+                if (part) {
+                    strip_markers_inplace(part);
+                    if (*part) {
+                        new_args[new_count++] = part;
+                    } else {
+                        free(part);
+                    }
+                }
+            }
+            free(copy);
             continue;
         }
 
