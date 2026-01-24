@@ -14,6 +14,7 @@
 #include "script.h"
 #include "varexpand.h"
 #include "expand.h"
+#include "cmdsub.h"
 
 Config shell_config;
 
@@ -251,6 +252,12 @@ int config_process_line(char *line) {
             }
         }
 
+        // Expand command substitutions (e.g., $(tty), `pwd`)
+        char *cmdsub_result = cmdsub_expand(value);
+        if (cmdsub_result) {
+            value = cmdsub_result;
+        }
+
         // Expand variables in the value (e.g., $HOME, $PATH)
         char *var_expanded = varexpand_expand(value, 0);
         if (var_expanded) {
@@ -261,6 +268,7 @@ int config_process_line(char *line) {
         }
 
         free(tilde_expanded);  // Safe to free NULL
+        free(cmdsub_result);   // Safe to free NULL
         return 0;
     }
 
