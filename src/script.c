@@ -1808,6 +1808,14 @@ static int process_for(const char *line) {
     ctx->should_execute = (ctx->loop_count > 0);
 
     if (ctx->should_execute && ctx->loop_var && ctx->loop_values && ctx->loop_count > 0) {
+        // Check for readonly before setting loop variable
+        if (shellvar_is_readonly(ctx->loop_var)) {
+            fprintf(stderr, "%s: %s: readonly variable\n", HASH_NAME, ctx->loop_var);
+            last_command_exit_code = 1;
+            script_pop_context();
+            return is_interactive ? 1 : 0;  // Exit in non-interactive mode
+        }
+        shellvar_set(ctx->loop_var, ctx->loop_values[0]);
         setenv(ctx->loop_var, ctx->loop_values[0], 1);
     }
 
@@ -2131,6 +2139,14 @@ static int process_done(const char *line) {
         // Execute the loop body for each value
         while (ctx->loop_index < ctx->loop_count) {
             if (ctx->loop_var && ctx->loop_values) {
+                // Check for readonly before setting loop variable
+                if (shellvar_is_readonly(ctx->loop_var)) {
+                    fprintf(stderr, "%s: %s: readonly variable\n", HASH_NAME, ctx->loop_var);
+                    last_command_exit_code = 1;
+                    script_pop_context();
+                    return is_interactive ? 1 : 0;  // Exit in non-interactive mode
+                }
+                shellvar_set(ctx->loop_var, ctx->loop_values[ctx->loop_index]);
                 setenv(ctx->loop_var, ctx->loop_values[ctx->loop_index], 1);
             }
             ctx->should_execute = true;
