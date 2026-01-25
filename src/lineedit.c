@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,8 @@
 #include <termios.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <wchar.h>
+#include <locale.h>
 #include "lineedit.h"
 #include "hash.h"
 #include "safe_string.h"
@@ -171,9 +174,37 @@ static int get_terminal_width(void) {
     return ws.ws_col;
 }
 
+// Decode a UTF-8 character and return its byte length (1-4), or 0 on error
+// Also returns the decoded codepoint via the wc parameter
+static int utf8_decode(const unsigned char *p, wchar_t *wc) {
+    if (!p || !*p) return 0;
+
+    if (*p < 0x80) {
+        // ASCII
+        *wc = *p;
+        return 1;
+    } else if ((*p & 0xE0) == 0xC0) {
+        // 2-byte sequence
+        if ((p[1] & 0xC0) != 0x80) return 0;
+        *wc = ((p[0] & 0x1F) << 6) | (p[1] & 0x3F);
+        return 2;
+    } else if ((*p & 0xF0) == 0xE0) {
+        // 3-byte sequence
+        if ((p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80) return 0;
+        *wc = ((p[0] & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
+        return 3;
+    } else if ((*p & 0xF8) == 0xF0) {
+        // 4-byte sequence
+        if ((p[1] & 0xC0) != 0x80 || (p[2] & 0xC0) != 0x80 || (p[3] & 0xC0) != 0x80) return 0;
+        *wc = ((p[0] & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+        return 4;
+    }
+    return 0;
+}
+
 // Calculate visible length of prompt's LAST LINE (excluding ANSI escape sequences)
 // For multi-line prompts, only the last line affects cursor positioning
-// Properly handles UTF-8 multi-byte characters
+// Uses wcwidth() to properly handle wide characters
 static size_t visible_prompt_length(const char *prompt) {
     if (!prompt) return 0;
 
@@ -190,22 +221,32 @@ static size_t visible_prompt_length(const char *prompt) {
             // Start of ANSI escape sequence
             in_escape = 1;
             p++;
+            // Skip CSI introducer '[' if present
+            if (*p == '[') {
+                p++;
+            }
         } else if (in_escape) {
-            // Inside escape sequence - skip until we hit the terminator
-            // CSI sequences end with a letter (@ through ~, 0x40-0x7E)
+            // Inside escape sequence - skip until we hit the final byte
+            // CSI sequences end with a byte in range 0x40-0x7E (@ through ~)
             if (*p >= 0x40 && *p <= 0x7E) {
                 in_escape = 0;
             }
             p++;
         } else if (*p >= 0x80) {
-            // UTF-8 multi-byte character - count as 1 visible char
-            // Skip continuation bytes (10xxxxxx pattern)
-            if ((*p & 0xC0) == 0xC0) {
-                // This is a leading byte, count it as one character
-                visible++;
+            // UTF-8 multi-byte character - use wcwidth for display width
+            wchar_t wc;
+            int len = utf8_decode(p, &wc);
+            if (len > 0) {
+                int width = wcwidth(wc);
+                // wcwidth returns -1 for non-printable/unknown chars
+                // Default to width 1 for unknown printable chars
+                if (width < 0) width = 1;
+                visible += (size_t)width;
+                p += len;
+            } else {
+                // Invalid UTF-8, skip byte
+                p++;
             }
-            // Skip this byte (continuation bytes don't add to count)
-            p++;
         } else {
             // Regular ASCII character
             visible++;
@@ -285,18 +326,24 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     ret = write(STDOUT_FILENO, buf, len);
     (void)ret;
 
-    // Move cursor to correct position on the last line
-    size_t visible_prompt = visible_prompt_length(prompt);
-    size_t cursor_col = visible_prompt + pos;
-    char cursor_seq[32];
-    snprintf(cursor_seq, sizeof(cursor_seq), "\r\x1b[%zuC", cursor_col);
-    ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
-    (void)ret;
+    // Only reposition cursor if it's not at the end of the buffer
+    // When pos == len, cursor is already where it should be after writing
+    if (pos < len) {
+        // Move cursor to correct position on the last line
+        // Use absolute column positioning (CHA - \x1b[nG) which is 1-indexed
+        size_t visible_prompt = visible_prompt_length(prompt);
+        size_t cursor_col = visible_prompt + pos + 1;  // +1 because CHA is 1-indexed
+        char cursor_seq[32];
+        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuG", cursor_col);
+        ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
+        (void)ret;
+    }
 }
 
 // Initialize line editor
 void lineedit_init(void) {
-    // Nothing to do here yet
+    // Set locale for proper wcwidth() behavior with Unicode
+    setlocale(LC_CTYPE, "");
 }
 
 // Cleanup line editor

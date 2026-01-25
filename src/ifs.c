@@ -282,7 +282,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             char *copy = strdup(args[i]);
             if (!copy) continue;
 
-            char *start = copy;
+            const char *start = copy;
             char *p = copy;
             while (*p && new_count < MAX_SPLIT_ARGS - 1) {
                 if (*p == '\x04') {
