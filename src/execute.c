@@ -460,7 +460,9 @@ int execute(char **args) {
     // This ensures ${x=redir} in redirections takes effect before ${x=assign} in assignments
     // First pass: expand only redirection arguments
     for (int i = 0; i < arg_count; i++) {
-        if (args[i] && is_redirection_arg(args[i]) && strchr(args[i], '$') != NULL) {
+        const char *arg = args[i];
+        if (arg == NULL) continue;
+        if (is_redirection_arg(arg) && strchr(arg, '$') != NULL) {
             char *expanded = varexpand_expand(args[i], last_command_exit_code);
             if (expanded) {
                 args[i] = expanded;
@@ -470,7 +472,9 @@ int execute(char **args) {
 
     // Second pass: expand non-redirection arguments (assignments and command words)
     for (int i = 0; i < arg_count; i++) {
-        if (args[i] && !is_redirection_arg(original_ptrs[i]) && strchr(args[i], '$') != NULL) {
+        const char *arg = args[i];
+        if (arg == NULL) continue;
+        if (!is_redirection_arg(original_ptrs[i]) && strchr(arg, '$') != NULL) {
             char *expanded = varexpand_expand(args[i], last_command_exit_code);
             if (expanded) {
                 args[i] = expanded;
