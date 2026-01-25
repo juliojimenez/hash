@@ -8,6 +8,9 @@
 #include "prompt.h"
 #include "colors.h"
 #include "safe_string.h"
+#include "cmdsub.h"
+#include "varexpand.h"
+#include "jobs.h"
 
 PromptConfig prompt_config;
 
@@ -261,6 +264,15 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
     output[out_pos] = '\0';
 }
 
+// Check if PS1 contains command substitution or variable expansion
+static bool ps1_needs_expansion(const char *ps1) {
+    if (!ps1) return false;
+    // Check for $(...) or ${...} or $VAR patterns
+    return (strstr(ps1, "$(") != NULL ||
+            strstr(ps1, "${") != NULL ||
+            strchr(ps1, '`') != NULL);
+}
+
 // Generate prompt
 char *prompt_generate(int last_exit_code) {
     static char prompt[MAX_PROMPT_LENGTH];
@@ -277,7 +289,44 @@ char *prompt_generate(int last_exit_code) {
         ps1 = "\\w\\g \\e#>\\e";
     }
 
-    // Process escape sequences
+    // Check if PS1 needs dynamic expansion (for Starship, etc.)
+    if (ps1_needs_expansion(ps1)) {
+        // Set environment variables for prompt programs like Starship
+        char status_str[16];
+        snprintf(status_str, sizeof(status_str), "%d", last_exit_code);
+        setenv("STATUS", status_str, 1);
+
+        char jobs_str[16];
+        snprintf(jobs_str, sizeof(jobs_str), "%d", jobs_count());
+        setenv("NUM_JOBS", jobs_str, 1);
+
+        // Make a mutable copy for expansion
+        char ps1_copy[MAX_PROMPT_LENGTH];
+        safe_strcpy(ps1_copy, ps1, sizeof(ps1_copy));
+
+        // Expand variables first (e.g., $STATUS -> "0")
+        char *var_expanded = varexpand_expand(ps1_copy, 0);
+        const char *to_expand = var_expanded ? var_expanded : ps1_copy;
+
+        // Expand command substitutions (e.g., $(starship prompt) -> actual prompt)
+        char *cmd_expanded = cmdsub_expand(to_expand);
+
+        if (cmd_expanded) {
+            safe_strcpy(prompt, cmd_expanded, sizeof(prompt));
+            free(cmd_expanded);
+        } else if (var_expanded) {
+            safe_strcpy(prompt, var_expanded, sizeof(prompt));
+        } else {
+            safe_strcpy(prompt, ps1, sizeof(prompt));
+        }
+
+        free(var_expanded);  // Safe to free NULL
+
+        // Don't add extra reset/space for external prompts - they handle their own formatting
+        return prompt;
+    }
+
+    // Process hash-specific escape sequences (for built-in prompts)
     process_ps1_escapes(prompt, sizeof(prompt), ps1, last_exit_code);
 
     // Add final reset and space

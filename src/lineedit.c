@@ -171,12 +171,17 @@ static int get_terminal_width(void) {
     return ws.ws_col;
 }
 
-// Calculate visible length of prompt (excluding ANSI escape sequences)
+// Calculate visible length of prompt's LAST LINE (excluding ANSI escape sequences)
+// For multi-line prompts, only the last line affects cursor positioning
 static size_t visible_prompt_length(const char *prompt) {
     if (!prompt) return 0;
 
+    // Find the last newline - we only care about the last line
+    const char *last_newline = strrchr(prompt, '\n');
+    const char *start = last_newline ? last_newline + 1 : prompt;
+
     size_t visible = 0;
-    const char *p = prompt;
+    const char *p = start;
     int in_escape = 0;
 
     while (*p) {
@@ -195,15 +200,37 @@ static size_t visible_prompt_length(const char *prompt) {
     return visible;
 }
 
-// Refresh the line on screen
+// Count the number of newlines in a string (to determine prompt line count)
+static int count_newlines(const char *str) {
+    if (!str) return 0;
+
+    int count = 0;
+    while (*str) {
+        if (*str == '\n') count++;
+        str++;
+    }
+    return count;
+}
+
+// Refresh the line on screen (supports multi-line prompts)
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt) {
     ssize_t ret;
+    int prompt_lines = count_newlines(prompt);
+
+    // For multi-line prompts, move cursor up to where the prompt started
+    if (prompt_lines > 0) {
+        char up_seq[32];
+        snprintf(up_seq, sizeof(up_seq), "\x1b[%dA", prompt_lines);
+        ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
+        (void)ret;
+    }
+
     // Move cursor to beginning of line
     ret = write(STDOUT_FILENO, "\r", 1);
     (void)ret;
 
-    // Clear line
-    ret = write(STDOUT_FILENO, "\x1b[K", 3);
+    // Clear from cursor to end of screen (handles multi-line prompts)
+    ret = write(STDOUT_FILENO, "\x1b[J", 3);
     (void)ret;
 
     // Write prompt and current buffer
@@ -212,7 +239,7 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     ret = write(STDOUT_FILENO, buf, len);
     (void)ret;
 
-    // Move cursor to correct position
+    // Move cursor to correct position on the last line
     size_t visible_prompt = visible_prompt_length(prompt);
     size_t cursor_col = visible_prompt + pos;
     char cursor_seq[32];
