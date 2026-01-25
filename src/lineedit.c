@@ -173,6 +173,7 @@ static int get_terminal_width(void) {
 
 // Calculate visible length of prompt's LAST LINE (excluding ANSI escape sequences)
 // For multi-line prompts, only the last line affects cursor positioning
+// Properly handles UTF-8 multi-byte characters
 static size_t visible_prompt_length(const char *prompt) {
     if (!prompt) return 0;
 
@@ -181,20 +182,35 @@ static size_t visible_prompt_length(const char *prompt) {
     const char *start = last_newline ? last_newline + 1 : prompt;
 
     size_t visible = 0;
-    const char *p = start;
+    const unsigned char *p = (const unsigned char *)start;
     int in_escape = 0;
 
     while (*p) {
         if (*p == '\x1b') {
+            // Start of ANSI escape sequence
             in_escape = 1;
+            p++;
         } else if (in_escape) {
-            if (*p == 'm') {
+            // Inside escape sequence - skip until we hit the terminator
+            // CSI sequences end with a letter (@ through ~, 0x40-0x7E)
+            if (*p >= 0x40 && *p <= 0x7E) {
                 in_escape = 0;
             }
+            p++;
+        } else if (*p >= 0x80) {
+            // UTF-8 multi-byte character - count as 1 visible char
+            // Skip continuation bytes (10xxxxxx pattern)
+            if ((*p & 0xC0) == 0xC0) {
+                // This is a leading byte, count it as one character
+                visible++;
+            }
+            // Skip this byte (continuation bytes don't add to count)
+            p++;
         } else {
+            // Regular ASCII character
             visible++;
+            p++;
         }
-        p++;
     }
 
     return visible;
@@ -210,6 +226,37 @@ static int count_newlines(const char *str) {
         str++;
     }
     return count;
+}
+
+// Write string to stdout, converting \n to \r\n for raw mode
+// In raw mode, \n only moves down without returning to column 0
+static void write_with_crlf(const char *str) {
+    if (!str) return;
+
+    ssize_t ret;
+    const char *p = str;
+    const char *start = str;
+
+    while (*p) {
+        if (*p == '\n') {
+            // Write everything before the newline
+            if (p > start) {
+                ret = write(STDOUT_FILENO, start, (size_t)(p - start));
+                (void)ret;
+            }
+            // Write \r\n instead of just \n
+            ret = write(STDOUT_FILENO, "\r\n", 2);
+            (void)ret;
+            start = p + 1;
+        }
+        p++;
+    }
+
+    // Write any remaining content after the last newline
+    if (p > start) {
+        ret = write(STDOUT_FILENO, start, (size_t)(p - start));
+        (void)ret;
+    }
 }
 
 // Refresh the line on screen (supports multi-line prompts)
@@ -233,9 +280,8 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     ret = write(STDOUT_FILENO, "\x1b[J", 3);
     (void)ret;
 
-    // Write prompt and current buffer
-    ret = write(STDOUT_FILENO, prompt, strlen(prompt));
-    (void)ret;
+    // Write prompt (with proper newline handling) and current buffer
+    write_with_crlf(prompt);
     ret = write(STDOUT_FILENO, buf, len);
     (void)ret;
 
@@ -295,9 +341,9 @@ char *lineedit_read_line(const char *prompt) {
     }
 
     // Display prompt after entering raw mode
+    // Use write_with_crlf to handle newlines properly in raw mode
     if (prompt) {
-        ret = write(STDOUT_FILENO, prompt, safe_strlen(prompt, 2048));
-        (void)ret;
+        write_with_crlf(prompt);
         fflush(stdout);
     }
 

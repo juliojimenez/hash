@@ -312,7 +312,10 @@ char *prompt_generate(int last_exit_code) {
         char *cmd_expanded = cmdsub_expand(to_expand);
 
         if (cmd_expanded) {
-            safe_strcpy(prompt, cmd_expanded, sizeof(prompt));
+            // Strip leading newlines - hash already ensures prompts start on a new line
+            const char *src = cmd_expanded;
+            while (*src == '\n') src++;
+            safe_strcpy(prompt, src, sizeof(prompt));
             free(cmd_expanded);
         } else if (var_expanded) {
             safe_strcpy(prompt, var_expanded, sizeof(prompt));
