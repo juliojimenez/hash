@@ -487,7 +487,7 @@ int execute(char **args) {
             }
         }
         last_command_exit_code = 1;
-        return 0;  // Return 0 to signal script should exit
+        return is_interactive ? 1 : 0;  // Continue in interactive mode, exit in non-interactive
     }
 
     // Track which args were expanded by varexpand
