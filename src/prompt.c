@@ -316,6 +316,13 @@ char *prompt_generate(int last_exit_code) {
             const char *src = cmd_expanded;
             while (*src == '\n') src++;
             safe_strcpy(prompt, src, sizeof(prompt));
+
+            // Strip trailing whitespace from the last line (but keep the newline structure)
+            size_t plen = strlen(prompt);
+            while (plen > 0 && (prompt[plen-1] == ' ' || prompt[plen-1] == '\t')) {
+                prompt[--plen] = '\0';
+            }
+
             free(cmd_expanded);
         } else if (var_expanded) {
             safe_strcpy(prompt, var_expanded, sizeof(prompt));
