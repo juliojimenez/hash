@@ -1,11 +1,7 @@
 hash-shell (30-1) unstable; urgency=medium
 
-  * Update code repository issue templates
-  * Fix parse_line memory leaks (fix recommendation by @kshku)
-  * SonarQube findings fixes
-  * Fix Smoosh tests
-    - semantics.escaping.single
-    - semantics.eval.makeadder
-  * Implemented internal field separator (IFS)
+  * Crash and other bug fixes
+  * More tests added for POSIX and reliability
+  * Starship prompt support
 
  -- Julio Jimenez <julio@julioj.com>  Sun, 25 Jan 2026 12:00:00 +0000
