@@ -62,7 +62,7 @@ jobs:
           # Update the formula file
           cat > Formula/hash-shell.rb << 'EOF'
           class HashShell < Formula
-            desc "Command line interpreter (shell) for Linux and macOS"
+            desc "Modern, POSIX-compliant command line interpreter (shell) for Linux and macOS"
             homepage "https://github.com/juliojimenez/hash"
             url "https://github.com/juliojimenez/hash/archive/refs/tags/TAG_PLACEHOLDER.tar.gz"
             sha256 "SHA256_PLACEHOLDER"
@@ -92,12 +92,16 @@ jobs:
 
                 Configuration file: ~/.hashrc
                 History file: ~/.hash_history
+
+                View the man page for full documentation:
+                  man hash-shell
               EOS
             end
 
             test do
               assert_predicate bin/"hash-shell", :exist?
               assert_predicate bin/"hash-shell", :executable?
+              assert_predicate man1/"hash-shell.1", :exist?
             end
           end
           EOF

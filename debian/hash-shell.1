@@ -1,73 +1,663 @@
 .TH HASH-SHELL 1 "January 2026" "hash-shell 30" "User Commands"
 .SH NAME
-hash-shell \- modern command line interpreter for Linux, macOS, and BSD
+hash-shell \- modern, POSIX-compliant command line interpreter for Linux, macOS, and BSD
 .SH SYNOPSIS
 .B hash-shell
+.RI [ options ]
+.RI [ script
+.RI [ arguments... ]]
+.br
+.B hash-shell
+.B \-c
+.I command_string
+.RI [ arguments... ]
 .SH DESCRIPTION
 .B hash-shell
-is a comprehensive C-based command line shell interpreter for Linux, macOS,
-and BSD, providing a modern, secure, and POSIX-compliant alternative to 
-traditional shells.
-.SH FEATURES
+is a comprehensive C-based command line shell interpreter providing a modern,
+secure, and POSIX-compliant alternative to traditional shells like bash and zsh.
+It features git-aware prompts, extensive tab completion, job control, and full
+scripting support with control structures.
+.PP
+When invoked without arguments,
+.B hash-shell
+runs interactively, reading commands from standard input.
+When given a script file, it executes the commands in that file.
+.SH OPTIONS
 .TP
-.B Tab Completion
-Complete commands, files, and directories with the Tab key.
+.BI \-c " command_string"
+Execute commands from
+.I command_string
+instead of reading from standard input or a file.
 .TP
-.B Pipes
-Connect commands with | operator.
+.B \-s
+Read commands from standard input. Useful when piping commands to the shell.
+.SH INVOCATION
 .TP
-.B I/O Redirection
-Redirect input (<), output (>), append (>>), and stderr (2>).
+.B Interactive shell
+When started without a script argument and with a terminal connected,
+.B hash-shell
+reads and executes commands interactively. The configuration file
+.I ~/.hashrc
+is read and executed on startup.
 .TP
-.B Command Chaining
-Chain commands with && (and), || (or), and ; (sequential).
+.B Non-interactive shell
+When reading commands from a script file,
+.B hash-shell
+executes them without loading
+.IR ~/.hashrc .
+.SH SHELL GRAMMAR
+.SS Simple Commands
+A simple command is a sequence of optional variable assignments followed by
+blank-separated words and redirections.
+.SS Pipelines
+A pipeline is a sequence of one or more commands separated by
+.BR | .
+The standard output of each command except the last is connected to the
+standard input of the next command.
+.SS Lists
+A list is a sequence of one or more pipelines separated by one of the
+operators
+.BR ; ,
+.BR && ,
+or
+.BR || ,
+and optionally terminated by
+.BR ; .
 .TP
-.B Aliases
-Define command shortcuts in ~/.hashrc.
+.BR "command1 ; command2"
+Execute command2 after command1, regardless of command1's exit status.
 .TP
-.B Variable Expansion
-Use $VAR and ${VAR} syntax for environment variables.
+.BR "command1 && command2"
+Execute command2 only if command1 succeeds (exit status 0).
 .TP
-.B Command History
-Navigate history with arrow keys. Supports !!, !n, and !prefix.
+.BR "command1 || command2"
+Execute command2 only if command1 fails (non-zero exit status).
+.SH CONTROL STRUCTURES
+.SS If/Then/Else
+.nf
+.B if
+.I command
+.B ; then
+    .I commands
+.B [elif
+.I command
+.B ; then
+    .I commands
+.B ] ...
+.B [else
+    .I commands
+.B ]
+.B fi
+.fi
+.SS For Loops
+.nf
+.B for
+.I name
+.B in
+.I words
+.B ; do
+    .I commands
+.B done
+.fi
+.SS While Loops
+.nf
+.B while
+.I command
+.B ; do
+    .I commands
+.B done
+.fi
+.SS Until Loops
+.nf
+.B until
+.I command
+.B ; do
+    .I commands
+.B done
+.fi
+.SS Case Statement
+.nf
+.B case
+.I word
+.B in
+    .I pattern
+.B )
+        .I commands
+.B ;;
+    ...
+.B esac
+.fi
+.SH QUOTING
+Quoting is used to remove the special meaning of certain characters.
 .TP
-.B Customizable Prompts
-Configure PS1 with \\w, \\W, \\u, \\h, \\g (git), and more.
+.B Single quotes
+Preserve literal value of all characters within the quotes.
 .TP
-.B Git Integration
-Show branch and status in prompt with \\g escape.
+.B Double quotes
+Preserve literal value of all characters except
+.BR $ ,
+.BR ` ,
+and
+.BR \e .
+Variable expansion occurs within double quotes.
+.TP
+.B Backslash
+A non-quoted backslash preserves the literal value of the next character.
+.SH PARAMETERS
+.SS Positional Parameters
+.TP
+.B $0
+The name of the shell or script.
+.TP
+.B $1 \- $9
+Positional parameters passed to the script or function.
+.TP
+.B $#
+The number of positional parameters.
+.TP
+.B $@
+All positional parameters as separate words.
+.TP
+.B $*
+All positional parameters as a single word.
+.TP
+.B $?
+Exit status of the most recently executed foreground pipeline.
+.TP
+.B $$
+Process ID of the shell.
+.SS Variable Expansion
+.TP
+.B $VAR
+Expands to the value of variable VAR.
+.TP
+.B ${VAR}
+Expands to the value of variable VAR. Useful for concatenation.
+.SH REDIRECTION
+.TP
+.BI < " file"
+Redirect standard input from
+.IR file .
+.TP
+.BI > " file"
+Redirect standard output to
+.IR file ,
+creating or truncating it.
+.TP
+.BI >> " file"
+Append standard output to
+.IR file .
+.TP
+.BI 2> " file"
+Redirect standard error to
+.IR file .
+.TP
+.BI 2>> " file"
+Append standard error to
+.IR file .
+.TP
+.B 2>&1
+Redirect standard error to standard output.
+.TP
+.BI &> " file"
+Redirect both standard output and standard error to
+.IR file .
+.SH JOB CONTROL
+.B hash-shell
+supports job control, allowing you to run commands in the background
+and manage multiple processes.
+.TP
+.BI "command " &
+Run
+.I command
+in the background.
+.TP
+.B jobs
+List all background jobs with their status.
+.TP
+.BI fg " [%job]"
+Bring a background job to the foreground. Without an argument, brings the
+current job.
+.TP
+.BI bg " [%job]"
+Resume a stopped job in the background.
+.TP
+.B Ctrl+Z
+Suspend the current foreground job.
+.PP
+Job specifications:
+.RS
+.TP
+.B %n
+Job number n.
+.TP
+.B %%
+Current job.
+.TP
+.B %+
+Current job (same as %%).
+.TP
+.B %-
+Previous job.
+.RE
+.SH TEST COMMAND
+The
+.B test
+command (or
+.BR [ " ]" )
+evaluates conditional expressions, returning 0 for true and 1 for false.
+.SS File Tests
+.TP
+.BI \-e " file"
+True if file exists.
+.TP
+.BI \-f " file"
+True if file exists and is a regular file.
+.TP
+.BI \-d " file"
+True if file exists and is a directory.
+.TP
+.BI \-r " file"
+True if file exists and is readable.
+.TP
+.BI \-w " file"
+True if file exists and is writable.
+.TP
+.BI \-x " file"
+True if file exists and is executable.
+.TP
+.BI \-s " file"
+True if file exists and has size greater than zero.
+.TP
+.BI \-L " file"
+True if file is a symbolic link.
+.SS String Tests
+.TP
+.BI \-z " string"
+True if string is empty.
+.TP
+.BI \-n " string"
+True if string is not empty.
+.TP
+.IB s1 " = " s2
+True if strings are equal.
+.TP
+.IB s1 " != " s2
+True if strings are not equal.
+.SS Numeric Tests
+.TP
+.IB n1 " \-eq " n2
+True if n1 equals n2.
+.TP
+.IB n1 " \-ne " n2
+True if n1 does not equal n2.
+.TP
+.IB n1 " \-lt " n2
+True if n1 is less than n2.
+.TP
+.IB n1 " \-le " n2
+True if n1 is less than or equal to n2.
+.TP
+.IB n1 " \-gt " n2
+True if n1 is greater than n2.
+.TP
+.IB n1 " \-ge " n2
+True if n1 is greater than or equal to n2.
+.SS Logical Operators
+.TP
+.BI ! " expr"
+Logical NOT.
+.TP
+.IB expr1 " \-a " expr2
+Logical AND.
+.TP
+.IB expr1 " \-o " expr2
+Logical OR.
+.SS Extended Test [[ ]]
+.B hash-shell
+also supports the extended test
+.B [[ ]]
+syntax with additional features:
+.TP
+Pattern matching with
+.B ==
+and
+.B !=
+.TP
+Regular expression matching with
+.B =~
+.TP
+String comparison with
+.B <
+and
+.B >
+.TP
+Logical operators
+.B &&
+and
+.B ||
+inside the brackets
+.TP
+.BI \-v " VAR"
+True if variable VAR is set
+.SH COMMAND HISTORY
+.B hash-shell
+maintains a history of commands that can be navigated and recalled.
+.TP
+.B Up/Down Arrow
+Navigate through command history.
+.TP
+.B !!
+Execute the previous command.
+.TP
+.BI ! n
+Execute command number n from history.
+.TP
+.BI ! prefix
+Execute the most recent command starting with prefix.
+.SH SHELL BUILTIN COMMANDS
+.TP
+.BI alias " [name[=value]]"
+Without arguments, list all aliases. With a name, show that alias.
+With name=value, create or update an alias.
+.TP
+.BI unalias " name"
+Remove the alias for name.
+.TP
+.BI cd " [directory]"
+Change the current working directory. Without arguments, changes to HOME.
+Supports ~ expansion for home directory.
+.TP
+.BI export " [name[=value]]"
+Without arguments, list all exported variables. With name=value, set and
+export the variable.
+.TP
+.BI source " file"
+Read and execute commands from file in the current shell environment.
+.TP
+.B exit
+Exit the shell. If there are running background jobs, warns before exiting.
+.TP
+.B jobs
+List background jobs.
+.TP
+.BI fg " [%job]"
+Bring job to foreground.
+.TP
+.BI bg " [%job]"
+Resume job in background.
+.TP
+.BI set " option=value"
+Set shell options. Available options:
+.RS
+.TP
+.B colors=on|off
+Enable or disable colored output.
+.TP
+.B welcome=on|off
+Show or hide welcome message on startup.
+.TP
+.BI PS1= format
+Set the prompt string format.
+.RE
+.TP
+.B true
+Return exit status 0.
+.TP
+.B false
+Return exit status 1.
+.SH PROMPT CUSTOMIZATION
+The prompt is controlled by the PS1 variable. The following escape sequences
+are supported:
+.TP
+.B \ew
+Full current working directory path (~ for home).
+.TP
+.B \eW
+Current directory name only.
+.TP
+.B \eu
+Username.
+.TP
+.B \eh
+Hostname.
+.TP
+.B \eg
+Git branch with status indicator. Shows branch name in cyan, with green
+"git:" if clean or yellow "git:" if there are uncommitted changes.
+.TP
+.B \ee
+Exit code color indicator. Text between \ee...\ee is colored blue for
+success (exit code 0) or red for failure (non-zero exit code).
+.TP
+.B \e$
+Shows $ for regular users, # for root.
+.TP
+.B \en
+Newline.
+.TP
+.B \e\e
+Literal backslash.
+.PP
+.B Examples:
+.RS
+.nf
+set PS1='\eW\eg \ee#>\ee '      # Default: directory git:(branch) #>
+set PS1='\eu@\eh:\ew\e$ '      # Classic: user@host:/path $
+set PS1='\ew\eg\en\ee#>\ee '   # Two-line with git info
+.fi
+.RE
+.SH TAB COMPLETION
+.B hash-shell
+provides context-aware tab completion:
+.TP
+.B Command completion
+Completes executable names from PATH.
+.TP
+.B File/directory completion
+Completes file and directory names.
+.TP
+.B Tilde expansion
+Completes ~ to home directory path.
+.PP
+Press Tab once to complete or show matches. Press Tab again to cycle
+through multiple matches.
+.SH LINE EDITING
+Interactive line editing is supported with the following key bindings:
+.TP
+.B Left/Right Arrow
+Move cursor within the line.
+.TP
+.B Home, Ctrl+A
+Move to beginning of line.
+.TP
+.B End, Ctrl+E
+Move to end of line.
+.TP
+.B Backspace, Ctrl+H
+Delete character before cursor.
+.TP
+.B Delete, Ctrl+D
+Delete character at cursor.
+.TP
+.B Ctrl+U
+Delete from cursor to beginning of line.
+.TP
+.B Ctrl+K
+Delete from cursor to end of line.
+.TP
+.B Ctrl+W
+Delete word before cursor.
+.TP
+.B Ctrl+C
+Cancel current line.
+.TP
+.B Ctrl+L
+Clear screen.
+.SH FUNCTIONS
+.B hash-shell
+supports shell functions:
+.PP
+.nf
+.I name
+.B () {
+    .I commands
+.B }
+.fi
+.PP
+Functions are called like commands and can access arguments via $1, $2, etc.
+Use
+.B return
+to exit a function with a specific exit status.
 .SH FILES
 .TP
 .I ~/.hashrc
-User configuration file. Loaded on startup.
+User configuration file. Read and executed on interactive shell startup.
+Contains aliases, environment variable exports, and shell options.
 .TP
 .I ~/.hash_history
-Command history file.
+Command history file. Stores previously executed commands.
+.TP
+.I /usr/share/hash-shell/hashrc.example
+Example configuration file with common aliases and settings.
 .SH ENVIRONMENT
 .TP
-.B HISTSIZE
-Maximum commands in memory (default: 1000).
+.B HOME
+Home directory, used for ~ expansion and default cd destination.
 .TP
-.B HISTFILESIZE
-Maximum commands in history file (default: 2000).
-.TP
-.B HISTCONTROL
-History behavior: ignorespace, ignoredups, ignoreboth, erasedups.
+.B PATH
+Colon-separated list of directories to search for commands.
 .TP
 .B PS1
-Prompt string format.
+Primary prompt string.
+.TP
+.B HISTSIZE
+Maximum number of commands to keep in memory (default: 1000).
+.TP
+.B HISTFILESIZE
+Maximum number of commands to save in history file (default: 2000).
+.TP
+.B HISTCONTROL
+Controls history behavior. Values can be combined with colons:
+.RS
+.TP
+.B ignorespace
+Don't save commands starting with a space.
+.TP
+.B ignoredups
+Don't save duplicate consecutive commands.
+.TP
+.B ignoreboth
+Equivalent to ignorespace:ignoredups.
+.TP
+.B erasedups
+Remove earlier duplicate entries from history.
+.RE
+.TP
+.B EDITOR
+Default text editor.
+.TP
+.B LANG
+Locale settings.
 .SH EXAMPLES
-.TP
-Start hash shell:
+.SS Running Commands
+.nf
+# Simple command
+$ ls -la
+
+# Pipeline
+$ cat file.txt | grep pattern | wc -l
+
+# Command chaining
+$ make && make test || echo "Build failed"
+
+# Background job
+$ long_command &
+.fi
+.SS Scripting
+.nf
+#!/usr/bin/hash-shell
+
+# Process command-line arguments
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <filename>" >&2
+    exit 1
+fi
+
+# Loop through files
+for file in "$@"; do
+    if [ -f "$file" ]; then
+        echo "Processing: $file"
+        wc -l "$file"
+    fi
+done
+.fi
+.SS Configuration (~/.hashrc)
+.nf
+# Aliases
+alias ll='ls -lah'
+alias gs='git status'
+alias ..='cd ..'
+
+# Environment
+export EDITOR=vim
+export PATH=$HOME/bin:$PATH
+
+# Prompt with git integration
+set PS1='\eW\eg \ee#>\ee '
+
+# Shell options
+set colors=on
+set welcome=off
+.fi
+.SH STARSHIP PROMPT
 .B hash-shell
+supports the Starship cross-shell prompt. When Starship is installed
+and configured, it automatically integrates with hash-shell for
+advanced prompt customization.
+.SH EXIT STATUS
+.B hash-shell
+returns the exit status of the last command executed, or:
 .TP
-Change default shell:
-.B chsh -s /usr/bin/hash-shell
+.B 0
+Successful completion.
+.TP
+.B 1
+General errors.
+.TP
+.B 2
+Misuse of shell command (e.g., syntax error).
+.TP
+.B 127
+Command not found.
+.TP
+.B 128+n
+Command terminated by signal n.
+.SH SETTING AS DEFAULT SHELL
+To use
+.B hash-shell
+as your default login shell:
+.PP
+.RS
+.nf
+# Add to /etc/shells
+sudo bash -c 'echo "/usr/bin/hash-shell" >> /etc/shells'
+
+# Change your shell
+chsh -s /usr/bin/hash-shell
+.fi
+.RE
 .SH AUTHOR
 Julio Jimenez <julio@julioj.com>
-.SH BUGS
+.SH REPORTING BUGS
 Report bugs at https://github.com/juliojimenez/hash/issues
+.SH COPYRIGHT
+Copyright \(co 2025-2026 Julio Jimenez.
+Licensed under the Apache License, Version 2.0.
 .SH SEE ALSO
 .BR bash (1),
 .BR sh (1),
-.BR zsh (1)
+.BR zsh (1),
+.BR test (1)
+.PP
+Full documentation: https://github.com/juliojimenez/hash
