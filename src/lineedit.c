@@ -369,13 +369,13 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     ssize_t ret;
 
     // Count how many lines up the cursor is
-    int count = 0;
+    size_t count = 0;
     for (ssize_t i = len - 1; i >= (ssize_t)pos; --i) {
         if (buf[i] == '\n') ++count;
     }
 
     // Count new lines in prompt and previous buffer
-    int prompt_lines = count_newlines(prompt) + prev_buffer_lines - count;
+    size_t prompt_lines = count_newlines(prompt) + prev_buffer_lines - count;
 
     // For multi-line prompt and buffer, move cursor up to where the prompt started
     if (prompt_lines > 0) {
