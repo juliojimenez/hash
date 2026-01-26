@@ -331,7 +331,7 @@ static void set_cursor(const char *buf, size_t pos, size_t prev_pos,
         (void)ret;
     }
 
-    int begin = 0;
+    size_t begin = 0;
     if (pos > 0) {
         // Move cursor to correct position on that line
         // Count number of cols to move to right
