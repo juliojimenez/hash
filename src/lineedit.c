@@ -365,7 +365,7 @@ static void set_cursor(const char *buf, size_t pos, size_t prev_pos,
 
 // Refresh the line on screen (supports multi-line prompt and buffer)
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt,
-        int prev_buffer_lines) {
+        size_t prev_buffer_lines) {
     ssize_t ret;
 
     // Count how many lines up the cursor is
