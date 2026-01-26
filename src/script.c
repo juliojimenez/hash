@@ -2656,13 +2656,15 @@ static char *remove_shell_quotes_for_pattern(const char *str) {
         char c = str[i];
 
         // Handle \x01 marker - next char is literal (from expansion)
-        // Need to escape if it's a backslash
+        // Need to escape fnmatch special characters
         if (c == '\x01' && str[i + 1]) {
             i++;  // Skip marker
-            if (str[i] == '\\') {
+            char next = str[i];
+            // Escape fnmatch pattern metacharacters: * ? [ ] and backslash
+            if (next == '\\' || next == '*' || next == '?' || next == '[' || next == ']') {
                 result[j++] = '\\';  // Escape for fnmatch
             }
-            result[j++] = str[i];  // Copy literal character
+            result[j++] = next;  // Copy literal character
             continue;
         }
 
@@ -2935,6 +2937,12 @@ static int process_case(const char *line) {
     int paren_depth = 0;  // Track () inside substitutions
 
     while (*p && wi < sizeof(word) - 1) {
+        // Handle backslash escapes outside single quotes
+        if (*p == '\\' && !in_single && *(p + 1) && wi < sizeof(word) - 2) {
+            word[wi++] = *p++;  // Copy backslash
+            word[wi++] = *p++;  // Copy escaped character
+            continue;
+        }
         if (*p == '\'' && !in_double && subst_depth == 0) {
             in_single = !in_single;
             word[wi++] = *p++;
@@ -3085,8 +3093,6 @@ static int process_case(const char *line) {
 }
 
 static int process_esac(const char *line) {
-    (void)line;
-
     ScriptContext *ctx = get_current_context();
     if (!ctx || ctx->type != CTX_CASE) {
         if (!script_state.silent_errors) {
@@ -3115,7 +3121,24 @@ static int process_esac(const char *line) {
         last_command_exit_code = 0;
     }
 
-    return script_pop_context();
+    int result = script_pop_context();
+
+    // Check for content after 'esac' and process it
+    if (line) {
+        const char *p = line;
+        while (*p && isspace(*p)) p++;
+        // Skip 'esac'
+        if (strncmp(p, "esac", 4) == 0) {
+            p += 4;
+            while (*p && isspace(*p)) p++;
+            // Process any remaining content (like ;; for ending outer case clause)
+            if (*p && *p != '#') {
+                return script_process_line(p);
+            }
+        }
+    }
+
+    return result;
 }
 
 // ============================================================================
