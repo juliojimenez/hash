@@ -380,7 +380,7 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
     // For multi-line prompt and buffer, move cursor up to where the prompt started
     if (prompt_lines > 0) {
         char up_seq[32];
-        snprintf(up_seq, sizeof(up_seq), "\x1b[%dA", prompt_lines);
+        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", prompt_lines);
         ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
         (void)ret;
     }
