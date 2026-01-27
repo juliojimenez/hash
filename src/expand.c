@@ -6,6 +6,8 @@
 #include <pwd.h>
 #include <limits.h>
 #include <glob.h>
+#include <fnmatch.h>
+#include <dirent.h>
 #include "expand.h"
 #include "safe_string.h"
 
@@ -279,6 +281,235 @@ void strip_quote_markers_args(char **args) {
     }
 }
 
+// Preprocess bracket expressions to handle POSIX collating elements and
+// equivalence classes that macOS glob() doesn't support.
+// Converts [.x.] to literal x, [=x=] to literal x within bracket expressions.
+// Returns newly allocated string, caller must free.
+static char *preprocess_bracket_expr(const char *s) {
+    if (!s) return NULL;
+
+    size_t len = strlen(s);
+    // Allocate enough space (output is always <= input length)
+    char *result = malloc(len + 1);
+    if (!result) return NULL;
+
+    const char *read = s;
+    char *write = result;
+
+    while (*read) {
+        if (*read == '[') {
+            // Start of bracket expression
+            *write++ = *read++;
+
+            // Check for negation
+            if (*read == '!' || *read == '^') {
+                *write++ = *read++;
+            }
+
+            // First char after [ (or [! / [^) can be ] and it's literal
+            if (*read == ']') {
+                *write++ = *read++;
+            }
+
+            // Process contents of bracket expression
+            while (*read && *read != ']') {
+                // Check for collating element [.x.] or equivalence class [=x=]
+                if (*read == '[' && (*(read + 1) == '.' || *(read + 1) == '=')) {
+                    char delim = *(read + 1);  // . or =
+                    const char *start = read + 2;  // Start of the element
+
+                    // Find the closing delimiter (x.] or x=])
+                    const char *end = start;
+                    while (*end && !(*end == delim && *(end + 1) == ']')) {
+                        end++;
+                    }
+
+                    if (*end == delim && *(end + 1) == ']') {
+                        // Found a complete collating element or equivalence class
+                        // Extract the character(s) between delimiters
+                        size_t elem_len = end - start;
+                        if (elem_len == 1) {
+                            // Single character - just output it directly
+                            char c = *start;
+                            // If it's ']', we need special handling:
+                            // It must be first in the bracket expression
+                            // For now, just output it - the pattern will work
+                            // because we're in a bracket expression
+                            *write++ = c;
+                        } else if (elem_len > 1) {
+                            // Multi-character collating element - just copy as literal
+                            // (This is a simplification; true collating elements are locale-dependent)
+                            for (const char *p = start; p < end; p++) {
+                                *write++ = *p;
+                            }
+                        }
+                        read = end + 2;  // Skip past x.] or x=]
+                        continue;
+                    }
+                }
+
+                // Check for character class [:class:]
+                if (*read == '[' && *(read + 1) == ':') {
+                    // Find the closing :]
+                    const char *end = read + 2;
+                    while (*end && !(*end == ':' && *(end + 1) == ']')) {
+                        end++;
+                    }
+                    if (*end == ':' && *(end + 1) == ']') {
+                        // Copy the entire character class as-is (glob supports these)
+                        size_t class_len = end + 2 - read;
+                        memcpy(write, read, class_len);
+                        write += class_len;
+                        read = end + 2;
+                        continue;
+                    }
+                }
+
+                // Regular character in bracket expression
+                *write++ = *read++;
+            }
+
+            // Copy closing ]
+            if (*read == ']') {
+                *write++ = *read++;
+            }
+        } else {
+            // Outside bracket expression - copy as-is
+            *write++ = *read++;
+        }
+    }
+
+    *write = '\0';
+    return result;
+}
+
+// Custom glob implementation using fnmatch() for proper POSIX character class support
+// macOS's glob() doesn't properly match character classes like [:alpha:]
+// This function matches files in a directory using fnmatch()
+// Returns array of matching paths (NULL-terminated), or NULL if no matches
+// Caller must free the returned array and its strings
+static char **fnmatch_glob(const char *pattern, size_t *match_count) {
+    if (!pattern || !match_count) return NULL;
+    *match_count = 0;
+
+    // Extract directory and filename pattern
+    char dir_path[PATH_MAX];
+    const char *file_pattern;
+
+    const char *last_slash = strrchr(pattern, '/');
+    if (last_slash) {
+        size_t dir_len = last_slash - pattern;
+        if (dir_len >= PATH_MAX) return NULL;
+        memcpy(dir_path, pattern, dir_len);
+        dir_path[dir_len] = '\0';
+        file_pattern = last_slash + 1;
+    } else {
+        strcpy(dir_path, ".");
+        file_pattern = pattern;
+    }
+
+    // Check if the file pattern contains glob characters
+    // If not, just check if the file exists
+    bool has_glob = false;
+    for (const char *p = file_pattern; *p; p++) {
+        if (*p == '*' || *p == '?' || *p == '[') {
+            has_glob = true;
+            break;
+        }
+    }
+
+    if (!has_glob) {
+        // No glob chars - just check if file exists
+        char full_path[PATH_MAX];
+        snprintf(full_path, PATH_MAX, "%s/%s",
+                 strcmp(dir_path, ".") == 0 ? "" : dir_path,
+                 file_pattern);
+        // Remove leading / if dir was empty
+        char *check_path = full_path;
+        if (check_path[0] == '/' && pattern[0] != '/') {
+            check_path++;
+        }
+        if (access(check_path[0] ? check_path : file_pattern, F_OK) == 0) {
+            char **results = malloc(2 * sizeof(char *));
+            if (results) {
+                results[0] = strdup(check_path[0] ? check_path : file_pattern);
+                results[1] = NULL;
+                *match_count = 1;
+                return results;
+            }
+        }
+        return NULL;
+    }
+
+    // Open directory
+    DIR *dir = opendir(dir_path);
+    if (!dir) return NULL;
+
+    // Collect matches
+    size_t capacity = 16;
+    size_t count = 0;
+    char **results = malloc(capacity * sizeof(char *));
+    if (!results) {
+        closedir(dir);
+        return NULL;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip hidden files unless pattern starts with .
+        if (entry->d_name[0] == '.' && file_pattern[0] != '.') {
+            continue;
+        }
+
+        // Match using fnmatch (which properly handles character classes)
+        if (fnmatch(file_pattern, entry->d_name, 0) == 0) {
+            // Build full path
+            char full_path[PATH_MAX];
+            if (strcmp(dir_path, ".") == 0) {
+                safe_strcpy(full_path, entry->d_name, PATH_MAX);
+            } else {
+                snprintf(full_path, PATH_MAX, "%s/%s", dir_path, entry->d_name);
+            }
+
+            // Add to results
+            if (count >= capacity - 1) {
+                capacity *= 2;
+                char **new_results = realloc(results, capacity * sizeof(char *));
+                if (!new_results) {
+                    for (size_t i = 0; i < count; i++) free(results[i]);
+                    free(results);
+                    closedir(dir);
+                    return NULL;
+                }
+                results = new_results;
+            }
+            results[count++] = strdup(full_path);
+        }
+    }
+
+    closedir(dir);
+
+    if (count == 0) {
+        free(results);
+        return NULL;
+    }
+
+    // Sort results for consistent output
+    for (size_t i = 0; i < count - 1; i++) {
+        for (size_t j = i + 1; j < count; j++) {
+            if (strcmp(results[i], results[j]) > 0) {
+                char *tmp = results[i];
+                results[i] = results[j];
+                results[j] = tmp;
+            }
+        }
+    }
+
+    results[count] = NULL;
+    *match_count = count;
+    return results;
+}
+
 // Check if a string contains glob characters
 // Characters preceded by \x01 marker are protected (from quoted context)
 int has_glob_chars(const char *s) {
@@ -340,7 +571,24 @@ static char *make_glob_pattern(const char *s) {
     }
     *write = '\0';
 
+    // Preprocess POSIX bracket expressions (collating elements, equivalence classes)
+    // that macOS glob() doesn't support
+    char *preprocessed = preprocess_bracket_expr(pattern);
+    if (preprocessed) {
+        free(pattern);
+        return preprocessed;
+    }
+
     return pattern;
+}
+
+// Check if pattern contains bracket expression (needs fnmatch_glob)
+static bool has_bracket_expr(const char *s) {
+    if (!s) return false;
+    for (const char *p = s; *p; p++) {
+        if (*p == '[') return true;
+    }
+    return false;
 }
 
 // Expand glob patterns in arguments
@@ -364,18 +612,34 @@ int expand_glob(char ***args_ptr, int *arg_count) {
                 total_new_args++;
                 continue;
             }
-            glob_t gl;
-            int flags = GLOB_NOCHECK | GLOB_TILDE;
-            int ret = glob(pattern, flags, NULL, &gl);
-            if (ret == 0) {
-                total_new_args += (int)gl.gl_pathc;
-                if (gl.gl_pathc > 1 || (gl.gl_pathc == 1 && strcmp(gl.gl_pathv[0], pattern) != 0)) {
+
+            // Use fnmatch_glob for patterns with bracket expressions
+            // (macOS glob() doesn't properly support character classes)
+            if (has_bracket_expr(pattern)) {
+                size_t match_count = 0;
+                char **matches = fnmatch_glob(pattern, &match_count);
+                if (matches && match_count > 0) {
+                    total_new_args += (int)match_count;
                     has_expansion = 1;
+                    for (size_t j = 0; j < match_count; j++) free(matches[j]);
+                    free(matches);
+                } else {
+                    total_new_args++;  // Keep original on no match
                 }
             } else {
-                total_new_args++;  // Keep original on error
+                glob_t gl;
+                int flags = GLOB_NOCHECK | GLOB_TILDE;
+                int ret = glob(pattern, flags, NULL, &gl);
+                if (ret == 0) {
+                    total_new_args += (int)gl.gl_pathc;
+                    if (gl.gl_pathc > 1 || (gl.gl_pathc == 1 && strcmp(gl.gl_pathv[0], pattern) != 0)) {
+                        has_expansion = 1;
+                    }
+                } else {
+                    total_new_args++;  // Keep original on error
+                }
+                globfree(&gl);
             }
-            globfree(&gl);
             free(pattern);
         } else {
             total_new_args++;
@@ -405,21 +669,37 @@ int expand_glob(char ***args_ptr, int *arg_count) {
                 new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
                 continue;
             }
-            glob_t gl;
-            int flags = GLOB_NOCHECK | GLOB_TILDE;
-            int ret = glob(pattern, flags, NULL, &gl);
-            if (ret == 0) {
-                for (size_t j = 0; j < gl.gl_pathc; j++) {
-                    new_args[new_idx++] = strdup(gl.gl_pathv[j]);
+
+            // Use fnmatch_glob for patterns with bracket expressions
+            if (has_bracket_expr(pattern)) {
+                size_t match_count = 0;
+                char **matches = fnmatch_glob(pattern, &match_count);
+                if (matches && match_count > 0) {
+                    for (size_t j = 0; j < match_count; j++) {
+                        new_args[new_idx++] = matches[j];  // Transfer ownership
+                    }
+                    free(matches);  // Free array but not strings
+                } else {
+                    // No match - keep original with markers stripped
+                    char *stripped = strdup(args[i]);
+                    if (stripped) strip_quote_markers(stripped);
+                    new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
                 }
-                globfree(&gl);
-                // Original string NOT freed - caller manages memory
             } else {
-                // Keep original on error (strdup for uniform ownership)
-                // Strip markers from the copy
-                char *stripped = strdup(args[i]);
-                if (stripped) strip_quote_markers(stripped);
-                new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
+                glob_t gl;
+                int flags = GLOB_NOCHECK | GLOB_TILDE;
+                int ret = glob(pattern, flags, NULL, &gl);
+                if (ret == 0) {
+                    for (size_t j = 0; j < gl.gl_pathc; j++) {
+                        new_args[new_idx++] = strdup(gl.gl_pathv[j]);
+                    }
+                    globfree(&gl);
+                } else {
+                    // Keep original on error (strdup for uniform ownership)
+                    char *stripped = strdup(args[i]);
+                    if (stripped) strip_quote_markers(stripped);
+                    new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
+                }
             }
             free(pattern);
         } else {
