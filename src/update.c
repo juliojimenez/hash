@@ -734,6 +734,23 @@ void update_startup_check(void) {
 
     update_record_check();
 
+    // Skip notification for package manager installations
+    // Users should update through their package manager instead
+    switch (info.install_method) {
+        case INSTALL_METHOD_APT:
+        case INSTALL_METHOD_YUM:
+        case INSTALL_METHOD_DNF:
+        case INSTALL_METHOD_BREW:
+        case INSTALL_METHOD_PKG:
+        case INSTALL_METHOD_PACMAN:
+        case INSTALL_METHOD_ZYPPER:
+        case INSTALL_METHOD_FLATPAK:
+        case INSTALL_METHOD_SNAP:
+            return;  // Let package manager handle updates
+        default:
+            break;
+    }
+
     // Show notification if update available
     if (info.update_available) {
         printf("\n");
