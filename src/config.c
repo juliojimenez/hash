@@ -402,7 +402,13 @@ int config_load_silent(const char *filepath) {
 
     if (strcmp(basename, ".hashrc") == 0) {
         // Use config_load which handles hash-specific directives (alias, set, export)
-        return config_load(filepath);
+        // Set silent_errors to suppress errors from command substitutions in exports
+        // (e.g., export GPG_TTY=$(tty) shouldn't print errors if tty fails)
+        bool old_silent = script_state.silent_errors;
+        script_state.silent_errors = true;
+        int result = config_load(filepath);
+        script_state.silent_errors = old_silent;
+        return result;
     }
 
     // For other files (profile, login, etc.), use script execution
