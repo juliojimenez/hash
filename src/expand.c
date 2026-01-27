@@ -582,11 +582,34 @@ static char *make_glob_pattern(const char *s) {
     return pattern;
 }
 
-// Check if pattern contains bracket expression (needs fnmatch_glob)
-static bool has_bracket_expr(const char *s) {
+// Check if pattern contains POSIX character class that needs fnmatch_glob
+// macOS glob() doesn't properly handle character classes like [:alpha:]
+// Returns true only if pattern has [[:...:]...] construct
+static bool needs_fnmatch_glob(const char *s) {
     if (!s) return false;
+
+    // Look for [[:  which indicates a character class inside a bracket expr
     for (const char *p = s; *p; p++) {
-        if (*p == '[') return true;
+        if (*p == '\\' && *(p + 1)) {
+            p++;  // Skip escaped char
+            continue;
+        }
+        if (*p == '[') {
+            // Found opening bracket, look for [: inside
+            p++;
+            // Skip negation
+            if (*p == '!' || *p == '^') p++;
+            // First ] is literal
+            if (*p == ']') p++;
+
+            // Scan for [:
+            while (*p && *p != ']') {
+                if (*p == '[' && *(p + 1) == ':') {
+                    return true;  // Found character class
+                }
+                p++;
+            }
+        }
     }
     return false;
 }
@@ -615,7 +638,7 @@ int expand_glob(char ***args_ptr, int *arg_count) {
 
             // Use fnmatch_glob for patterns with bracket expressions
             // (macOS glob() doesn't properly support character classes)
-            if (has_bracket_expr(pattern)) {
+            if (needs_fnmatch_glob(pattern)) {
                 size_t match_count = 0;
                 char **matches = fnmatch_glob(pattern, &match_count);
                 if (matches && match_count > 0) {
@@ -671,7 +694,7 @@ int expand_glob(char ***args_ptr, int *arg_count) {
             }
 
             // Use fnmatch_glob for patterns with bracket expressions
-            if (has_bracket_expr(pattern)) {
+            if (needs_fnmatch_glob(pattern)) {
                 size_t match_count = 0;
                 char **matches = fnmatch_glob(pattern, &match_count);
                 if (matches && match_count > 0) {
