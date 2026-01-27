@@ -243,6 +243,14 @@ void script_set_continue_pending(int levels);
 void script_clear_break_continue(void);
 
 /**
+ * Get/set return pending flag (for return in if/while conditions)
+ * When return is called in a condition, this flag signals that
+ * the function should return immediately
+ */
+bool script_get_return_pending(void);
+void script_set_return_pending(bool pending);
+
+/**
  * Check if commands should currently execute
  * (Based on if/else conditions, etc.)
  */

@@ -546,8 +546,8 @@ int chain_execute(const CommandChain *chain) {
             // Update global exit code
             extern int last_command_exit_code;
             last_command_exit_code = pipe_exit;
-            // Apply negation if needed
-            if (negate) {
+            // Apply negation if needed, but NOT if return was called
+            if (negate && !script_get_return_pending()) {
                 last_command_exit_code = (last_command_exit_code == 0) ? 1 : 0;
             }
             last_exit_code = last_command_exit_code;
@@ -559,8 +559,9 @@ int chain_execute(const CommandChain *chain) {
             if (parsed.tokens) {
                 shell_continue = execute(parsed.tokens);
                 last_exit_code = execute_get_last_exit_code();
-                // Apply negation if needed
-                if (negate) {
+                // Apply negation if needed, but NOT if return was called
+                // (return's exit code should not be negated)
+                if (negate && !script_get_return_pending()) {
                     extern int last_command_exit_code;
                     last_command_exit_code = (last_command_exit_code == 0) ? 1 : 0;
                     last_exit_code = last_command_exit_code;
@@ -580,8 +581,9 @@ int chain_execute(const CommandChain *chain) {
             return 0;
         }
 
-        // If break or continue was called, stop processing chain
-        if (script_get_break_pending() > 0 || script_get_continue_pending() > 0) {
+        // If break, continue, or return was called, stop processing chain
+        if (script_get_break_pending() > 0 || script_get_continue_pending() > 0 ||
+            script_get_return_pending()) {
             return shell_continue;
         }
 

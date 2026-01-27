@@ -35,6 +35,9 @@ ScriptState script_state;
 int break_pending = 0;
 int continue_pending = 0;
 
+// Return pending flag (for return in if/while conditions)
+static bool return_pending = false;
+
 // Heredoc state for collecting heredoc content
 static char *heredoc_content = NULL;
 static size_t heredoc_content_len = 0;
@@ -603,6 +606,15 @@ void script_clear_break_continue(void) {
     continue_pending = 0;
 }
 
+// Get/set return pending flag (for return in if/while conditions)
+bool script_get_return_pending(void) {
+    return return_pending;
+}
+
+void script_set_return_pending(bool pending) {
+    return_pending = pending;
+}
+
 bool script_should_execute(void) {
     if (script_state.context_depth == 0) {
         return true;
@@ -907,6 +919,9 @@ int script_execute_function(const ShellFunction *func, int argc, char **argv) {
         break_pending = old_break_pending;
         continue_pending = old_continue_pending;
     }
+
+    // Clear return_pending - return only affects current function
+    script_set_return_pending(false);
 
     // Restore old exit_requested state (in case we're in nested functions)
     script_state.exit_requested = old_exit_requested;
@@ -1254,6 +1269,12 @@ static int process_if(const char *line) {
         char *condition = extract_condition(line, "if");
         if (condition) {
             bool result = script_eval_condition(condition);
+            // Check if return was called during condition evaluation
+            if (script_get_return_pending()) {
+                free(condition);
+                script_pop_context();  // Clean up the context we pushed
+                return -2;  // Signal return to caller
+            }
             ctx->condition_met = result;
             ctx->should_execute = result;
             free(condition);
@@ -1311,6 +1332,12 @@ static int process_elif(const char *line) {
         char *condition = extract_condition(line, "elif");
         if (condition) {
             bool result = script_eval_condition(condition);
+            // Check if return was called during condition evaluation
+            if (script_get_return_pending()) {
+                free(condition);
+                script_pop_context();  // Clean up the context
+                return -2;  // Signal return to caller
+            }
             if (result) {
                 ctx->condition_met = true;
                 ctx->should_execute = true;
@@ -2190,7 +2217,15 @@ static int process_done(const char *line) {
         }
     } else if (ctx_type == CTX_WHILE) {
         // Execute while condition is true
-        while (ctx->loop_condition && script_eval_condition(ctx->loop_condition)) {
+        while (ctx->loop_condition) {
+            bool cond_result = script_eval_condition(ctx->loop_condition);
+            // Check if return was called during condition evaluation
+            if (script_get_return_pending()) {
+                script_pop_context();
+                return -2;  // Signal return to caller
+            }
+            if (!cond_result) break;  // Condition false, exit loop
+
             ctx->should_execute = true;
             int result = execute_loop_body(ctx->loop_body);
             body_executed = true;
@@ -2229,7 +2264,15 @@ static int process_done(const char *line) {
         }
     } else if (ctx_type == CTX_UNTIL) {
         // Execute until condition is true (while condition is false)
-        while (ctx->loop_condition && !script_eval_condition(ctx->loop_condition)) {
+        while (ctx->loop_condition) {
+            bool cond_result = script_eval_condition(ctx->loop_condition);
+            // Check if return was called during condition evaluation
+            if (script_get_return_pending()) {
+                script_pop_context();
+                return -2;  // Signal return to caller
+            }
+            if (cond_result) break;  // Condition true, exit loop (until)
+
             ctx->should_execute = true;
             int result = execute_loop_body(ctx->loop_body);
             body_executed = true;

@@ -939,6 +939,8 @@ int shell_return(char **args) {
     }
 
     last_command_exit_code = return_code;
+    // Set return pending flag for condition evaluation
+    script_set_return_pending(true);
     // Signal to caller to return
     return -2;  // Special return code for "return from function"
 }
