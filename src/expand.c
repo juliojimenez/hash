@@ -540,8 +540,9 @@ int has_glob_chars(const char *s) {
 
 // Convert a string with \x01 markers into a glob pattern
 // Characters preceded by \x01 are escaped for glob (made literal)
+// If do_preprocess is true, also preprocess collating elements/equivalence classes
 // Returns newly allocated string, caller must free
-static char *make_glob_pattern(const char *s) {
+static char *make_glob_pattern_ex(const char *s, bool do_preprocess) {
     if (!s) return NULL;
 
     // Allocate worst case: every char could need escaping
@@ -572,40 +573,46 @@ static char *make_glob_pattern(const char *s) {
     *write = '\0';
 
     // Preprocess POSIX bracket expressions (collating elements, equivalence classes)
-    // that macOS glob() doesn't support
-    char *preprocessed = preprocess_bracket_expr(pattern);
-    if (preprocessed) {
-        free(pattern);
-        return preprocessed;
+    // Only needed for system glob() which may not support them
+    // fnmatch() handles these natively, so skip if using fnmatch_glob
+    if (do_preprocess) {
+        char *preprocessed = preprocess_bracket_expr(pattern);
+        if (preprocessed) {
+            free(pattern);
+            return preprocessed;
+        }
     }
 
     return pattern;
 }
 
-// Check if pattern contains POSIX character class that needs fnmatch_glob
-// macOS glob() doesn't properly handle character classes like [:alpha:]
-// Returns true only if pattern has [[:...:]...] construct
+// Check if pattern contains POSIX bracket extensions that need fnmatch_glob
+// Some glob() implementations don't properly handle:
+// - Character classes like [:alpha:]
+// - Collating elements like [.x.]
+// - Equivalence classes like [=x=]
+// Returns true if pattern has any of these constructs
 static bool needs_fnmatch_glob(const char *s) {
     if (!s) return false;
 
-    // Look for [[:  which indicates a character class inside a bracket expr
+    // Look for [: or [. or [= inside a bracket expression
     for (const char *p = s; *p; p++) {
         if (*p == '\\' && *(p + 1)) {
             p++;  // Skip escaped char
             continue;
         }
         if (*p == '[') {
-            // Found opening bracket, look for [: inside
+            // Found opening bracket, look for POSIX extensions inside
             p++;
             // Skip negation
             if (*p == '!' || *p == '^') p++;
             // First ] is literal
             if (*p == ']') p++;
 
-            // Scan for [:
+            // Scan for [: or [. or [=
             while (*p && *p != ']') {
-                if (*p == '[' && *(p + 1) == ':') {
-                    return true;  // Found character class
+                if (*p == '[' && (*(p + 1) == ':' || *(p + 1) == '.' || *(p + 1) == '=')) {
+                    return true;  // Found POSIX bracket extension
                 }
                 p++;
             }
@@ -629,16 +636,21 @@ int expand_glob(char ***args_ptr, int *arg_count) {
 
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
-            // Convert to proper glob pattern (escape protected chars)
-            char *pattern = make_glob_pattern(args[i]);
+            // First check if pattern needs fnmatch_glob (before preprocessing)
+            // Use minimal processing (just marker handling) to check
+            char *check_pattern = make_glob_pattern_ex(args[i], false);
+            bool use_fnmatch = check_pattern && needs_fnmatch_glob(check_pattern);
+            free(check_pattern);
+
+            // Now create the actual pattern
+            // Skip preprocessing if using fnmatch (it handles [. [= [: natively)
+            char *pattern = make_glob_pattern_ex(args[i], !use_fnmatch);
             if (!pattern) {
                 total_new_args++;
                 continue;
             }
 
-            // Use fnmatch_glob for patterns with bracket expressions
-            // (macOS glob() doesn't properly support character classes)
-            if (needs_fnmatch_glob(pattern)) {
+            if (use_fnmatch) {
                 size_t match_count = 0;
                 char **matches = fnmatch_glob(pattern, &match_count);
                 if (matches && match_count > 0) {
@@ -683,8 +695,13 @@ int expand_glob(char ***args_ptr, int *arg_count) {
     int new_idx = 0;
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
-            // Convert to proper glob pattern (escape protected chars)
-            char *pattern = make_glob_pattern(args[i]);
+            // First check if pattern needs fnmatch_glob (before preprocessing)
+            char *check_pattern = make_glob_pattern_ex(args[i], false);
+            bool use_fnmatch = check_pattern && needs_fnmatch_glob(check_pattern);
+            free(check_pattern);
+
+            // Now create the actual pattern
+            char *pattern = make_glob_pattern_ex(args[i], !use_fnmatch);
             if (!pattern) {
                 // Fallback: strip markers and use as-is
                 char *stripped = strdup(args[i]);
@@ -693,8 +710,7 @@ int expand_glob(char ***args_ptr, int *arg_count) {
                 continue;
             }
 
-            // Use fnmatch_glob for patterns with bracket expressions
-            if (needs_fnmatch_glob(pattern)) {
+            if (use_fnmatch) {
                 size_t match_count = 0;
                 char **matches = fnmatch_glob(pattern, &match_count);
                 if (matches && match_count > 0) {
