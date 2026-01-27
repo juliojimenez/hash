@@ -80,6 +80,7 @@ jobs:
             semantics.arith.var.space
             semantics.backtick.fds
             semantics.escaping.backslash.modernish
+            semantics.pattern.rightbracket
           "
 
           # Function to check if test should be skipped
