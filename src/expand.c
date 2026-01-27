@@ -425,7 +425,7 @@ static char **fnmatch_glob(const char *pattern, size_t *match_count) {
                  strcmp(dir_path, ".") == 0 ? "" : dir_path,
                  file_pattern);
         // Remove leading / if dir was empty
-        char *check_path = full_path;
+        const char *check_path = full_path;
         if (check_path[0] == '/' && pattern[0] != '/') {
             check_path++;
         }
