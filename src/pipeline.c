@@ -19,8 +19,20 @@
 #include "expand.h"
 #include "cmdsub.h"
 #include "arith.h"
+#include "script.h"
 
 extern int last_command_exit_code;
+
+// Check if a command is a compound command (brace group or subshell)
+static int is_compound_command(const char *cmd) {
+    if (!cmd) return 0;
+    while (*cmd && isspace(*cmd)) cmd++;
+    // Brace group: { commands; }
+    if (*cmd == '{' && (cmd[1] == '\0' || isspace(cmd[1]))) return 1;
+    // Subshell: ( commands )
+    if (*cmd == '(') return 1;
+    return 0;
+}
 
 #define INITIAL_PIPE_CAPACITY 8
 
@@ -207,6 +219,15 @@ int pipeline_execute(const Pipeline *pipeline) {
             for (int j = 0; j < num_pipes; j++) {
                 close(pipes[j][0]);
                 close(pipes[j][1]);
+            }
+
+            // Check if this is a compound command (brace group or subshell)
+            // If so, execute via script_execute_string which handles these properly
+            if (is_compound_command(pipeline->commands[i].cmd_line)) {
+                int result = script_execute_string(pipeline->commands[i].cmd_line);
+                fflush(stdout);
+                fflush(stderr);
+                _exit(result < 0 ? EXIT_FAILURE : last_command_exit_code);
             }
 
             // Parse and execute command
