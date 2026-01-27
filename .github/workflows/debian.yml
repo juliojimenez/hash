@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Release Tag'
         required: true
-        default: 'v30'
+        default: 'v31'
 
 jobs:
   build-deb:
