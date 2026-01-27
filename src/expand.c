@@ -586,33 +586,31 @@ static char *make_glob_pattern_ex(const char *s, bool do_preprocess) {
     return pattern;
 }
 
-// Check if pattern contains POSIX bracket extensions that need fnmatch_glob
-// Some glob() implementations don't properly handle:
-// - Character classes like [:alpha:]
-// - Collating elements like [.x.]
-// - Equivalence classes like [=x=]
-// Returns true if pattern has any of these constructs
+// Check if pattern contains POSIX character classes that need fnmatch_glob
+// macOS glob() doesn't properly handle character classes like [:alpha:]
+// Note: Collating elements [.x.] and equivalence classes [=x=] are handled
+// by preprocessing, so we only need fnmatch for character classes
 static bool needs_fnmatch_glob(const char *s) {
     if (!s) return false;
 
-    // Look for [: or [. or [= inside a bracket expression
+    // Look for [: inside a bracket expression (character class)
     for (const char *p = s; *p; p++) {
         if (*p == '\\' && *(p + 1)) {
             p++;  // Skip escaped char
             continue;
         }
         if (*p == '[') {
-            // Found opening bracket, look for POSIX extensions inside
+            // Found opening bracket, look for [: inside
             p++;
             // Skip negation
             if (*p == '!' || *p == '^') p++;
             // First ] is literal
             if (*p == ']') p++;
 
-            // Scan for [: or [. or [=
+            // Scan for [:
             while (*p && *p != ']') {
-                if (*p == '[' && (*(p + 1) == ':' || *(p + 1) == '.' || *(p + 1) == '=')) {
-                    return true;  // Found POSIX bracket extension
+                if (*p == '[' && *(p + 1) == ':') {
+                    return true;  // Found character class
                 }
                 p++;
             }
@@ -636,19 +634,17 @@ int expand_glob(char ***args_ptr, int *arg_count) {
 
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
-            // First check if pattern needs fnmatch_glob (before preprocessing)
-            // Use minimal processing (just marker handling) to check
-            char *check_pattern = make_glob_pattern_ex(args[i], false);
-            bool use_fnmatch = check_pattern && needs_fnmatch_glob(check_pattern);
-            free(check_pattern);
-
-            // Now create the actual pattern
-            // Skip preprocessing if using fnmatch (it handles [. [= [: natively)
-            char *pattern = make_glob_pattern_ex(args[i], !use_fnmatch);
+            // Always preprocess to handle collating elements [.x.] and
+            // equivalence classes [=x=] which many systems don't support
+            char *pattern = make_glob_pattern_ex(args[i], true);
             if (!pattern) {
                 total_new_args++;
                 continue;
             }
+
+            // Use fnmatch_glob for patterns with character classes [::]
+            // since macOS glob() doesn't handle them properly
+            bool use_fnmatch = needs_fnmatch_glob(pattern);
 
             if (use_fnmatch) {
                 size_t match_count = 0;
@@ -695,13 +691,8 @@ int expand_glob(char ***args_ptr, int *arg_count) {
     int new_idx = 0;
     for (int i = 0; i < *arg_count; i++) {
         if (has_glob_chars(args[i])) {
-            // First check if pattern needs fnmatch_glob (before preprocessing)
-            char *check_pattern = make_glob_pattern_ex(args[i], false);
-            bool use_fnmatch = check_pattern && needs_fnmatch_glob(check_pattern);
-            free(check_pattern);
-
-            // Now create the actual pattern
-            char *pattern = make_glob_pattern_ex(args[i], !use_fnmatch);
+            // Always preprocess to handle collating elements and equivalence classes
+            char *pattern = make_glob_pattern_ex(args[i], true);
             if (!pattern) {
                 // Fallback: strip markers and use as-is
                 char *stripped = strdup(args[i]);
@@ -709,6 +700,9 @@ int expand_glob(char ***args_ptr, int *arg_count) {
                 new_args[new_idx++] = stripped ? stripped : strdup(args[i]);
                 continue;
             }
+
+            // Use fnmatch_glob for character classes
+            bool use_fnmatch = needs_fnmatch_glob(pattern);
 
             if (use_fnmatch) {
                 size_t match_count = 0;
