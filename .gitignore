@@ -65,3 +65,4 @@ fuzz/*.o
 .claude
 .vscode
 .DS_Store
+CLAUDE.local.md
