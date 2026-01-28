@@ -486,9 +486,11 @@ int execute(char **args) {
     // Reset command substitution exit code tracker before expansion
     cmdsub_reset_exit_code();
 
-    // For special builtins (or assignment-only commands), process prefix assignments
-    // one-by-one so each assignment is visible to subsequent expansions
-    if (early_prefix_count > 0 && (is_special || cmd_token == NULL)) {
+    // For special builtins, process prefix assignments one-by-one so each
+    // assignment is visible to subsequent expansions (POSIX 2.9.1 requirement).
+    // Note: For assignment-only commands (cmd_token == NULL), POSIX says
+    // visibility is unspecified, so we use the simpler bulk expansion path.
+    if (early_prefix_count > 0 && is_special) {
         for (int i = 0; i < early_prefix_count; i++) {
             char *equals = is_var_assignment(args[i]);
             if (!equals) continue;
@@ -552,8 +554,8 @@ int execute(char **args) {
     expand_tilde(args);
 
     // Also expand tildes in assignment values BEFORE command substitution
-    // Skip prefix assignments that were already processed above
-    int assign_start = (early_prefix_count > 0 && (is_special || cmd_token == NULL)) ? early_prefix_count : 0;
+    // Skip prefix assignments that were already processed above (only for special builtins)
+    int assign_start = (early_prefix_count > 0 && is_special) ? early_prefix_count : 0;
     for (int i = assign_start; i < arg_count; i++) {
         const char *eq = is_var_assignment(args[i]);
         if (eq) {
@@ -655,8 +657,8 @@ int execute(char **args) {
     for (int i = 0; i < arg_count; i++) {
         const char *arg = args[i];
         if (arg == NULL) continue;
-        // Skip already-processed prefix assignments
-        if (i < early_prefix_count && (is_special || cmd_token == NULL)) continue;
+        // Skip already-processed prefix assignments (only for special builtins)
+        if (i < early_prefix_count && is_special) continue;
         if (!is_redirection_arg(original_ptrs[i]) && strchr(arg, '$') != NULL) {
             char *expanded = varexpand_expand(args[i], last_command_exit_code);
             if (expanded) {
@@ -675,7 +677,9 @@ int execute(char **args) {
         }
         // For special builtins with prefix assignments that persisted, keep them
         // (Don't restore - the error happened but assignments already took effect)
-        if (!is_special && cmd_token != NULL) {
+        if (is_special) {
+            clear_prefix_vars();
+        } else {
             restore_prefix_vars();
         }
         last_command_exit_code = 1;
