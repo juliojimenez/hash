@@ -22,6 +22,7 @@
 #include "script.h"
 #include "shellvar.h"
 #include "ifs.h"
+#include "syslimits.h"
 
 // Global to store last exit code
 int last_command_exit_code = 0;
@@ -85,6 +86,15 @@ static int launch(char **args, const char *cmd_string) {
 
     // Strip quote markers after redirect parsing (for external commands)
     strip_quote_markers_args(exec_args);
+
+    // Check if arguments would exceed system ARG_MAX limit
+    if (syslimits_check_exec_args(exec_args) != 0) {
+        fprintf(stderr, "%s: argument list too long\n", HASH_NAME);
+        free(expanded_heredoc);
+        redirect_free(redir);
+        last_command_exit_code = 126;
+        return 1;
+    }
 
     // Find and cache the command path before forking
     char *cmd_path = NULL;
