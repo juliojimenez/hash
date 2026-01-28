@@ -264,7 +264,7 @@ int config_process_line(char *line) {
             // Strip \x03 IFS markers from the expanded value
             // These markers are used internally for IFS splitting but should not
             // be stored in environment variables
-            char *src = var_expanded;
+            const char *src = var_expanded;
             char *dst = var_expanded;
             while (*src) {
                 if (*src != '\x03') {
