@@ -492,7 +492,7 @@ int execute(char **args) {
     // visibility is unspecified, so we use the simpler bulk expansion path.
     if (early_prefix_count > 0 && is_special) {
         for (int i = 0; i < early_prefix_count; i++) {
-            char *equals = is_var_assignment(args[i]);
+            const char *equals = is_var_assignment(args[i]);
             if (!equals) continue;
 
             // Extract variable name
@@ -503,7 +503,7 @@ int execute(char **args) {
             name[name_len] = '\0';
 
             // Get value part
-            char *value = equals + 1;
+            const char *value = equals + 1;
 
             // Expand tilde in value
             char *tilde_exp = expand_tilde_in_assignment(value);
@@ -594,8 +594,9 @@ int execute(char **args) {
 
     // Expand command substitutions in non-prefix arguments
     // (prefix assignments for special builtins were already expanded above)
+    // Check for both $() and backtick `` syntax
     for (int i = assign_start; i < arg_count; i++) {
-        if (args[i] && strchr(args[i], '$') != NULL) {
+        if (args[i] && (strchr(args[i], '$') != NULL || strchr(args[i], '`') != NULL)) {
             char *result = cmdsub_expand(args[i]);
             if (result) {
                 if (args[i] != original_ptrs[i]) {
