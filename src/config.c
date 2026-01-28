@@ -261,6 +261,19 @@ int config_process_line(char *line) {
         // Expand variables in the value (e.g., $HOME, $PATH)
         char *var_expanded = varexpand_expand(value, 0);
         if (var_expanded) {
+            // Strip \x03 IFS markers from the expanded value
+            // These markers are used internally for IFS splitting but should not
+            // be stored in environment variables
+            char *src = var_expanded;
+            char *dst = var_expanded;
+            while (*src) {
+                if (*src != '\x03') {
+                    *dst++ = *src;
+                }
+                src++;
+            }
+            *dst = '\0';
+
             setenv(name, var_expanded, 1);
             free(var_expanded);
         } else {
@@ -342,7 +355,8 @@ int config_load(const char *filepath) {
             line[len - 1] = '\0';
         }
 
-        if (config_process_line(line) != 0) {
+        int result = config_process_line(line);
+        if (result != 0) {
             errors++;
         }
     }
@@ -457,7 +471,7 @@ void config_load_startup_files(bool is_login_shell) {
 
             // Interactive config
             snprintf(path, sizeof(path), "%s/.hashrc", home);
-            config_load_silent(path);
+            (void)config_load_silent(path);
         }
     } else {
         // ====================================================================
@@ -467,7 +481,7 @@ void config_load_startup_files(bool is_login_shell) {
 
         if (home) {
             snprintf(path, sizeof(path), "%s/.hashrc", home);
-            config_load_silent(path);
+            (void)config_load_silent(path);
         }
     }
 }

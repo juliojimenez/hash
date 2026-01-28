@@ -260,6 +260,16 @@ int main(int argc, char *argv[]) {
                       !read_stdin &&
                       isatty(STDIN_FILENO));
 
+#ifdef DEBUG
+    fprintf(stderr, "DEBUG: is_interactive=%d, is_login_shell_global=%d\n",
+            is_interactive, is_login_shell_global);
+    fprintf(stderr, "DEBUG: force_interactive=%d, command_string=%s, script_file=%s\n",
+            force_interactive, command_string ? command_string : "(null)",
+            script_file ? script_file : "(null)");
+    fprintf(stderr, "DEBUG: read_stdin=%d, isatty(STDIN)=%d\n",
+            read_stdin, isatty(STDIN_FILENO));
+#endif
+
     // Initialize scripting subsystem (always needed)
     script_init();
 
