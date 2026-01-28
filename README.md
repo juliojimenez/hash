@@ -13,66 +13,66 @@ A modern command line interpreter for Linux, macOS, and BSD.
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell-v31-linux-x86_64
-chmod +x hash-shell-v31-linux-x86_64
-sudo mv hash-shell-v31-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell-v32-linux-x86_64
+chmod +x hash-shell-v32-linux-x86_64
+sudo mv hash-shell-v32-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell-v31-linux-aarch64
-chmod +x hash-shell-v31-linux-aarch64
-sudo mv hash-shell-v31-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell-v32-linux-aarch64
+chmod +x hash-shell-v32-linux-aarch64
+sudo mv hash-shell-v32-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### FreeBSD x86_64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v31/hash-shell-v31-freebsd-x86_64
-chmod +x hash-shell-v31-freebsd-x86_64
-sudo mv hash-shell-v31-freebsd-x86_64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v32/hash-shell-v32-freebsd-x86_64
+chmod +x hash-shell-v32-freebsd-x86_64
+sudo mv hash-shell-v32-freebsd-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### FreeBSD ARM64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v31/hash-shell-v31-freebsd-aarch64
-chmod +x hash-shell-v31-freebsd-aarch64
-sudo mv hash-shell-v31-freebsd-aarch64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v32/hash-shell-v32-freebsd-aarch64
+chmod +x hash-shell-v32-freebsd-aarch64
+sudo mv hash-shell-v32-freebsd-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell-v31-darwin-arm64
-chmod +x hash-shell-v31-darwin-arm64
-sudo mv hash-shell-v31-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell-v32-darwin-arm64
+chmod +x hash-shell-v32-darwin-arm64
+sudo mv hash-shell-v32-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 #### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell_31-1~noble_amd64.deb
-sudo dpkg -i hash-shell_31-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell_32-1~noble_amd64.deb
+sudo dpkg -i hash-shell_32-1~noble_amd64.deb
 ```
 
 #### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell_31-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_31-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell_32-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_32-1~jammy_amd64.deb
 ```
 
 #### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v31/hash-shell_31-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_31-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v32/hash-shell_32-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_32-1~bookworm_amd64.deb
 ```
 
 ### From Source

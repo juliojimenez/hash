@@ -1,10 +1,9 @@
-hash-shell (31-1) unstable; urgency=medium
+hash-shell (32-1) unstable; urgency=medium
 
-  * Line continuation fix in interactive mode (by @kshku)
-  * Updated man page
-  * SonarQube findings fixes
+  * Fix race condition when uploading assets to release
+  * Fix failure on man page installation
   * Fix more POSIX compliance tests
-  * Silent errors for exports on shell startup
-  * No native update notifications for package installs of hash
+  * Fix IFS markers leaking into setenv()
+  * Implement ARG_MAX syslimits, tracking more closely with other shells
 
- -- Julio Jimenez <julio@julioj.com>  Tue, 27 Jan 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Wed, 28 Jan 2026 12:00:00 +0000
