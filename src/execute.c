@@ -376,6 +376,72 @@ static void restore_prefix_vars(void) {
     prefix_var_count = 0;
 }
 
+// Clear prefix var tracking without restoring (for special builtins where vars persist)
+static void clear_prefix_vars(void) {
+    for (int i = 0; i < prefix_var_count; i++) {
+        free(prefix_vars[i].old_env_value);
+        free(prefix_vars[i].old_shell_value);
+        free(prefix_vars[i].name);
+    }
+    prefix_var_count = 0;
+}
+
+// Helper: check if a command name is a POSIX special builtin
+// For special builtins, prefix variable assignments persist after the command
+static bool is_posix_special_builtin(const char *cmd) {
+    if (!cmd) return false;
+    return (strcmp(cmd, ":") == 0 ||
+            strcmp(cmd, ".") == 0 ||
+            strcmp(cmd, "break") == 0 ||
+            strcmp(cmd, "continue") == 0 ||
+            strcmp(cmd, "eval") == 0 ||
+            strcmp(cmd, "exec") == 0 ||
+            strcmp(cmd, "exit") == 0 ||
+            strcmp(cmd, "export") == 0 ||
+            strcmp(cmd, "readonly") == 0 ||
+            strcmp(cmd, "return") == 0 ||
+            strcmp(cmd, "set") == 0 ||
+            strcmp(cmd, "shift") == 0 ||
+            strcmp(cmd, "source") == 0 ||
+            strcmp(cmd, "times") == 0 ||
+            strcmp(cmd, "trap") == 0 ||
+            strcmp(cmd, "unset") == 0);
+}
+
+// Helper: expand a single assignment value through all expansion phases
+// Returns newly allocated string (caller must free), or NULL on error
+static char *expand_assignment_value(const char *value, int *had_error) {
+    char *result = strdup(value);
+    if (!result) return NULL;
+
+    // Command substitution
+    char *cmdsub_result = cmdsub_expand(result);
+    if (cmdsub_result) {
+        free(result);
+        result = cmdsub_result;
+    }
+
+    // Arithmetic expansion
+    char *arith_result = arith_expand(result);
+    if (arith_result) {
+        free(result);
+        result = arith_result;
+    }
+
+    // Variable expansion
+    varexpand_clear_error();
+    char *var_result = varexpand_expand(result, last_command_exit_code);
+    if (var_result) {
+        free(result);
+        result = var_result;
+    }
+    if (varexpand_had_error()) {
+        *had_error = 1;
+    }
+
+    return result;
+}
+
 // Execute command (built-in or external)
 int execute(char **args) {
     if (args[0] == NULL) {
@@ -397,12 +463,98 @@ int execute(char **args) {
         arg_count++;
     }
 
+    // POSIX 2.9.1: For special builtins, prefix variable assignments must be
+    // visible during expansion of subsequent arguments in the same command.
+    // We need to identify and process prefix assignments BEFORE bulk expansion.
+
+    // First, identify how many prefix assignments there are (before first command word)
+    // Look at raw args before any expansion to find VAR=VALUE patterns
+    int early_prefix_count = 0;
+    for (int i = 0; i < arg_count; i++) {
+        if (is_var_assignment(args[i])) {
+            early_prefix_count++;
+        } else {
+            break;  // First non-assignment is the command
+        }
+    }
+
+    // Identify the command name (first non-assignment token) to check if it's a special builtin
+    // We check the literal token before expansion - if it's a variable, behavior is unspecified
+    const char *cmd_token = (early_prefix_count < arg_count) ? args[early_prefix_count] : NULL;
+    bool is_special = cmd_token ? is_posix_special_builtin(cmd_token) : false;
+
+    // Reset command substitution exit code tracker before expansion
+    cmdsub_reset_exit_code();
+
+    // For special builtins (or assignment-only commands), process prefix assignments
+    // one-by-one so each assignment is visible to subsequent expansions
+    if (early_prefix_count > 0 && (is_special || cmd_token == NULL)) {
+        for (int i = 0; i < early_prefix_count; i++) {
+            char *equals = is_var_assignment(args[i]);
+            if (!equals) continue;
+
+            // Extract variable name
+            size_t name_len = equals - args[i];
+            char *name = malloc(name_len + 1);
+            if (!name) continue;
+            memcpy(name, args[i], name_len);
+            name[name_len] = '\0';
+
+            // Get value part
+            char *value = equals + 1;
+
+            // Expand tilde in value
+            char *tilde_exp = expand_tilde_in_assignment(value);
+            if (tilde_exp) {
+                value = tilde_exp;
+            }
+
+            // Expand the value through all phases
+            int had_error = 0;
+            char *expanded_value = expand_assignment_value(value, &had_error);
+            if (tilde_exp) free(tilde_exp);
+
+            if (had_error) {
+                free(name);
+                free(expanded_value);
+                last_command_exit_code = 1;
+                return is_interactive ? 1 : 0;
+            }
+
+            // Strip quote markers from value
+            if (expanded_value) {
+                strip_quote_markers(expanded_value);
+            }
+
+            // Save old value and set new value so it's visible to subsequent expansions
+            save_prefix_var(name);
+            set_prefix_var(name, expanded_value ? expanded_value : "");
+
+            // Build new arg string with expanded value for later processing
+            size_t new_len = name_len + 1 + (expanded_value ? strlen(expanded_value) : 0) + 1;
+            char *new_arg = malloc(new_len);
+            if (new_arg) {
+                snprintf(new_arg, new_len, "%s=%s", name, expanded_value ? expanded_value : "");
+                if (args[i] != original_ptrs[i]) {
+                    free(args[i]);
+                }
+                args[i] = new_arg;
+                expanded_args[expanded_count++] = new_arg;
+                original_ptrs[i] = new_arg;
+            }
+
+            free(name);
+            free(expanded_value);
+        }
+    }
+
     // Expand tilde in all arguments (for args starting with ~)
     expand_tilde(args);
 
     // Also expand tildes in assignment values BEFORE command substitution
-    // This is the correct POSIX order: tilde expansion before cmdsub
-    for (int i = 0; i < arg_count; i++) {
+    // Skip prefix assignments that were already processed above
+    int assign_start = (early_prefix_count > 0 && (is_special || cmd_token == NULL)) ? early_prefix_count : 0;
+    for (int i = assign_start; i < arg_count; i++) {
         const char *eq = is_var_assignment(args[i]);
         if (eq) {
             // This is an assignment - expand tildes in the value part
@@ -438,11 +590,19 @@ int execute(char **args) {
         }
     }
 
-    // Reset command substitution exit code tracker before expansion
-    cmdsub_reset_exit_code();
-
-    // Expand command substitutions in all arguments
-    cmdsub_args(args);
+    // Expand command substitutions in non-prefix arguments
+    // (prefix assignments for special builtins were already expanded above)
+    for (int i = assign_start; i < arg_count; i++) {
+        if (args[i] && strchr(args[i], '$') != NULL) {
+            char *result = cmdsub_expand(args[i]);
+            if (result) {
+                if (args[i] != original_ptrs[i]) {
+                    free(args[i]);
+                }
+                args[i] = result;
+            }
+        }
+    }
 
     // Track which args were expanded by cmdsub
     for (int i = 0; i < arg_count; i++) {
@@ -452,8 +612,18 @@ int execute(char **args) {
         }
     }
 
-    // Expand arithmetic substitutions in all arguments
-    arith_args(args);
+    // Expand arithmetic substitutions in non-prefix arguments
+    for (int i = assign_start; i < arg_count; i++) {
+        if (args[i] && strstr(args[i], "$((") != NULL) {
+            char *result = arith_expand(args[i]);
+            if (result) {
+                if (args[i] != original_ptrs[i]) {
+                    free(args[i]);
+                }
+                args[i] = result;
+            }
+        }
+    }
 
     // Track which args were expanded by arith
     for (int i = 0; i < arg_count; i++) {
@@ -481,9 +651,12 @@ int execute(char **args) {
     }
 
     // Second pass: expand non-redirection arguments (assignments and command words)
+    // Skip prefix assignments that were already expanded for special builtins
     for (int i = 0; i < arg_count; i++) {
         const char *arg = args[i];
         if (arg == NULL) continue;
+        // Skip already-processed prefix assignments
+        if (i < early_prefix_count && (is_special || cmd_token == NULL)) continue;
         if (!is_redirection_arg(original_ptrs[i]) && strchr(arg, '$') != NULL) {
             char *expanded = varexpand_expand(args[i], last_command_exit_code);
             if (expanded) {
@@ -499,6 +672,11 @@ int execute(char **args) {
             if (args[i] != original_ptrs[i]) {
                 free(args[i]);
             }
+        }
+        // For special builtins with prefix assignments that persisted, keep them
+        // (Don't restore - the error happened but assignments already took effect)
+        if (!is_special && cmd_token != NULL) {
+            restore_prefix_vars();
         }
         last_command_exit_code = 1;
         return is_interactive ? 1 : 0;  // Continue in interactive mode, exit in non-interactive
@@ -638,8 +816,10 @@ int execute(char **args) {
 
     // If there are prefix assignments followed by a command,
     // set them temporarily for the command (both in environment and shell table)
+    // Skip if we already processed them for special builtins (early processing above)
     bool has_prefix_assignments = (prefix_count > 0 && exec_input[prefix_count] != NULL);
-    if (has_prefix_assignments) {
+    bool prefix_vars_already_set = (early_prefix_count > 0 && is_special && prefix_count == early_prefix_count);
+    if (has_prefix_assignments && !prefix_vars_already_set) {
         for (int i = 0; i < prefix_count; i++) {
             char *equals = is_var_assignment(exec_input[i]);
             *equals = '\0';
@@ -658,6 +838,9 @@ int execute(char **args) {
             *equals = '=';  // Restore
         }
         // Shift exec_input to point to the actual command
+        exec_input = &exec_input[prefix_count];
+    } else if (prefix_vars_already_set) {
+        // Already processed, just shift past prefix assignments
         exec_input = &exec_input[prefix_count];
     }
 
@@ -847,7 +1030,8 @@ int execute(char **args) {
             if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
-            restore_prefix_vars();
+            // exec is a special builtin - prefix assignments persist
+            clear_prefix_vars();
             return result;
         }
     }
@@ -867,7 +1051,8 @@ int execute(char **args) {
             if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
-            restore_prefix_vars();
+            // Special builtin redirect error - vars still persist per POSIX
+            clear_prefix_vars();
             last_command_exit_code = 1;
             // Special builtin redirect error: exit non-interactive shell
             return is_interactive ? 1 : 0;
@@ -891,7 +1076,12 @@ int execute(char **args) {
         if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
-        restore_prefix_vars();
+        // For special builtins, prefix assignments persist; for others, restore
+        if (is_special_builtin) {
+            clear_prefix_vars();
+        } else {
+            restore_prefix_vars();
+        }
         return result;
     }
 
