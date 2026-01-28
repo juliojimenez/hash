@@ -111,9 +111,12 @@ jobs:
               ERR_FILE="shell/${TEST_NAME}.err"
               EC_FILE="shell/${TEST_NAME}.ec"
 
-              # Run test with timeout (execute as script, not via stdin)
-              timeout 5s /usr/local/bin/hash-shell "$test_file" > "results/${TEST_NAME}.actual_out" 2> "results/${TEST_NAME}.actual_err"
+              # Run test with timeout in a clean temp directory (like smoosh test runner)
+              TEST_TMP=$(mktemp -d)
+              BASE_DIR="$(pwd)"
+              (cd "$TEST_TMP" && timeout 5s /usr/local/bin/hash-shell "${BASE_DIR}/$test_file" > "${BASE_DIR}/results/${TEST_NAME}.actual_out" 2> "${BASE_DIR}/results/${TEST_NAME}.actual_err")
               ACTUAL_EC=$?
+              rm -rf "$TEST_TMP"
 
               # Check if timeout occurred
               if [ $ACTUAL_EC -eq 124 ]; then
