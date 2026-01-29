@@ -133,10 +133,10 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
                 }
             } else {
                 // Non-whitespace IFS char - delimiter
+                // POSIX: Each non-whitespace IFS char delimits a field,
+                // including empty fields from consecutive delimiters
                 current_word[current_len] = '\0';
-                if (current_len > 0) {
-                    all_words[word_count++] = strdup(current_word);
-                }
+                all_words[word_count++] = strdup(current_word);
                 current_len = 0;
                 p++;
 
