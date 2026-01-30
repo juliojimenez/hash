@@ -3,7 +3,7 @@
 # =============================================================================
 # Stage 1: Builder (Alpine/musl)
 # =============================================================================
-FROM alpine:3.23.3 AS builder
+FROM alpine:edge AS builder
 
 # Install build dependencies
 RUN apk add --no-cache build-base
@@ -21,7 +21,7 @@ RUN make clean && make
 # =============================================================================
 # Stage 2: Runtime (Alpine - minimal with utilities)
 # =============================================================================
-FROM alpine:3.23.3
+FROM alpine:edge
 
 # Add labels for container metadata
 LABEL org.opencontainers.image.title="hash-shell"
