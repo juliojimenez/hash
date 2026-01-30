@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+build/
+hash-shell
+*.o
+*.a
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Documentation (not needed for build)
+docs/
+images/
+*.md
+!debian/*.md
+
+# Tests (not needed for runtime image)
+tests/
+test.sh
+fuzz/
+
+# CI/CD
+.github/
+
+# Local development
+.claude/
+CLAUDE.local.md
+.valgrind-suppressions
+
+# Examples (optional - remove this line if you want examples in image)
+examples/
+
+# FreeBSD packaging
+freebsd/
+
+# Sonar
+sonar-project.properties
