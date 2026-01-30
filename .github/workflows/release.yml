@@ -191,7 +191,7 @@ jobs:
 
             # Build
             gmake clean
-            gmake CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99"
+            gmake CC=cc CFLAGS="-Wall -Wextra -O2 -std=gnu99 -static"
 
             # Rename binary
             mv hash-shell hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}
