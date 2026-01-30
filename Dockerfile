@@ -25,6 +25,9 @@ RUN make clean && make
 # =============================================================================
 FROM debian:trixie-slim
 
+# Update packages to get security fixes
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 # Add labels for container metadata
 LABEL org.opencontainers.image.title="hash-shell"
 LABEL org.opencontainers.image.description="POSIX-compliant command line interpreter"
