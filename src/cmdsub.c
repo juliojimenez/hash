@@ -69,6 +69,8 @@ static char *execute_and_capture(const char *cmd) {
 
         // Reset traps for subshell - inherited traps should not execute
         trap_reset_for_subshell();
+        // POSIX: break/continue only affect loops in this subshell
+        script_reset_for_subshell();
 
         // Use hash's own script execution to preserve function definitions
         int result = script_execute_string(cmd);

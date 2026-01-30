@@ -182,6 +182,7 @@ static char *read_complete_line(FILE *fp) {
     bool in_single_quote = false;
     bool in_double_quote = false;
     int brace_depth = 0;  // Track ${...} depth - # inside braces is not a comment
+    int paren_depth = 0;  // Track (...) depth for multi-line subshells
 
     while (fgets(buf, sizeof(buf), fp)) {
         size_t len = strlen(buf);
@@ -200,14 +201,15 @@ static char *read_complete_line(FILE *fp) {
             result_cap = new_cap;
         }
 
-        // Append buffer to result and track quote state
+        // Append buffer to result and track quote/paren state
         bool in_comment = false;
         for (size_t i = 0; i < len; i++) {
             char c = buf[i];
             result[result_len++] = c;
 
-            // Once in a comment, stop tracking quotes (comments end at newline)
+            // Once in a comment, stop tracking (comments end at newline)
             if (in_comment) {
+                if (c == '\n') in_comment = false;  // Reset at newline for next line
                 continue;
             }
 
@@ -222,13 +224,19 @@ static char *read_complete_line(FILE *fp) {
                 in_single_quote = !in_single_quote;
             } else if (c == '"' && !in_single_quote) {
                 in_double_quote = !in_double_quote;
-            } else if (c == '{' && !in_single_quote) {
-                brace_depth++;
-            } else if (c == '}' && !in_single_quote && brace_depth > 0) {
-                brace_depth--;
-            } else if (c == '#' && !in_single_quote && !in_double_quote && brace_depth == 0) {
-                // Start of comment - stop tracking quotes for rest of line
-                in_comment = true;
+            } else if (!in_single_quote && !in_double_quote) {
+                if (c == '{') {
+                    brace_depth++;
+                } else if (c == '}' && brace_depth > 0) {
+                    brace_depth--;
+                } else if (c == '(') {
+                    paren_depth++;
+                } else if (c == ')' && paren_depth > 0) {
+                    paren_depth--;
+                } else if (c == '#' && brace_depth == 0) {
+                    // Start of comment - stop tracking for rest of line
+                    in_comment = true;
+                }
             }
         }
         result[result_len] = '\0';
@@ -249,6 +257,11 @@ static char *read_complete_line(FILE *fp) {
             continue;
         }
 
+        // Continue reading if we're inside unclosed parentheses (multi-line subshell)
+        if (paren_depth > 0) {
+            continue;
+        }
+
         // Remove trailing newline
         if (result_len > 0 && result[result_len - 1] == '\n') {
             result[result_len - 1] = '\0';
@@ -259,6 +272,106 @@ static char *read_complete_line(FILE *fp) {
     }
 
     // Return what we have (might be partial line at EOF)
+    if (result && result_len > 0) {
+        return result;
+    }
+    free(result);
+    return NULL;
+}
+
+// Read a complete logical line from a string buffer, advancing *ptr past consumed input.
+// Similar to read_complete_line but operates on a string instead of FILE*.
+// Handles quotes, multi-line subshells, etc.
+// Returns allocated string (caller must free) or NULL at end of input.
+static char *read_complete_line_from_string(const char **ptr) {
+    if (!ptr || !*ptr || !**ptr) return NULL;
+
+    char *result = NULL;
+    size_t result_len = 0;
+    size_t result_cap = 0;
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+    int brace_depth = 0;
+    int paren_depth = 0;
+
+    while (**ptr) {
+        // Read until newline
+        const char *line_start = *ptr;
+        while (**ptr && **ptr != '\n') (*ptr)++;
+
+        size_t len = *ptr - line_start;
+        bool has_newline = (**ptr == '\n');
+        if (has_newline) (*ptr)++;  // Skip past newline
+
+        // Grow result buffer if needed
+        size_t new_len = result_len + len + 2;  // +2 for possible newline and null
+        if (new_len > result_cap) {
+            size_t new_cap = result_cap ? result_cap * 2 : 256;
+            if (new_cap < new_len) new_cap = new_len;
+            char *new_result = realloc(result, new_cap);
+            if (!new_result) {
+                free(result);
+                return NULL;
+            }
+            result = new_result;
+            result_cap = new_cap;
+        }
+
+        // Append content and track state
+        bool in_comment = false;
+        for (size_t i = 0; i < len; i++) {
+            char c = line_start[i];
+            result[result_len++] = c;
+
+            if (in_comment) continue;
+
+            // Backslash escapes next character when not in single quotes
+            if (c == '\\' && !in_single_quote && i + 1 < len) {
+                i++;
+                result[result_len++] = line_start[i];
+                continue;
+            }
+            if (c == '\'' && !in_double_quote) {
+                in_single_quote = !in_single_quote;
+            } else if (c == '"' && !in_single_quote) {
+                in_double_quote = !in_double_quote;
+            } else if (!in_single_quote && !in_double_quote) {
+                if (c == '{') {
+                    brace_depth++;
+                } else if (c == '}' && brace_depth > 0) {
+                    brace_depth--;
+                } else if (c == '(') {
+                    paren_depth++;
+                } else if (c == ')' && paren_depth > 0) {
+                    paren_depth--;
+                } else if (c == '#' && brace_depth == 0) {
+                    in_comment = true;
+                }
+            }
+        }
+
+        // Add newline back if we had one and need to continue
+        if (has_newline && (in_single_quote || in_double_quote || paren_depth > 0)) {
+            result[result_len++] = '\n';
+        }
+        result[result_len] = '\0';
+
+        // Check for line continuation (backslash before newline)
+        if (has_newline && result_len >= 1 && result[result_len - 1] == '\\' && !in_single_quote) {
+            result_len--;  // Remove backslash
+            result[result_len] = '\0';
+            continue;
+        }
+
+        // Continue reading if inside quotes or unclosed parentheses
+        if (in_single_quote || in_double_quote || paren_depth > 0) {
+            continue;
+        }
+
+        return result;
+    }
+
+    // Return what we have at end of input
     if (result && result_len > 0) {
         return result;
     }
@@ -604,6 +717,23 @@ void script_set_continue_pending(int levels) {
 void script_clear_break_continue(void) {
     break_pending = 0;
     continue_pending = 0;
+}
+
+// Reset script state for subshell
+// POSIX: break/continue in a subshell should only affect loops within that subshell,
+// not loops in the parent shell. When we fork a subshell, we need to clear the
+// inherited loop context so that break/continue don't see parent's loops.
+void script_reset_for_subshell(void) {
+    // Clear break/continue pending state
+    break_pending = 0;
+    continue_pending = 0;
+
+    // Clear the context stack - subshell starts fresh without parent's loops
+    // Note: we don't free loop_body etc. because those belong to parent process
+    script_state.context_depth = 0;
+
+    // Reset function call depth for the subshell
+    script_state.function_call_depth = 0;
 }
 
 // Get/set return pending flag (for return in if/while conditions)
@@ -1140,6 +1270,8 @@ static int execute_simple_line(const char *line) {
                 // Execute the subshell commands
                 // POSIX: Traps are not inherited by subshells - reset them
                 trap_reset_for_subshell();
+                // POSIX: break/continue only affect loops in this subshell, not parent's loops
+                script_reset_for_subshell();
                 // Note: don't close stdin for subshells as they run synchronously
                 int exit_code = script_execute_string(subshell_cmd);
                 free(subshell_cmd);
@@ -2076,19 +2208,9 @@ static int execute_loop_body(const char *body) {
     int result = 1;
 
     while (*ptr && result > 0) {
-        // Find end of current line
-        const char *line_start = ptr;
-        while (*ptr && *ptr != '\n') ptr++;
-
-        // Extract line
-        size_t line_len = ptr - line_start;
-        char *line = malloc(line_len + 1);
-        if (!line) return -1;
-        memcpy(line, line_start, line_len);
-        line[line_len] = '\0';
-
-        // Skip past newline if present
-        if (*ptr == '\n') ptr++;
+        // Read complete logical line (handles multi-line subshells, quotes, etc.)
+        char *line = read_complete_line_from_string(&ptr);
+        if (!line) break;
 
         // Skip empty lines and comments
         const char *p = line;

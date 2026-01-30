@@ -493,6 +493,7 @@ int chain_execute(const CommandChain *chain) {
                             free(redir_str);
                         }
                         trap_reset_for_subshell();
+                        script_reset_for_subshell();
                         int exit_code = script_execute_string(subshell_cmd);
                         free(subshell_cmd);
                         trap_execute_exit();

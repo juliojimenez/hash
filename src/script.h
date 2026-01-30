@@ -243,6 +243,12 @@ void script_set_continue_pending(int levels);
 void script_clear_break_continue(void);
 
 /**
+ * Reset script state for subshell (POSIX: break/continue only affect loops
+ * within the current execution environment, not parent's loops)
+ */
+void script_reset_for_subshell(void);
+
+/**
  * Get/set return pending flag (for return in if/while conditions)
  * When return is called in a condition, this flag signals that
  * the function should return immediately
