@@ -1,14 +1,12 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Stage 1: Builder
+# Stage 1: Builder (Alpine/musl)
 # =============================================================================
-FROM debian:bookworm-slim AS builder
+FROM alpine:3.23.3 AS builder
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache build-base
 
 # Set working directory
 WORKDIR /build
@@ -21,13 +19,13 @@ COPY Makefile .
 RUN make clean && make
 
 # =============================================================================
-# Stage 2: Runtime (Distroless)
+# Stage 2: Runtime (Alpine - minimal with utilities)
 # =============================================================================
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM alpine:3.23.3
 
 # Add labels for container metadata
 LABEL org.opencontainers.image.title="hash-shell"
-LABEL org.opencontainers.image.description="POSIX-compliant command line interpreter"
+LABEL org.opencontainers.image.description="A modern command line interpreter for Linux, macOS, and BSD."
 LABEL org.opencontainers.image.source="https://github.com/juliojimenez/hash"
 
 # Copy binary from builder
