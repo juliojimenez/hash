@@ -174,25 +174,38 @@ ParseResult parse_line(const char *line) {
                         *write_pos++ = *read_pos++;
                         *write_pos++ = *read_pos++;
                     } else if (*read_pos == '\'' && !in_double_quote) {
-                        // Single quote inside ${...} - copy until closing quote
-                        *write_pos++ = *read_pos++;
+                        // Single quote inside ${...} - strip quotes and mark glob chars as literal
+                        read_pos++;  // Skip opening quote
                         while (*read_pos && *read_pos != '\'') {
-                            *write_pos++ = *read_pos++;
-                        }
-                        if (*read_pos == '\'') {
-                            *write_pos++ = *read_pos++;
-                        }
-                    } else if (*read_pos == '"') {
-                        // Double quote inside ${...} - copy until closing quote
-                        *write_pos++ = *read_pos++;
-                        while (*read_pos && *read_pos != '"') {
-                            if (*read_pos == '\\' && *(read_pos + 1)) {
+                            if (*read_pos == '*' || *read_pos == '?' || *read_pos == '[') {
+                                // Glob character inside quotes - add marker for literal match
+                                *write_pos++ = '\x01';
+                                *write_pos++ = *read_pos++;
+                            } else {
                                 *write_pos++ = *read_pos++;
                             }
-                            *write_pos++ = *read_pos++;
+                        }
+                        if (*read_pos == '\'') {
+                            read_pos++;  // Skip closing quote
+                        }
+                    } else if (*read_pos == '"') {
+                        // Double quote inside ${...} - strip quotes and mark glob chars as literal
+                        read_pos++;  // Skip opening quote
+                        while (*read_pos && *read_pos != '"') {
+                            if (*read_pos == '\\' && *(read_pos + 1)) {
+                                // Escaped character - keep the backslash escape
+                                *write_pos++ = *read_pos++;
+                                *write_pos++ = *read_pos++;
+                            } else if (*read_pos == '*' || *read_pos == '?' || *read_pos == '[') {
+                                // Glob character inside quotes - add marker for literal match
+                                *write_pos++ = '\x01';
+                                *write_pos++ = *read_pos++;
+                            } else {
+                                *write_pos++ = *read_pos++;
+                            }
                         }
                         if (*read_pos == '"') {
-                            *write_pos++ = *read_pos++;
+                            read_pos++;  // Skip closing quote
                         }
                     } else if (*read_pos == '{') {
                         depth++;

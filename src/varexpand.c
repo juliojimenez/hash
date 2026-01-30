@@ -17,6 +17,27 @@
 // Track if an unset variable error occurred during expansion
 static bool varexpand_error = false;
 
+// Convert \x01 markers in pattern to backslash escapes for fnmatch
+// Returns a static buffer - not thread safe
+static const char *convert_pattern_for_fnmatch(const char *pattern) {
+    static char converted[2048];
+    size_t out = 0;
+    const char *p = pattern;
+
+    while (*p && out < sizeof(converted) - 2) {
+        if (*p == '\x01' && *(p + 1)) {
+            // Marker followed by character - convert to backslash escape
+            converted[out++] = '\\';
+            p++;  // Skip marker
+            converted[out++] = *p++;
+        } else {
+            converted[out++] = *p++;
+        }
+    }
+    converted[out] = '\0';
+    return converted;
+}
+
 // Check and report unset variable error when -u is set
 // Returns true if error occurred
 static bool check_unset_error(const char *var_name) {
@@ -318,6 +339,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                 size_t val_len = strlen(val);
                                 size_t match_len = 0;
 
+                                // Convert \x01 markers to fnmatch escapes
+                                const char *fnmatch_pattern = convert_pattern_for_fnmatch(word);
+
                                 // Try matching pattern at start of string
                                 // For ##, find longest match; for #, find shortest
                                 if (double_modifier) {
@@ -325,7 +349,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                     for (size_t i = val_len; i > 0; i--) {
                                         char saved = pattern_result[i];
                                         pattern_result[i] = '\0';
-                                        if (fnmatch(word, pattern_result, 0) == 0) {
+                                        if (fnmatch(fnmatch_pattern, pattern_result, 0) == 0) {
                                             match_len = i;
                                             pattern_result[i] = saved;
                                             break;
@@ -337,7 +361,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                     for (size_t i = 1; i <= val_len; i++) {
                                         char saved = pattern_result[i];
                                         pattern_result[i] = '\0';
-                                        if (fnmatch(word, pattern_result, 0) == 0) {
+                                        if (fnmatch(fnmatch_pattern, pattern_result, 0) == 0) {
                                             match_len = i;
                                             pattern_result[i] = saved;
                                             break;
@@ -363,12 +387,15 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                 size_t val_len = strlen(val);
                                 size_t keep_len = val_len;  // How much to keep
 
+                                // Convert \x01 markers to fnmatch escapes
+                                const char *fnmatch_pattern = convert_pattern_for_fnmatch(word);
+
                                 // Try matching pattern at end of string
                                 // For %%, find longest match; for %, find shortest
                                 if (double_modifier) {
                                     // Longest match - try from start forwards
                                     for (size_t i = 0; i < val_len; i++) {
-                                        if (fnmatch(word, val + i, 0) == 0) {
+                                        if (fnmatch(fnmatch_pattern, val + i, 0) == 0) {
                                             keep_len = i;
                                             break;
                                         }
@@ -377,7 +404,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                     // Shortest match - find shortest suffix that matches
                                     keep_len = val_len;
                                     for (size_t i = val_len; i > 0; i--) {
-                                        if (fnmatch(word, val + i - 1, 0) == 0) {
+                                        if (fnmatch(fnmatch_pattern, val + i - 1, 0) == 0) {
                                             keep_len = i - 1;
                                             // Don't break - keep looking for shorter match
                                         }
