@@ -105,6 +105,14 @@ sudo apt install hash-shell
 
 Upgrade with `sudo apt upgrade hash-shell`. See [APT Installation Guide](./docs/APT_INSTALL.md) for more options.
 
+### Docker
+
+```bash
+docker pull juliojimenez/hash-shell
+docker run -it juliojimenez/hash-shell
+docker run -v $(pwd):/scripts juliojimenez/hash-shell /scripts/myscript.sh
+```
+
 ## Usage
 
 ### Start hash

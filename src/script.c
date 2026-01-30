@@ -317,6 +317,9 @@ static char *read_complete_line_from_string(const char **ptr) {
             result_cap = new_cap;
         }
 
+        // Defensive check - should never be NULL here, but satisfies static analysis
+        if (!result) break;
+
         // Append content and track state
         bool in_comment = false;
         for (size_t i = 0; i < len; i++) {
