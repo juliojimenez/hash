@@ -3,7 +3,7 @@
 # =============================================================================
 # Stage 1: Builder
 # =============================================================================
-FROM debian:trixie-slim AS builder
+FROM debian:bookworm-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,12 +21,9 @@ COPY Makefile .
 RUN make clean && make
 
 # =============================================================================
-# Stage 2: Runtime
+# Stage 2: Runtime (Distroless)
 # =============================================================================
-FROM debian:trixie-slim
-
-# Update packages to get security fixes
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/base-debian12:nonroot
 
 # Add labels for container metadata
 LABEL org.opencontainers.image.title="hash-shell"
@@ -35,9 +32,6 @@ LABEL org.opencontainers.image.source="https://github.com/juliojimenez/hash"
 
 # Copy binary from builder
 COPY --from=builder /build/hash-shell /usr/local/bin/hash-shell
-
-# Copy man page (optional documentation)
-COPY debian/hash-shell.1 /usr/local/share/man/man1/hash-shell.1
 
 # Set hash-shell as the default shell
 ENV SHELL=/usr/local/bin/hash-shell
