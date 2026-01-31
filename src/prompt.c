@@ -7,6 +7,7 @@
 #include <pwd.h>
 #include "prompt.h"
 #include "colors.h"
+#include "color_config.h"
 #include "safe_string.h"
 #include "cmdsub.h"
 #include "varexpand.h"
@@ -163,6 +164,9 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
     size_t max_pos = out_size - 1;
     const char *p = ps1;
 
+    // Get base prompt color (bold by default) - used to restore after resets
+    const char *base_color = color_config_get(color_config.prompt);
+
     while (*p && out_pos < max_pos) {
         if (*p == '\\' && *(p + 1)) {
             p++;
@@ -179,9 +183,11 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 case 'w': {
                     const char *cwd = prompt_get_cwd();
                     if (cwd) {
-                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
+                        out_pos = safe_append(output, out_pos, max_pos, color_config_get(color_config.prompt_path));
                         out_pos = safe_append(output, out_pos, max_pos, cwd);
+                        // Reset and re-apply base color to maintain bold
                         out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
+                        out_pos = safe_append(output, out_pos, max_pos, base_color);
                     }
                     break;
                 }
@@ -189,9 +195,11 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 case 'W': {
                     const char *dir = prompt_get_current_dir();
                     if (dir) {
-                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_BOLD COLOR_BLUE));
+                        out_pos = safe_append(output, out_pos, max_pos, color_config_get(color_config.prompt_path));
                         out_pos = safe_append(output, out_pos, max_pos, dir);
+                        // Reset and re-apply base color to maintain bold
                         out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
+                        out_pos = safe_append(output, out_pos, max_pos, base_color);
                     }
                     break;
                 }
@@ -200,12 +208,19 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     char *branch = prompt_git_branch();
                     if (branch) {
                         bool dirty = prompt_git_dirty();
-                        const char *git_color = dirty ? COLOR_YELLOW : COLOR_GREEN;
+                        const char *git_status_color = dirty ?
+                            color_config_get(color_config.prompt_git_dirty) :
+                            color_config_get(color_config.prompt_git_clean);
 
+                        // Build git string with proper color handling
+                        // After each reset, re-apply base color for bold
                         char temp[512];
-                        int n = snprintf(temp, sizeof(temp), " %sgit:%s(%s%s%s)",
-                            color_code(git_color), color_code(COLOR_RESET),
-                            color_code(COLOR_CYAN), branch, color_code(COLOR_RESET));
+                        int n = snprintf(temp, sizeof(temp), " %s%sgit:%s%s(%s%s%s%s%s)",
+                            base_color, git_status_color,  // bold + status color for "git:"
+                            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for "("
+                            color_config_get(color_config.prompt_git_branch), branch,  // branch color + name
+                            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for ")"
+                            "");
 
                         if (n > 0 && (size_t)n < sizeof(temp)) {
                             out_pos = safe_append(output, out_pos, max_pos, temp);
@@ -224,9 +239,11 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
 
                 case 'e':
                     {
+                        // \e outputs the exit-code-based color (success or error)
                         const char *bracket_color = (last_exit_code == 0) ?
-                            COLOR_BOLD COLOR_BLUE : COLOR_BOLD COLOR_RED;
-                        out_pos = safe_append(output, out_pos, max_pos, color_code(bracket_color));
+                            color_config_get(color_config.prompt) :
+                            color_config_get(color_config.prompt_error);
+                        out_pos = safe_append(output, out_pos, max_pos, bracket_color);
                     }
                     break;
 
@@ -337,13 +354,12 @@ char *prompt_generate(int last_exit_code) {
     }
 
     // Process hash-specific escape sequences (for built-in prompts)
-    process_ps1_escapes(prompt, sizeof(prompt), ps1, last_exit_code);
+    char temp_prompt[MAX_PROMPT_LENGTH];
+    process_ps1_escapes(temp_prompt, sizeof(temp_prompt), ps1, last_exit_code);
 
-    // Add final reset and space
-    size_t len = safe_strlen(prompt, sizeof(prompt));
-    if (len < MAX_PROMPT_LENGTH - 10) {
-        snprintf(prompt + len, MAX_PROMPT_LENGTH - len, "%s ", color_code(COLOR_RESET));
-    }
+    // Wrap entire prompt in base prompt color (bold by default) and add final reset + space
+    const char *base_color = color_config_get(color_config.prompt);
+    snprintf(prompt, sizeof(prompt), "%s%s%s ", base_color, temp_prompt, color_code(COLOR_RESET));
 
     return prompt;
 }

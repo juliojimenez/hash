@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include "config.h"
 #include "colors.h"
+#include "color_config.h"
 #include "prompt.h"
 #include "hash.h"
 #include "safe_string.h"
@@ -320,6 +321,48 @@ int config_process_line(char *line) {
             }
 
             prompt_set_ps1(ps1_value);
+            return 0;
+        }
+
+        // Handle "set color.<element>=<value>" (e.g., set color.prompt=bold,blue)
+        if (strncmp(set_def, "color.", 6) == 0) {
+            char *element_start = set_def + 6;
+            char *equals = strchr(element_start, '=');
+            if (equals) {
+                *equals = '\0';
+                char *value = equals + 1;
+
+                // Remove quotes if present
+                size_t val_len = strlen(value);
+                if (val_len >= 2 &&
+                    (value[0] == '"' || value[0] == '\'') &&
+                    value[0] == value[val_len - 1]) {
+                    value[val_len - 1] = '\0';
+                    value++;
+                }
+
+                return color_config_set(element_start, value);
+            }
+        }
+
+        // Handle feature toggles
+        if (strcmp(set_def, "syntax_highlight=on") == 0) {
+            color_config.syntax_highlight_enabled = true;
+            return 0;
+        } else if (strcmp(set_def, "syntax_highlight=off") == 0) {
+            color_config.syntax_highlight_enabled = false;
+            return 0;
+        } else if (strcmp(set_def, "autosuggest=on") == 0) {
+            color_config.autosuggestion_enabled = true;
+            return 0;
+        } else if (strcmp(set_def, "autosuggest=off") == 0) {
+            color_config.autosuggestion_enabled = false;
+            return 0;
+        } else if (strcmp(set_def, "danger_highlight=on") == 0) {
+            color_config.danger_highlight_enabled = true;
+            return 0;
+        } else if (strcmp(set_def, "danger_highlight=off") == 0) {
+            color_config.danger_highlight_enabled = false;
             return 0;
         }
 
