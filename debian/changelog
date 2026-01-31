@@ -5,9 +5,9 @@ hash-shell (32-1) unstable; urgency=medium
     - Autosuggestions - shows muted command suggestions from history as you 
       type
     - Dangerous command highlighting
-  * Fix failure on man page installation
   * Fix more POSIX compliance tests
-  * Fix IFS markers leaking into setenv()
-  * Implement ARG_MAX syslimits, tracking more closely with other shells
+  * Fix line continuation on quotes in interactive mode (by @kshku)
+  * Published docker hub image juliojimenez/hash-shell
+  * Hardened CVE-free container image
 
  -- Julio Jimenez <julio@julioj.com>  Wed, 28 Jan 2026 12:00:00 +0000

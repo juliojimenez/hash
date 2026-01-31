@@ -345,6 +345,29 @@ ParseResult parse_line(const char *line) {
             }
             token_start_idx = (size_t)(write_pos - output);
             token_has_content = 0;
+        } else if (*read_pos == '~' && !in_single_quote && !in_double_quote &&
+                   (size_t)(write_pos - output) == token_start_idx) {
+            // Tilde at start of word - check if any characters before / or end are quoted
+            // POSIX: if any character in tilde-prefix is quoted, don't expand
+            const char *lookahead = read_pos + 1;
+            bool has_quoted_chars = false;
+            while (*lookahead && !isspace(*lookahead) && *lookahead != '/') {
+                if (*lookahead == '\'' || *lookahead == '"') {
+                    has_quoted_chars = true;
+                    break;
+                }
+                if (*lookahead == '\\' && *(lookahead + 1)) {
+                    // Escaped character counts as quoted
+                    has_quoted_chars = true;
+                    break;
+                }
+                lookahead++;
+            }
+            if (has_quoted_chars) {
+                // Mark tilde to prevent expansion
+                *write_pos++ = '\x01';
+            }
+            *write_pos++ = *read_pos++;
         } else {
             // Regular character
             *write_pos++ = *read_pos++;
