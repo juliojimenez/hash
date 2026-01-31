@@ -302,7 +302,7 @@ int pipeline_execute(const Pipeline *pipeline) {
                     char *equals = is_var_assignment(exec_args[j]);
                     *equals = '\0';
                     const char *name = exec_args[j];
-                    char *value = equals + 1;
+                    const char *value = equals + 1;
                     setenv(name, value, 1);
                     *equals = '=';  // Restore for potential debugging
                 }

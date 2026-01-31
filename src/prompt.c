@@ -313,17 +313,14 @@ char *prompt_generate(int last_exit_code) {
         // PS1 explicitly set in environment - always use it
         ps1 = ps1_env;
         ps1_from_env = true;
-    } else if (!isatty(STDIN_FILENO)) {
-        // POSIX compliance: when stdin is not a tty (e.g., heredoc with -i)
-        // and PS1 is not in environment, use POSIX default
-        ps1 = (getuid() == 0) ? "# " : "$ ";
-        ps1_from_env = true;  // Treat as simple prompt (no escape processing)
-    } else if (prompt_config.use_custom_ps1) {
+    } else if (prompt_config.use_custom_ps1 && isatty(STDIN_FILENO)) {
+        // Use custom PS1 only when stdin is a tty
         ps1 = prompt_config.ps1;
     } else {
         // POSIX default: "$ " (or "# " for root)
+        // Used when stdin is not a tty or no custom PS1 is configured
         ps1 = (getuid() == 0) ? "# " : "$ ";
-        ps1_from_env = true;  // Treat as simple env prompt (no escape processing)
+        ps1_from_env = true;  // Treat as simple prompt (no escape processing)
     }
 
     // Check if PS1 needs dynamic expansion (for Starship, etc.)
