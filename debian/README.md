@@ -33,7 +33,7 @@ sudo dpkg -i ../hash-shell_*.deb
 
 The `.github/workflows/debian.yml` workflow:
 
-1. Builds packages for Ubuntu 22.04, Ubuntu 24.04, and Debian Bookworm
+1. Builds packages for Ubuntu 22.04, Ubuntu 24.04, Debian Bookworm, and Debian Trixie
 2. Publishes an APT repository to GitHub Pages
 3. Uploads `.deb` files to GitHub Releases
 
@@ -69,6 +69,6 @@ The package version follows: `VERSION-REVISION~CODENAME`
 
 - `VERSION` - From git tag (e.g., `33`)
 - `REVISION` - Debian revision (usually `1`)
-- `CODENAME` - Distribution codename (e.g., `jammy`, `noble`, `bookworm`)
+- `CODENAME` - Distribution codename (e.g., `jammy`, `noble`, `bookworm`, `trixie`)
 
 Example: `33-1~noble` for version 33 on Ubuntu 24.04

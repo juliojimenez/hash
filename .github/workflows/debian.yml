@@ -24,6 +24,8 @@ jobs:
             distro_name: ubuntu-24.04
           - distro: bookworm
             distro_name: debian-bookworm
+          - distro: trixie
+            distro_name: debian-trixie
 
     steps:
       - name: Checkout
