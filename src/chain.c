@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "chain.h"
 #include "parser.h"
 #include "execute.h"
@@ -303,6 +304,11 @@ static int execute_background(const char *cmd_line) {
 
         // Create new process group
         setpgid(0, 0);
+
+        // POSIX: Asynchronous (background) commands should ignore SIGINT and SIGQUIT
+        // This prevents background jobs from being killed by keyboard interrupts
+        signal(SIGINT, SIG_IGN);
+        signal(SIGQUIT, SIG_IGN);
 
         // Redirect stdin from /dev/null to prevent interference with parent's stdin reading
         // This is critical when the shell is reading from a pipe

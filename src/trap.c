@@ -182,8 +182,13 @@ void trap_reset_for_subshell(void) {
             traps[i] = NULL;
         }
         // Reset signal handlers to default for non-EXIT signals
+        // POSIX: Signals set to SIG_IGN must remain ignored (e.g., for background jobs)
         if (i > 0 && i != SIGKILL && i != SIGSTOP) {
-            signal(i, SIG_DFL);
+            // Check current handler - only reset if not SIG_IGN
+            struct sigaction sa;
+            if (sigaction(i, NULL, &sa) == 0 && sa.sa_handler != SIG_IGN) {
+                signal(i, SIG_DFL);
+            }
         }
     }
 }
