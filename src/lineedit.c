@@ -845,7 +845,8 @@ char *lineedit_read_line(const char *prompt) {
                     len++;
                     buf[len] = '\0';
 
-                    if (pos < len) {
+                    // Always refresh when syntax highlighting is on, or when inserting mid-line
+                    if (pos < len || (colors_enabled && color_config.syntax_highlight_enabled)) {
                         refresh_line(buf, len, pos, prompt_str, newline_count);
                     } else {
                         ret = write(STDOUT_FILENO, &c, 1);
