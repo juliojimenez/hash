@@ -18,6 +18,7 @@
 #include "syntax.h"
 #include "color_config.h"
 #include "colors.h"
+#include "autosuggest.h"
 
 #define MAX_LINE_LENGTH 4096
 
@@ -412,6 +413,23 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
         write_with_crlf(buf);
     }
 
+    // Show autosuggestion if enabled and cursor is at end of buffer
+    if (colors_enabled && color_config.autosuggestion_enabled && pos == len && len > 0) {
+        const char *suggestion = autosuggest_get(buf, len);
+        if (suggestion && suggestion[0]) {
+            // Write suggestion in dim color
+            const char *suggest_color = color_config_get(color_config.suggestion);
+            ret = write(STDOUT_FILENO, suggest_color, strlen(suggest_color));
+            (void)ret;
+            ret = write(STDOUT_FILENO, suggestion, strlen(suggestion));
+            (void)ret;
+            // Reset color
+            const char *reset = color_code(COLOR_RESET);
+            ret = write(STDOUT_FILENO, reset, strlen(reset));
+            (void)ret;
+        }
+    }
+
     set_cursor(buf, pos, len, prompt);
 }
 
@@ -571,6 +589,22 @@ char *lineedit_read_line(const char *prompt) {
                     }
                     ret = write(STDOUT_FILENO, "\x1b[C", 3);
                     (void)ret;
+                } else if (pos == len && colors_enabled && color_config.autosuggestion_enabled) {
+                    // At end of buffer - accept autosuggestion if available
+                    const char *suggestion = autosuggest_get(buf, len);
+                    if (suggestion && suggestion[0]) {
+                        size_t sug_len = strlen(suggestion);
+                        if (len + sug_len < MAX_LINE_LENGTH - 1) {
+                            // Append suggestion to buffer
+                            memcpy(buf + len, suggestion, sug_len);
+                            len += sug_len;
+                            pos = len;
+                            buf[len] = '\0';
+                            // Invalidate cache since buffer changed
+                            autosuggest_invalidate();
+                            refresh_line(buf, len, pos, prompt_str, newline_count);
+                        }
+                    }
                 }
                 break;
 

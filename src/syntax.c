@@ -123,14 +123,12 @@ SyntaxResult *syntax_analyze(const char *input, size_t len) {
     bool at_command_pos = true;  // True when next word is a command
 
     while (i < len) {
-        size_t start = i;
-
         // Skip whitespace
         while (i < len && (input[i] == ' ' || input[i] == '\t')) {
             i++;
         }
         if (i >= len) break;
-        start = i;
+        size_t start = i;
 
         // Comment
         if (input[i] == '#') {
@@ -374,7 +372,7 @@ char *syntax_render(const char *input, size_t len) {
     size_t reset_len = strlen(reset);
 
     for (int i = 0; i < result->count; i++) {
-        SyntaxSegment *seg = &result->segments[i];
+        const SyntaxSegment *seg = &result->segments[i];
 
         // Copy any text before this segment (whitespace)
         while (in_pos < seg->start && out_pos < max_size - 1) {
