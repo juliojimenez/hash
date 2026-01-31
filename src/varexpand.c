@@ -290,11 +290,24 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         bool is_null = (val != NULL && val[0] == '\0');
 
                         // Apply modifier
+                        // Note: POSIX requires the word to be expanded when used
+                        static char expanded_word_buf[4096];
+                        const char *effective_word = word;
+
                         if (modifier == '-') {
                             // ${var-word}: use word if unset
                             // ${var:-word}: use word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                var_value = word;
+                                // Expand variables in word
+                                if (strchr(word, '$')) {
+                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    if (expanded_word) {
+                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                        free(expanded_word);
+                                        effective_word = expanded_word_buf;
+                                    }
+                                }
+                                var_value = effective_word;
                             } else {
                                 var_value = val;
                             }
@@ -302,7 +315,16 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var+word}: use word if set
                             // ${var:+word}: use word if set and not null
                             if (!is_unset && (!check_null || !is_null)) {
-                                var_value = word;
+                                // Expand variables in word
+                                if (strchr(word, '$')) {
+                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    if (expanded_word) {
+                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                        free(expanded_word);
+                                        effective_word = expanded_word_buf;
+                                    }
+                                }
+                                var_value = effective_word;
                             } else {
                                 var_value = "";
                             }
@@ -310,8 +332,17 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var=word}: assign word if unset
                             // ${var:=word}: assign word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                setenv(var_name, word, 1);
-                                var_value = word;
+                                // Expand variables in word
+                                if (strchr(word, '$')) {
+                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    if (expanded_word) {
+                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                        free(expanded_word);
+                                        effective_word = expanded_word_buf;
+                                    }
+                                }
+                                setenv(var_name, effective_word, 1);
+                                var_value = effective_word;
                             } else {
                                 var_value = val;
                             }
@@ -319,8 +350,17 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var?word}: error if unset
                             // ${var:?word}: error if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                if (word[0]) {
-                                    fprintf(stderr, "%s: %s\n", var_name, word);
+                                // Expand variables in word for error message
+                                if (strchr(word, '$')) {
+                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    if (expanded_word) {
+                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                        free(expanded_word);
+                                        effective_word = expanded_word_buf;
+                                    }
+                                }
+                                if (effective_word[0]) {
+                                    fprintf(stderr, "%s: %s\n", var_name, effective_word);
                                 } else {
                                     fprintf(stderr, "%s: parameter not set\n", var_name);
                                 }

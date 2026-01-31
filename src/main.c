@@ -157,6 +157,7 @@ static void print_usage(const char *prog_name) {
     printf("  -i            Force interactive mode\n");
     printf("  -l, --login   Run as a login shell\n");
     printf("  -s            Read commands from standard input\n");
+    printf("  -u            Treat unset variables as an error\n");
     printf("  -v, --version Print version information\n");
     printf("  -h, --help    Show this help message\n");
     printf("\n");
@@ -178,6 +179,7 @@ int main(int argc, char *argv[]) {
     char **script_argv = NULL;        // Script arguments ($0, $1, $2, ...)
     bool force_interactive = false;   // -i flag
     bool read_stdin = false;          // -s flag
+    bool nounset_flag = false;        // -u flag
 
     // Determine if we're a login shell
     // A login shell is indicated by:
@@ -222,6 +224,10 @@ int main(int argc, char *argv[]) {
 
             } else if (strcmp(argv[i], "-s") == 0) {
                 read_stdin = true;
+                i++;
+
+            } else if (strcmp(argv[i], "-u") == 0) {
+                nounset_flag = true;
                 i++;
 
             } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
@@ -303,6 +309,12 @@ int main(int argc, char *argv[]) {
 
     // Initialize config with defaults
     config_init();
+
+    // Apply command-line shell options that were parsed earlier
+    // (These must be applied after config_init which resets options)
+    if (nounset_flag) {
+        shell_option_set_nounset(true);
+    }
 
     // ========================================================================
     // Non-interactive mode: Execute command string (-c)

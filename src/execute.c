@@ -654,6 +654,9 @@ int execute(char **args) {
         }
     }
 
+    // Clear arith error flag before expansion
+    arith_clear_unset_error();
+
     // Expand arithmetic substitutions in non-prefix arguments
     for (int i = assign_start; i < arg_count; i++) {
         if (args[i] && strstr(args[i], "$((") != NULL) {
@@ -665,6 +668,23 @@ int execute(char **args) {
                 args[i] = result;
             }
         }
+    }
+
+    // Check for unset variable error in arithmetic (set -u)
+    if (arith_had_unset_error()) {
+        // Free any expanded args before returning
+        for (int i = 0; i < arg_count; i++) {
+            if (args[i] != original_ptrs[i]) {
+                free(args[i]);
+            }
+        }
+        if (is_special) {
+            clear_prefix_vars();
+        } else {
+            restore_prefix_vars();
+        }
+        last_command_exit_code = 1;
+        return is_interactive ? 1 : 0;  // Continue in interactive mode, exit in non-interactive
     }
 
     // Track which args were expanded by arith

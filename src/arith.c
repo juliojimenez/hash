@@ -13,6 +13,7 @@
 #include "cmdsub.h"
 #include "shellvar.h"
 #include "jobs.h"
+#include "config.h"
 
 // Forward declaration to access positional parameters
 // (We can't include script.h due to TokenType name collision)
@@ -39,6 +40,19 @@ typedef struct {
 extern ScriptStateArith script_state;
 
 #define MAX_ARITH_LENGTH 8192
+
+// Track if an unset variable error occurred during evaluation
+static bool arith_unset_error = false;
+
+// Get the last arithmetic error status
+bool arith_had_unset_error(void) {
+    return arith_unset_error;
+}
+
+// Clear the arithmetic error flag
+void arith_clear_unset_error(void) {
+    arith_unset_error = false;
+}
 
 // Token types for arithmetic parser
 typedef enum {
@@ -118,6 +132,17 @@ static void skip_whitespace(Parser *p) {
     }
 }
 
+// Check and report unset variable error when -u is set
+// Returns true if error occurred
+static bool check_arith_unset_error(const char *var_name) {
+    if (shell_option_nounset()) {
+        fprintf(stderr, "hash: %s: unbound variable\n", var_name);
+        arith_unset_error = true;
+        return true;
+    }
+    return false;
+}
+
 // Get variable value from environment or positional parameters
 static long get_variable(const char *name) {
     // Handle special parameters
@@ -154,6 +179,8 @@ static long get_variable(const char *name) {
         if (val) {
             return strtol(val, NULL, 10);
         }
+        // Check for unset positional parameter with -u
+        check_arith_unset_error(name);
         return 0;
     }
 
@@ -171,12 +198,18 @@ static long get_variable(const char *name) {
         if (val) {
             return strtol(val, NULL, 10);
         }
+        // Check for unset positional parameter with -u
+        check_arith_unset_error(name);
         return 0;
     }
 
     // Regular shell variable (checks shell vars first, then environment)
     const char *val = shellvar_get(name);
-    if (!val) return 0;
+    if (!val) {
+        // Check for unset variable with -u
+        check_arith_unset_error(name);
+        return 0;
+    }
     return strtol(val, NULL, 10);
 }
 

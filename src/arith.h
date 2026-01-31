@@ -1,6 +1,8 @@
 #ifndef ARITH_H
 #define ARITH_H
 
+#include <stdbool.h>
+
 /**
  * Evaluate an arithmetic expression
  *
@@ -50,5 +52,18 @@ int arith_args(char **args);
  * @return 1 if contains $((...)), 0 otherwise
  */
 int has_arith(const char *str);
+
+/**
+ * Check if an unset variable error occurred during evaluation
+ * (when -u flag is set)
+ *
+ * @return true if error occurred, false otherwise
+ */
+bool arith_had_unset_error(void);
+
+/**
+ * Clear the unset variable error flag
+ */
+void arith_clear_unset_error(void);
 
 #endif // ARITH_H
