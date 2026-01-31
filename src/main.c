@@ -34,6 +34,7 @@ Julio Jimenez, julio@julioj.com
 #include "trap.h"
 #include "color_config.h"
 #include "syntax.h"
+#include "ifs.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
@@ -286,6 +287,10 @@ int main(int argc, char *argv[]) {
 
     // Import environment variables (so they can be modified and synced back)
     shellvar_sync_from_env();
+
+    // POSIX: The shell shall set IFS to <space><tab><newline> at shell invocation
+    // This overrides any IFS inherited from the environment
+    shellvar_set("IFS", DEFAULT_IFS);
 
     // Set PPID (parent process ID) - POSIX special variable, readonly
     {
