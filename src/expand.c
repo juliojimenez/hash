@@ -11,6 +11,38 @@
 #include "expand.h"
 #include "safe_string.h"
 
+// Add \x01 markers before glob metacharacters to protect from glob expansion
+// Returns newly allocated string, caller must free
+static char *protect_from_glob(const char *s) {
+    if (!s) return NULL;
+
+    // Count how many glob chars we need to protect
+    size_t len = strlen(s);
+    size_t extra = 0;
+    for (const char *p = s; *p; p++) {
+        if (*p == '*' || *p == '?' || *p == '[' || *p == ']') {
+            extra++;
+        }
+    }
+
+    // Allocate result buffer
+    char *result = malloc(len + extra + 1);
+    if (!result) return NULL;
+
+    // Copy with markers
+    const char *read = s;
+    char *write = result;
+    while (*read) {
+        if (*read == '*' || *read == '?' || *read == '[' || *read == ']') {
+            *write++ = '\x01';  // Protection marker
+        }
+        *write++ = *read++;
+    }
+    *write = '\0';
+
+    return result;
+}
+
 // Get home directory for a user
 static char *get_home_dir(const char *username) {
     static char home[PATH_MAX];
@@ -226,8 +258,13 @@ int expand_tilde(char **args) {
         if (args[i][0] == '~') {
             char *expanded = expand_tilde_path(args[i]);
             if (expanded) {
-                // Replace the argument with expanded version
-                args[i] = expanded;
+                // Protect tilde expansion result from glob expansion
+                // POSIX: result of tilde expansion is treated as if quoted
+                char *protected = protect_from_glob(expanded);
+                free(expanded);
+                if (protected) {
+                    args[i] = protected;
+                }
             }
             // If expansion failed, keep original
         }
