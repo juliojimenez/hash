@@ -323,7 +323,9 @@ jobs:
           curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
           sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
           ```
-
+          
+          ---
+          
           ### Linux x86_64 (Static Binary)
 
           ```bash
@@ -340,6 +342,8 @@ jobs:
           sudo mv hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64 /usr/local/bin/hash-shell
           ```
 
+          ---
+
           ### macOS (Apple Silicon)
 
           ```bash
@@ -347,7 +351,9 @@ jobs:
           chmod +x hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64
           sudo mv hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64 /usr/local/bin/hash-shell
           ```
-
+          
+          ---
+          
           ### FreeBSD x86_64
 
           ```bash
@@ -363,7 +369,9 @@ jobs:
           chmod +x hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64
           sudo mv hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64 /usr/local/bin/hash-shell
           ```
-
+          
+          ---
+          
           ### Verify Checksums
 
           ```bash
@@ -379,28 +387,39 @@ jobs:
           fetch https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64.sha256
           sha256 -c hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64 hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64.sha256
           ```
-
+          
+          ---
+          
           ## Available Downloads
 
           ### Debian Packages
+          
           - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb` - Ubuntu 24.04 (Noble)
           - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb` - Ubuntu 22.04 (Jammy)
           - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb` - Debian Bookworm
 
+          ---
+          
           ### Static Binaries
 
           #### Linux
+
           - `hash-shell-${{ steps.get_version.outputs.version }}-linux-x86_64` - Linux x86_64 static binary
           - `hash-shell-${{ steps.get_version.outputs.version }}-linux-aarch64` - Linux ARM64 static binary
 
           #### macOS
+
           - `hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64` - macOS Apple Silicon binary
 
           #### FreeBSD
+
           - `hash-shell-${{ steps.get_version.outputs.version }}-freebsd-x86_64` - FreeBSD x86_64 binary
           - `hash-shell-${{ steps.get_version.outputs.version }}-freebsd-aarch64` - FreeBSD ARM64 binary
 
+          ---
+          
           ### Archives & Checksums
+          
           - `*.tar.gz` - Tarball with binary and README
           - `*.sha256` - SHA256 checksums for verification
 

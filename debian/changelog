@@ -1,4 +1,4 @@
-hash-shell (32-1) unstable; urgency=medium
+hash-shell (33-1) unstable; urgency=medium
 
   * Colorize Output
     - Real-time syntax highlighting
@@ -10,4 +10,4 @@ hash-shell (32-1) unstable; urgency=medium
   * Published docker hub image juliojimenez/hash-shell
   * Hardened CVE-free container image
 
- -- Julio Jimenez <julio@julioj.com>  Wed, 28 Jan 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Sat, 31 Jan 2026 12:00:00 +0000
