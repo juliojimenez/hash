@@ -190,23 +190,56 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         }
 
         if (!has_at_split) {
-            // Just strip \x03 markers but don't split
+            // Empty IFS: no field splitting, but empty unquoted expansions
+            // should still produce no field (POSIX)
+            // First check if we need to remove any empty expansions
+            int has_empty_expansion = 0;
             for (int i = 0; i < *arg_count; i++) {
-                // Only modify strings that actually have markers
-                // (avoid writing to read-only string literals)
-                if (!strchr(args[i], '\x03')) {
-                    continue;
+                const char *s = args[i];
+                if (s[0] == '\x03' && s[1] == '\x03' && s[2] == '\0') {
+                    has_empty_expansion = 1;
+                    break;
                 }
-                // Remove \x03 markers in place
-                const char *src = args[i];
-                char *dst = args[i];
-                while (*src) {
-                    if (*src != '\x03') {
-                        *dst++ = *src;
+            }
+
+            if (has_empty_expansion) {
+                // Need to rebuild the array to remove empty expansions
+                char **new_args = malloc(MAX_SPLIT_ARGS * sizeof(char *));
+                if (!new_args) return -1;
+                int new_count = 0;
+
+                for (int i = 0; i < *arg_count && new_count < MAX_SPLIT_ARGS - 1; i++) {
+                    const char *s = args[i];
+                    // Skip empty expansions (\x03\x03)
+                    if (s[0] == '\x03' && s[1] == '\x03' && s[2] == '\0') {
+                        continue;
                     }
-                    src++;
+                    // Copy and strip markers
+                    char *copy = strdup(args[i]);
+                    if (copy) {
+                        strip_markers_inplace(copy);
+                        new_args[new_count++] = copy;
+                    }
                 }
-                *dst = '\0';
+                new_args[new_count] = NULL;
+                *args_ptr = new_args;
+                *arg_count = new_count;
+            } else {
+                // No empty expansions - just strip markers in place
+                for (int i = 0; i < *arg_count; i++) {
+                    if (!strchr(args[i], '\x03')) {
+                        continue;
+                    }
+                    const char *src = args[i];
+                    char *dst = args[i];
+                    while (*src) {
+                        if (*src != '\x03') {
+                            *dst++ = *src;
+                        }
+                        src++;
+                    }
+                    *dst = '\0';
+                }
             }
             return 0;
         }
