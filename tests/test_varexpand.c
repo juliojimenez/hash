@@ -130,6 +130,7 @@ void test_expand_undefined_var(void) {
     char *result = varexpand_expand("Value: $UNDEFINED_VAR_12345!", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);  // Empty expansion adds \x03 markers
     TEST_ASSERT_EQUAL_STRING("Value: !", result);  // Expands to empty
 
     free(result);
@@ -160,6 +161,7 @@ void test_expand_empty_braces(void) {
     char *result = varexpand_expand("${}", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);  // Error case may add markers
     TEST_ASSERT_EQUAL_STRING("", result);
 
     free(result);
@@ -252,6 +254,7 @@ void test_expand_positional_undefined(void) {
     char *result = varexpand_expand("arg: $1!", 0);
 
     TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);  // Undefined positional adds markers
     TEST_ASSERT_EQUAL_STRING("arg: !", result);  // $1 is undefined
 
     free(result);

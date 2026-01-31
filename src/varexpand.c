@@ -118,6 +118,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
 
             const char *var_value = NULL;
             char var_name[256] = {0};
+            bool is_literal_dollar = false;  // Track if this is just a literal $, not an expansion
 
             // Check for special variables
             // Note: Parser may add \x01 marker before ?, *, [ when in quotes
@@ -471,11 +472,15 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 if (out_pos < MAX_EXPANDED_LENGTH - 1) {
                     result[out_pos++] = '$';
                 }
+                is_literal_dollar = true;  // Not a variable expansion
             }
 
 append_value:
-            // Append variable value if found
-            if (var_value) {
+            // Append variable value if found, or handle empty/unset expansion
+            // Skip if this was just a literal $ (not a variable expansion)
+            if (is_literal_dollar) {
+                // Do nothing - literal $ was already output
+            } else if (var_value) {
                 size_t val_len = strlen(var_value);
                 if (val_len > 0) {
                     if (is_quoted) {
@@ -499,15 +504,21 @@ append_value:
                             memcpy(result + out_pos, var_value, to_copy);
                             out_pos += to_copy;
                             result[out_pos++] = '\x03';  // End marker
-                        } else if (val_len == 0 && out_pos < MAX_EXPANDED_LENGTH - 2) {
-                            // Empty expansion - still add markers so it can be removed
-                            result[out_pos++] = '\x03';
-                            result[out_pos++] = '\x03';
                         }
                     }
+                } else if (!is_quoted && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                    // Empty unquoted expansion - add markers so IFS splitting can remove it
+                    // POSIX: empty unquoted expansion produces no field
+                    result[out_pos++] = '\x03';
+                    result[out_pos++] = '\x03';
                 }
+            } else if (!is_quoted && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                // Unset variable in unquoted context - add empty markers for removal
+                // POSIX: unset variable in unquoted expansion produces no field
+                result[out_pos++] = '\x03';
+                result[out_pos++] = '\x03';
             }
-            // If variable doesn't exist, it expands to empty string (like bash)
+            // Quoted unset variables expand to empty string (kept as argument)
 
         } else {
             // Regular character

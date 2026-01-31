@@ -213,7 +213,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         // Fall through to handle \x04 splitting
     }
 
-    // First pass: check if any splitting will occur
+    // First pass: check if any splitting or removal will occur
     int has_splitting = 0;
     for (int i = 0; i < *arg_count; i++) {
         // Check for \x04 marker (quoted $@ argument separator)
@@ -222,12 +222,24 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             break;
         }
         if (strchr(args[i], '\x03')) {
-            // Has expansion markers - check if IFS chars are inside
+            // Has expansion markers - check if IFS chars are inside or empty expansion
             const char *p = args[i];
             int in_expansion = 0;
             while (*p) {
                 if (*p == '\x03') {
-                    in_expansion = !in_expansion;
+                    if (in_expansion) {
+                        // Closing marker - check if expansion was empty
+                        // (no chars between markers means empty expansion to remove)
+                        in_expansion = 0;
+                    } else {
+                        // Opening marker - check for adjacent closing marker (empty expansion)
+                        if (*(p + 1) == '\x03') {
+                            // Empty expansion \x03\x03 - may need to remove argument
+                            has_splitting = 1;
+                            break;
+                        }
+                        in_expansion = 1;
+                    }
                 } else if (in_expansion && is_ifs_char(*p, ifs)) {
                     has_splitting = 1;
                     break;
