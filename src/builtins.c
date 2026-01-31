@@ -314,42 +314,38 @@ int shell_source(char **args) {
     char resolved_path[PATH_MAX];
 
     // POSIX: If filename doesn't contain '/', search PATH for it
+    // Note: POSIX says to use PATH only, NOT to check CWD first
     if (strchr(filepath, '/') == NULL) {
-        // First check whether file is in CWD
-        snprintf(resolved_path, sizeof(resolved_path), "./%s", filepath);
-        if (access(resolved_path, R_OK) == 0) {
-            filepath = resolved_path;
-        } else {
-            // Use shellvar_get to see shell variables (which may not be in env)
-            const char *path_env = shellvar_get("PATH");
-            if (path_env) {
-                char *path_copy = strdup(path_env);
-                if (path_copy) {
-                    char *saveptr;
-                    char *dir = strtok_r(path_copy, ":", &saveptr);
-                    bool found = false;
+        // Use shellvar_get to see shell variables (which may not be in env)
+        const char *path_env = shellvar_get("PATH");
+        bool found = false;
 
-                    while (dir) {
-                        snprintf(resolved_path, sizeof(resolved_path), "%s/%s", dir, filepath);
-                        // Check if file exists and is readable
-                        if (access(resolved_path, R_OK) == 0) {
-                            filepath = resolved_path;
-                            found = true;
-                            break;
-                        }
-                        dir = strtok_r(NULL, ":", &saveptr);
-                    }
-                    free(path_copy);
+        if (path_env && *path_env) {
+            char *path_copy = strdup(path_env);
+            if (path_copy) {
+                char *saveptr;
+                char *dir = strtok_r(path_copy, ":", &saveptr);
 
-                    if (!found) {
-                        // File not found in PATH
-                        fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
-                        last_command_exit_code = 1;
-                        // Special builtin: non-interactive shell should exit on error
-                        return is_interactive ? 1 : 0;
+                while (dir) {
+                    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", dir, filepath);
+                    // Check if file exists and is readable
+                    if (access(resolved_path, R_OK) == 0) {
+                        filepath = resolved_path;
+                        found = true;
+                        break;
                     }
+                    dir = strtok_r(NULL, ":", &saveptr);
                 }
+                free(path_copy);
             }
+        }
+
+        if (!found) {
+            // File not found in PATH
+            fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
+            last_command_exit_code = 1;
+            // Special builtin: non-interactive shell should exit on error
+            return is_interactive ? 1 : 0;
         }
     } else {
         // Filepath contains '/' - check if it exists
