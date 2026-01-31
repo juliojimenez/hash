@@ -74,6 +74,24 @@ static const char *get_positional_param(int n) {
     return script_state.positional_params[n];
 }
 
+// Add \x02 marker before each $ in word to indicate quoted context
+// Returns a static buffer - caller should use immediately or copy
+static const char *mark_dollars_as_quoted(const char *word) {
+    static char marked[4096];
+    size_t out = 0;
+    const char *p = word;
+
+    while (*p && out < sizeof(marked) - 2) {
+        if (*p == '$' && (out == 0 || marked[out-1] != '\x02')) {
+            // Add \x02 marker before $ if not already marked
+            marked[out++] = '\x02';
+        }
+        marked[out++] = *p++;
+    }
+    marked[out] = '\0';
+    return marked;
+}
+
 // Expand environment variables in a string
 char *varexpand_expand(const char *str, int last_exit_code) {
     if (!str) return NULL;
@@ -152,16 +170,16 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_value = var_name;
                 p++;
             } else if (*p == '*' || (*p == '\x01' && *(p + 1) == '*')) {
-                // $* - all positional parameters as single string
-                // POSIX: When quoted ("$*"), join with first character of IFS
-                // When unquoted, join with space (IFS splitting happens later)
+                // $* - all positional parameters
+                // POSIX: When quoted ("$*"), join with first character of IFS (single field)
+                // When unquoted, each param becomes a separate field (use \x04 separator)
                 if (*p == '\x01') p++;  // Skip marker if present
                 static char star_buf[MAX_EXPANDED_LENGTH];
                 star_buf[0] = '\0';
                 size_t pos = 0;
 
-                // Determine separator: first char of IFS when quoted, space otherwise
-                char sep = ' ';
+                // Determine separator based on quoting context
+                char sep = '\x04';  // Default: separate fields for unquoted
                 bool use_sep = true;
                 if (is_quoted) {
                     const char *ifs = ifs_get();
@@ -191,8 +209,8 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 p++;
             } else if (*p == '@') {
                 // $@ - all positional parameters
-                // When quoted ("$@"), each param becomes a separate argument (use \x04 separator)
-                // When unquoted ($@), same as $* (space-separated, subject to IFS splitting)
+                // Both quoted ("$@") and unquoted ($@) produce separate fields
+                // Use \x04 separator to ensure each param becomes a separate argument
                 static char at_buf[MAX_EXPANDED_LENGTH];
                 at_buf[0] = '\0';
                 size_t pos = 0;
@@ -200,9 +218,8 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                     const char *param = get_positional_param(i);
                     if (param) {
                         if (i > 1 && pos < sizeof(at_buf) - 1) {
-                            // Use \x04 separator for quoted $@ (separate args)
-                            // Use space for unquoted $@ (same as $*)
-                            at_buf[pos++] = is_quoted ? '\x04' : ' ';
+                            // Use \x04 separator for both quoted and unquoted $@
+                            at_buf[pos++] = '\x04';
                         }
                         size_t plen = strlen(param);
                         if (pos + plen < sizeof(at_buf)) {
@@ -315,9 +332,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var-word}: use word if unset
                             // ${var:-word}: use word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word
+                                // Expand variables in word, preserving quoting context
                                 if (strchr(word, '$')) {
-                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
+                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
                                     if (expanded_word) {
                                         safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
                                         free(expanded_word);
@@ -332,9 +350,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var+word}: use word if set
                             // ${var:+word}: use word if set and not null
                             if (!is_unset && (!check_null || !is_null)) {
-                                // Expand variables in word
+                                // Expand variables in word, preserving quoting context
                                 if (strchr(word, '$')) {
-                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
+                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
                                     if (expanded_word) {
                                         safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
                                         free(expanded_word);
@@ -349,9 +368,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var=word}: assign word if unset
                             // ${var:=word}: assign word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word
+                                // Expand variables in word, preserving quoting context
                                 if (strchr(word, '$')) {
-                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
+                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
                                     if (expanded_word) {
                                         safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
                                         free(expanded_word);
@@ -367,9 +387,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var?word}: error if unset
                             // ${var:?word}: error if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word for error message
+                                // Expand variables in word for error message, preserving quoting context
                                 if (strchr(word, '$')) {
-                                    char *expanded_word = varexpand_expand(word, last_exit_code);
+                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
+                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
                                     if (expanded_word) {
                                         safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
                                         free(expanded_word);
