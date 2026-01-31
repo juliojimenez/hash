@@ -321,9 +321,48 @@ static int execute_background(const char *cmd_line) {
             }
         }
 
-        // Use script_process_line to handle all command types
-        // (brace groups, subshells, control structures, etc.)
+        // Reset traps for this subprocess
+        trap_reset_for_subshell();
+        // POSIX: break/continue only affect loops in this subshell
+        script_reset_for_subshell();
+
         extern int last_command_exit_code;
+
+        // Optimization: If command is a subshell "( ... )", extract content and
+        // execute directly to avoid extra fork. The background fork IS the subshell.
+        // This also ensures $PPID returns correct value for commands inside.
+        const char *p = cmd_line;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '(') {
+            // Find matching closing paren
+            const char *start = p + 1;
+            int depth = 1;
+            const char *end = start;
+            while (*end && depth > 0) {
+                if (*end == '(') depth++;
+                else if (*end == ')') depth--;
+                if (depth > 0) end++;
+            }
+            if (depth == 0) {
+                // Extract subshell content
+                size_t len = end - start;
+                char *subshell_cmd = malloc(len + 1);
+                if (subshell_cmd) {
+                    memcpy(subshell_cmd, start, len);
+                    subshell_cmd[len] = '\0';
+                    // Execute directly without extra fork
+                    script_execute_string(subshell_cmd);
+                    free(subshell_cmd);
+                    fflush(stdout);
+                    fflush(stderr);
+                    trap_execute_exit();
+                    _exit(last_command_exit_code);
+                }
+            }
+        }
+
+        // Use script_process_line to handle all command types
+        // (brace groups, control structures, etc.)
         script_process_line(cmd_line);
         fflush(stdout);
         fflush(stderr);

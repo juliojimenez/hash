@@ -72,6 +72,11 @@ static char *execute_and_capture(const char *cmd) {
         // POSIX: break/continue only affect loops in this subshell
         script_reset_for_subshell();
 
+        // Tell execute() to exec directly instead of fork+exec.
+        // This ensures $PPID returns the correct parent PID for commands
+        // run inside command substitution.
+        exec_directly_in_child = true;
+
         // Use hash's own script execution to preserve function definitions
         int result = script_execute_string(cmd);
         fflush(stdout);  // Ensure output is flushed before exit

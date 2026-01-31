@@ -1294,6 +1294,8 @@ static int execute_simple_line(const char *line) {
             waitpid(pid, &status, 0);
             if (WIFEXITED(status)) {
                 last_command_exit_code = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                last_command_exit_code = 128 + WTERMSIG(status);
             } else {
                 last_command_exit_code = 1;
             }

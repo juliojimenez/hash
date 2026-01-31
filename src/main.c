@@ -281,6 +281,14 @@ int main(int argc, char *argv[]) {
     // Import environment variables (so they can be modified and synced back)
     shellvar_sync_from_env();
 
+    // Set PPID (parent process ID) - POSIX special variable, readonly
+    {
+        char ppid_str[32];
+        snprintf(ppid_str, sizeof(ppid_str), "%d", getppid());
+        shellvar_set("PPID", ppid_str);
+        shellvar_set_readonly("PPID");
+    }
+
     // Initialize trap system
     trap_init();
 

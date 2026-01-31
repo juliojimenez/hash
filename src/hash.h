@@ -16,4 +16,9 @@
 // Global flag indicating interactive mode (for history tracking, etc.)
 extern bool is_interactive;
 
+// Global flag to indicate we're in a command substitution child and
+// should exec directly instead of fork+exec for external commands.
+// This ensures $PPID returns the correct parent PID.
+extern bool exec_directly_in_child;
+
 #endif

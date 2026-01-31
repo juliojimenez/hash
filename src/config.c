@@ -22,6 +22,9 @@ Config shell_config;
 // Track if we're running interactively (for history tracking, job control, etc.)
 bool is_interactive = false;
 
+// Flag to indicate we're in a command substitution child and should exec directly
+bool exec_directly_in_child = false;
+
 // Initialize config with defaults
 void config_init(void) {
     shell_config.alias_count = 0;

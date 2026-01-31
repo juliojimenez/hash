@@ -102,6 +102,45 @@ static int launch(char **args, const char *cmd_string) {
         cmd_path = find_in_path(exec_args[0]);
     }
 
+    // If we're in a command substitution child, exec directly without forking.
+    // This ensures $PPID returns the correct parent PID.
+    if (exec_directly_in_child) {
+        // Restore default signal handlers
+        signal(SIGINT, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
+        signal(SIGTTOU, SIG_DFL);
+
+        // Apply redirections
+        if (redir && redirect_apply(redir) != 0) {
+            free(expanded_heredoc);
+            redirect_free(redir);
+            free(cmd_path);
+            last_command_exit_code = 1;
+            return 1;
+        }
+
+        // Execute command (replaces this process)
+        if (!exec_args || !exec_args[0]) {
+            free(expanded_heredoc);
+            redirect_free(redir);
+            free(cmd_path);
+            last_command_exit_code = 127;
+            return 1;
+        }
+        execvp(exec_args[0], exec_args);
+        // If we get here, execvp failed
+        if (!script_state.silent_errors) {
+            perror(HASH_NAME);
+        }
+        free(expanded_heredoc);
+        redirect_free(redir);
+        free(cmd_path);
+        last_command_exit_code = 127;
+        return 1;  // Return instead of _exit since we might want to continue
+    }
+
     pid = fork();
     if (pid == 0) {
         // Child process
