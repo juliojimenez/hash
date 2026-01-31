@@ -1275,6 +1275,8 @@ static int execute_simple_line(const char *line) {
                 trap_reset_for_subshell();
                 // POSIX: break/continue only affect loops in this subshell, not parent's loops
                 script_reset_for_subshell();
+                // Clear pending heredoc to prevent recursive expansion
+                script_clear_pending_heredoc();
                 // Note: don't close stdin for subshells as they run synchronously
                 int exit_code = script_execute_string(subshell_cmd);
                 free(subshell_cmd);
@@ -1346,6 +1348,8 @@ static int execute_simple_line(const char *line) {
                 if (pid == 0) {
                     // Child process - close stdin to avoid interference with parent
                     close(STDIN_FILENO);
+                    // Clear pending heredoc to prevent recursive expansion
+                    script_clear_pending_heredoc();
                     script_execute_string(group_cmd);
                     free(group_cmd);
                     fflush(stdout);
@@ -3821,6 +3825,14 @@ const char *script_get_pending_heredoc(void) {
 // Get whether the pending heredoc delimiter was quoted (no expansion)
 int script_get_pending_heredoc_quoted(void) {
     return pending_heredoc_quoted;
+}
+
+// Clear pending heredoc (for forked children to prevent recursive expansion)
+void script_clear_pending_heredoc(void) {
+    // Don't free - parent still owns the memory
+    // Just clear our reference to it
+    pending_heredoc = NULL;
+    pending_heredoc_quoted = 0;
 }
 
 // Track whether we're in a condition context (if/while/until condition)

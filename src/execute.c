@@ -1051,6 +1051,8 @@ int execute(char **args) {
     if (is_builtin_cmd && redir && redir->count > 0 && !is_special_builtin) {
         pid_t pid = fork();
         if (pid == 0) {
+            // Clear pending heredoc to prevent recursive expansion in child
+            script_clear_pending_heredoc();
             // Child process - apply redirections and run builtin
             if (redirect_apply(redir) != 0) {
                 _exit(EXIT_FAILURE);

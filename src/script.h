@@ -410,6 +410,12 @@ const char *script_get_pending_heredoc(void);
 int script_get_pending_heredoc_quoted(void);
 
 /**
+ * Clear the pending heredoc content
+ * Used when forking for command substitution to prevent recursive expansion
+ */
+void script_clear_pending_heredoc(void);
+
+/**
  * Track whether we're in a condition context (if/while/until condition)
  * where errexit should not trigger
  */

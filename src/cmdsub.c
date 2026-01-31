@@ -71,6 +71,9 @@ static char *execute_and_capture(const char *cmd) {
         trap_reset_for_subshell();
         // POSIX: break/continue only affect loops in this subshell
         script_reset_for_subshell();
+        // Clear pending heredoc to prevent recursive expansion
+        // (parent's heredoc content shouldn't affect child)
+        script_clear_pending_heredoc();
 
         // Tell execute() to exec directly instead of fork+exec.
         // This ensures $PPID returns the correct parent PID for commands
