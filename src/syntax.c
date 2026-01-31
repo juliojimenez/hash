@@ -8,6 +8,7 @@
 #include "builtins.h"
 #include "config.h"
 #include "safe_string.h"
+#include "danger.h"
 
 // Command cache for performance
 #define CMD_CACHE_SIZE 128
@@ -353,6 +354,12 @@ char *syntax_render(const char *input, size_t len) {
         return empty;
     }
 
+    // Check danger level if enabled
+    DangerLevel danger_level = DANGER_NONE;
+    if (color_config.danger_highlight_enabled) {
+        danger_level = danger_check(input, len);
+    }
+
     // Analyze the input
     SyntaxResult *result = syntax_analyze(input, len);
     if (!result) return NULL;
@@ -370,6 +377,7 @@ char *syntax_render(const char *input, size_t len) {
     size_t in_pos = 0;
     const char *reset = color_code(COLOR_RESET);
     size_t reset_len = strlen(reset);
+    bool applied_danger = false;  // Track if we've applied danger color to first command
 
     for (int i = 0; i < result->count; i++) {
         const SyntaxSegment *seg = &result->segments[i];
@@ -381,6 +389,18 @@ char *syntax_render(const char *input, size_t len) {
 
         // Get color for this segment
         const char *color = get_token_color(seg->type);
+
+        // Override with danger color for first command if dangerous
+        if (!applied_danger && danger_level != DANGER_NONE &&
+            (seg->type == SYN_COMMAND || seg->type == SYN_BUILTIN ||
+             seg->type == SYN_ALIAS || seg->type == SYN_INVALID_CMD)) {
+            if (danger_level == DANGER_HIGH) {
+                color = color_config_get(color_config.danger_high);
+            } else {
+                color = color_config_get(color_config.danger);
+            }
+            applied_danger = true;
+        }
         size_t color_len = strlen(color);
 
         // Add color code

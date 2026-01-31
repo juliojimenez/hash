@@ -81,7 +81,7 @@ static const EnvMapping env_map[] = {
     {"HASH_COLOR_COMMENT", offsetof(ColorConfig, syn_comment)},
     {"HASH_COLOR_SUGGESTION", offsetof(ColorConfig, suggestion)},
     {"HASH_COLOR_DANGER", offsetof(ColorConfig, danger)},
-    {"HASH_COLOR_DANGER_BG", offsetof(ColorConfig, danger_bg)},
+    {"HASH_COLOR_DANGER_HIGH", offsetof(ColorConfig, danger_high)},
     {NULL, 0}
 };
 
@@ -104,7 +104,7 @@ static const EnvMapping element_map[] = {
     {"comment", offsetof(ColorConfig, syn_comment)},
     {"suggestion", offsetof(ColorConfig, suggestion)},
     {"danger", offsetof(ColorConfig, danger)},
-    {"danger_bg", offsetof(ColorConfig, danger_bg)},
+    {"danger_high", offsetof(ColorConfig, danger_high)},
     {NULL, 0}
 };
 
@@ -143,8 +143,8 @@ void color_config_init(void) {
     safe_strcpy(color_config.suggestion, COLOR_BRIGHT_BLACK, MAX_COLOR_CODE);
 
     // Danger highlighting
-    safe_strcpy(color_config.danger, COLOR_BOLD COLOR_WHITE, MAX_COLOR_CODE);
-    safe_strcpy(color_config.danger_bg, COLOR_BG_RED, MAX_COLOR_CODE);
+    safe_strcpy(color_config.danger, COLOR_BOLD COLOR_RED, MAX_COLOR_CODE);      // Medium: bold red
+    safe_strcpy(color_config.danger_high, COLOR_BOLD COLOR_WHITE COLOR_BG_RED, MAX_COLOR_CODE);  // High: white on red
 
     // Feature toggles - all enabled by default
     color_config.syntax_highlight_enabled = true;

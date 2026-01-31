@@ -31,8 +31,8 @@ typedef struct {
     char suggestion[MAX_COLOR_CODE];       // Muted suggestion text
 
     // Dangerous command colors (Phase 4)
-    char danger[MAX_COLOR_CODE];           // Dangerous commands
-    char danger_bg[MAX_COLOR_CODE];        // Background for danger
+    char danger[MAX_COLOR_CODE];           // Medium danger (bold red)
+    char danger_high[MAX_COLOR_CODE];      // High danger (white on red bg)
 
     // Feature toggles
     bool syntax_highlight_enabled;
