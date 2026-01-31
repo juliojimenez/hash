@@ -361,8 +361,9 @@ int main(int argc, char *argv[]) {
 
     // ========================================================================
     // Non-interactive mode: Read from stdin (-s or piped input)
+    // Note: If -i flag was used, skip this and go to interactive mode
     // ========================================================================
-    if (read_stdin || !isatty(STDIN_FILENO)) {
+    if ((read_stdin || !isatty(STDIN_FILENO)) && !force_interactive) {
         // Set up positional parameters if provided (for -s)
         if (script_argc > 0 && script_argv != NULL) {
             script_state.positional_params = malloc((size_t)script_argc * sizeof(char*));

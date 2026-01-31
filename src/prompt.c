@@ -297,9 +297,11 @@ char *prompt_generate(int last_exit_code) {
     // Get PS1 from environment or config
     const char *ps1;
     const char *ps1_env = getenv("PS1");
+    bool ps1_from_env = false;
 
     if (ps1_env) {
         ps1 = ps1_env;
+        ps1_from_env = true;
     } else if (prompt_config.use_custom_ps1) {
         ps1 = prompt_config.ps1;
     } else {
@@ -358,9 +360,15 @@ char *prompt_generate(int last_exit_code) {
     char temp_prompt[MAX_PROMPT_LENGTH - 64];
     process_ps1_escapes(temp_prompt, sizeof(temp_prompt), ps1, last_exit_code);
 
-    // Wrap entire prompt in base prompt color (bold by default) and add final reset + space
-    const char *base_color = color_config_get(color_config.prompt);
-    snprintf(prompt, sizeof(prompt), "%s%s%s ", base_color, temp_prompt, color_code(COLOR_RESET));
+    // POSIX compliance: if PS1 is from environment, output it without adding colors
+    // Only add color wrapping for the default hash prompt
+    if (ps1_from_env) {
+        safe_strcpy(prompt, temp_prompt, sizeof(prompt));
+    } else {
+        // Wrap entire prompt in base prompt color (bold by default) and add final reset + space
+        const char *base_color = color_config_get(color_config.prompt);
+        snprintf(prompt, sizeof(prompt), "%s%s%s ", base_color, temp_prompt, color_code(COLOR_RESET));
+    }
 
     return prompt;
 }

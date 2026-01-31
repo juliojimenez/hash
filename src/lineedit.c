@@ -476,8 +476,9 @@ char *lineedit_read_line(const char *prompt) {
         size_t bufsize = 0;
 
         if (prompt) {
-            printf("%s", prompt);
-            fflush(stdout);
+            // POSIX: interactive shell prompts go to stderr
+            fprintf(stderr, "%s", prompt);
+            fflush(stderr);
         }
 
         if (getline(&line, &bufsize, stdin) == -1) {
