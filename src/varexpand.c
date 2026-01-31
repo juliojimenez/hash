@@ -11,6 +11,7 @@
 #include "jobs.h"
 #include "config.h"
 #include "shellvar.h"
+#include "ifs.h"
 
 #define MAX_EXPANDED_LENGTH 8192
 
@@ -152,15 +153,31 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 p++;
             } else if (*p == '*' || (*p == '\x01' && *(p + 1) == '*')) {
                 // $* - all positional parameters as single string
+                // POSIX: When quoted ("$*"), join with first character of IFS
+                // When unquoted, join with space (IFS splitting happens later)
                 if (*p == '\x01') p++;  // Skip marker if present
                 static char star_buf[MAX_EXPANDED_LENGTH];
                 star_buf[0] = '\0';
                 size_t pos = 0;
+
+                // Determine separator: first char of IFS when quoted, space otherwise
+                char sep = ' ';
+                bool use_sep = true;
+                if (is_quoted) {
+                    const char *ifs = ifs_get();
+                    if (ifs[0] == '\0') {
+                        // Empty IFS: concatenate without separator
+                        use_sep = false;
+                    } else {
+                        sep = ifs[0];
+                    }
+                }
+
                 for (int i = 1; i < script_state.positional_count && pos < sizeof(star_buf) - 1; i++) {
                     const char *param = get_positional_param(i);
                     if (param) {
-                        if (i > 1 && pos < sizeof(star_buf) - 1) {
-                            star_buf[pos++] = ' ';
+                        if (i > 1 && use_sep && pos < sizeof(star_buf) - 1) {
+                            star_buf[pos++] = sep;
                         }
                         size_t plen = strlen(param);
                         if (pos + plen < sizeof(star_buf)) {

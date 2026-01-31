@@ -482,6 +482,20 @@ int shell_set(char **args) {
             return 1;
         }
 
+        // POSIX: If argument doesn't start with - or +, and isn't an option=value,
+        // treat it and all following arguments as positional parameters
+        if (arg[0] != '-' && arg[0] != '+' && !strchr(arg, '=')) {
+            // Count arguments from this point
+            int argc = 0;
+            for (int j = i; args[j] != NULL; j++) {
+                argc++;
+            }
+            // Set positional parameters ($1, $2, ...)
+            script_set_positional_params(argc, &args[i]);
+            last_command_exit_code = 0;
+            return 1;
+        }
+
         // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
         if (strcmp(arg, "-u") == 0) {
             shell_option_set_nounset(true);
