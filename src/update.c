@@ -322,7 +322,8 @@ void update_record_check(void) {
 static int run_curl(const char *url, char *output, size_t output_size) {
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "curl -sL -H 'Accept: application/vnd.github.v3+json' '%s' 2>/dev/null",
+             "curl -sL --connect-timeout 3 --max-time 5 "
+             "-H 'Accept: application/vnd.github.v3+json' '%s' 2>/dev/null",
              url);
 
     FILE *fp = popen(cmd, "r");
