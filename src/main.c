@@ -434,6 +434,13 @@ int main(int argc, char *argv[]) {
     // Initialize prompt system
     prompt_init();
 
+    // Set up fancy default prompt only when stdin is a real tty
+    // This ensures POSIX compliance when stdin is redirected (e.g., heredoc)
+    // while giving nice defaults for normal interactive use
+    if (isatty(STDIN_FILENO)) {
+        prompt_set_fancy_default();
+    }
+
     // Initialize history (loads from ~/.hash_history)
     history_init();
 
@@ -452,7 +459,9 @@ int main(int argc, char *argv[]) {
     // Load color configuration from environment (after startup files)
     color_config_load_env();
 
-    if (shell_config.show_welcome) {
+    // Only show welcome message when stdin is a real tty
+    // This ensures POSIX compliance when stdin is redirected (e.g., heredoc with -i)
+    if (shell_config.show_welcome && isatty(STDIN_FILENO)) {
         color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
         printf(" v%s", HASH_VERSION);
         if (is_login_shell_global) {

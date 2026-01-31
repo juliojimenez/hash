@@ -18,8 +18,18 @@ PromptConfig prompt_config;
 // Initialize prompt system
 void prompt_init(void) {
     prompt_config.use_custom_ps1 = false;
-    // Default PS1: <path> git:(branch) #>
-    safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e", MAX_PROMPT_LENGTH);
+    prompt_config.ps1[0] = '\0';
+}
+
+// Set up default fancy prompt (call only when stdin is a tty)
+void prompt_set_fancy_default(void) {
+    // Only set fancy default if PS1 is not already in environment
+    // and no custom PS1 has been configured
+    if (getenv("PS1") == NULL && !prompt_config.use_custom_ps1) {
+        prompt_config.use_custom_ps1 = true;
+        // Default PS1: <path> git:(branch) #>
+        safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e", MAX_PROMPT_LENGTH);
+    }
 }
 
 // Set custom PS1
@@ -300,12 +310,20 @@ char *prompt_generate(int last_exit_code) {
     bool ps1_from_env = false;
 
     if (ps1_env) {
+        // PS1 explicitly set in environment - always use it
         ps1 = ps1_env;
         ps1_from_env = true;
+    } else if (!isatty(STDIN_FILENO)) {
+        // POSIX compliance: when stdin is not a tty (e.g., heredoc with -i)
+        // and PS1 is not in environment, use POSIX default
+        ps1 = (getuid() == 0) ? "# " : "$ ";
+        ps1_from_env = true;  // Treat as simple prompt (no escape processing)
     } else if (prompt_config.use_custom_ps1) {
         ps1 = prompt_config.ps1;
     } else {
-        ps1 = "\\w\\g \\e#>\\e";
+        // POSIX default: "$ " (or "# " for root)
+        ps1 = (getuid() == 0) ? "# " : "$ ";
+        ps1_from_env = true;  // Treat as simple env prompt (no escape processing)
     }
 
     // Check if PS1 needs dynamic expansion (for Starship, etc.)

@@ -16,6 +16,9 @@ extern PromptConfig prompt_config;
 // Initialize prompt system
 void prompt_init(void);
 
+// Set up default fancy prompt (call only when stdin is a tty)
+void prompt_set_fancy_default(void);
+
 // Generate and return the prompt string
 // last_exit_code: exit code of previous command
 char *prompt_generate(int last_exit_code);
