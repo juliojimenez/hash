@@ -23,6 +23,26 @@
 
 extern int last_command_exit_code;
 
+// Check if string is a valid variable assignment (VAR=VALUE)
+// Returns pointer to '=' if valid, NULL otherwise
+static char *is_var_assignment(const char *arg) {
+    if (!arg) return NULL;
+
+    char *equals = strchr(arg, '=');
+    if (!equals || equals == arg) return NULL;
+
+    // Check if characters before = form a valid variable name
+    for (const char *p = arg; p < equals; p++) {
+        if (p == arg) {
+            if (!isalpha(*p) && *p != '_') return NULL;
+        } else {
+            if (!isalnum(*p) && *p != '_') return NULL;
+        }
+    }
+
+    return equals;
+}
+
 // Check if a command is a compound command (brace group or subshell)
 static int is_compound_command(const char *cmd) {
     if (!cmd) return 0;
@@ -268,6 +288,27 @@ int pipeline_execute(const Pipeline *pipeline) {
 
             // Strip quote markers after redirect parsing
             strip_quote_markers_args(exec_args);
+
+            // Handle prefix variable assignments (VAR=value cmd)
+            // Count prefix assignments and set them in the environment
+            int prefix_count = 0;
+            while (exec_args[prefix_count] && is_var_assignment(exec_args[prefix_count])) {
+                prefix_count++;
+            }
+
+            // Set prefix variables in environment and shift exec_args to actual command
+            if (prefix_count > 0 && exec_args[prefix_count] != NULL) {
+                for (int j = 0; j < prefix_count; j++) {
+                    char *equals = is_var_assignment(exec_args[j]);
+                    *equals = '\0';
+                    const char *name = exec_args[j];
+                    char *value = equals + 1;
+                    setenv(name, value, 1);
+                    *equals = '=';  // Restore for potential debugging
+                }
+                // Point exec_args past the prefix assignments to the actual command
+                exec_args = &exec_args[prefix_count];
+            }
 
             // Apply redirections
             if (redir && redirect_apply(redir) != 0) {
