@@ -326,7 +326,7 @@ int config_process_line(char *line) {
 
         // Handle "set color.<element>=<value>" (e.g., set color.prompt=bold,blue)
         if (strncmp(set_def, "color.", 6) == 0) {
-            char *element_start = set_def + 6;
+            const char *element_start = set_def + 6;
             char *equals = strchr(element_start, '=');
             if (equals) {
                 *equals = '\0';

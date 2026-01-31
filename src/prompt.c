@@ -354,7 +354,8 @@ char *prompt_generate(int last_exit_code) {
     }
 
     // Process hash-specific escape sequences (for built-in prompts)
-    char temp_prompt[MAX_PROMPT_LENGTH];
+    // Reserve space for base_color (~32 bytes) + COLOR_RESET (~10 bytes) + space + null
+    char temp_prompt[MAX_PROMPT_LENGTH - 64];
     process_ps1_escapes(temp_prompt, sizeof(temp_prompt), ps1, last_exit_code);
 
     // Wrap entire prompt in base prompt color (bold by default) and add final reset + space

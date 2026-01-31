@@ -15,6 +15,9 @@
 #include "safe_string.h"
 #include "history.h"
 #include "completion.h"
+#include "syntax.h"
+#include "color_config.h"
+#include "colors.h"
 
 #define MAX_LINE_LENGTH 4096
 
@@ -395,7 +398,19 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
 
     // Write prompt and current buffer (with proper newline handling)
     write_with_crlf(prompt);
-    write_with_crlf(buf);
+
+    // Apply syntax highlighting if enabled
+    if (colors_enabled && color_config.syntax_highlight_enabled && len > 0) {
+        char *highlighted = syntax_render(buf, len);
+        if (highlighted) {
+            write_with_crlf(highlighted);
+            free(highlighted);
+        } else {
+            write_with_crlf(buf);
+        }
+    } else {
+        write_with_crlf(buf);
+    }
 
     set_cursor(buf, pos, len, prompt);
 }

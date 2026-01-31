@@ -33,6 +33,7 @@ Julio Jimenez, julio@julioj.com
 #include "shellvar.h"
 #include "trap.h"
 #include "color_config.h"
+#include "syntax.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
@@ -288,6 +289,9 @@ int main(int argc, char *argv[]) {
 
     // Initialize color configuration with defaults
     color_config_init();
+
+    // Initialize syntax highlighting
+    syntax_init();
 
     // Initialize config with defaults
     config_init();
