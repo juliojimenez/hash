@@ -350,6 +350,69 @@ static int execute_background(const char *cmd_line) {
                 if (subshell_cmd) {
                     memcpy(subshell_cmd, start, len);
                     subshell_cmd[len] = '\0';
+
+                    // Check for redirections after the closing paren
+                    const char *after_paren = end + 1;
+                    while (*after_paren && isspace(*after_paren)) after_paren++;
+                    if (*after_paren) {
+                        // Apply redirections (same logic as in chain_execute)
+                        char *redir_copy = strdup(after_paren);
+                        if (redir_copy) {
+                            char *r = redir_copy;
+                            while (*r) {
+                                while (*r && isspace(*r)) r++;
+                                if (!*r) break;
+
+                                int fd = -1;
+                                if (isdigit(*r)) {
+                                    fd = 0;
+                                    while (isdigit(*r)) {
+                                        fd = fd * 10 + (*r - '0');
+                                        r++;
+                                    }
+                                }
+
+                                if (*r == '<') {
+                                    r++;
+                                    if (fd < 0) fd = 0;
+                                    if (*r == '&') {
+                                        r++;
+                                        if (*r == '-') { close(fd); r++; }
+                                        else { int src = atoi(r); while (isdigit(*r)) { r++; } dup2(src, fd); }
+                                    } else {
+                                        while (*r && isspace(*r)) r++;
+                                        const char *fn = r;
+                                        while (*r && !isspace(*r)) r++;
+                                        char sv = *r; *r = '\0';
+                                        int nfd = open(fn, O_RDONLY);
+                                        if (nfd >= 0) { if (nfd != fd) { dup2(nfd, fd); close(nfd); } }
+                                        *r = sv;
+                                    }
+                                } else if (*r == '>') {
+                                    r++;
+                                    if (fd < 0) fd = 1;
+                                    int app = 0;
+                                    if (*r == '>') { app = 1; r++; }
+                                    if (*r == '&') {
+                                        r++;
+                                        if (*r == '-') { close(fd); r++; }
+                                        else { int src = atoi(r); while (isdigit(*r)) { r++; } dup2(src, fd); }
+                                    } else {
+                                        while (*r && isspace(*r)) r++;
+                                        const char *fn = r;
+                                        while (*r && !isspace(*r)) r++;
+                                        char sv = *r; *r = '\0';
+                                        int fl = O_WRONLY | O_CREAT | (app ? O_APPEND : O_TRUNC);
+                                        int nfd = open(fn, fl, 0644);
+                                        if (nfd >= 0) { if (nfd != fd) { dup2(nfd, fd); close(nfd); } }
+                                        *r = sv;
+                                    }
+                                } else { r++; }
+                            }
+                            free(redir_copy);
+                        }
+                    }
+
                     // Execute directly without extra fork
                     script_execute_string(subshell_cmd);
                     free(subshell_cmd);
