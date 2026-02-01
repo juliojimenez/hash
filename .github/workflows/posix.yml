@@ -234,6 +234,7 @@ jobs:
             local FAILED=0
             local TIMEOUT_COUNT=0
             local TOTAL=0
+            local BASE_DIR="$(pwd)"
 
             for test_file in shell/*.test; do
               if [ -f "$test_file" ]; then
@@ -241,11 +242,13 @@ jobs:
                 TEST_NAME=$(basename "$test_file" .test)
                 EC_FILE="shell/${TEST_NAME}.ec"
 
-                # Run with timeout, capture exit code
+                # Run test with timeout in a clean temp directory (like smoosh test runner)
+                TEST_TMP=$(mktemp -d)
                 set +e
-                timeout 2s "$SHELL_PATH" < "$test_file" > /dev/null 2>&1
+                (cd "$TEST_TMP" && timeout 5s "$SHELL_PATH" "${BASE_DIR}/$test_file" > /dev/null 2>&1)
                 ACTUAL_EC=$?
                 set -e
+                rm -rf "$TEST_TMP"
 
                 # Check for timeout
                 if [ $ACTUAL_EC -eq 124 ]; then
