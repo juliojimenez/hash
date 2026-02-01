@@ -218,9 +218,19 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/mgree/smoosh.git smoosh-tests
 
+          # Build test utilities (same as smoosh-tests job)
+          cd smoosh-tests/tests/util
+          for src in *.c; do
+            bin="${src%.c}"
+            gcc -o "$bin" "$src" 2>/dev/null || echo "Note: Could not build $bin"
+          done
+
       - name: Run Comparison Tests
         run: |
           cd smoosh-tests/tests
+
+          # Export TEST_SHELL and TEST_UTIL for tests (same as smoosh-tests job)
+          export TEST_UTIL="$(pwd)/util"
 
           echo "=== Shell Comparison ==="
           echo ""
@@ -235,6 +245,9 @@ jobs:
             local TIMEOUT_COUNT=0
             local TOTAL=0
             local BASE_DIR="$(pwd)"
+
+            # Set TEST_SHELL for this specific shell
+            export TEST_SHELL="$SHELL_PATH"
 
             for test_file in shell/*.test; do
               if [ -f "$test_file" ]; then
