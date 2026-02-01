@@ -87,6 +87,19 @@ void history_reset_position(void);
 const char *history_search_prefix(const char *prefix);
 
 /**
+ * Search history for command containing substring
+ * Searches from start_index in specified direction
+ *
+ * @param substring Substring to search for
+ * @param start_index Index to start from (-1 means end for reverse)
+ * @param direction 1 for reverse (older), -1 for forward (newer)
+ * @param result_index Output: index of match, or -1 if not found
+ * @return Matching command, or NULL if not found
+ */
+const char *history_search_substring(const char *substring, int start_index,
+                                      int direction, int *result_index);
+
+/**
  * Expand history references (!!, !n, !-n, !prefix)
  * Returns newly allocated string (caller must free)
  *

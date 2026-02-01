@@ -139,6 +139,99 @@ void test_history_search_prefix(void) {
     TEST_ASSERT_EQUAL_STRING("git commit", result);
 }
 
+// Test substring search - basic match
+void test_history_search_substring_basic(void) {
+    history_add("git status");
+    history_add("ls -la");
+    history_add("git commit -m 'test'");
+    history_add("echo hello");
+
+    int result_idx = -1;
+    const char *match = history_search_substring("git", -1, 1, &result_idx);
+
+    TEST_ASSERT_NOT_NULL(match);
+    TEST_ASSERT_EQUAL_STRING("git commit -m 'test'", match);
+    TEST_ASSERT_EQUAL_INT(2, result_idx);
+}
+
+// Test substring search - cycle to older match
+void test_history_search_substring_cycle(void) {
+    history_add("git status");
+    history_add("ls -la");
+    history_add("git commit");
+
+    int result_idx = -1;
+    const char *match = history_search_substring("git", -1, 1, &result_idx);
+    TEST_ASSERT_EQUAL_STRING("git commit", match);
+    TEST_ASSERT_EQUAL_INT(2, result_idx);
+
+    // Search for older match starting from position before current match
+    match = history_search_substring("git", result_idx - 1, 1, &result_idx);
+    TEST_ASSERT_EQUAL_STRING("git status", match);
+    TEST_ASSERT_EQUAL_INT(0, result_idx);
+}
+
+// Test substring search - no match
+void test_history_search_substring_no_match(void) {
+    history_add("ls -la");
+    history_add("pwd");
+
+    int result_idx = -1;
+    const char *match = history_search_substring("git", -1, 1, &result_idx);
+
+    TEST_ASSERT_NULL(match);
+    TEST_ASSERT_EQUAL_INT(-1, result_idx);
+}
+
+// Test substring search - middle of command
+void test_history_search_substring_middle(void) {
+    history_add("echo hello world");
+    history_add("cat file.txt");
+
+    int result_idx = -1;
+    const char *match = history_search_substring("hello", -1, 1, &result_idx);
+
+    TEST_ASSERT_NOT_NULL(match);
+    TEST_ASSERT_EQUAL_STRING("echo hello world", match);
+}
+
+// Test forward search
+void test_history_search_substring_forward(void) {
+    history_add("git status");
+    history_add("ls -la");
+    history_add("git commit");
+
+    int result_idx = -1;
+    // Start forward search from beginning
+    const char *match = history_search_substring("git", 0, -1, &result_idx);
+    TEST_ASSERT_EQUAL_STRING("git status", match);
+    TEST_ASSERT_EQUAL_INT(0, result_idx);
+
+    // Continue forward search
+    match = history_search_substring("git", result_idx + 1, -1, &result_idx);
+    TEST_ASSERT_EQUAL_STRING("git commit", match);
+    TEST_ASSERT_EQUAL_INT(2, result_idx);
+}
+
+// Test empty query
+void test_history_search_substring_empty(void) {
+    history_add("git status");
+
+    int result_idx = -1;
+    const char *match = history_search_substring("", -1, 1, &result_idx);
+
+    TEST_ASSERT_NULL(match);
+}
+
+// Test empty history
+void test_history_search_substring_empty_history(void) {
+    int result_idx = -1;
+    const char *match = history_search_substring("git", -1, 1, &result_idx);
+
+    TEST_ASSERT_NULL(match);
+    TEST_ASSERT_EQUAL_INT(-1, result_idx);
+}
+
 // Test !! expansion
 void test_history_expand_last(void) {
     history_add("echo hello");
@@ -215,6 +308,13 @@ int main(void) {
     RUN_TEST(test_history_next);
     RUN_TEST(test_history_reset);
     RUN_TEST(test_history_search_prefix);
+    RUN_TEST(test_history_search_substring_basic);
+    RUN_TEST(test_history_search_substring_cycle);
+    RUN_TEST(test_history_search_substring_no_match);
+    RUN_TEST(test_history_search_substring_middle);
+    RUN_TEST(test_history_search_substring_forward);
+    RUN_TEST(test_history_search_substring_empty);
+    RUN_TEST(test_history_search_substring_empty_history);
     RUN_TEST(test_history_expand_last);
     RUN_TEST(test_history_expand_number);
     RUN_TEST(test_history_expand_relative);

@@ -300,6 +300,40 @@ const char *history_search_prefix(const char *prefix) {
     return NULL;
 }
 
+// Search for command containing substring
+const char *history_search_substring(const char *substring, int start_index,
+                                      int direction, int *result_index) {
+    if (result_index) *result_index = -1;
+    if (!substring || *substring == '\0') return NULL;
+    if (history_count_val == 0) return NULL;
+
+    // Determine search bounds
+    int start, end, step;
+    if (direction == 1) {
+        // Reverse search (older)
+        start = (start_index < 0) ? history_count_val - 1 : start_index;
+        if (start >= history_count_val) start = history_count_val - 1;
+        end = -1;
+        step = -1;
+    } else {
+        // Forward search (newer)
+        start = (start_index < 0) ? 0 : start_index;
+        if (start >= history_count_val) return NULL;
+        end = history_count_val;
+        step = 1;
+    }
+
+    for (int i = start; i != end; i += step) {
+        const char *cmd = history_get(i);
+        if (cmd && strstr(cmd, substring) != NULL) {
+            if (result_index) *result_index = i;
+            return cmd;
+        }
+    }
+
+    return NULL;
+}
+
 // Expand history references
 char *history_expand(const char *line) {
     if (!line || strchr(line, '!') == NULL) {

@@ -67,6 +67,23 @@ static int raw_mode_enabled = 0;
 #define KEY_CTRL_W     23
 #define KEY_ESC        27
 #define KEY_BACKSPACE  127
+#define KEY_CTRL_G     7   // Cancel search
+#define KEY_CTRL_R     18  // Reverse search
+#define KEY_CTRL_S     19  // Forward search
+
+// Reverse-i-search state
+typedef struct {
+    int active;                        // Search mode active flag
+    char query[256];                   // Search query
+    size_t query_len;                  // Query length
+    int match_index;                   // Current match index (-1 = no match)
+    int direction;                     // 1=reverse, -1=forward
+    char saved_buf[MAX_LINE_LENGTH];   // Original buffer
+    size_t saved_len;                  // Original length
+    size_t saved_pos;                  // Original cursor position
+} SearchState;
+
+static SearchState search_state = {0};
 
 // Enable raw mode
 static int enable_raw_mode(void) {
@@ -456,6 +473,80 @@ bool inside_quote(const char *buf, size_t len) {
     return single_quote || double_quote;
 }
 
+// Initialize reverse-i-search state
+static void search_init(char *buf, size_t len, size_t pos) {
+    search_state.active = 1;
+    search_state.query[0] = '\0';
+    search_state.query_len = 0;
+    search_state.match_index = -1;
+    search_state.direction = 1;  // Default to reverse
+
+    // Save current buffer state
+    memcpy(search_state.saved_buf, buf, len + 1);
+    search_state.saved_len = len;
+    search_state.saved_pos = pos;
+}
+
+// Reset search state
+static void search_cleanup(void) {
+    search_state.active = 0;
+    search_state.query[0] = '\0';
+    search_state.query_len = 0;
+    search_state.match_index = -1;
+}
+
+// Refresh line with search prompt
+static void search_refresh_line(const char *buf, size_t len, size_t pos,
+                                 size_t prev_buffer_lines, int has_match) {
+    // Build search prompt
+    char search_prompt[512];
+    const char *mode = (search_state.direction == 1) ? "reverse" : "forward";
+    const char *status = has_match ? "" : "failing ";
+
+    snprintf(search_prompt, sizeof(search_prompt),
+             "(%s%s-i-search)`%s': ", status, mode, search_state.query);
+
+    refresh_line(buf, len, pos, search_prompt, prev_buffer_lines);
+}
+
+// Perform search and update display
+static void search_update(char *buf, size_t *len, size_t *pos,
+                          size_t newline_count) {
+    int result_idx = -1;
+    const char *match = NULL;
+
+    if (search_state.query_len > 0) {
+        // Determine starting point for search
+        int start;
+        if (search_state.match_index >= 0) {
+            // Continue from current match position
+            start = search_state.match_index;
+        } else {
+            // Start from end for reverse, beginning for forward
+            start = (search_state.direction == 1) ? history_count() - 1 : 0;
+        }
+
+        match = history_search_substring(search_state.query, start,
+                                          search_state.direction, &result_idx);
+    }
+
+    // Update buffer with match
+    if (match) {
+        safe_strcpy(buf, match, MAX_LINE_LENGTH);
+        *len = safe_strlen(buf, MAX_LINE_LENGTH);
+        *pos = *len;
+        search_state.match_index = result_idx;
+    } else if (search_state.query_len == 0) {
+        // Empty query - show empty buffer
+        buf[0] = '\0';
+        *len = 0;
+        *pos = 0;
+        search_state.match_index = -1;
+    }
+
+    search_refresh_line(buf, *len, *pos, newline_count, match != NULL || search_state.query_len == 0);
+}
+
 // Read a line with editing capabilities
 char *lineedit_read_line(const char *prompt) {
     static char buf[MAX_LINE_LENGTH];
@@ -510,8 +601,13 @@ char *lineedit_read_line(const char *prompt) {
 
         switch (c) {
             case KEY_ENTER:
+                // Exit search mode if active, keep the current buffer
+                if (search_state.active) {
+                    search_cleanup();
+                }
+
                 // Check for new line escape and quotes
-                if (buf[len - 1] == '\\' || inside_quote(buf, len)) {
+                if (len > 0 && (buf[len - 1] == '\\' || inside_quote(buf, len))) {
                     last_was_tab = 0;
                     if (len < MAX_LINE_LENGTH - 1) {
                         buf[len] = '\n';
@@ -556,6 +652,16 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case KEY_CTRL_C:
+                if (search_state.active) {
+                    // Cancel search and restore original buffer
+                    memcpy(buf, search_state.saved_buf, search_state.saved_len + 1);
+                    len = search_state.saved_len;
+                    pos = search_state.saved_pos;
+                    search_cleanup();
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    break;
+                }
+
                 disable_raw_mode();
 
                 // Move to beginning and write ^C on a fresh line
@@ -568,6 +674,16 @@ char *lineedit_read_line(const char *prompt) {
 
             case KEY_BACKSPACE:
             case KEY_CTRL_H:
+                if (search_state.active) {
+                    // Delete last character from search query
+                    if (search_state.query_len > 0) {
+                        search_state.query_len--;
+                        search_state.query[search_state.query_len] = '\0';
+                        search_state.match_index = -1;  // Reset to search from end
+                        search_update(buf, &len, &pos, newline_count);
+                    }
+                    break;
+                }
                 if (pos > 0) {
                     char removed_char = buf[pos - 1];
                     memmove(buf + pos - 1, buf + pos, len - pos);
@@ -580,6 +696,12 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case 'C' + 256:  // Right arrow
+                if (search_state.active) {
+                    // Exit search mode, keep command for editing
+                    search_cleanup();
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    break;
+                }
                 if (pos < len) {
                     pos++;
                     // If in the end of current line in multi line buffer, move to next line
@@ -610,6 +732,12 @@ char *lineedit_read_line(const char *prompt) {
                 break;
 
             case 'D' + 256:  // Left arrow
+                if (search_state.active) {
+                    // Exit search mode, keep command for editing
+                    search_cleanup();
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    break;
+                }
                 if (pos > 0) {
                     pos--;
                     // If n the begining of current line in multi line buffer, move to previous line
@@ -723,8 +851,54 @@ char *lineedit_read_line(const char *prompt) {
                 last_was_tab = 0;
                 ret = write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
                 (void)ret;
-                refresh_line(buf, len, pos, prompt_str, newline_count);
+                if (search_state.active) {
+                    search_refresh_line(buf, len, pos, newline_count, search_state.match_index >= 0 || search_state.query_len == 0);
+                } else {
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                }
                 newline_count = count_newlines(buf);
+                break;
+
+            case KEY_CTRL_R:  // Reverse incremental search
+                last_was_tab = 0;
+                if (!search_state.active) {
+                    // Enter search mode
+                    search_init(buf, len, pos);
+                    search_refresh_line(buf, len, pos, newline_count, 1);
+                } else {
+                    // Cycle to next older match
+                    search_state.direction = 1;
+                    if (search_state.match_index > 0) {
+                        search_state.match_index--;
+                    } else if (search_state.match_index < 0 && history_count() > 0) {
+                        search_state.match_index = history_count() - 1;
+                    }
+                    search_update(buf, &len, &pos, newline_count);
+                }
+                break;
+
+            case KEY_CTRL_S:  // Forward incremental search
+                last_was_tab = 0;
+                if (search_state.active) {
+                    // Cycle to next newer match
+                    search_state.direction = -1;
+                    if (search_state.match_index >= 0 && search_state.match_index < history_count() - 1) {
+                        search_state.match_index++;
+                    }
+                    search_update(buf, &len, &pos, newline_count);
+                }
+                break;
+
+            case KEY_CTRL_G:  // Cancel search
+                last_was_tab = 0;
+                if (search_state.active) {
+                    // Restore original buffer
+                    memcpy(buf, search_state.saved_buf, search_state.saved_len + 1);
+                    len = search_state.saved_len;
+                    pos = search_state.saved_pos;
+                    search_cleanup();
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                }
                 break;
 
             case KEY_TAB:
@@ -873,6 +1047,16 @@ char *lineedit_read_line(const char *prompt) {
             default:
                 // Regular character - reset tab tracking
                 last_was_tab = 0;
+                if (search_state.active) {
+                    // Add character to search query
+                    if (c >= 32 && c < 127 && search_state.query_len < sizeof(search_state.query) - 1) {
+                        search_state.query[search_state.query_len++] = (char)c;
+                        search_state.query[search_state.query_len] = '\0';
+                        search_state.match_index = -1;  // Reset to search from end
+                        search_update(buf, &len, &pos, newline_count);
+                    }
+                    break;
+                }
                 if (c >= 32 && c < 127 && len < MAX_LINE_LENGTH - 1) {
                     memmove(buf + pos + 1, buf + pos, len - pos);
                     buf[pos] = (char)c;
