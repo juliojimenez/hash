@@ -131,6 +131,17 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
                 while (*p && *p != '\x03' && ifs_is_whitespace(*p, ifs)) {
                     p++;
                 }
+
+                // POSIX 2.6.5: "Each occurrence of a non-whitespace IFS character,
+                // along with any IFS white space adjacent to it, shall delimit a field."
+                // If whitespace is followed by non-whitespace IFS, absorb it as one delimiter
+                if (*p && *p != '\x03' && is_ifs_char(*p, ifs) && !ifs_is_whitespace(*p, ifs)) {
+                    p++;  // Skip the non-whitespace IFS delimiter
+                    // Skip any trailing IFS whitespace
+                    while (*p && *p != '\x03' && ifs_is_whitespace(*p, ifs)) {
+                        p++;
+                    }
+                }
             } else {
                 // Non-whitespace IFS char - delimiter
                 // POSIX: Each non-whitespace IFS char delimits a field,
