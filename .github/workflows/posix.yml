@@ -70,7 +70,6 @@ jobs:
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
           SKIP_TESTS="
-            semantics.arith.var.space
             semantics.backtick.fds
             semantics.escaping.backslash.modernish
             semantics.pattern.rightbracket
