@@ -259,10 +259,10 @@ jobs:
                 EC_FILE="shell/${TEST_NAME}.ec"
 
                 # Run test with timeout in a clean temp directory (like smoosh test runner)
-                # Redirect to files instead of /dev/null to match smoosh-tests behavior
+                # Explicitly pass environment variables to ensure they reach the test
                 TEST_TMP=$(mktemp -d)
                 set +e
-                (cd "$TEST_TMP" && timeout 5s "$SHELL_PATH" "${BASE_DIR}/$test_file" > "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.out" 2> "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.err")
+                (cd "$TEST_TMP" && TEST_SHELL="$SHELL_PATH" TEST_UTIL="$TEST_UTIL" timeout 5s "$SHELL_PATH" "${BASE_DIR}/$test_file" > "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.out" 2> "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.err")
                 ACTUAL_EC=$?
                 set -e
                 rm -rf "$TEST_TMP"
@@ -273,7 +273,7 @@ jobs:
                   continue
                 fi
 
-                # Check exit code
+                # Check exit code (only if .ec file exists, matching smoosh-tests behavior)
                 if [ -f "$EC_FILE" ]; then
                   EXPECTED_EC=$(cat "$EC_FILE" | tr -d '[:space:]')
                   if [ "$ACTUAL_EC" = "$EXPECTED_EC" ]; then
@@ -282,12 +282,8 @@ jobs:
                     FAILED=$((FAILED + 1))
                   fi
                 else
-                  # No expected exit code, assume 0
-                  if [ $ACTUAL_EC -eq 0 ]; then
-                    PASSED=$((PASSED + 1))
-                  else
-                    FAILED=$((FAILED + 1))
-                  fi
+                  # No expected exit code file - pass (smoosh-tests doesn't check exit code without .ec file)
+                  PASSED=$((PASSED + 1))
                 fi
               fi
             done
