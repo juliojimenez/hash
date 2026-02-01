@@ -235,6 +235,9 @@ jobs:
           echo "=== Shell Comparison ==="
           echo ""
 
+          # Create results directory for output files
+          mkdir -p results
+
           # Function to run tests for a shell
           run_shell_tests() {
             local SHELL_PATH="$1"
@@ -256,9 +259,10 @@ jobs:
                 EC_FILE="shell/${TEST_NAME}.ec"
 
                 # Run test with timeout in a clean temp directory (like smoosh test runner)
+                # Redirect to files instead of /dev/null to match smoosh-tests behavior
                 TEST_TMP=$(mktemp -d)
                 set +e
-                (cd "$TEST_TMP" && timeout 5s "$SHELL_PATH" "${BASE_DIR}/$test_file" > /dev/null 2>&1)
+                (cd "$TEST_TMP" && timeout 5s "$SHELL_PATH" "${BASE_DIR}/$test_file" > "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.out" 2> "${BASE_DIR}/results/${SHELL_NAME}_${TEST_NAME}.err")
                 ACTUAL_EC=$?
                 set -e
                 rm -rf "$TEST_TMP"
