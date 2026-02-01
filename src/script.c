@@ -2639,7 +2639,7 @@ static int execute_case_body(const char *body, const char *word) {
 
             // After execution, check if the line ended with ;; to terminate the clause
             // But ONLY if we're not inside a nested collecting context
-            ScriptContext *current_ctx = get_current_context();
+            const ScriptContext *current_ctx = get_current_context();
             bool nested_collecting = (current_ctx && current_ctx->collecting_body);
 
             if (!nested_collecting) {
