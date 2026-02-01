@@ -278,16 +278,105 @@ static size_t visible_prompt_length(const char *prompt) {
     return visible;
 }
 
-// Count the number of newlines in a string (to determine prompt line count)
-static int count_newlines(const char *str) {
-    if (!str) return 0;
+// Calculate total visual rows occupied by prompt + buffer (accounts for wrapping)
+// This considers: 1) actual newlines in prompt and buffer, 2) line wrapping at terminal edge
+static size_t calculate_visual_rows(const char *prompt, const char *buf, size_t len, int term_width) {
+    if (term_width <= 0) term_width = 80;
 
-    int count = 0;
-    while (*str) {
-        if (*str == '\n') count++;
-        str++;
+    size_t rows = 1;  // Start at row 1
+    size_t col = 0;   // Current column position
+
+    // Process prompt (only the last line matters for starting column)
+    if (prompt) {
+        const char *p = prompt;
+        int in_escape = 0;
+
+        while (*p) {
+            if (*p == '\n') {
+                rows++;
+                col = 0;
+            } else if (*p == '\x1b') {
+                in_escape = 1;
+            } else if (in_escape) {
+                if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
+                    in_escape = 0;
+                }
+            } else {
+                col++;
+                if (col >= (size_t)term_width) {
+                    rows++;
+                    col = 0;
+                }
+            }
+            p++;
+        }
     }
-    return count;
+
+    // Process buffer
+    for (size_t i = 0; i < len; i++) {
+        if (buf[i] == '\n') {
+            rows++;
+            col = 0;
+        } else {
+            col++;
+            if (col >= (size_t)term_width) {
+                rows++;
+                col = 0;
+            }
+        }
+    }
+
+    return rows;
+}
+
+// Calculate which visual row the cursor is on (1-indexed from bottom)
+static size_t calculate_cursor_row(const char *prompt, const char *buf, size_t pos, int term_width) {
+    if (term_width <= 0) term_width = 80;
+
+    size_t row = 1;
+    size_t col = 0;
+
+    // Process prompt
+    if (prompt) {
+        const char *p = prompt;
+        int in_escape = 0;
+
+        while (*p) {
+            if (*p == '\n') {
+                row++;
+                col = 0;
+            } else if (*p == '\x1b') {
+                in_escape = 1;
+            } else if (in_escape) {
+                if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
+                    in_escape = 0;
+                }
+            } else {
+                col++;
+                if (col >= (size_t)term_width) {
+                    row++;
+                    col = 0;
+                }
+            }
+            p++;
+        }
+    }
+
+    // Process buffer up to cursor position
+    for (size_t i = 0; i < pos; i++) {
+        if (buf[i] == '\n') {
+            row++;
+            col = 0;
+        } else {
+            col++;
+            if (col >= (size_t)term_width) {
+                row++;
+                col = 0;
+            }
+        }
+    }
+
+    return row;
 }
 
 // Write string to stdout, converting \n to \r\n for raw mode
@@ -384,24 +473,25 @@ static void set_cursor(const char *buf, size_t pos, size_t prev_pos,
     }
 }
 
-// Refresh the line on screen (supports multi-line prompt and buffer)
+// Refresh the line on screen (supports multi-line prompt and buffer with wrapping)
+// prev_visual_rows: the total visual rows the previous render occupied (for proper clearing)
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt,
-        size_t prev_buffer_lines) {
+        size_t prev_visual_rows) {
     ssize_t ret;
+    int term_width = get_terminal_width();
 
-    // Count how many lines up the cursor is
-    size_t count = 0;
-    for (ssize_t i = len - 1; i >= (ssize_t)pos; --i) {
-        if (buf[i] == '\n') ++count;
-    }
+    // Calculate which visual row the cursor is currently on
+    size_t cursor_row = calculate_cursor_row(prompt, buf, len, term_width);
 
-    // Count new lines in prompt and previous buffer
-    size_t prompt_lines = count_newlines(prompt) + prev_buffer_lines - count;
+    // Move cursor up to the first line (where prompt starts)
+    // We need to go up (cursor_row - 1) rows to get to row 1
+    // But we also need to account for prev_visual_rows if it was taller
+    size_t rows_to_clear = (prev_visual_rows > cursor_row) ? prev_visual_rows : cursor_row;
+    size_t rows_up = rows_to_clear - 1;
 
-    // For multi-line prompt and buffer, move cursor up to where the prompt started
-    if (prompt_lines > 0) {
+    if (rows_up > 0) {
         char up_seq[32];
-        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", prompt_lines);
+        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", rows_up);
         ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
         (void)ret;
     }
@@ -495,23 +585,25 @@ static void search_cleanup(void) {
     search_state.match_index = -1;
 }
 
-// Refresh line with search prompt
-static void search_refresh_line(const char *buf, size_t len, size_t pos,
-                                 size_t prev_buffer_lines, int has_match) {
-    // Build search prompt
-    char search_prompt[512];
+// Build search prompt string
+static void build_search_prompt(char *out, size_t out_size, int has_match) {
     const char *mode = (search_state.direction == 1) ? "reverse" : "forward";
     const char *status = has_match ? "" : "failing ";
+    snprintf(out, out_size, "(%s%s-i-search)`%s': ", status, mode, search_state.query);
+}
 
-    snprintf(search_prompt, sizeof(search_prompt),
-             "(%s%s-i-search)`%s': ", status, mode, search_state.query);
-
-    refresh_line(buf, len, pos, search_prompt, prev_buffer_lines);
+// Refresh line with search prompt
+static void search_refresh_line(const char *buf, size_t len, size_t pos,
+                                 size_t prev_visual_rows, int has_match) {
+    char search_prompt[512];
+    build_search_prompt(search_prompt, sizeof(search_prompt), has_match);
+    refresh_line(buf, len, pos, search_prompt, prev_visual_rows);
 }
 
 // Perform search and update display
+// Updates prev_visual_rows to reflect the new visual state
 static void search_update(char *buf, size_t *len, size_t *pos,
-                          size_t newline_count) {
+                          size_t *prev_visual_rows, int term_width) {
     int result_idx = -1;
     const char *match = NULL;
 
@@ -544,7 +636,13 @@ static void search_update(char *buf, size_t *len, size_t *pos,
         search_state.match_index = -1;
     }
 
-    search_refresh_line(buf, *len, *pos, newline_count, match != NULL || search_state.query_len == 0);
+    int has_match = match != NULL || search_state.query_len == 0;
+    search_refresh_line(buf, *len, *pos, *prev_visual_rows, has_match);
+
+    // Update prev_visual_rows with the search prompt
+    char search_prompt[512];
+    build_search_prompt(search_prompt, sizeof(search_prompt), has_match);
+    *prev_visual_rows = calculate_visual_rows(search_prompt, buf, *len, term_width);
 }
 
 // Read a line with editing capabilities
@@ -592,7 +690,8 @@ char *lineedit_read_line(const char *prompt) {
     }
 
     const char *prompt_str = prompt ? prompt : "";
-    size_t newline_count = 0;
+    int term_width = get_terminal_width();
+    size_t prev_visual_rows = 1;  // Initial: just the prompt line
 
     while (1) {
         int c = read_key();
@@ -614,9 +713,9 @@ char *lineedit_read_line(const char *prompt) {
                         len++;
                         pos = len;
                         buf[len] = '\0';
-                        newline_count++;
+                        prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
 
-                        // Write crlf to termial
+                        // Write crlf to terminal
                         ret = write(STDOUT_FILENO, "\r\n", 2);
                         (void)ret;
                     }
@@ -658,7 +757,8 @@ char *lineedit_read_line(const char *prompt) {
                     len = search_state.saved_len;
                     pos = search_state.saved_pos;
                     search_cleanup();
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     break;
                 }
 
@@ -680,18 +780,17 @@ char *lineedit_read_line(const char *prompt) {
                         search_state.query_len--;
                         search_state.query[search_state.query_len] = '\0';
                         search_state.match_index = -1;  // Reset to search from end
-                        search_update(buf, &len, &pos, newline_count);
+                        search_update(buf, &len, &pos, &prev_visual_rows, term_width);
                     }
                     break;
                 }
                 if (pos > 0) {
-                    char removed_char = buf[pos - 1];
                     memmove(buf + pos - 1, buf + pos, len - pos);
                     pos--;
                     len--;
                     buf[len] = '\0';
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
-                    if (removed_char == '\n') newline_count--;
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 }
                 break;
 
@@ -699,7 +798,8 @@ char *lineedit_read_line(const char *prompt) {
                 if (search_state.active) {
                     // Exit search mode, keep command for editing
                     search_cleanup();
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     break;
                 }
                 if (pos < len) {
@@ -725,7 +825,8 @@ char *lineedit_read_line(const char *prompt) {
                             buf[len] = '\0';
                             // Invalidate cache since buffer changed
                             autosuggest_invalidate();
-                            refresh_line(buf, len, pos, prompt_str, newline_count);
+                            refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                            prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                         }
                     }
                 }
@@ -735,7 +836,8 @@ char *lineedit_read_line(const char *prompt) {
                 if (search_state.active) {
                     // Exit search mode, keep command for editing
                     search_cleanup();
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     break;
                 }
                 if (pos > 0) {
@@ -758,9 +860,9 @@ char *lineedit_read_line(const char *prompt) {
                         safe_strcpy(buf, prev, sizeof(buf));
                         len = safe_strlen(buf, sizeof(buf));
                         pos = len;
-                        refresh_line(buf, len, pos, prompt_str, newline_count);
+                        refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
                         // update the new line count to match current buffer
-                        newline_count = count_newlines(buf);
+                        prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     }
                 }
                 break;
@@ -773,17 +875,17 @@ char *lineedit_read_line(const char *prompt) {
                         safe_strcpy(buf, next, sizeof(buf));
                         len = safe_strlen(buf, sizeof(buf));
                         pos = len;
-                        refresh_line(buf, len, pos, prompt_str, newline_count);
+                        refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
                         // update the new line count to match current buffer
-                        newline_count = count_newlines(buf);
+                        prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     } else {
                         // At end of history, clear line
                         len = 0;
                         pos = 0;
                         buf[0] = '\0';
-                        refresh_line(buf, len, pos, prompt_str, newline_count);
-                        // update the new line count
-                        newline_count = 0;
+                        refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                        // update visual rows for new buffer
+                        prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     }
                 }
                 break;
@@ -813,8 +915,8 @@ char *lineedit_read_line(const char *prompt) {
                     len -= pos;
                     pos = 0;
                     buf[len] = '\0';
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
-                    newline_count = count_newlines(buf);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 }
                 break;
 
@@ -822,8 +924,8 @@ char *lineedit_read_line(const char *prompt) {
                 last_was_tab = 0;
                 len = pos;
                 buf[len] = '\0';
-                refresh_line(buf, len, pos, prompt_str, newline_count);
-                newline_count = count_newlines(buf);
+                refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 break;
 
             case KEY_CTRL_W:  // Delete word backward
@@ -842,8 +944,8 @@ char *lineedit_read_line(const char *prompt) {
                     memmove(buf + pos, buf + old_pos, len - old_pos);
                     len -= (old_pos - pos);
                     buf[len] = '\0';
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
-                    newline_count = count_newlines(buf);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 }
                 break;
 
@@ -852,11 +954,15 @@ char *lineedit_read_line(const char *prompt) {
                 ret = write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
                 (void)ret;
                 if (search_state.active) {
-                    search_refresh_line(buf, len, pos, newline_count, search_state.match_index >= 0 || search_state.query_len == 0);
+                    int has_match = search_state.match_index >= 0 || search_state.query_len == 0;
+                    search_refresh_line(buf, len, pos, prev_visual_rows, has_match);
+                    char search_prompt[512];
+                    build_search_prompt(search_prompt, sizeof(search_prompt), has_match);
+                    prev_visual_rows = calculate_visual_rows(search_prompt, buf, len, term_width);
                 } else {
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 }
-                newline_count = count_newlines(buf);
                 break;
 
             case KEY_CTRL_R:  // Reverse incremental search
@@ -864,7 +970,10 @@ char *lineedit_read_line(const char *prompt) {
                 if (!search_state.active) {
                     // Enter search mode
                     search_init(buf, len, pos);
-                    search_refresh_line(buf, len, pos, newline_count, 1);
+                    search_refresh_line(buf, len, pos, prev_visual_rows, 1);
+                    char search_prompt[512];
+                    build_search_prompt(search_prompt, sizeof(search_prompt), 1);
+                    prev_visual_rows = calculate_visual_rows(search_prompt, buf, len, term_width);
                 } else {
                     // Cycle to next older match
                     search_state.direction = 1;
@@ -873,7 +982,7 @@ char *lineedit_read_line(const char *prompt) {
                     } else if (search_state.match_index < 0 && history_count() > 0) {
                         search_state.match_index = history_count() - 1;
                     }
-                    search_update(buf, &len, &pos, newline_count);
+                    search_update(buf, &len, &pos, &prev_visual_rows, term_width);
                 }
                 break;
 
@@ -885,7 +994,7 @@ char *lineedit_read_line(const char *prompt) {
                     if (search_state.match_index >= 0 && search_state.match_index < history_count() - 1) {
                         search_state.match_index++;
                     }
-                    search_update(buf, &len, &pos, newline_count);
+                    search_update(buf, &len, &pos, &prev_visual_rows, term_width);
                 }
                 break;
 
@@ -897,7 +1006,8 @@ char *lineedit_read_line(const char *prompt) {
                     len = search_state.saved_len;
                     pos = search_state.saved_pos;
                     search_cleanup();
-                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                    prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                 }
                 break;
 
@@ -941,8 +1051,8 @@ char *lineedit_read_line(const char *prompt) {
                                     buf[len] = '\0';
                                 }
 
-                                refresh_line(buf, len, pos, prompt_str, newline_count);
-                                // newline_count = count_newlines(buf);
+                                refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                                prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                             }
 
                             last_was_tab = 0;
@@ -996,9 +1106,10 @@ char *lineedit_read_line(const char *prompt) {
                                     (void)ret;
                                 }
 
-                                // Redraw prompt and line
-                                refresh_line(buf, len, pos, prompt_str, newline_count);
-                                // newline_count = count_newlines(buf);
+                                // Redraw prompt and line (start fresh since we printed matches)
+                                prev_visual_rows = 1;
+                                refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                                prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                                 last_was_tab = 0;
                             } else {
                                 // First TAB - complete common prefix
@@ -1025,8 +1136,8 @@ char *lineedit_read_line(const char *prompt) {
                                             pos += prefix_len;
                                             len += prefix_len;
                                             buf[len] = '\0';
-                                            refresh_line(buf, len, pos, prompt_str, newline_count);
-                                            // newline_count = count_newlines(buf);
+                                            refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                                            prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                                         }
                                     }
                                 }
@@ -1053,7 +1164,7 @@ char *lineedit_read_line(const char *prompt) {
                         search_state.query[search_state.query_len++] = (char)c;
                         search_state.query[search_state.query_len] = '\0';
                         search_state.match_index = -1;  // Reset to search from end
-                        search_update(buf, &len, &pos, newline_count);
+                        search_update(buf, &len, &pos, &prev_visual_rows, term_width);
                     }
                     break;
                 }
@@ -1066,10 +1177,19 @@ char *lineedit_read_line(const char *prompt) {
 
                     // Always refresh when syntax highlighting is on, or when inserting mid-line
                     if (pos < len || (colors_enabled && color_config.syntax_highlight_enabled)) {
-                        refresh_line(buf, len, pos, prompt_str, newline_count);
+                        refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                        prev_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
                     } else {
-                        ret = write(STDOUT_FILENO, &c, 1);
-                        (void)ret;
+                        // Just writing a character - update visual rows in case we wrapped
+                        size_t new_visual_rows = calculate_visual_rows(prompt_str, buf, len, term_width);
+                        if (new_visual_rows > prev_visual_rows) {
+                            // We wrapped to a new line, need full refresh
+                            refresh_line(buf, len, pos, prompt_str, prev_visual_rows);
+                        } else {
+                            ret = write(STDOUT_FILENO, &c, 1);
+                            (void)ret;
+                        }
+                        prev_visual_rows = new_visual_rows;
                     }
                 }
                 break;
