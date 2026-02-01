@@ -134,8 +134,8 @@ int trap_set(const char *action, const char *signal_name) {
         traps[signum] = NULL;
     }
 
-    // Check for reset (NULL, empty, or "-")
-    if (!action || action[0] == '\0' || (action[0] == '-' && action[1] == '\0')) {
+    // Check for reset (NULL or "-")
+    if (!action || (action[0] == '-' && action[1] == '\0')) {
         // Reset to default
         if (signum > 0) {
             signal(signum, SIG_DFL);
@@ -143,7 +143,17 @@ int trap_set(const char *action, const char *signal_name) {
         return 0;
     }
 
-    // Set the trap
+    // Check for ignore (empty string)
+    if (action[0] == '\0') {
+        // POSIX: trap "" SIGNAL means ignore the signal
+        traps[signum] = strdup(action);
+        if (signum > 0 && signum != SIGKILL && signum != SIGSTOP) {
+            signal(signum, SIG_IGN);
+        }
+        return 0;
+    }
+
+    // Set the trap with a handler
     traps[signum] = strdup(action);
 
     // Install signal handler for non-EXIT signals

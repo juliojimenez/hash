@@ -244,7 +244,16 @@ int pipeline_execute(const Pipeline *pipeline) {
             // Check if this is a compound command (brace group or subshell)
             // If so, execute via script_execute_string which handles these properly
             if (is_compound_command(pipeline->commands[i].cmd_line)) {
-                int result = script_execute_string(pipeline->commands[i].cmd_line);
+                // Replace newlines with semicolons to handle multi-line compound commands
+                // script_execute_string tokenizes by newlines, which would break up the command
+                char *cmd_copy = strdup(pipeline->commands[i].cmd_line);
+                if (cmd_copy) {
+                    for (char *p = cmd_copy; *p; p++) {
+                        if (*p == '\n') *p = ';';
+                    }
+                }
+                int result = script_execute_string(cmd_copy ? cmd_copy : pipeline->commands[i].cmd_line);
+                free(cmd_copy);
                 fflush(stdout);
                 fflush(stderr);
                 _exit(result < 0 ? EXIT_FAILURE : last_command_exit_code);

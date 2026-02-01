@@ -1166,9 +1166,9 @@ static int execute_simple_line(const char *line) {
                     break;  // Not a redirection
                 }
             }
-            // Now check if there's a chain operator
-            if (*after == '&' || *after == ';' || (*after == '|' && *(after + 1) == '|')) {
-                // Has chain operator after subshell - let chain_parse handle it
+            // Now check if there's a chain operator or pipe
+            if (*after == '&' || *after == ';' || *after == '|') {
+                // Has chain operator or pipe after subshell - let chain_parse handle it
                 goto use_chain_parse;
             }
 

@@ -527,6 +527,36 @@ int chain_execute(const CommandChain *chain) {
                 // p points to matching ')'
                 const char *end_paren = p;
 
+                // Check if there's a pipe after the subshell - if so, let pipeline_parse handle it
+                const char *check_pipe = end_paren + 1;
+                while (*check_pipe && isspace(*check_pipe)) check_pipe++;
+                // Skip any redirections to find potential pipe
+                while (*check_pipe) {
+                    // Skip fd number if present
+                    while (isdigit(*check_pipe)) check_pipe++;
+                    if (*check_pipe == '<' || *check_pipe == '>') {
+                        // Skip the redirection operator
+                        check_pipe++;
+                        if (*check_pipe == '>' || *check_pipe == '&') check_pipe++;
+                        // Skip whitespace
+                        while (*check_pipe && isspace(*check_pipe)) check_pipe++;
+                        // Skip the filename
+                        while (*check_pipe && !isspace(*check_pipe) && *check_pipe != '|' &&
+                               *check_pipe != '<' && *check_pipe != '>') check_pipe++;
+                        while (*check_pipe && isspace(*check_pipe)) check_pipe++;
+                    } else {
+                        break;
+                    }
+                }
+                // If there's a pipe, don't handle subshell here - let pipeline_parse do it
+                if (*check_pipe == '|' && *(check_pipe + 1) != '|') {
+                    // Has pipe after subshell - fall through to pipeline_parse
+                    free(line_copy);
+                    line_copy = strdup(cmd->cmd_line);
+                    if (!line_copy) continue;
+                    goto handle_pipeline;
+                }
+
                 // Extract subshell content
                 size_t len = (size_t)(end_paren - (trimmed + 1));
                 char *subshell_cmd = malloc(len + 1);
@@ -643,6 +673,7 @@ int chain_execute(const CommandChain *chain) {
             }
         }
 
+handle_pipeline:;
         // If negation flag is set but no subshell, we need to execute the rest
         // and negate the exit code
         // Need to make a copy since pipeline_parse/parse_line may modify the string
