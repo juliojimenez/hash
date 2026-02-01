@@ -70,7 +70,6 @@ jobs:
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
           SKIP_TESTS="
-            builtin.trap.subshell.loud
             builtin.trap.subshell.loud2
             semantics.arith.var.space
             semantics.backtick.fds
