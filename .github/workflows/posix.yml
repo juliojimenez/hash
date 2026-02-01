@@ -140,8 +140,11 @@ jobs:
               fi
 
               # Check stderr if expected file exists
+              # Normalize shell name (hash: -> smoosh:) for comparison since
+              # error messages include the shell name
               if [ -f "$ERR_FILE" ] && [ "$TEST_PASSED" = true ]; then
-                if ! diff -q "results/${TEST_NAME}.actual_err" "$ERR_FILE" > /dev/null 2>&1; then
+                sed 's/^hash:/smoosh:/g' "results/${TEST_NAME}.actual_err" > "results/${TEST_NAME}.normalized_err"
+                if ! diff -q "results/${TEST_NAME}.normalized_err" "$ERR_FILE" > /dev/null 2>&1; then
                   TEST_PASSED=false
                 fi
               fi
