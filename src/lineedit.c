@@ -1064,7 +1064,8 @@ char *lineedit_read_line(const char *prompt) {
                                 (void)ret;
 
                                 // Calculate column layout using display names (basenames)
-                                int term_width = get_terminal_width();
+                                // Refresh term_width in case window was resized
+                                term_width = get_terminal_width();
                                 size_t max_len = 0;
 
                                 // Find longest display name
