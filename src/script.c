@@ -2628,69 +2628,36 @@ static int execute_case_body(const char *body, const char *word) {
         // If we're in a matched clause, this should be a command, not a pattern
         // Use script_process_line to handle nested control structures (case, if, for, etc.)
         if (in_matched_clause) {
-            // Check if this line ends with ;; (clause terminator)
-            // We need to find this BEFORE executing to strip it from the command
-            char *double_semi = NULL;
-            int nested_case = 0;
-            bool in_sq = false, in_dq = false;
-            for (char *s = trimmed; *s; s++) {
-                if (*s == '\\' && s[1]) { s++; continue; }
-                if (*s == '\'' && !in_dq) in_sq = !in_sq;
-                else if (*s == '"' && !in_sq) in_dq = !in_dq;
-                else if (!in_sq && !in_dq) {
-                    if (strncmp(s, "case", 4) == 0 && (s == trimmed || isspace(*(s-1)) || *(s-1) == ';') &&
-                        (isspace(s[4]) || s[4] == '\0')) {
-                        nested_case++;
-                        s += 3;
-                    } else if (strncmp(s, "esac", 4) == 0 && (s == trimmed || isspace(*(s-1)) || *(s-1) == ';') &&
-                        (s[4] == '\0' || isspace(s[4]) || s[4] == ';')) {
-                        if (nested_case > 0) nested_case--;
-                        s += 3;
-                    } else if (nested_case == 0 && s[0] == ';' && s[1] == ';') {
-                        double_semi = s;
+            // Execute the line via script_process_line which handles nested structures
+            int cmd_result = script_process_line(line);
+            result_exit_code = last_command_exit_code;
+            if (cmd_result == 0) {
+                // Exit was called
+                free(body_copy);
+                return result_exit_code;
+            }
+
+            // After execution, check if the line ended with ;; to terminate the clause
+            // But ONLY if we're not inside a nested collecting context
+            ScriptContext *current_ctx = get_current_context();
+            bool nested_collecting = (current_ctx && current_ctx->collecting_body);
+
+            if (!nested_collecting) {
+                // Check if line ends with ;; (not inside quotes)
+                bool in_sq = false, in_dq = false;
+                bool found_double_semi = false;
+                for (const char *s = trimmed; *s; s++) {
+                    if (*s == '\\' && s[1]) { s++; continue; }
+                    if (*s == '\'' && !in_dq) in_sq = !in_sq;
+                    else if (*s == '"' && !in_sq) in_dq = !in_dq;
+                    else if (!in_sq && !in_dq && s[0] == ';' && s[1] == ';') {
+                        found_double_semi = true;
                         break;
                     }
                 }
-            }
-
-            // If we found ;;, create a command without it
-            char *cmd_to_exec = NULL;
-            if (double_semi) {
-                size_t cmd_len = double_semi - trimmed;
-                cmd_to_exec = malloc(cmd_len + 1);
-                if (cmd_to_exec) {
-                    memcpy(cmd_to_exec, trimmed, cmd_len);
-                    cmd_to_exec[cmd_len] = '\0';
-                    // Trim trailing whitespace
-                    while (cmd_len > 0 && isspace(cmd_to_exec[cmd_len - 1])) {
-                        cmd_to_exec[--cmd_len] = '\0';
-                    }
+                if (found_double_semi) {
+                    in_matched_clause = false;
                 }
-            }
-
-            // Execute the command (without ;;)
-            if (cmd_to_exec && *cmd_to_exec) {
-                int cmd_result = script_process_line(cmd_to_exec);
-                result_exit_code = last_command_exit_code;
-                if (cmd_result == 0) {
-                    free(cmd_to_exec);
-                    free(body_copy);
-                    return result_exit_code;
-                }
-            } else if (!double_semi) {
-                // No ;; found, execute the whole line
-                int cmd_result = script_process_line(line);
-                result_exit_code = last_command_exit_code;
-                if (cmd_result == 0) {
-                    free(body_copy);
-                    return result_exit_code;
-                }
-            }
-            free(cmd_to_exec);  // Safe to call with NULL
-
-            // If we found ;;, end the matched clause
-            if (double_semi) {
-                in_matched_clause = false;
             }
 
             line = next_line;
