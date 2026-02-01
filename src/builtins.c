@@ -530,8 +530,12 @@ int shell_set(char **args) {
                 shell_option_set_nonlexicalctrl(true);
             } else if (strcmp(opt, "nolog") == 0) {
                 shell_option_set_nolog(true);
+            } else {
+                // POSIX: unknown option is an error
+                color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
+                last_command_exit_code = 1;
+                return 1;
             }
-            // Silently ignore unknown -o options for compatibility
             last_command_exit_code = 0;
             continue;
         } else if (strcmp(arg, "+o") == 0 && args[i + 1] != NULL) {
@@ -547,8 +551,12 @@ int shell_set(char **args) {
                 shell_option_set_nonlexicalctrl(false);
             } else if (strcmp(opt, "nolog") == 0) {
                 shell_option_set_nolog(false);
+            } else {
+                // POSIX: unknown option is an error
+                color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
+                last_command_exit_code = 1;
+                return 1;
             }
-            // Silently ignore unknown +o options for compatibility
             last_command_exit_code = 0;
             continue;
         }
