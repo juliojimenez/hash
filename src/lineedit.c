@@ -474,7 +474,7 @@ bool inside_quote(const char *buf, size_t len) {
 }
 
 // Initialize reverse-i-search state
-static void search_init(char *buf, size_t len, size_t pos) {
+static void search_init(const char *buf, size_t len, size_t pos) {
     search_state.active = 1;
     search_state.query[0] = '\0';
     search_state.query_len = 0;
