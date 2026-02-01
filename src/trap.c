@@ -171,10 +171,11 @@ const char *trap_get(int signum) {
     return traps[signum];
 }
 
-void trap_execute_exit(void) {
+int trap_execute_exit(void) {
     if (traps[0]) {
-        script_execute_string(traps[0]);
+        return script_execute_string(traps[0]);
     }
+    return -1;  // No trap set
 }
 
 // Reset traps for subshell - POSIX says traps are not inherited for execution,

@@ -418,8 +418,9 @@ static int execute_background(const char *cmd_line) {
                     free(subshell_cmd);
                     fflush(stdout);
                     fflush(stderr);
-                    trap_execute_exit();
-                    _exit(last_command_exit_code);
+                    // POSIX: The exit status of the trap action becomes the exit status
+                    int trap_exit = trap_execute_exit();
+                    _exit((trap_exit >= 0) ? trap_exit : last_command_exit_code);
                 }
             }
         }
@@ -641,10 +642,11 @@ int chain_execute(const CommandChain *chain) {
                         script_reset_for_subshell();
                         int exit_code = script_execute_string(subshell_cmd);
                         free(subshell_cmd);
-                        trap_execute_exit();
+                        // POSIX: The exit status of the trap action becomes the exit status
+                        int trap_exit = trap_execute_exit();
                         fflush(stdout);
                         fflush(stderr);
-                        _exit(exit_code);
+                        _exit((trap_exit >= 0) ? trap_exit : exit_code);
                     } else if (pid > 0) {
                         // Parent process
                         free(subshell_cmd);

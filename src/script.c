@@ -1312,12 +1312,13 @@ static int execute_simple_line(const char *line) {
                 int exit_code = script_execute_string(subshell_cmd);
                 free(subshell_cmd);
                 // Execute EXIT trap before exiting subshell (only if set in this subshell)
-                trap_execute_exit();
+                // POSIX: The exit status of the trap action becomes the exit status
+                int trap_exit = trap_execute_exit();
                 // Flush output before exit to ensure all output is visible
                 fflush(stdout);
                 fflush(stderr);
-                // script_execute_string returns the exit code directly
-                _exit(exit_code);
+                // Use trap exit status if a trap was set
+                _exit((trap_exit >= 0) ? trap_exit : exit_code);
             }
 
             // Parent process - wait for child

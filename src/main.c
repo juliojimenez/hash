@@ -359,9 +359,10 @@ int main(int argc, char *argv[]) {
         int result = script_execute_file(script_file, script_argc, script_argv);
 
         // Execute EXIT trap before cleanup
-        trap_execute_exit();
+        // POSIX: The exit status of the trap action becomes the exit status of the shell
+        int trap_exit = trap_execute_exit();
         script_cleanup();
-        return result;
+        return (trap_exit >= 0) ? trap_exit : result;
     }
 
     // ========================================================================
@@ -418,9 +419,10 @@ int main(int argc, char *argv[]) {
         }
 
         // Execute EXIT trap before cleanup
-        trap_execute_exit();
+        // POSIX: The exit status of the trap action becomes the exit status of the shell
+        int trap_exit = trap_execute_exit();
         script_cleanup();
-        return execute_get_last_exit_code();
+        return (trap_exit >= 0) ? trap_exit : execute_get_last_exit_code();
     }
 
     // ========================================================================
@@ -490,11 +492,12 @@ int main(int argc, char *argv[]) {
     }
 
     // Execute EXIT trap
-    trap_execute_exit();
+    // POSIX: The exit status of the trap action becomes the exit status of the shell
+    int trap_exit = trap_execute_exit();
 
     // Cleanup
     lineedit_cleanup();
     script_cleanup();
 
-    return EXIT_SUCCESS;
+    return (trap_exit >= 0) ? trap_exit : EXIT_SUCCESS;
 }

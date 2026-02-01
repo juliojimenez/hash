@@ -29,7 +29,8 @@ int trap_set(const char *action, const char *signal_name);
 const char *trap_get(int signum);
 
 // Execute EXIT trap (called when shell exits)
-void trap_execute_exit(void);
+// Returns the exit status of the trap handler, or -1 if no trap was set
+int trap_execute_exit(void);
 
 // Reset traps for subshell (POSIX: traps are not inherited by subshells)
 void trap_reset_for_subshell(void);
