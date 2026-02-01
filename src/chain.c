@@ -433,6 +433,13 @@ static int execute_background(const char *cmd_line) {
     }
 
     // Parent process
+    // Put child in its own process group from the parent side too.
+    // This avoids a race condition where signals could be sent before
+    // the child has called setpgid(0, 0). Both parent and child should
+    // call setpgid to ensure the process group is created regardless
+    // of which runs first.
+    setpgid(pid, pid);
+
     // Set the last background PID for $! expansion
     jobs_set_last_bg_pid(pid);
 

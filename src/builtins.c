@@ -1807,7 +1807,7 @@ int shell_wait(char **args) {
             } else {
                 // Process already exited (reaped by SIGCHLD handler) or doesn't exist
                 // Check if we have a stored exit status from the job table
-                Job *job = jobs_get_by_pid(pid);
+                const Job *job = jobs_get_by_pid(pid);
                 if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
                     // Use the stored exit status from when SIGCHLD reaped it
                     last_command_exit_code = job->exit_status;
