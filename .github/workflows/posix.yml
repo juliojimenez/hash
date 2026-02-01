@@ -69,9 +69,7 @@ jobs:
 
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
-          SKIP_TESTS="
-            semantics.pattern.rightbracket
-          "
+          SKIP_TESTS=""
 
           # Function to check if test should be skipped
           should_skip() {
