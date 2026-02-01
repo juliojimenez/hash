@@ -1141,6 +1141,37 @@ static int execute_simple_line(const char *line) {
             // p points to matching ')'
             const char *end_paren = p;
 
+            // Check if there are chain operators after the subshell
+            // If so, let chain_parse handle the entire line
+            const char *after = end_paren + 1;
+            while (*after && isspace(*after)) after++;
+            // Skip any redirections (N<, N>, etc.)
+            while (*after) {
+                // Skip fd number if present
+                while (isdigit(*after)) after++;
+                if (*after == '<' || *after == '>') {
+                    // Skip the redirection operator
+                    after++;
+                    if (*after == '>' || *after == '&') after++;
+                    // Skip whitespace
+                    while (*after && isspace(*after)) after++;
+                    // Skip the filename (until whitespace or another operator)
+                    while (*after && !isspace(*after) && *after != '&' &&
+                           *after != ';' && *after != '|' && *after != '<' && *after != '>') {
+                        after++;
+                    }
+                    // Skip trailing whitespace
+                    while (*after && isspace(*after)) after++;
+                } else {
+                    break;  // Not a redirection
+                }
+            }
+            // Now check if there's a chain operator
+            if (*after == '&' || *after == ';' || (*after == '|' && *(after + 1) == '|')) {
+                // Has chain operator after subshell - let chain_parse handle it
+                goto use_chain_parse;
+            }
+
             // Extract the subshell content
             const char *start = line + 1;
             size_t subshell_len = end_paren - start;

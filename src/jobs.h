@@ -21,6 +21,7 @@ typedef struct {
     pid_t pid;            // Process ID
     pid_t pgid;           // Process group ID
     JobState state;       // Current state
+    int exit_status;      // Exit status (for wait after SIGCHLD reaps child)
     char command[MAX_JOB_CMD];  // Command string for display
     bool notified;        // Whether user has been notified of completion
 } Job;

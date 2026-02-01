@@ -144,10 +144,13 @@ void jobs_update_status(pid_t pid, int status) {
 
     if (WIFEXITED(status)) {
         job->state = JOB_DONE;
+        job->exit_status = WEXITSTATUS(status);
     } else if (WIFSIGNALED(status)) {
         job->state = JOB_TERMINATED;
+        job->exit_status = 128 + WTERMSIG(status);
     } else if (WIFSTOPPED(status)) {
         job->state = JOB_STOPPED;
+        job->exit_status = 128 + WSTOPSIG(status);
     }
 }
 

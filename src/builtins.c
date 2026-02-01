@@ -1790,11 +1790,14 @@ int shell_wait(char **args) {
 
         if (pid > 0) {
             int status;
-            if (waitpid(pid, &status, 0) > 0) {
+            pid_t result = waitpid(pid, &status, 0);
+            if (result > 0) {
                 if (WIFEXITED(status)) {
                     last_command_exit_code = WEXITSTATUS(status);
-                } else {
+                } else if (WIFSIGNALED(status)) {
                     last_command_exit_code = 128 + WTERMSIG(status);
+                } else {
+                    last_command_exit_code = 1;
                 }
                 jobs_update_status(pid, status);
                 // Remove the completed job from the table
@@ -1802,11 +1805,20 @@ int shell_wait(char **args) {
                     jobs_remove(job_id_to_remove);
                 }
             } else {
-                // Process already exited or doesn't exist
-                last_command_exit_code = 127;
-                // Still remove from job table if it exists
-                if (job_id_to_remove > 0) {
+                // Process already exited (reaped by SIGCHLD handler) or doesn't exist
+                // Check if we have a stored exit status from the job table
+                Job *job = jobs_get_by_pid(pid);
+                if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
+                    // Use the stored exit status from when SIGCHLD reaped it
+                    last_command_exit_code = job->exit_status;
+                    jobs_remove(job->job_id);
+                } else if (job_id_to_remove > 0) {
+                    // Job exists but no stored status - shouldn't happen
+                    last_command_exit_code = 127;
                     jobs_remove(job_id_to_remove);
+                } else {
+                    // Not a known job - just report 127
+                    last_command_exit_code = 127;
                 }
             }
         }
