@@ -288,6 +288,15 @@ int main(int argc, char *argv[]) {
     // Import environment variables (so they can be modified and synced back)
     shellvar_sync_from_env();
 
+    // Ensure PATH is set - if not inherited, set a sensible default
+    // This ensures child processes can find standard commands like osascript
+    if (!getenv("PATH")) {
+        const char *default_path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        setenv("PATH", default_path, 1);
+        shellvar_set("PATH", default_path);
+        shellvar_set_export("PATH");
+    }
+
     // POSIX: The shell shall set IFS to <space><tab><newline> at shell invocation
     // This overrides any IFS inherited from the environment
     shellvar_set("IFS", DEFAULT_IFS);
