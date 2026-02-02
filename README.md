@@ -28,6 +28,8 @@ sudo mv hash-shell-v33-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
+---
+
 #### FreeBSD x86_64
 
 ```bash
@@ -46,6 +48,8 @@ sudo mv hash-shell-v33-freebsd-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
+---
+
 #### macOS (Apple Silicon)
 
 ```bash
@@ -53,6 +57,8 @@ curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v
 chmod +x hash-shell-v33-darwin-arm64
 sudo mv hash-shell-v33-darwin-arm64 /usr/local/bin/hash-shell
 ```
+
+---
 
 #### Ubuntu 24.04 (Noble)
 
@@ -68,12 +74,16 @@ curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_3
 sudo dpkg -i hash-shell_33-1~jammy_amd64.deb
 ```
 
+---
+
 #### Debian Bookworm
 
 ```bash
 curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_33-1~bookworm_amd64.deb
 sudo dpkg -i hash-shell_33-1~bookworm_amd64.deb
 ```
+
+---
 
 ### From Source
 
@@ -119,76 +129,7 @@ docker run -it juliojimenez/hash-shell
 docker run -v $(pwd):/scripts juliojimenez/hash-shell /scripts/myscript.sh
 ```
 
-## Usage
-
-### Start hash
-
-```bash
-hash-shell
-```
-
-### Execute a Script
-
-```bash
-hash-shell script.sh arg1 arg2
-```
-
-### Execute Command String
-
-```bash
-hash-shell -c 'echo "Hello, World!"'
-```
-
-### Change Default Shell To hash
-
-Log off and log on to your session for changes to take effect.
-
-#### chsh (Linux)
-
-```bash
-sudo bash -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
-chsh -s /usr/local/bin/hash-shell
-```
-
-#### usermod (Linux)
-
-```bash
-sudo usermod -s /usr/local/bin/hash-shell your_username
-```
-
-#### chsh (macOS)
-
-```bash
-sudo bash -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
-chsh -s /usr/local/bin/hash-shell
-```
-
-If hash was installed with brew:
-
-```bash
-sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" >> /etc/shells'
-chsh -s "$(brew --prefix)/bin/hash-shell"
-```
-
-#### chsh (FreeBSD)
-
-```bash
-sudo sh -c 'echo "/usr/local/bin/hash-shell" >> /etc/shells'
-chsh -s /usr/local/bin/hash-shell
-```
-
-## Command Line Options
-
-| Option | Description |
-|--------|-------------|
-| `-c string` | Execute commands from string |
-| `-i` | Force interactive mode |
-| `-l`, `--login` | Run as a login shell |
-| `-s` | Read commands from standard input |
-| `-v`, `--version` | Print version information |
-| `-h`, `--help` | Show help message |
-
-# Full Documentation
+## Full Documentation
 
 https://hash-shell.org
 
