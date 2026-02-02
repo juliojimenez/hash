@@ -297,7 +297,7 @@ jobs:
 
           ```bash
           # Add the repository
-          echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+          echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
 
           # Update and install
           sudo apt update
