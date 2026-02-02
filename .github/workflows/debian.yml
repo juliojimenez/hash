@@ -10,6 +10,11 @@ on:
         required: true
         default: 'v33'
 
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build-deb:
     name: Build Debian Package
@@ -69,11 +74,11 @@ jobs:
           name: deb-${{ matrix.distro }}
           path: packages/*.deb
 
-  publish-apt-repo:
-    name: Publish APT Repository
+  publish-site:
+    name: Publish Documentation and APT Repository
     runs-on: ubuntu-latest
     needs: build-deb
-    
+
     permissions:
       contents: read
       pages: write
@@ -97,6 +102,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils
 
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: 'latest'
+
+      - name: Build Documentation
+        run: mdbook build book
+
       - name: Get Version
         id: get_version
         run: |
@@ -112,10 +125,10 @@ jobs:
         run: |
           mkdir -p apt-repo/pool/main/h/hash-shell
           mkdir -p apt-repo/dists/stable/main/binary-amd64
-          
+
           # Copy all .deb files to pool
           find artifacts -name "*.deb" -exec cp {} apt-repo/pool/main/h/hash-shell/ \;
-          
+
           # List what we have
           echo "Packages in pool:"
           ls -la apt-repo/pool/main/h/hash-shell/
@@ -123,12 +136,12 @@ jobs:
       - name: Generate Packages Index
         run: |
           cd apt-repo
-          
+
           # Generate Packages file
           dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages
           gzip -k dists/stable/main/binary-amd64/Packages
           xz -k dists/stable/main/binary-amd64/Packages
-          
+
           # Show what was generated
           echo "Packages index:"
           cat dists/stable/main/binary-amd64/Packages
@@ -136,7 +149,7 @@ jobs:
       - name: Generate Release File
         run: |
           cd apt-repo/dists/stable
-          
+
           # Calculate checksums
           cat > Release << EOF
           Origin: Hash Shell
@@ -149,31 +162,29 @@ jobs:
           Description: Hash Shell APT Repository
           Date: $(date -Ru)
           EOF
-          
+
           # Add MD5, SHA1, SHA256 checksums
           echo "MD5Sum:" >> Release
           for f in main/binary-amd64/Packages*; do
             echo " $(md5sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
           done
-          
+
           echo "SHA1:" >> Release
           for f in main/binary-amd64/Packages*; do
             echo " $(sha1sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
           done
-          
+
           echo "SHA256:" >> Release
           for f in main/binary-amd64/Packages*; do
             echo " $(sha256sum $f | cut -d' ' -f1) $(wc -c < $f) $f" >> Release
           done
-          
+
           cat Release
 
-      - name: Create Index Page
+      - name: Create APT Index Page
         run: |
-          # Copy the logo image
           mkdir -p apt-repo/images
           cp images/hash.png apt-repo/images/
-          # Create index.html
           cat > apt-repo/index.html << 'EOF'
           <!DOCTYPE html>
           <html>
@@ -185,37 +196,39 @@ jobs:
               code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
               pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
               .step { margin: 20px 0; }
+              a { color: #0066cc; }
             </style>
           </head>
           <body>
             <h1><img src="images/hash.png" alt="Hash Shell Logo" style="height: 1em; vertical-align: middle; margin-bottom:6px;"> Hash Shell APT Repository</h1>
-            
+
             <p>A modern command line interpreter for Linux, macOS, and BSD.</p>
-            
+
             <h2>Quick Install</h2>
-            
+
             <div class="step">
               <h3>1. Add the repository</h3>
-              <pre>echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list</pre>
+              <pre>echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list</pre>
             </div>
-            
+
             <div class="step">
               <h3>2. Update and install</h3>
               <pre>sudo apt update
           sudo apt install hash-shell</pre>
             </div>
-            
+
             <div class="step">
               <h3>3. Run hash</h3>
               <pre>hash-shell</pre>
             </div>
-            
+
             <h2>Upgrade</h2>
             <pre>sudo apt update
           sudo apt upgrade hash-shell</pre>
-            
+
             <h2>Links</h2>
             <ul>
+              <li><a href="/">Full Documentation (Book of Hash)</a></li>
               <li><a href="https://github.com/juliojimenez/hash">GitHub Repository</a></li>
               <li><a href="https://github.com/juliojimenez/hash/releases">Releases</a></li>
             </ul>
@@ -223,13 +236,36 @@ jobs:
           </html>
           EOF
 
+      - name: Combine Site Structure
+        run: |
+          # Create final site directory
+          mkdir -p site
+
+          # Copy documentation to root
+          cp -r book/output/* site/
+
+          # Copy APT repository to /apt/
+          mkdir -p site/apt
+          cp -r apt-repo/* site/apt/
+
+          # Copy images to root
+          mkdir -p site/images
+          cp images/hash.png site/images/
+
+          # Add CNAME for custom domain
+          echo "hash-shell.org" > site/CNAME
+
+          # List final structure
+          echo "Final site structure:"
+          find site -type f | head -50
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: apt-repo
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
@@ -240,7 +276,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-deb
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    
+
     permissions:
       contents: write
 
