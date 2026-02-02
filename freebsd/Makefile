@@ -1,10 +1,10 @@
 PORTNAME=	hash-shell
-DISTVERSION=	33
+DISTVERSION=	34
 CATEGORIES=	shells
 
 MAINTAINER=	julio@julioj.com
-COMMENT=	Modern command line interpreter with completion, aliases, and git integration
-WWW=		https://github.com/juliojimenez/hash
+COMMENT=	A modern command line interpreter for Linux, macOS, and BSD.
+WWW=		https://hash-shell.org
 
 LICENSE=	APACHE20
 LICENSE_FILE=	${WRKSRC}/LICENSE

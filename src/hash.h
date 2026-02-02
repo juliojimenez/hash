@@ -11,7 +11,7 @@
 #define MAX_ARGS 256
 
 #define HASH_NAME "hash"
-#define HASH_VERSION "33"
+#define HASH_VERSION "34"
 
 // Global flag indicating interactive mode (for history tracking, etc.)
 extern bool is_interactive;

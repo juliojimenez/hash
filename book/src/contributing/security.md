@@ -6,12 +6,12 @@ The last 5 major versions receive security updates:
 
 | Version | Supported |
 |---------|-----------|
+| v34.x | Yes |
 | v33.x | Yes |
 | v32.x | Yes |
 | v31.x | Yes |
 | v30.x | Yes |
-| v29.x | Yes |
-| < v29 | No |
+| < v30 | No |
 
 ## Reporting Vulnerabilities
 
