@@ -96,7 +96,7 @@ hash-shell
 
 ```bash
 # Add repository
-echo "deb [trusted=yes] https://juliojimenez.github.io/hash/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
 
 # Install
 sudo apt update
@@ -104,6 +104,12 @@ sudo apt install hash-shell
 ```
 
 Upgrade with `sudo apt upgrade hash-shell`. See [APT Installation Guide](./docs/APT_INSTALL.md) for more options.
+
+> **URL Change Notice:** The APT repository has moved from `juliojimenez.github.io/hash/` to `hash-shell.org/apt/`. If you previously configured the old URL, update your sources list:
+> ```bash
+> sudo sed -i 's|juliojimenez.github.io/hash/|hash-shell.org/apt/|' /etc/apt/sources.list.d/hash-shell.list
+> sudo apt update
+> ```
 
 ### Docker
 

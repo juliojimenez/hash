@@ -1,8 +1,16 @@
+hash-shell (34-1) unstable; urgency=medium
+
+  * New documentation site: Book of Hash at https://hash-shell.org
+  * APT repository URL changed from juliojimenez.github.io/hash/ to
+    hash-shell.org/apt/ - existing users should update their sources.list
+
+ -- Julio Jimenez <julio@julioj.com>  Sat, 01 Feb 2026 12:00:00 +0000
+
 hash-shell (33-1) unstable; urgency=medium
 
   * Colorize Output
     - Real-time syntax highlighting
-    - Autosuggestions - shows muted command suggestions from history as you 
+    - Autosuggestions - shows muted command suggestions from history as you
       type
     - Dangerous command highlighting
   * Fix more POSIX compliance tests

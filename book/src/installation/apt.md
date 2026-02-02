@@ -2,6 +2,12 @@
 
 Hash shell can be installed on Debian and Ubuntu systems using APT with automatic updates.
 
+> **URL Change Notice:** The APT repository has moved from `juliojimenez.github.io/hash/` to `hash-shell.org/apt/`. If you previously configured the old URL, update your sources list:
+> ```bash
+> sudo sed -i 's|juliojimenez.github.io/hash/|hash-shell.org/apt/|' /etc/apt/sources.list.d/hash-shell.list
+> sudo apt update
+> ```
+
 ## Quick Install
 
 ```bash
