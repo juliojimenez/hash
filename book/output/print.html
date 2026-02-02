@@ -1,0 +1,3462 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Book of Hash</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Documentation for hash-shell - A modern POSIX-compliant command line interpreter">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="favicon-864ee383.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-611fb518.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-690d9a2f.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Book of Hash</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/juliojimenez/hash" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p><strong>Hash</strong> is a modern, POSIX-compliant command line interpreter for Linux, macOS, and BSD.</p>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<ul>
+<li><strong>POSIX Compliance</strong> - Works with existing shell scripts and POSIX-standard features</li>
+<li><strong>Interactive Editing</strong> - Full line editing with cursor navigation, history, and tab completion</li>
+<li><strong>Customizable Prompt</strong> - Git integration, colors, and flexible PS1 escape sequences</li>
+<li><strong>Scripting Support</strong> - Variables, control structures, functions, and command substitution</li>
+<li><strong>Modern Conveniences</strong> - Syntax highlighting, autosuggestions, and configurable colors</li>
+</ul>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
+<pre><code class="language-bash"># Install on macOS
+brew install juliojimenez/hash/hash-shell
+
+# Install on Debian/Ubuntu
+echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+sudo apt update &amp;&amp; sudo apt install hash-shell
+
+# Run hash
+hash-shell
+</code></pre>
+<h2 id="command-line-options"><a class="header" href="#command-line-options">Command Line Options</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-c string</code></td><td>Execute commands from string</td></tr>
+<tr><td><code>-i</code></td><td>Force interactive mode</td></tr>
+<tr><td><code>-l</code>, <code>--login</code></td><td>Run as a login shell</td></tr>
+<tr><td><code>-s</code></td><td>Read commands from standard input</td></tr>
+<tr><td><code>-v</code>, <code>--version</code></td><td>Print version information</td></tr>
+<tr><td><code>-h</code>, <code>--help</code></td><td>Show help message</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="example-session"><a class="header" href="#example-session">Example Session</a></h2>
+<pre><code class="language-bash">$ hash-shell
+hash v33
+Type 'exit' to quit
+
+#&gt; echo "Hello, World!"
+Hello, World!
+
+#&gt; for i in 1 2 3; do echo "Number: $i"; done
+Number: 1
+Number: 2
+Number: 3
+
+#&gt; exit
+</code></pre>
+<h2 id="getting-help"><a class="header" href="#getting-help">Getting Help</a></h2>
+<ul>
+<li><strong>Documentation</strong>: You’re reading it!</li>
+<li><strong>Issues</strong>: <a href="https://github.com/juliojimenez/hash/issues">GitHub Issues</a></li>
+<li><strong>Discussions</strong>: <a href="https://github.com/juliojimenez/hash/discussions">GitHub Discussions</a></li>
+</ul>
+<h2 id="license"><a class="header" href="#license">License</a></h2>
+<p>Hash is open source software licensed under the Apache 2.0 License.</p>
+<hr>
+<p>Continue to <a href="installation/README.html">Installation</a> to get started.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="installation-overview"><a class="header" href="#installation-overview">Installation Overview</a></h1>
+<p>Hash can be installed on Linux, macOS, and FreeBSD through various methods.</p>
+<h2 id="quick-install"><a class="header" href="#quick-install">Quick Install</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Platform</th><th>Method</th><th>Command</th></tr>
+</thead>
+<tbody>
+<tr><td>macOS</td><td>Homebrew</td><td><code>brew install juliojimenez/hash/hash-shell</code></td></tr>
+<tr><td>Debian/Ubuntu</td><td>APT</td><td><a href="#apt-repository-installation">See APT instructions</a></td></tr>
+<tr><td>All platforms</td><td>From source</td><td><code>make &amp;&amp; sudo make install</code></td></tr>
+<tr><td>Docker</td><td>Pull image</td><td><code>docker pull juliojimenez/hash-shell</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="choose-your-installation-method"><a class="header" href="#choose-your-installation-method">Choose Your Installation Method</a></h2>
+<ul>
+<li><strong><a href="#linux-installation">Linux</a></strong> - Binary releases for x86_64 and ARM64</li>
+<li><strong><a href="#macos-installation">macOS</a></strong> - Homebrew or binary release</li>
+<li><strong><a href="#freebsd-installation">FreeBSD</a></strong> - Binary release or ports</li>
+<li><strong><a href="#apt-repository-installation">APT Repository</a></strong> - Debian/Ubuntu with automatic updates</li>
+<li><strong><a href="#docker-installation">Docker</a></strong> - Containerized hash shell</li>
+<li><strong><a href="#building-from-source">From Source</a></strong> - Build from source code</li>
+</ul>
+<h2 id="system-requirements"><a class="header" href="#system-requirements">System Requirements</a></h2>
+<ul>
+<li>64-bit operating system (x86_64 or ARM64)</li>
+<li>Linux kernel 3.2+ / macOS 10.15+ / FreeBSD 12+</li>
+<li>libc (glibc on Linux, system libc on macOS/BSD)</li>
+<li>Terminal with ANSI color support (optional, for colored output)</li>
+</ul>
+<h2 id="verify-installation"><a class="header" href="#verify-installation">Verify Installation</a></h2>
+<p>After installation, verify hash is working:</p>
+<pre><code class="language-bash">hash-shell --version
+# hash v33
+
+hash-shell
+# hash v33
+# Type 'exit' to quit
+#&gt;
+</code></pre>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<p>After installing, see <a href="getting-started/README.html">Getting Started</a> to configure your shell.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="linux-installation"><a class="header" href="#linux-installation">Linux Installation</a></h1>
+<h2 id="binary-release"><a class="header" href="#binary-release">Binary Release</a></h2>
+<h3 id="linux-x86_64"><a class="header" href="#linux-x86_64">Linux x86_64</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v33-linux-x86_64
+chmod +x hash-shell-v33-linux-x86_64
+sudo mv hash-shell-v33-linux-x86_64 /usr/local/bin/hash-shell
+hash-shell
+</code></pre>
+<h3 id="linux-arm64"><a class="header" href="#linux-arm64">Linux ARM64</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v33-linux-aarch64
+chmod +x hash-shell-v33-linux-aarch64
+sudo mv hash-shell-v33-linux-aarch64 /usr/local/bin/hash-shell
+hash-shell
+</code></pre>
+<h2 id="debianubuntu-packages"><a class="header" href="#debianubuntu-packages">Debian/Ubuntu Packages</a></h2>
+<h3 id="ubuntu-2404-noble"><a class="header" href="#ubuntu-2404-noble">Ubuntu 24.04 (Noble)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_33-1~noble_amd64.deb
+sudo dpkg -i hash-shell_33-1~noble_amd64.deb
+</code></pre>
+<h3 id="ubuntu-2204-jammy"><a class="header" href="#ubuntu-2204-jammy">Ubuntu 22.04 (Jammy)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_33-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_33-1~jammy_amd64.deb
+</code></pre>
+<h3 id="debian-bookworm"><a class="header" href="#debian-bookworm">Debian Bookworm</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_33-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_33-1~bookworm_amd64.deb
+</code></pre>
+<h3 id="debian-trixie"><a class="header" href="#debian-trixie">Debian Trixie</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell_33-1~trixie_amd64.deb
+sudo dpkg -i hash-shell_33-1~trixie_amd64.deb
+</code></pre>
+<h2 id="apt-repository-recommended"><a class="header" href="#apt-repository-recommended">APT Repository (Recommended)</a></h2>
+<p>For automatic updates, use the APT repository:</p>
+<pre><code class="language-bash">echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+sudo apt update
+sudo apt install hash-shell
+</code></pre>
+<p>See <a href="#apt-repository-installation">APT Installation</a> for more details.</p>
+<h2 id="verify-installation-1"><a class="header" href="#verify-installation-1">Verify Installation</a></h2>
+<pre><code class="language-bash">hash-shell --version
+hash-shell
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="macos-installation"><a class="header" href="#macos-installation">macOS Installation</a></h1>
+<h2 id="homebrew-recommended"><a class="header" href="#homebrew-recommended">Homebrew (Recommended)</a></h2>
+<p>The easiest way to install hash on macOS:</p>
+<pre><code class="language-bash">brew install juliojimenez/hash/hash-shell
+hash-shell
+</code></pre>
+<h3 id="upgrade"><a class="header" href="#upgrade">Upgrade</a></h3>
+<pre><code class="language-bash">brew upgrade hash-shell
+</code></pre>
+<h3 id="uninstall"><a class="header" href="#uninstall">Uninstall</a></h3>
+<pre><code class="language-bash">brew uninstall hash-shell
+</code></pre>
+<h2 id="binary-release-1"><a class="header" href="#binary-release-1">Binary Release</a></h2>
+<h3 id="apple-silicon-m1m2m3"><a class="header" href="#apple-silicon-m1m2m3">Apple Silicon (M1/M2/M3)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v33-darwin-arm64
+chmod +x hash-shell-v33-darwin-arm64
+sudo mv hash-shell-v33-darwin-arm64 /usr/local/bin/hash-shell
+hash-shell
+</code></pre>
+<h2 id="from-source"><a class="header" href="#from-source">From Source</a></h2>
+<p>See <a href="#building-from-source">Building from Source</a> for compilation instructions.</p>
+<h2 id="setting-as-default-shell"><a class="header" href="#setting-as-default-shell">Setting as Default Shell</a></h2>
+<h3 id="homebrew-installation"><a class="header" href="#homebrew-installation">Homebrew Installation</a></h3>
+<pre><code class="language-bash">sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s "$(brew --prefix)/bin/hash-shell"
+</code></pre>
+<h3 id="binary-installation"><a class="header" href="#binary-installation">Binary Installation</a></h3>
+<pre><code class="language-bash">sudo bash -c 'echo "/usr/local/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+</code></pre>
+<p>Log out and log back in for changes to take effect.</p>
+<h2 id="verify-installation-2"><a class="header" href="#verify-installation-2">Verify Installation</a></h2>
+<pre><code class="language-bash">hash-shell --version
+hash-shell
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="freebsd-installation"><a class="header" href="#freebsd-installation">FreeBSD Installation</a></h1>
+<h2 id="binary-release-2"><a class="header" href="#binary-release-2">Binary Release</a></h2>
+<h3 id="freebsd-x86_64"><a class="header" href="#freebsd-x86_64">FreeBSD x86_64</a></h3>
+<pre><code class="language-bash">fetch https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v33-freebsd-x86_64
+chmod +x hash-shell-v33-freebsd-x86_64
+sudo mv hash-shell-v33-freebsd-x86_64 /usr/local/bin/hash-shell
+hash-shell
+</code></pre>
+<h3 id="freebsd-arm64"><a class="header" href="#freebsd-arm64">FreeBSD ARM64</a></h3>
+<pre><code class="language-bash">fetch https://github.com/juliojimenez/hash/releases/download/v33/hash-shell-v33-freebsd-aarch64
+chmod +x hash-shell-v33-freebsd-aarch64
+sudo mv hash-shell-v33-freebsd-aarch64 /usr/local/bin/hash-shell
+hash-shell
+</code></pre>
+<h2 id="from-source-1"><a class="header" href="#from-source-1">From Source</a></h2>
+<p>See <a href="#building-from-source">Building from Source</a> for compilation instructions.</p>
+<h2 id="setting-as-default-shell-1"><a class="header" href="#setting-as-default-shell-1">Setting as Default Shell</a></h2>
+<pre><code class="language-bash">sudo sh -c 'echo "/usr/local/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+</code></pre>
+<p>Log out and log back in for changes to take effect.</p>
+<h2 id="verify-installation-3"><a class="header" href="#verify-installation-3">Verify Installation</a></h2>
+<pre><code class="language-bash">hash-shell --version
+hash-shell
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="apt-repository-installation"><a class="header" href="#apt-repository-installation">APT Repository Installation</a></h1>
+<p>Hash shell can be installed on Debian and Ubuntu systems using APT with automatic updates.</p>
+<h2 id="quick-install-1"><a class="header" href="#quick-install-1">Quick Install</a></h2>
+<pre><code class="language-bash"># Add the repository
+echo "deb [trusted=yes] https://hash-shell.org/apt/ stable main" | sudo tee /etc/apt/sources.list.d/hash-shell.list
+
+# Update and install
+sudo apt update
+sudo apt install hash-shell
+</code></pre>
+<h2 id="upgrade-1"><a class="header" href="#upgrade-1">Upgrade</a></h2>
+<p>Once installed via the repository, upgrade like any other package:</p>
+<pre><code class="language-bash">sudo apt update
+sudo apt upgrade hash-shell
+</code></pre>
+<p>Or upgrade all packages:</p>
+<pre><code class="language-bash">sudo apt update
+sudo apt upgrade
+</code></pre>
+<h2 id="supported-distributions"><a class="header" href="#supported-distributions">Supported Distributions</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Distribution</th><th>Codename</th><th>Architecture</th></tr>
+</thead>
+<tbody>
+<tr><td>Ubuntu 24.04</td><td>noble</td><td>amd64</td></tr>
+<tr><td>Ubuntu 22.04</td><td>jammy</td><td>amd64</td></tr>
+<tr><td>Debian 12</td><td>bookworm</td><td>amd64</td></tr>
+<tr><td>Debian 13</td><td>trixie</td><td>amd64</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="direct-download-alternative"><a class="header" href="#direct-download-alternative">Direct Download (Alternative)</a></h2>
+<p>If you prefer not to use the repository, download packages directly:</p>
+<h3 id="ubuntu-2404-noble-1"><a class="header" href="#ubuntu-2404-noble-1">Ubuntu 24.04 (Noble)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~noble_amd64.deb
+sudo dpkg -i hash-shell_*~noble_amd64.deb
+</code></pre>
+<h3 id="ubuntu-2204-jammy-1"><a class="header" href="#ubuntu-2204-jammy-1">Ubuntu 22.04 (Jammy)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~jammy_amd64.deb
+sudo dpkg -i hash-shell_*~jammy_amd64.deb
+</code></pre>
+<h3 id="debian-12-bookworm"><a class="header" href="#debian-12-bookworm">Debian 12 (Bookworm)</a></h3>
+<pre><code class="language-bash">curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~bookworm_amd64.deb
+sudo dpkg -i hash-shell_*~bookworm_amd64.deb
+</code></pre>
+<p><strong>Note:</strong> Direct downloads won’t receive automatic updates.</p>
+<h2 id="verify-installation-4"><a class="header" href="#verify-installation-4">Verify Installation</a></h2>
+<pre><code class="language-bash">hash-shell
+# hash v33
+# Type 'exit' to quit
+</code></pre>
+<h2 id="set-as-default-shell"><a class="header" href="#set-as-default-shell">Set as Default Shell</a></h2>
+<pre><code class="language-bash">echo "/usr/bin/hash-shell" | sudo tee -a /etc/shells
+chsh -s /usr/bin/hash-shell
+</code></pre>
+<p>Log out and log back in for changes to take effect.</p>
+<h2 id="uninstall-1"><a class="header" href="#uninstall-1">Uninstall</a></h2>
+<pre><code class="language-bash">sudo apt remove hash-shell
+sudo rm /etc/apt/sources.list.d/hash-shell.list
+sudo apt update
+</code></pre>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="repository-does-not-have-a-release-file"><a class="header" href="#repository-does-not-have-a-release-file">“Repository does not have a Release file”</a></h3>
+<p>Make sure you’re using the correct URL:</p>
+<pre><code class="language-bash">cat /etc/apt/sources.list.d/hash-shell.list
+# Should contain:
+# deb [trusted=yes] https://hash-shell.org/apt/ stable main
+</code></pre>
+<h3 id="package-not-found-after-adding-repository"><a class="header" href="#package-not-found-after-adding-repository">Package Not Found After Adding Repository</a></h3>
+<pre><code class="language-bash">sudo apt update
+</code></pre>
+<h3 id="dependency-issues"><a class="header" href="#dependency-issues">Dependency Issues</a></h3>
+<pre><code class="language-bash">sudo apt --fix-broken install
+</code></pre>
+<h3 id="gpg-key-warning"><a class="header" href="#gpg-key-warning">GPG Key Warning</a></h3>
+<p>The repository uses <code>[trusted=yes]</code> for simplicity. This is safe for personal use but means apt won’t verify package signatures.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="docker-installation"><a class="header" href="#docker-installation">Docker Installation</a></h1>
+<p>Hash shell is available as a Docker image for containerized usage.</p>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick Start</a></h2>
+<pre><code class="language-bash"># Pull the image
+docker pull juliojimenez/hash-shell
+
+# Run interactive shell
+docker run -it juliojimenez/hash-shell
+</code></pre>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<h3 id="interactive-shell"><a class="header" href="#interactive-shell">Interactive Shell</a></h3>
+<pre><code class="language-bash">docker run -it juliojimenez/hash-shell
+</code></pre>
+<h3 id="run-a-script"><a class="header" href="#run-a-script">Run a Script</a></h3>
+<p>Mount your scripts directory and execute:</p>
+<pre><code class="language-bash">docker run -v $(pwd):/scripts juliojimenez/hash-shell /scripts/myscript.sh
+</code></pre>
+<h3 id="run-a-command"><a class="header" href="#run-a-command">Run a Command</a></h3>
+<pre><code class="language-bash">docker run juliojimenez/hash-shell -c 'echo "Hello from hash!"'
+</code></pre>
+<h2 id="building-locally"><a class="header" href="#building-locally">Building Locally</a></h2>
+<p>You can build the Docker image from source:</p>
+<pre><code class="language-bash">git clone https://github.com/juliojimenez/hash.git
+cd hash
+docker build -t hash-shell .
+docker run -it hash-shell
+</code></pre>
+<h2 id="docker-compose"><a class="header" href="#docker-compose">Docker Compose</a></h2>
+<p>Example <code>docker-compose.yml</code>:</p>
+<pre><code class="language-yaml">version: '3'
+services:
+  shell:
+    image: juliojimenez/hash-shell
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./scripts:/scripts
+</code></pre>
+<p>Run with:</p>
+<pre><code class="language-bash">docker-compose run shell
+</code></pre>
+<h2 id="use-cases"><a class="header" href="#use-cases">Use Cases</a></h2>
+<ul>
+<li><strong>Testing</strong>: Run hash in an isolated environment</li>
+<li><strong>CI/CD</strong>: Execute shell scripts in containers</li>
+<li><strong>Development</strong>: Test scripts across different environments</li>
+<li><strong>Learning</strong>: Experiment without installing locally</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="building-from-source"><a class="header" href="#building-from-source">Building from Source</a></h1>
+<p>Build hash shell from source code on any supported platform.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<ul>
+<li>GCC or Clang compiler</li>
+<li>Make build system</li>
+<li>Git (for cloning)</li>
+</ul>
+<h3 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h3>
+<pre><code class="language-bash">sudo apt install build-essential git
+</code></pre>
+<h3 id="macos"><a class="header" href="#macos">macOS</a></h3>
+<p>Install Xcode Command Line Tools:</p>
+<pre><code class="language-bash">xcode-select --install
+</code></pre>
+<h3 id="freebsd"><a class="header" href="#freebsd">FreeBSD</a></h3>
+<pre><code class="language-bash">pkg install git gmake
+</code></pre>
+<h2 id="build-steps"><a class="header" href="#build-steps">Build Steps</a></h2>
+<pre><code class="language-bash"># Clone the repository
+git clone https://github.com/juliojimenez/hash.git
+cd hash
+
+# Build
+make
+
+# Install (to /usr/local/bin)
+sudo make install
+</code></pre>
+<h2 id="build-options"><a class="header" href="#build-options">Build Options</a></h2>
+<h3 id="debug-build"><a class="header" href="#debug-build">Debug Build</a></h3>
+<p>Build with debug symbols:</p>
+<pre><code class="language-bash">make debug
+</code></pre>
+<h3 id="clean-build"><a class="header" href="#clean-build">Clean Build</a></h3>
+<p>Remove build artifacts:</p>
+<pre><code class="language-bash">make clean
+make
+</code></pre>
+<h3 id="custom-installation-path"><a class="header" href="#custom-installation-path">Custom Installation Path</a></h3>
+<pre><code class="language-bash">sudo make install PREFIX=/opt/hash
+</code></pre>
+<h2 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h2>
+<pre><code class="language-bash"># Setup test framework (first time only)
+make test-setup
+
+# Run unit tests
+make test
+
+# Run integration tests
+./test.sh
+</code></pre>
+<h2 id="verify-installation-5"><a class="header" href="#verify-installation-5">Verify Installation</a></h2>
+<pre><code class="language-bash">hash-shell --version
+hash-shell
+</code></pre>
+<h2 id="uninstall-2"><a class="header" href="#uninstall-2">Uninstall</a></h2>
+<pre><code class="language-bash">sudo make uninstall
+</code></pre>
+<h2 id="development"><a class="header" href="#development">Development</a></h2>
+<p>For development setup, see the <a href="contributing/README.html">Contributing Guide</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="quick-start-2"><a class="header" href="#quick-start-2">Quick Start</a></h1>
+<p>Welcome to hash shell! This guide will help you get started with the basics.</p>
+<h2 id="first-steps"><a class="header" href="#first-steps">First Steps</a></h2>
+<p>After <a href="installation/README.html">installing hash</a>, start it by running:</p>
+<pre><code class="language-bash">hash-shell
+</code></pre>
+<p>You’ll see:</p>
+<pre><code>hash v33
+Type 'exit' to quit
+
+#&gt;
+</code></pre>
+<h2 id="basic-commands"><a class="header" href="#basic-commands">Basic Commands</a></h2>
+<p>Hash works like any POSIX shell:</p>
+<pre><code class="language-bash">#&gt; echo "Hello, World!"
+Hello, World!
+
+#&gt; ls -la
+# Lists files
+
+#&gt; cd ~/projects
+# Changes directory
+
+#&gt; pwd
+/home/user/projects
+</code></pre>
+<h2 id="command-line-options-1"><a class="header" href="#command-line-options-1">Command Line Options</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-c string</code></td><td>Execute commands from string</td></tr>
+<tr><td><code>-i</code></td><td>Force interactive mode</td></tr>
+<tr><td><code>-l</code>, <code>--login</code></td><td>Run as a login shell</td></tr>
+<tr><td><code>-s</code></td><td>Read commands from standard input</td></tr>
+<tr><td><code>-v</code>, <code>--version</code></td><td>Print version information</td></tr>
+<tr><td><code>-h</code>, <code>--help</code></td><td>Show help message</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="examples"><a class="header" href="#examples">Examples</a></h3>
+<pre><code class="language-bash"># Execute a command
+hash-shell -c 'echo "Hello!"'
+
+# Run a script
+hash-shell script.sh
+
+# Run as login shell
+hash-shell --login
+</code></pre>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>Hash loads configuration from <code>~/.hashrc</code> on startup. Create your configuration file:</p>
+<pre><code class="language-bash">cp /path/to/hash/examples/.hashrc ~/.hashrc
+</code></pre>
+<p>Or create a minimal one:</p>
+<pre><code class="language-bash"># ~/.hashrc
+alias ll='ls -lah'
+alias gs='git status'
+set PS1='\W\g \e#&gt;\e '
+</code></pre>
+<p>See <a href="#configuration-hashrc">Configuration (.hashrc)</a> for complete details.</p>
+<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
+<ul>
+<li><strong>Line Editing</strong>: Arrow keys, Ctrl+A/E, history navigation</li>
+<li><strong>Tab Completion</strong>: Complete commands, files, and directories</li>
+<li><strong>Git Integration</strong>: Branch and status in prompt</li>
+<li><strong>Aliases</strong>: Create command shortcuts</li>
+<li><strong>Scripting</strong>: POSIX-compatible shell scripts</li>
+</ul>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next Steps</a></h2>
+<ul>
+<li><a href="#configuration-hashrc">Configure your .hashrc</a> - Customize your shell</li>
+<li><a href="#login-shell-setup">Set up as login shell</a> - Make hash your default</li>
+<li><a href="#line-editing-1">Learn line editing</a> - Master keyboard shortcuts</li>
+<li><a href="scripting/README.html">Write scripts</a> - Automate tasks</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="configuration-hashrc"><a class="header" href="#configuration-hashrc">Configuration (.hashrc)</a></h1>
+<p>Hash shell supports configuration through a <code>.hashrc</code> file in your home directory.</p>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick Start</a></h2>
+<p>Create your configuration file:</p>
+<pre><code class="language-bash">vim ~/.hashrc
+</code></pre>
+<p>Example <code>.hashrc</code>:</p>
+<pre><code class="language-bash"># Aliases
+alias ll='ls -lah'
+alias gs='git status'
+alias gp='git push'
+
+# Environment
+export EDITOR=vim
+export PATH=$HOME/bin:$PATH
+
+# Prompt
+set PS1='\W\g \e#&gt;\e '
+
+# Options
+set colors=on
+set welcome=off
+</code></pre>
+<p>Reload after editing:</p>
+<pre><code class="language-bash">source ~/.hashrc
+</code></pre>
+<h2 id="aliases"><a class="header" href="#aliases">Aliases</a></h2>
+<p>Define command shortcuts:</p>
+<pre><code class="language-bash">alias name='command'
+</code></pre>
+<h3 id="examples-1"><a class="header" href="#examples-1">Examples</a></h3>
+<pre><code class="language-bash"># Navigation
+alias ..='cd ..'
+alias ...='cd ../..'
+
+# Safety
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# Git
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gd='git diff'
+
+# Docker
+alias d='docker'
+alias dc='docker-compose'
+alias dps='docker ps'
+</code></pre>
+<h3 id="managing-aliases"><a class="header" href="#managing-aliases">Managing Aliases</a></h3>
+<pre><code class="language-bash"># List all aliases
+alias
+
+# Show specific alias
+alias ll
+
+# Remove alias
+unalias ll
+</code></pre>
+<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h2>
+<p>Set variables with <code>export</code>:</p>
+<pre><code class="language-bash">export VARIABLE=value
+export VARIABLE='value with spaces'
+export VARIABLE="value with $substitution"
+</code></pre>
+<h3 id="common-variables"><a class="header" href="#common-variables">Common Variables</a></h3>
+<pre><code class="language-bash"># Editor
+export EDITOR=vim
+export VISUAL=vim
+
+# Path
+export PATH=$HOME/bin:$PATH
+
+# Locale
+export LANG=en_US.UTF-8
+
+# Custom
+export MY_PROJECT=~/projects/myapp
+</code></pre>
+<h2 id="shell-options"><a class="header" href="#shell-options">Shell Options</a></h2>
+<p>Configure behavior with <code>set</code>:</p>
+<pre><code class="language-bash">set option=value
+</code></pre>
+<h3 id="available-options"><a class="header" href="#available-options">Available Options</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Values</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>colors</code></td><td><code>on</code>/<code>off</code></td><td>Enable colored output</td></tr>
+<tr><td><code>welcome</code></td><td><code>on</code>/<code>off</code></td><td>Show welcome message</td></tr>
+<tr><td><code>PS1</code></td><td>format</td><td>Custom prompt</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-bash">set colors=on
+set welcome=off
+set PS1='\W\g \e#&gt;\e '
+</code></pre>
+<h2 id="prompt-customization"><a class="header" href="#prompt-customization">Prompt Customization</a></h2>
+<p>Set your prompt with the <code>PS1</code> variable:</p>
+<pre><code class="language-bash"># Current directory + git + exit color
+set PS1='\W\g \e#&gt;\e '
+
+# Full path + git
+set PS1='\w\g \e#&gt;\e '
+
+# User@host:path
+set PS1='\u@\h:\w\$ '
+</code></pre>
+<h3 id="escape-sequences"><a class="header" href="#escape-sequences">Escape Sequences</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\w</code></td><td>Full current path</td></tr>
+<tr><td><code>\W</code></td><td>Current directory name</td></tr>
+<tr><td><code>\u</code></td><td>Username</td></tr>
+<tr><td><code>\h</code></td><td>Hostname</td></tr>
+<tr><td><code>\g</code></td><td>Git branch with status</td></tr>
+<tr><td><code>\e</code></td><td>Exit code color</td></tr>
+<tr><td><code>\$</code></td><td><code>$</code> for user, <code>#</code> for root</td></tr>
+<tr><td><code>\n</code></td><td>Newline</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#prompt-customization-1">Prompt Customization</a> for complete details.</p>
+<h2 id="comments"><a class="header" href="#comments">Comments</a></h2>
+<p>Lines starting with <code>#</code> are ignored:</p>
+<pre><code class="language-bash"># This is a comment
+alias ll='ls -lah'  # Inline comment
+</code></pre>
+<h2 id="tips"><a class="header" href="#tips">Tips</a></h2>
+<h3 id="organize-by-category"><a class="header" href="#organize-by-category">Organize by Category</a></h3>
+<pre><code class="language-bash"># ============================================================================
+# NAVIGATION
+# ============================================================================
+alias ..='cd ..'
+alias projects='cd ~/projects'
+
+# ============================================================================
+# GIT
+# ============================================================================
+alias gs='git status'
+alias gp='git push'
+</code></pre>
+<h3 id="test-before-adding"><a class="header" href="#test-before-adding">Test Before Adding</a></h3>
+<p>Try aliases interactively first:</p>
+<pre><code class="language-bash">#&gt; alias test='echo "works"'
+#&gt; test
+works
+# Now add to .hashrc
+</code></pre>
+<h3 id="reload-after-changes"><a class="header" href="#reload-after-changes">Reload After Changes</a></h3>
+<pre><code class="language-bash">source ~/.hashrc
+</code></pre>
+<h2 id="troubleshooting-1"><a class="header" href="#troubleshooting-1">Troubleshooting</a></h2>
+<h3 id="alias-not-working"><a class="header" href="#alias-not-working">Alias Not Working</a></h3>
+<p>Check syntax (quotes required):</p>
+<pre><code class="language-bash"># Wrong
+alias ll=ls -lah
+
+# Correct
+alias ll='ls -lah'
+</code></pre>
+<h3 id="variable-not-set"><a class="header" href="#variable-not-set">Variable Not Set</a></h3>
+<p>Use <code>export</code>:</p>
+<pre><code class="language-bash"># Wrong
+MY_VAR=value
+
+# Correct
+export MY_VAR=value
+</code></pre>
+<h3 id="config-not-loading"><a class="header" href="#config-not-loading">Config Not Loading</a></h3>
+<p>Check file location and reload:</p>
+<pre><code class="language-bash">ls -la ~/.hashrc
+source ~/.hashrc
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="login-shell-setup"><a class="header" href="#login-shell-setup">Login Shell Setup</a></h1>
+<p>Hash supports proper login shell behavior, loading different startup files depending on how it’s invoked.</p>
+<h2 id="setting-hash-as-default-shell"><a class="header" href="#setting-hash-as-default-shell">Setting Hash as Default Shell</a></h2>
+<h3 id="linux-chsh"><a class="header" href="#linux-chsh">Linux (chsh)</a></h3>
+<pre><code class="language-bash">sudo bash -c 'echo "/usr/local/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+</code></pre>
+<h3 id="linux-usermod"><a class="header" href="#linux-usermod">Linux (usermod)</a></h3>
+<pre><code class="language-bash">sudo usermod -s /usr/local/bin/hash-shell your_username
+</code></pre>
+<h3 id="macos-1"><a class="header" href="#macos-1">macOS</a></h3>
+<pre><code class="language-bash">sudo bash -c 'echo "/usr/local/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+</code></pre>
+<p>If installed with Homebrew:</p>
+<pre><code class="language-bash">sudo bash -c 'echo "$(brew --prefix)/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s "$(brew --prefix)/bin/hash-shell"
+</code></pre>
+<h3 id="freebsd-1"><a class="header" href="#freebsd-1">FreeBSD</a></h3>
+<pre><code class="language-bash">sudo sh -c 'echo "/usr/local/bin/hash-shell" &gt;&gt; /etc/shells'
+chsh -s /usr/local/bin/hash-shell
+</code></pre>
+<p><strong>Note:</strong> Log out and log back in for changes to take effect.</p>
+<h2 id="login-shell-detection"><a class="header" href="#login-shell-detection">Login Shell Detection</a></h2>
+<p>Hash considers itself a login shell when:</p>
+<ol>
+<li><code>argv[0]</code> starts with <code>-</code> (how SSH/login invoke shells)</li>
+<li><code>--login</code> or <code>-l</code> flag is used</li>
+</ol>
+<p>Login shells display “(login)” in the welcome message.</p>
+<h2 id="startup-file-order"><a class="header" href="#startup-file-order">Startup File Order</a></h2>
+<h3 id="login-shell"><a class="header" href="#login-shell">Login Shell</a></h3>
+<p>When invoked as a login shell:</p>
+<ol>
+<li><code>/etc/profile</code> - System-wide settings</li>
+<li>User profile (first found):
+<ul>
+<li><code>~/.hash_profile</code></li>
+<li><code>~/.hash_login</code></li>
+<li><code>~/.profile</code></li>
+</ul>
+</li>
+<li><code>~/.hashrc</code> - Interactive settings</li>
+</ol>
+<h3 id="non-login-interactive-shell"><a class="header" href="#non-login-interactive-shell">Non-Login Interactive Shell</a></h3>
+<pre><code>~/.hashrc only
+</code></pre>
+<h2 id="configuration-files"><a class="header" href="#configuration-files">Configuration Files</a></h2>
+<h3 id="hash_profile"><a class="header" href="#hash_profile">~/.hash_profile</a></h3>
+<p>User-specific login configuration:</p>
+<pre><code class="language-bash"># Environment
+export EDITOR=vim
+export PAGER=less
+
+# PATH
+export PATH=$HOME/bin:$HOME/.local/bin:$PATH
+</code></pre>
+<h3 id="hashrc"><a class="header" href="#hashrc">~/.hashrc</a></h3>
+<p>Interactive settings:</p>
+<pre><code class="language-bash"># Aliases
+alias ll='ls -lah'
+alias gs='git status'
+
+# Prompt
+set PS1='\W\g \e#&gt;\e '
+</code></pre>
+<h3 id="hash_logout"><a class="header" href="#hash_logout">~/.hash_logout</a></h3>
+<p>Executed when exiting a login shell:</p>
+<pre><code class="language-bash"># Clear screen
+clear
+
+# Farewell message
+echo "Goodbye! Session ended at $(date)"
+
+# Cleanup
+rm -rf ~/tmp/session_* 2&gt;/dev/null
+</code></pre>
+<h2 id="the-logout-command"><a class="header" href="#the-logout-command">The logout Command</a></h2>
+<p>Use <code>logout</code> to exit login shells:</p>
+<pre><code class="language-bash"># In a login shell
+#&gt; logout
+Bye :)
+
+# In a non-login shell
+#&gt; logout
+hash: logout: not a login shell
+# Use 'exit' instead
+</code></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<h3 id="separate-concerns"><a class="header" href="#separate-concerns">Separate Concerns</a></h3>
+<ul>
+<li><strong>~/.hash_profile</strong>: Environment variables, PATH</li>
+<li><strong>~/.hashrc</strong>: Aliases, prompt settings</li>
+<li><strong>~/.hash_logout</strong>: Cleanup tasks</li>
+</ul>
+<h3 id="example-setup"><a class="header" href="#example-setup">Example Setup</a></h3>
+<p><strong>~/.hash_profile:</strong></p>
+<pre><code class="language-bash">export EDITOR=vim
+export GOPATH=$HOME/go
+export PATH=$HOME/bin:$GOPATH/bin:$PATH
+</code></pre>
+<p><strong>~/.hashrc:</strong></p>
+<pre><code class="language-bash">set PS1='\u@\h:\W\g #&gt; '
+alias ll='ls -lah'
+set colors=on
+</code></pre>
+<p><strong>~/.hash_logout:</strong></p>
+<pre><code class="language-bash">clear
+echo "Session ended. Goodbye!"
+</code></pre>
+<h2 id="testing"><a class="header" href="#testing">Testing</a></h2>
+<pre><code class="language-bash"># Test as login shell
+hash-shell --login
+
+# Check for "(login)" in welcome message
+hash v33 (login)
+Type 'exit' to quit
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="interactive-features"><a class="header" href="#interactive-features">Interactive Features</a></h1>
+<p>Hash shell includes powerful interactive features for efficient command-line use.</p>
+<h2 id="features-overview"><a class="header" href="#features-overview">Features Overview</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#line-editing-1">Line Editing</a></td><td>Cursor navigation, editing shortcuts</td></tr>
+<tr><td><a href="#tab-completion-2">Tab Completion</a></td><td>Complete commands, files, directories</td></tr>
+<tr><td><a href="#command-history">Command History</a></td><td>Navigate and search previous commands</td></tr>
+<tr><td><a href="#prompt-customization-1">Prompt Customization</a></td><td>Git integration, colors, custom format</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="quick-reference"><a class="header" href="#quick-reference">Quick Reference</a></h2>
+<h3 id="line-editing"><a class="header" href="#line-editing">Line Editing</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Ctrl+A</code></td><td>Move to beginning of line</td></tr>
+<tr><td><code>Ctrl+E</code></td><td>Move to end of line</td></tr>
+<tr><td><code>Ctrl+U</code></td><td>Delete to beginning</td></tr>
+<tr><td><code>Ctrl+K</code></td><td>Delete to end</td></tr>
+<tr><td><code>Ctrl+W</code></td><td>Delete word backward</td></tr>
+<tr><td><code>Ctrl+L</code></td><td>Clear screen</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Cancel current line</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="history-navigation"><a class="header" href="#history-navigation">History Navigation</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Up</code></td><td>Previous command</td></tr>
+<tr><td><code>Down</code></td><td>Next command</td></tr>
+<tr><td><code>!!</code></td><td>Repeat last command</td></tr>
+<tr><td><code>!n</code></td><td>Run command number n</td></tr>
+<tr><td><code>!prefix</code></td><td>Run last command starting with prefix</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="tab-completion"><a class="header" href="#tab-completion">Tab Completion</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Context</th><th>Completes</th></tr>
+</thead>
+<tbody>
+<tr><td>First word</td><td>Commands, aliases, builtins</td></tr>
+<tr><td>Other words</td><td>Files, directories</td></tr>
+<tr><td>Double TAB</td><td>Show all matches</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="default-prompt"><a class="header" href="#default-prompt">Default Prompt</a></h2>
+<p>The default prompt shows:</p>
+<pre><code>/home/user/projects git:(main) #&gt;
+</code></pre>
+<ul>
+<li><strong>Blue</strong> path</li>
+<li><strong>Green/Yellow</strong> git status (clean/dirty)</li>
+<li><strong>Cyan</strong> branch name</li>
+<li><strong>Blue/Red</strong> <code>#&gt;</code> based on exit code</li>
+</ul>
+<h2 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h2>
+<p>Configure interactive features in <code>~/.hashrc</code>:</p>
+<pre><code class="language-bash"># Custom prompt
+set PS1='\W\g \e#&gt;\e '
+
+# Enable colors
+set colors=on
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="line-editing-1"><a class="header" href="#line-editing-1">Line Editing</a></h1>
+<p>Hash shell includes a custom line editor with full cursor navigation and editing capabilities.</p>
+<h2 id="key-bindings"><a class="header" href="#key-bindings">Key Bindings</a></h2>
+<h3 id="cursor-movement"><a class="header" href="#cursor-movement">Cursor Movement</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Left Arrow</code></td><td>Move cursor left</td></tr>
+<tr><td><code>Right Arrow</code></td><td>Move cursor right</td></tr>
+<tr><td><code>Up Arrow</code></td><td>Previous command in history</td></tr>
+<tr><td><code>Down Arrow</code></td><td>Next command in history</td></tr>
+<tr><td><code>Ctrl+A</code></td><td>Move to beginning of line</td></tr>
+<tr><td><code>Ctrl+E</code></td><td>Move to end of line</td></tr>
+<tr><td><code>Home</code></td><td>Move to beginning of line</td></tr>
+<tr><td><code>End</code></td><td>Move to end of line</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="editing"><a class="header" href="#editing">Editing</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Backspace</code></td><td>Delete character before cursor</td></tr>
+<tr><td><code>Delete</code></td><td>Delete character at cursor</td></tr>
+<tr><td><code>Ctrl+H</code></td><td>Same as Backspace</td></tr>
+<tr><td><code>Ctrl+U</code></td><td>Delete from cursor to beginning</td></tr>
+<tr><td><code>Ctrl+K</code></td><td>Delete from cursor to end</td></tr>
+<tr><td><code>Ctrl+W</code></td><td>Delete word backward</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="other"><a class="header" href="#other">Other</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Tab</code></td><td>Auto-complete</td></tr>
+<tr><td><code>Ctrl+L</code></td><td>Clear screen</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Cancel current line</td></tr>
+<tr><td><code>Ctrl+D</code></td><td>EOF (exit if line empty)</td></tr>
+<tr><td><code>Enter</code></td><td>Submit command</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="features-1"><a class="header" href="#features-1">Features</a></h2>
+<h3 id="insert-mode"><a class="header" href="#insert-mode">Insert Mode</a></h3>
+<p>Hash uses insert mode (like bash):</p>
+<ul>
+<li>Typing inserts characters at cursor position</li>
+<li>Existing text shifts right</li>
+<li>Edit anywhere in the line</li>
+</ul>
+<pre><code>hello world
+     ^
+     cursor
+
+Type 'beautiful ' → hello beautiful world
+</code></pre>
+<h3 id="tab-completion-1"><a class="header" href="#tab-completion-1">Tab Completion</a></h3>
+<p>Press TAB to auto-complete:</p>
+<p><strong>Single match:</strong></p>
+<pre><code class="language-bash">#&gt; ec&lt;TAB&gt;
+#&gt; echo   # Completed with space
+</code></pre>
+<p><strong>Multiple matches - first TAB:</strong></p>
+<pre><code class="language-bash">#&gt; cat te&lt;TAB&gt;
+#&gt; cat test  # Common prefix
+</code></pre>
+<p><strong>Multiple matches - second TAB:</strong></p>
+<pre><code class="language-bash">test.txt  test.md  testing.log
+#&gt; cat test
+</code></pre>
+<p>See <a href="#tab-completion-2">Tab Completion</a> for details.</p>
+<h3 id="ctrlc-handling"><a class="header" href="#ctrlc-handling">Ctrl+C Handling</a></h3>
+<p>Cancel current input and get a fresh prompt:</p>
+<pre><code class="language-bash">#&gt; some long command^C
+#&gt;
+</code></pre>
+<h3 id="ctrld-behavior"><a class="header" href="#ctrld-behavior">Ctrl+D Behavior</a></h3>
+<ul>
+<li>On empty line: Exits the shell</li>
+<li>On non-empty line: Does nothing</li>
+</ul>
+<h2 id="tips--tricks"><a class="header" href="#tips--tricks">Tips &amp; Tricks</a></h2>
+<h3 id="quick-edits"><a class="header" href="#quick-edits">Quick Edits</a></h3>
+<pre><code class="language-bash"># Typed wrong command
+#&gt; cat file.tx
+# Press Ctrl+A, Ctrl+K, type correct command
+</code></pre>
+<h3 id="delete-mistakes"><a class="header" href="#delete-mistakes">Delete Mistakes</a></h3>
+<pre><code class="language-bash">#&gt; echo hello worldddd
+# Press Ctrl+W to delete "worldddd"
+#&gt; echo hello
+</code></pre>
+<h3 id="clear-and-restart"><a class="header" href="#clear-and-restart">Clear and Restart</a></h3>
+<pre><code class="language-bash">#&gt; some complex command
+# Press Ctrl+U to clear
+#&gt;
+</code></pre>
+<h3 id="cancel-without-running"><a class="header" href="#cancel-without-running">Cancel Without Running</a></h3>
+<pre><code class="language-bash">#&gt; rm -rf /important
+# Press Ctrl+C
+^C
+#&gt;
+</code></pre>
+<h2 id="troubleshooting-2"><a class="header" href="#troubleshooting-2">Troubleshooting</a></h2>
+<h3 id="keys-not-working"><a class="header" href="#keys-not-working">Keys Not Working</a></h3>
+<p>Check terminal type:</p>
+<pre><code class="language-bash">echo $TERM
+# Should be xterm, xterm-256color, etc.
+</code></pre>
+<h3 id="arrow-keys-print-escape-sequences"><a class="header" href="#arrow-keys-print-escape-sequences">Arrow Keys Print Escape Sequences</a></h3>
+<p>Set proper terminal:</p>
+<pre><code class="language-bash">export TERM=xterm-256color
+</code></pre>
+<h2 id="comparison-with-bash"><a class="header" href="#comparison-with-bash">Comparison with Bash</a></h2>
+<h3 id="supported-same-as-bash"><a class="header" href="#supported-same-as-bash">Supported (Same as Bash)</a></h3>
+<ul>
+<li>Arrow key navigation</li>
+<li>History navigation</li>
+<li>Ctrl+A, Ctrl+E</li>
+<li>Ctrl+U, Ctrl+K, Ctrl+W</li>
+<li>Ctrl+L, Ctrl+C, Ctrl+D</li>
+<li>Home/End keys</li>
+<li>Insert mode</li>
+</ul>
+<h3 id="not-yet-supported"><a class="header" href="#not-yet-supported">Not Yet Supported</a></h3>
+<ul>
+<li>Ctrl+R (reverse search)</li>
+<li>Ctrl+T (transpose)</li>
+<li>Alt key bindings</li>
+<li>Vi mode</li>
+<li>Custom key bindings</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="tab-completion-2"><a class="header" href="#tab-completion-2">Tab Completion</a></h1>
+<p>Hash shell includes intelligent tab completion for commands, files, and directories.</p>
+<h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
+<h3 id="command-completion"><a class="header" href="#command-completion">Command Completion</a></h3>
+<p>Press TAB after typing part of a command:</p>
+<pre><code class="language-bash">#&gt; ec&lt;TAB&gt;
+#&gt; echo     # Completed!
+
+#&gt; gi&lt;TAB&gt;
+#&gt; git      # Completed from PATH
+</code></pre>
+<h3 id="filedirectory-completion"><a class="header" href="#filedirectory-completion">File/Directory Completion</a></h3>
+<pre><code class="language-bash">#&gt; cat test&lt;TAB&gt;
+#&gt; cat testfile.txt    # Completed!
+
+#&gt; cd Doc&lt;TAB&gt;
+#&gt; cd Documents/       # Directory with trailing /
+</code></pre>
+<h3 id="multiple-matches"><a class="header" href="#multiple-matches">Multiple Matches</a></h3>
+<p><strong>First TAB</strong> - Complete common prefix:</p>
+<pre><code class="language-bash">#&gt; cat test&lt;TAB&gt;
+#&gt; cat test            # Common prefix
+</code></pre>
+<p><strong>Second TAB</strong> - Show all matches:</p>
+<pre><code class="language-bash">#&gt; cat test&lt;TAB&gt;&lt;TAB&gt;
+testfile.txt  test.md  test_data.csv
+#&gt; cat test
+</code></pre>
+<h2 id="what-gets-completed"><a class="header" href="#what-gets-completed">What Gets Completed</a></h2>
+<h3 id="first-word-command"><a class="header" href="#first-word-command">First Word (Command)</a></h3>
+<p>Completes from:</p>
+<ul>
+<li>Built-in commands (cd, exit, alias, etc.)</li>
+<li>Aliases from .hashrc</li>
+<li>Executables in PATH</li>
+</ul>
+<pre><code class="language-bash">#&gt; g&lt;TAB&gt;&lt;TAB&gt;
+ga    gc    gd    git    gl    gp    gs
+</code></pre>
+<h3 id="subsequent-words-filesdirectories"><a class="header" href="#subsequent-words-filesdirectories">Subsequent Words (Files/Directories)</a></h3>
+<p>Completes:</p>
+<ul>
+<li>Files and directories</li>
+<li>Paths with tilde expansion</li>
+<li>Relative and absolute paths</li>
+</ul>
+<pre><code class="language-bash">#&gt; cat /&lt;TAB&gt;
+bin/  boot/  dev/  etc/  home/  ...
+
+#&gt; cd ~/.c&lt;TAB&gt;
+#&gt; cd ~/.config/
+</code></pre>
+<h2 id="features-2"><a class="header" href="#features-2">Features</a></h2>
+<h3 id="directory-handling"><a class="header" href="#directory-handling">Directory Handling</a></h3>
+<p>Directories get trailing <code>/</code>:</p>
+<pre><code class="language-bash">#&gt; cd Doc&lt;TAB&gt;
+#&gt; cd Documents/
+</code></pre>
+<h3 id="tilde-expansion"><a class="header" href="#tilde-expansion">Tilde Expansion</a></h3>
+<pre><code class="language-bash">#&gt; cat ~/.&lt;TAB&gt;
+~/.bashrc  ~/.config/  ~/.hashrc  ...
+</code></pre>
+<h3 id="path-completion"><a class="header" href="#path-completion">Path Completion</a></h3>
+<pre><code class="language-bash">#&gt; ls ~/projects/hash/src/m&lt;TAB&gt;
+#&gt; ls ~/projects/hash/src/main.c
+</code></pre>
+<h3 id="case-sensitivity"><a class="header" href="#case-sensitivity">Case Sensitivity</a></h3>
+<p>Completion is case-sensitive:</p>
+<pre><code class="language-bash">#&gt; cat Test&lt;TAB&gt;   # Won't match "test.txt"
+#&gt; cat test&lt;TAB&gt;   # Matches "test.txt"
+</code></pre>
+<h2 id="behavior"><a class="header" href="#behavior">Behavior</a></h2>
+<h3 id="single-match"><a class="header" href="#single-match">Single Match</a></h3>
+<ul>
+<li>Completes full name</li>
+<li>Adds space after (ready for next arg)</li>
+<li>Directories get <code>/</code></li>
+</ul>
+<h3 id="multiple-matches-1"><a class="header" href="#multiple-matches-1">Multiple Matches</a></h3>
+<p><strong>First TAB:</strong> Complete common prefix
+<strong>Second TAB:</strong> Show all matches in columns</p>
+<h3 id="no-matches"><a class="header" href="#no-matches">No Matches</a></h3>
+<p>Bell/beep sound, line unchanged.</p>
+<h2 id="after-operators"><a class="header" href="#after-operators">After Operators</a></h2>
+<p>Completion works after command chaining:</p>
+<pre><code class="language-bash">#&gt; ls &amp;&amp; ca&lt;TAB&gt;
+#&gt; ls &amp;&amp; cat
+
+#&gt; cd /tmp ; pw&lt;TAB&gt;
+#&gt; cd /tmp ; pwd
+</code></pre>
+<h2 id="tips--tricks-1"><a class="header" href="#tips--tricks-1">Tips &amp; Tricks</a></h2>
+<h3 id="quick-directory-navigation"><a class="header" href="#quick-directory-navigation">Quick Directory Navigation</a></h3>
+<pre><code class="language-bash">#&gt; cd /u/l/b&lt;TAB&gt;
+#&gt; cd /usr/local/bin/
+</code></pre>
+<h3 id="exploring-directories"><a class="header" href="#exploring-directories">Exploring Directories</a></h3>
+<pre><code class="language-bash">#&gt; ls /etc/&lt;TAB&gt;&lt;TAB&gt;
+# Shows all files in /etc/
+</code></pre>
+<h3 id="command-discovery"><a class="header" href="#command-discovery">Command Discovery</a></h3>
+<pre><code class="language-bash">#&gt; git&lt;TAB&gt;&lt;TAB&gt;
+git  git-shell  gitk  ...
+</code></pre>
+<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
+<p>Current limitations (may be added later):</p>
+<ul>
+<li>No variable name completion (after <code>$</code>)</li>
+<li>No username completion (after <code>~</code>)</li>
+<li>No command-specific completion (git subcommands)</li>
+<li>No programmable completion</li>
+</ul>
+<h2 id="comparison-with-bash-1"><a class="header" href="#comparison-with-bash-1">Comparison with Bash</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>Hash</th><th>Bash</th></tr>
+</thead>
+<tbody>
+<tr><td>Command completion</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>File/directory completion</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Alias completion</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Path completion</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Double-TAB shows matches</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Variable completion</td><td>No</td><td>Yes</td></tr>
+<tr><td>Programmable completion</td><td>No</td><td>Yes</td></tr>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="command-history"><a class="header" href="#command-history">Command History</a></h1>
+<p>Hash shell maintains persistent command history with bash compatibility.</p>
+<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
+<h3 id="updown-arrows"><a class="header" href="#updown-arrows">Up/Down Arrows</a></h3>
+<p>Navigate through history:</p>
+<pre><code class="language-bash">#&gt; echo first
+#&gt; echo second
+#&gt; echo third
+
+# Press Up arrow
+#&gt; echo third  # Most recent
+
+# Press Up again
+#&gt; echo second
+</code></pre>
+<h3 id="history-command"><a class="header" href="#history-command">History Command</a></h3>
+<p>List all commands:</p>
+<pre><code class="language-bash">#&gt; history
+    0  ls -la
+    1  cd /tmp
+    2  echo hello
+    3  git status
+</code></pre>
+<h2 id="history-expansion"><a class="header" href="#history-expansion">History Expansion</a></h2>
+<h3 id="---last-command"><a class="header" href="#---last-command">!! - Last Command</a></h3>
+<pre><code class="language-bash">#&gt; echo hello
+hello
+#&gt; !!
+echo hello
+hello
+
+#&gt; apt update
+Permission denied
+#&gt; sudo !!
+sudo apt update
+</code></pre>
+<h3 id="n---command-by-number"><a class="header" href="#n---command-by-number">!n - Command by Number</a></h3>
+<pre><code class="language-bash">#&gt; history
+    0  ls -la
+    1  cd /tmp
+    2  echo test
+
+#&gt; !1
+cd /tmp
+</code></pre>
+<h3 id="-n---relative-history"><a class="header" href="#-n---relative-history">!-n - Relative History</a></h3>
+<pre><code class="language-bash">#&gt; echo first
+#&gt; echo second
+#&gt; echo third
+#&gt; !-2
+echo second
+second
+</code></pre>
+<h3 id="prefix---last-command-starting-with"><a class="header" href="#prefix---last-command-starting-with">!prefix - Last Command Starting With</a></h3>
+<pre><code class="language-bash">#&gt; git status
+#&gt; ls -la
+#&gt; pwd
+#&gt; !git
+git status
+</code></pre>
+<h2 id="environment-variables-1"><a class="header" href="#environment-variables-1">Environment Variables</a></h2>
+<h3 id="histsize"><a class="header" href="#histsize">HISTSIZE</a></h3>
+<p>Commands kept in memory:</p>
+<pre><code class="language-bash">export HISTSIZE=1000        # Default
+export HISTSIZE=5000        # More
+export HISTSIZE=-1          # Unlimited
+</code></pre>
+<h3 id="histfilesize"><a class="header" href="#histfilesize">HISTFILESIZE</a></h3>
+<p>Commands saved to file:</p>
+<pre><code class="language-bash">export HISTFILESIZE=2000    # Default
+export HISTFILESIZE=-1      # Unlimited
+</code></pre>
+<h3 id="histfile"><a class="header" href="#histfile">HISTFILE</a></h3>
+<p>History file location:</p>
+<pre><code class="language-bash"># Default
+~/.hash_history
+
+# Custom
+export HISTFILE=~/my_history
+</code></pre>
+<h3 id="histcontrol"><a class="header" href="#histcontrol">HISTCONTROL</a></h3>
+<p>Control what gets saved:</p>
+<pre><code class="language-bash">export HISTCONTROL=ignorespace  # Skip space-prefixed
+export HISTCONTROL=ignoredups   # Skip consecutive dups
+export HISTCONTROL=ignoreboth   # Both (recommended)
+export HISTCONTROL=erasedups    # Remove all dups
+</code></pre>
+<h2 id="privacy-feature"><a class="header" href="#privacy-feature">Privacy Feature</a></h2>
+<p>Commands starting with space are NOT saved:</p>
+<pre><code class="language-bash">#&gt; echo public
+# Saved to history
+
+#&gt;  echo private
+# NOT saved (leading space)
+</code></pre>
+<h2 id="what-gets-saved"><a class="header" href="#what-gets-saved">What Gets Saved</a></h2>
+<ul>
+<li>Successfully executed commands</li>
+<li>Commands with errors</li>
+<li>Multi-line commands (&amp;&amp;, ||, ;)</li>
+</ul>
+<h2 id="what-doesnt-get-saved"><a class="header" href="#what-doesnt-get-saved">What Doesn’t Get Saved</a></h2>
+<ul>
+<li>Empty lines</li>
+<li>Whitespace-only lines</li>
+<li>Duplicate of previous command</li>
+<li>Commands starting with space</li>
+</ul>
+<h2 id="history-file"><a class="header" href="#history-file">History File</a></h2>
+<h3 id="location"><a class="header" href="#location">Location</a></h3>
+<p>Default: <code>~/.hash_history</code></p>
+<h3 id="incremental-saving"><a class="header" href="#incremental-saving">Incremental Saving</a></h3>
+<p>History saves immediately after each command:</p>
+<pre><code class="language-bash">#&gt; echo test1
+# Immediately saved
+
+#&gt; echo test2
+# Also saved
+
+# Even if shell crashes, both are preserved!
+</code></pre>
+<h3 id="manual-commands"><a class="header" href="#manual-commands">Manual Commands</a></h3>
+<pre><code class="language-bash">history -w    # Force save
+history -r    # Reload from file
+history -c    # Clear history (memory only)
+</code></pre>
+<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
+<h3 id="repeat-last-command"><a class="header" href="#repeat-last-command">Repeat Last Command</a></h3>
+<pre><code class="language-bash">#&gt; make
+#&gt; !!
+make
+</code></pre>
+<h3 id="repeat-with-sudo"><a class="header" href="#repeat-with-sudo">Repeat with Sudo</a></h3>
+<pre><code class="language-bash">#&gt; apt update
+Permission denied
+#&gt; sudo !!
+sudo apt update
+</code></pre>
+<h3 id="history-search"><a class="header" href="#history-search">History Search</a></h3>
+<pre><code class="language-bash">#&gt; history | grep git
+# See all git commands
+</code></pre>
+<h3 id="private-commands"><a class="header" href="#private-commands">Private Commands</a></h3>
+<pre><code class="language-bash">#&gt;  export API_KEY=secret
+# Leading space - not saved!
+</code></pre>
+<h2 id="troubleshooting-3"><a class="header" href="#troubleshooting-3">Troubleshooting</a></h2>
+<h3 id="history-not-saving"><a class="header" href="#history-not-saving">History Not Saving</a></h3>
+<p>Check file permissions:</p>
+<pre><code class="language-bash">ls -la ~/.hash_history
+</code></pre>
+<h3 id="-not-working"><a class="header" href="#-not-working">!! Not Working</a></h3>
+<p>Make sure you’ve run a command first.</p>
+<h3 id="up-arrow-not-working"><a class="header" href="#up-arrow-not-working">Up Arrow Not Working</a></h3>
+<p>Check terminal:</p>
+<pre><code class="language-bash">echo $TERM
+</code></pre>
+<h2 id="comparison-with-bash-2"><a class="header" href="#comparison-with-bash-2">Comparison with Bash</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>Hash</th><th>Bash</th></tr>
+</thead>
+<tbody>
+<tr><td><code>!!</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>!n</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>!-n</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>!prefix</code></td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Up/Down arrows</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>History file</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Privacy (space prefix)</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>Ctrl+R</code></td><td>No</td><td>Yes</td></tr>
+<tr><td><code>!?pattern</code></td><td>No</td><td>Yes</td></tr>
+<tr><td><code>^old^new</code></td><td>No</td><td>Yes</td></tr>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="prompt-customization-1"><a class="header" href="#prompt-customization-1">Prompt Customization</a></h1>
+<p>Hash shell supports powerful prompt customization through the <code>PS1</code> variable.</p>
+<h2 id="default-prompt-1"><a class="header" href="#default-prompt-1">Default Prompt</a></h2>
+<pre><code>/home/user/projects git:(main) #&gt;
+</code></pre>
+<ul>
+<li><strong>Blue</strong> current path</li>
+<li><strong>Green</strong> <code>git:</code> (yellow if dirty)</li>
+<li><strong>Cyan</strong> branch name</li>
+<li><strong>Blue</strong> <code>#&gt;</code> (red if last command failed)</li>
+</ul>
+<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick Start</a></h2>
+<p>In <code>~/.hashrc</code>:</p>
+<pre><code class="language-bash"># Simple prompt
+set PS1='\W #&gt; '
+
+# Full path with git
+set PS1='\w\g \e#&gt;\e '
+
+# User@host:path
+set PS1='\u@\h:\w\$ '
+</code></pre>
+<p>Or as environment variable:</p>
+<pre><code class="language-bash">export PS1='\w\g \e#&gt;\e '
+</code></pre>
+<h2 id="escape-sequences-1"><a class="header" href="#escape-sequences-1">Escape Sequences</a></h2>
+<h3 id="path-information"><a class="header" href="#path-information">Path Information</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\w</code></td><td>Full current path</td><td><code>/home/user/projects</code></td></tr>
+<tr><td><code>\W</code></td><td>Current directory only</td><td><code>projects</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="user-information"><a class="header" href="#user-information">User Information</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\u</code></td><td>Username</td></tr>
+<tr><td><code>\h</code></td><td>Hostname</td></tr>
+<tr><td><code>\$</code></td><td><code>$</code> for user, <code>#</code> for root</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="git-integration"><a class="header" href="#git-integration">Git Integration</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\g</code></td><td>Git branch with status</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>\g</code> sequence:</p>
+<ul>
+<li>Shows nothing outside git repos</li>
+<li>Shows <code> git:(branch)</code> in repos</li>
+<li><code>git:</code> is <strong>green</strong> if clean, <strong>yellow</strong> if dirty</li>
+<li>Branch name is <strong>cyan</strong></li>
+</ul>
+<h3 id="exit-code-indicator"><a class="header" href="#exit-code-indicator">Exit Code Indicator</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\e</code></td><td>Sets color based on exit code</td></tr>
+</tbody>
+</table>
+</div>
+<p>Use <code>\e</code> before and after text:</p>
+<pre><code class="language-bash">set PS1='\w \e#&gt;\e '
+#           ^  ^
+#           |  Reset color
+#           Set color (blue=success, red=fail)
+</code></pre>
+<h3 id="special-characters"><a class="header" href="#special-characters">Special Characters</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\n</code></td><td>Newline</td></tr>
+<tr><td><code>\\</code></td><td>Literal backslash</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="example-prompts"><a class="header" href="#example-prompts">Example Prompts</a></h2>
+<h3 id="minimal"><a class="header" href="#minimal">Minimal</a></h3>
+<pre><code class="language-bash">set PS1='\W #&gt; '
+# Output: projects #&gt;
+</code></pre>
+<h3 id="classic"><a class="header" href="#classic">Classic</a></h3>
+<pre><code class="language-bash">set PS1='\u@\h:\w \$ '
+# Output: user@hostname:/home/user $
+</code></pre>
+<h3 id="full-path-with-git"><a class="header" href="#full-path-with-git">Full Path with Git</a></h3>
+<pre><code class="language-bash">set PS1='\w\g \e#&gt;\e '
+# Output: /home/user/projects git:(main) #&gt;
+</code></pre>
+<h3 id="two-line"><a class="header" href="#two-line">Two-Line</a></h3>
+<pre><code class="language-bash">set PS1='\w\g\n\e#&gt;\e '
+# Output:
+# /home/user/projects git:(main)
+# #&gt;
+</code></pre>
+<h3 id="powerline-style"><a class="header" href="#powerline-style">Powerline Style</a></h3>
+<pre><code class="language-bash">set PS1='\u@\h \w\g\n\e\e '
+</code></pre>
+<h2 id="color-behavior"><a class="header" href="#color-behavior">Color Behavior</a></h2>
+<h3 id="path-colors"><a class="header" href="#path-colors">Path Colors</a></h3>
+<p><code>\w</code> and <code>\W</code> are <strong>bold blue</strong></p>
+<h3 id="git-colors"><a class="header" href="#git-colors">Git Colors</a></h3>
+<ul>
+<li><code>git:</code> is <strong>green</strong> when clean</li>
+<li><code>git:</code> is <strong>yellow</strong> when dirty</li>
+<li>Branch name is <strong>cyan</strong></li>
+</ul>
+<h3 id="exit-code-colors"><a class="header" href="#exit-code-colors">Exit Code Colors</a></h3>
+<ul>
+<li><code>\e</code> sets <strong>blue</strong> on success (exit 0)</li>
+<li><code>\e</code> sets <strong>red</strong> on failure (exit non-zero)</li>
+</ul>
+<h2 id="tips-1"><a class="header" href="#tips-1">Tips</a></h2>
+<h3 id="test-before-setting"><a class="header" href="#test-before-setting">Test Before Setting</a></h3>
+<pre><code class="language-bash">#&gt; export PS1='\W\g \e#&gt;\e '
+projects git:(main) #&gt;
+</code></pre>
+<h3 id="keep-it-simple"><a class="header" href="#keep-it-simple">Keep It Simple</a></h3>
+<p>Complex prompts can slow down the shell:</p>
+<pre><code class="language-bash"># Fast
+set PS1='\W #&gt; '
+
+# Slower (git checks)
+set PS1='\w\g \e#&gt;\e '
+</code></pre>
+<h3 id="two-line-for-long-paths"><a class="header" href="#two-line-for-long-paths">Two-Line for Long Paths</a></h3>
+<pre><code class="language-bash">set PS1='\w\g\n\e#&gt;\e '
+</code></pre>
+<h3 id="disable-git-in-large-repos"><a class="header" href="#disable-git-in-large-repos">Disable Git in Large Repos</a></h3>
+<pre><code class="language-bash">set PS1='\w \e#&gt;\e '  # No \g
+</code></pre>
+<h2 id="troubleshooting-4"><a class="header" href="#troubleshooting-4">Troubleshooting</a></h2>
+<h3 id="colors-not-showing"><a class="header" href="#colors-not-showing">Colors Not Showing</a></h3>
+<p>Enable colors:</p>
+<pre><code class="language-bash">set colors=on
+</code></pre>
+<p>Check terminal:</p>
+<pre><code class="language-bash">echo $TERM
+# Should be xterm-256color or similar
+</code></pre>
+<h3 id="git-branch-not-showing"><a class="header" href="#git-branch-not-showing">Git Branch Not Showing</a></h3>
+<p>Verify you’re in a git repo:</p>
+<pre><code class="language-bash">git status
+</code></pre>
+<p>Ensure <code>\g</code> is in your PS1.</p>
+<h3 id="exit-colors-not-working"><a class="header" href="#exit-colors-not-working">Exit Colors Not Working</a></h3>
+<p>Wrap characters between two <code>\e</code>:</p>
+<pre><code class="language-bash"># Wrong
+set PS1='\w \e#&gt; '
+
+# Correct
+set PS1='\w \e#&gt;\e '
+</code></pre>
+<h2 id="comparison-with-bash-3"><a class="header" href="#comparison-with-bash-3">Comparison with Bash</a></h2>
+<h3 id="similar"><a class="header" href="#similar">Similar</a></h3>
+<ul>
+<li><code>\w</code>, <code>\W</code>, <code>\u</code>, <code>\h</code>, <code>\$</code> work the same</li>
+<li>Color support</li>
+<li>Environment variable support</li>
+</ul>
+<h3 id="hash-specific"><a class="header" href="#hash-specific">Hash-Specific</a></h3>
+<ul>
+<li><code>\g</code> - Git integration</li>
+<li><code>\e</code> - Exit code color</li>
+<li>Automatic <code>~</code> substitution</li>
+</ul>
+<h3 id="not-supported-yet"><a class="header" href="#not-supported-yet">Not Supported (Yet)</a></h3>
+<ul>
+<li><code>\d</code> - Date</li>
+<li><code>\t</code> - Time</li>
+<li><code>\!</code> - History number</li>
+<li><code>\[</code> and <code>\]</code> - Non-printing sequences</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="shell-scripting"><a class="header" href="#shell-scripting">Shell Scripting</a></h1>
+<p>Hash shell supports POSIX-compatible shell scripting for automation and reusable scripts.</p>
+<h2 id="running-scripts"><a class="header" href="#running-scripts">Running Scripts</a></h2>
+<h3 id="shebang-line"><a class="header" href="#shebang-line">Shebang Line</a></h3>
+<p>Create a script with the hash shebang:</p>
+<pre><code class="language-bash">#!/usr/local/bin/hash-shell
+
+echo "Hello from hash!"
+</code></pre>
+<p>Make executable and run:</p>
+<pre><code class="language-bash">chmod +x script.sh
+./script.sh
+</code></pre>
+<h3 id="direct-execution"><a class="header" href="#direct-execution">Direct Execution</a></h3>
+<pre><code class="language-bash">hash-shell script.sh
+</code></pre>
+<h3 id="command-string"><a class="header" href="#command-string">Command String</a></h3>
+<pre><code class="language-bash">hash-shell -c 'echo "Hello"; echo "World"'
+</code></pre>
+<h3 id="from-standard-input"><a class="header" href="#from-standard-input">From Standard Input</a></h3>
+<pre><code class="language-bash">echo 'echo "Hello"' | hash-shell -s
+</code></pre>
+<h2 id="script-arguments"><a class="header" href="#script-arguments">Script Arguments</a></h2>
+<h3 id="positional-parameters"><a class="header" href="#positional-parameters">Positional Parameters</a></h3>
+<pre><code class="language-bash">#!/usr/local/bin/hash-shell
+
+echo "Script name: $0"
+echo "First arg: $1"
+echo "Second arg: $2"
+echo "All args: $@"
+echo "Arg count: $#"
+</code></pre>
+<p>Run:</p>
+<pre><code class="language-bash">./script.sh hello world
+# Output:
+# Script name: ./script.sh
+# First arg: hello
+# Second arg: world
+# All args: hello world
+# Arg count: 2
+</code></pre>
+<h3 id="special-variables"><a class="header" href="#special-variables">Special Variables</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$0</code></td><td>Script name</td></tr>
+<tr><td><code>$1</code>-<code>$9</code></td><td>Positional arguments</td></tr>
+<tr><td><code>$#</code></td><td>Number of arguments</td></tr>
+<tr><td><code>$@</code></td><td>All arguments (separate words)</td></tr>
+<tr><td><code>$*</code></td><td>All arguments (single word)</td></tr>
+<tr><td><code>$?</code></td><td>Exit code of last command</td></tr>
+<tr><td><code>$$</code></td><td>Process ID of shell</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="functions"><a class="header" href="#functions">Functions</a></h2>
+<pre><code class="language-bash">greet() {
+    echo "Hello, $1!"
+}
+
+greet "World"
+</code></pre>
+<p>With return value:</p>
+<pre><code class="language-bash">is_even() {
+    if [ $(($1 % 2)) -eq 0 ]; then
+        return 0  # true
+    else
+        return 1  # false
+    fi
+}
+
+if is_even 4; then
+    echo "4 is even"
+fi
+</code></pre>
+<h2 id="variables"><a class="header" href="#variables">Variables</a></h2>
+<h3 id="assignment"><a class="header" href="#assignment">Assignment</a></h3>
+<pre><code class="language-bash">NAME="value"        # No spaces around =
+export NAME="value" # Export to environment
+</code></pre>
+<h3 id="expansion"><a class="header" href="#expansion">Expansion</a></h3>
+<pre><code class="language-bash">echo $NAME          # Simple
+echo ${NAME}        # Braced
+echo "${NAME}"      # Quoted (preserves whitespace)
+</code></pre>
+<h2 id="exit-codes"><a class="header" href="#exit-codes">Exit Codes</a></h2>
+<pre><code class="language-bash">#!/usr/local/bin/hash-shell
+
+if [ ! -f "$1" ]; then
+    echo "Error: File not found" &gt;&amp;2
+    exit 1
+fi
+
+# Process file...
+exit 0
+</code></pre>
+<p>Common codes:</p>
+<ul>
+<li><code>0</code> - Success</li>
+<li><code>1</code> - General error</li>
+<li><code>2</code> - Misuse of command</li>
+</ul>
+<h2 id="comments-1"><a class="header" href="#comments-1">Comments</a></h2>
+<pre><code class="language-bash"># This is a comment
+echo "Hello"  # Inline comment
+</code></pre>
+<h2 id="best-practices-1"><a class="header" href="#best-practices-1">Best Practices</a></h2>
+<ol>
+<li><strong>Always quote variables</strong>: <code>"$var"</code> prevents word splitting</li>
+<li><strong>Use meaningful names</strong>: <code>FILE_COUNT</code> not <code>fc</code></li>
+<li><strong>Check for errors</strong>: Test return codes</li>
+<li><strong>Add comments</strong>: Explain complex logic</li>
+<li><strong>Use exit codes</strong>: Return 0 for success</li>
+<li><strong>Validate input</strong>: Check arguments first</li>
+</ol>
+<h2 id="practical-example"><a class="header" href="#practical-example">Practical Example</a></h2>
+<pre><code class="language-bash">#!/usr/local/bin/hash-shell
+
+# Backup script
+BACKUP_DIR="/backup"
+DATE=$(date +%Y%m%d)
+
+if [ ! -d "$BACKUP_DIR" ]; then
+    mkdir -p "$BACKUP_DIR"
+fi
+
+for dir in /home/*; do
+    if [ -d "$dir" ]; then
+        user=$(basename "$dir")
+        tar -czf "$BACKUP_DIR/${user}_${DATE}.tar.gz" "$dir"
+        echo "Backed up: $user"
+    fi
+done
+
+echo "Backup complete!"
+</code></pre>
+<h2 id="see-also"><a class="header" href="#see-also">See Also</a></h2>
+<ul>
+<li><a href="#variables--expansion">Variables &amp; Expansion</a></li>
+<li><a href="#control-structures">Control Structures</a></li>
+<li><a href="#test-command">Test Command</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="variables--expansion"><a class="header" href="#variables--expansion">Variables &amp; Expansion</a></h1>
+<p>Hash shell supports environment variable expansion in commands and arguments.</p>
+<h2 id="basic-syntax"><a class="header" href="#basic-syntax">Basic Syntax</a></h2>
+<h3 id="var---simple-expansion"><a class="header" href="#var---simple-expansion">$VAR - Simple Expansion</a></h3>
+<pre><code class="language-bash">#&gt; export NAME=Julio
+#&gt; echo Hello $NAME
+Hello Julio
+</code></pre>
+<h3 id="var---braced-expansion"><a class="header" href="#var---braced-expansion">${VAR} - Braced Expansion</a></h3>
+<p>Use braces when concatenating:</p>
+<pre><code class="language-bash">#&gt; export PRE=test
+#&gt; echo ${PRE}ing
+testing
+
+#&gt; echo $PREing
+# Tries to expand $PREing (undefined)
+</code></pre>
+<h2 id="special-variables-1"><a class="header" href="#special-variables-1">Special Variables</a></h2>
+<h3 id="---exit-code"><a class="header" href="#---exit-code">$? - Exit Code</a></h3>
+<pre><code class="language-bash">#&gt; true
+#&gt; echo $?
+0
+
+#&gt; false
+#&gt; echo $?
+1
+</code></pre>
+<h3 id="---process-id"><a class="header" href="#---process-id">$$ - Process ID</a></h3>
+<pre><code class="language-bash">#&gt; echo $$
+12345
+</code></pre>
+<h3 id="0---shell-name"><a class="header" href="#0---shell-name">$0 - Shell Name</a></h3>
+<pre><code class="language-bash">#&gt; echo $0
+hash
+</code></pre>
+<h2 id="variable-name-rules"><a class="header" href="#variable-name-rules">Variable Name Rules</a></h2>
+<p>Valid names:</p>
+<ul>
+<li>Start with letter or underscore</li>
+<li>Contain letters, numbers, underscores</li>
+<li>Case-sensitive</li>
+</ul>
+<pre><code class="language-bash">$HOME       # Valid
+$MY_VAR     # Valid
+$_private   # Valid
+$123        # Invalid (starts with number)
+$my-var     # Invalid (hyphen)
+</code></pre>
+<h2 id="escaping"><a class="header" href="#escaping">Escaping</a></h2>
+<p>Prevent expansion with backslash:</p>
+<pre><code class="language-bash">#&gt; echo \$HOME
+$HOME
+
+#&gt; echo Price: \$5
+Price: $5
+</code></pre>
+<h2 id="quote-handling"><a class="header" href="#quote-handling">Quote Handling</a></h2>
+<h3 id="double-quotes---variables-expand"><a class="header" href="#double-quotes---variables-expand">Double Quotes - Variables Expand</a></h3>
+<pre><code class="language-bash">#&gt; export NAME=Julio
+#&gt; echo "Hello $NAME"
+Hello Julio
+</code></pre>
+<h3 id="single-quotes---no-expansion"><a class="header" href="#single-quotes---no-expansion">Single Quotes - No Expansion</a></h3>
+<pre><code class="language-bash">#&gt; echo 'Hello $NAME'
+Hello $NAME
+</code></pre>
+<h2 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h2>
+<h3 id="building-paths"><a class="header" href="#building-paths">Building Paths</a></h3>
+<pre><code class="language-bash">#&gt; export PROJECT=myapp
+#&gt; export BUILD_DIR=/tmp/builds
+#&gt; mkdir -p ${BUILD_DIR}/${PROJECT}
+</code></pre>
+<h3 id="path-manipulation"><a class="header" href="#path-manipulation">PATH Manipulation</a></h3>
+<pre><code class="language-bash">#&gt; export PATH=$HOME/bin:$PATH
+</code></pre>
+<h3 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h3>
+<pre><code class="language-bash"># In .hashrc
+export EDITOR=vim
+export PROJECT_DIR=~/projects
+
+alias edit='$EDITOR'
+alias proj='cd $PROJECT_DIR'
+</code></pre>
+<h2 id="undefined-variables"><a class="header" href="#undefined-variables">Undefined Variables</a></h2>
+<p>Expand to empty string:</p>
+<pre><code class="language-bash">#&gt; unset UNDEFINED
+#&gt; echo "Value: $UNDEFINED"
+Value:
+</code></pre>
+<h2 id="limitations-1"><a class="header" href="#limitations-1">Limitations</a></h2>
+<p>Current limitations (may be added):</p>
+<ul>
+<li><code>${VAR:-default}</code> - Default value</li>
+<li><code>${VAR:=value}</code> - Assign default</li>
+<li><code>${#VAR}</code> - Length</li>
+<li><code>${VAR%pattern}</code> - Remove suffix</li>
+<li><code>${VAR#pattern}</code> - Remove prefix</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="control-structures"><a class="header" href="#control-structures">Control Structures</a></h1>
+<p>Hash shell supports POSIX-compatible control structures for flow control.</p>
+<h2 id="ifthenelse"><a class="header" href="#ifthenelse">If/Then/Else</a></h2>
+<h3 id="syntax"><a class="header" href="#syntax">Syntax</a></h3>
+<pre><code class="language-bash">if command; then
+    commands
+fi
+
+if command; then
+    commands
+else
+    commands
+fi
+
+if command; then
+    commands
+elif command; then
+    commands
+else
+    commands
+fi
+</code></pre>
+<h3 id="examples-3"><a class="header" href="#examples-3">Examples</a></h3>
+<pre><code class="language-bash"># Simple if
+if [ -f "/etc/passwd" ]; then
+    echo "passwd file exists"
+fi
+
+# If/else
+if [ "$USER" = "root" ]; then
+    echo "Running as root"
+else
+    echo "Running as $USER"
+fi
+
+# If/elif/else
+if [ $count -lt 0 ]; then
+    echo "Negative"
+elif [ $count -eq 0 ]; then
+    echo "Zero"
+else
+    echo "Positive"
+fi
+</code></pre>
+<h3 id="any-command-as-condition"><a class="header" href="#any-command-as-condition">Any Command as Condition</a></h3>
+<pre><code class="language-bash">if grep -q "pattern" file.txt; then
+    echo "Found"
+fi
+
+if command -v git &gt; /dev/null; then
+    echo "Git installed"
+fi
+</code></pre>
+<h2 id="for-loops"><a class="header" href="#for-loops">For Loops</a></h2>
+<h3 id="syntax-1"><a class="header" href="#syntax-1">Syntax</a></h3>
+<pre><code class="language-bash">for var in list; do
+    commands
+done
+</code></pre>
+<h3 id="examples-1-1"><a class="header" href="#examples-1-1">Examples</a></h3>
+<pre><code class="language-bash"># List of words
+for name in Alice Bob Charlie; do
+    echo "Hello, $name"
+done
+
+# Files
+for file in *.txt; do
+    echo "Processing: $file"
+done
+
+# Arguments
+for arg in "$@"; do
+    echo "Argument: $arg"
+done
+
+# Numbers
+for i in $(seq 1 5); do
+    echo "Number: $i"
+done
+</code></pre>
+<h2 id="while-loops"><a class="header" href="#while-loops">While Loops</a></h2>
+<h3 id="syntax-2"><a class="header" href="#syntax-2">Syntax</a></h3>
+<pre><code class="language-bash">while command; do
+    commands
+done
+</code></pre>
+<h3 id="examples-2-1"><a class="header" href="#examples-2-1">Examples</a></h3>
+<pre><code class="language-bash">count=0
+while [ $count -lt 5 ]; do
+    echo "Count: $count"
+    count=$((count + 1))
+done
+
+# Read lines
+while read line; do
+    echo "Line: $line"
+done &lt; file.txt
+
+# Infinite loop
+while true; do
+    echo "Press Ctrl+C"
+    sleep 1
+done
+</code></pre>
+<h2 id="until-loops"><a class="header" href="#until-loops">Until Loops</a></h2>
+<h3 id="syntax-3"><a class="header" href="#syntax-3">Syntax</a></h3>
+<pre><code class="language-bash">until command; do
+    commands
+done
+</code></pre>
+<h3 id="example"><a class="header" href="#example">Example</a></h3>
+<pre><code class="language-bash">count=0
+until [ $count -ge 5 ]; do
+    echo "Count: $count"
+    count=$((count + 1))
+done
+</code></pre>
+<h2 id="case-statements"><a class="header" href="#case-statements">Case Statements</a></h2>
+<h3 id="syntax-4"><a class="header" href="#syntax-4">Syntax</a></h3>
+<pre><code class="language-bash">case word in
+    pattern1)
+        commands
+        ;;
+    pattern2|pattern3)
+        commands
+        ;;
+    *)
+        default
+        ;;
+esac
+</code></pre>
+<h3 id="examples-3-1"><a class="header" href="#examples-3-1">Examples</a></h3>
+<pre><code class="language-bash">case "$1" in
+    start)
+        echo "Starting..."
+        ;;
+    stop)
+        echo "Stopping..."
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        ;;
+esac
+
+# Pattern matching
+case "$filename" in
+    *.txt)
+        echo "Text file"
+        ;;
+    *.sh)
+        echo "Shell script"
+        ;;
+    *)
+        echo "Unknown"
+        ;;
+esac
+</code></pre>
+<h2 id="nesting"><a class="header" href="#nesting">Nesting</a></h2>
+<pre><code class="language-bash">for dir in /home/*; do
+    if [ -d "$dir" ]; then
+        for file in "$dir"/*.txt; do
+            if [ -f "$file" ]; then
+                echo "Found: $file"
+            fi
+        done
+    fi
+done
+</code></pre>
+<h2 id="common-mistakes"><a class="header" href="#common-mistakes">Common Mistakes</a></h2>
+<h3 id="missing-spaces"><a class="header" href="#missing-spaces">Missing Spaces</a></h3>
+<pre><code class="language-bash"># Wrong
+if [-f "$file"]; then
+
+# Correct
+if [ -f "$file" ]; then
+</code></pre>
+<h3 id="unquoted-variables"><a class="header" href="#unquoted-variables">Unquoted Variables</a></h3>
+<pre><code class="language-bash"># Wrong
+for file in $files; do
+
+# Correct
+for file in "$files"; do
+</code></pre>
+<h3 id="-vs--eq"><a class="header" href="#-vs--eq">= vs -eq</a></h3>
+<pre><code class="language-bash"># String comparison
+if [ "$str" = "value" ]; then
+
+# Numeric comparison
+if [ $num -eq 5 ]; then
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="test-command"><a class="header" href="#test-command">Test Command</a></h1>
+<p>The <code>test</code> command (or <code>[ ]</code>) evaluates expressions for use in conditionals.</p>
+<h2 id="file-tests"><a class="header" href="#file-tests">File Tests</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-e file</code></td><td>File exists</td></tr>
+<tr><td><code>-f file</code></td><td>Is a regular file</td></tr>
+<tr><td><code>-d file</code></td><td>Is a directory</td></tr>
+<tr><td><code>-r file</code></td><td>Is readable</td></tr>
+<tr><td><code>-w file</code></td><td>Is writable</td></tr>
+<tr><td><code>-x file</code></td><td>Is executable</td></tr>
+<tr><td><code>-s file</code></td><td>Has size &gt; 0</td></tr>
+<tr><td><code>-L file</code></td><td>Is a symbolic link</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="examples-4"><a class="header" href="#examples-4">Examples</a></h3>
+<pre><code class="language-bash">if [ -f "/etc/passwd" ]; then
+    echo "File exists"
+fi
+
+if [ -d "$dir" ]; then
+    echo "Is a directory"
+fi
+
+if [ -r "$file" ] &amp;&amp; [ -w "$file" ]; then
+    echo "Readable and writable"
+fi
+</code></pre>
+<h2 id="string-tests"><a class="header" href="#string-tests">String Tests</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-z string</code></td><td>String is empty</td></tr>
+<tr><td><code>-n string</code></td><td>String is not empty</td></tr>
+<tr><td><code>s1 = s2</code></td><td>Strings are equal</td></tr>
+<tr><td><code>s1 != s2</code></td><td>Strings are not equal</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="examples-1-2"><a class="header" href="#examples-1-2">Examples</a></h3>
+<pre><code class="language-bash">if [ -z "$var" ]; then
+    echo "Variable is empty"
+fi
+
+if [ "$USER" = "root" ]; then
+    echo "Running as root"
+fi
+
+if [ "$a" != "$b" ]; then
+    echo "Strings differ"
+fi
+</code></pre>
+<h2 id="numeric-tests"><a class="header" href="#numeric-tests">Numeric Tests</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n1 -eq n2</code></td><td>Equal</td></tr>
+<tr><td><code>n1 -ne n2</code></td><td>Not equal</td></tr>
+<tr><td><code>n1 -lt n2</code></td><td>Less than</td></tr>
+<tr><td><code>n1 -le n2</code></td><td>Less than or equal</td></tr>
+<tr><td><code>n1 -gt n2</code></td><td>Greater than</td></tr>
+<tr><td><code>n1 -ge n2</code></td><td>Greater than or equal</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="examples-2-2"><a class="header" href="#examples-2-2">Examples</a></h3>
+<pre><code class="language-bash">if [ $count -eq 0 ]; then
+    echo "Count is zero"
+fi
+
+if [ $x -lt 10 ]; then
+    echo "x is less than 10"
+fi
+
+if [ $a -ge $b ]; then
+    echo "a &gt;= b"
+fi
+</code></pre>
+<h2 id="logical-operators"><a class="header" href="#logical-operators">Logical Operators</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>! expr</code></td><td>NOT</td></tr>
+<tr><td><code>expr -a expr</code></td><td>AND</td></tr>
+<tr><td><code>expr -o expr</code></td><td>OR</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="examples-3-2"><a class="header" href="#examples-3-2">Examples</a></h3>
+<pre><code class="language-bash"># NOT
+if [ ! -f "$file" ]; then
+    echo "File not found"
+fi
+
+# AND
+if [ -f "$file" -a -r "$file" ]; then
+    echo "File exists and is readable"
+fi
+
+# OR
+if [ -z "$a" -o -z "$b" ]; then
+    echo "At least one is empty"
+fi
+</code></pre>
+<h2 id="combining-with--and-"><a class="header" href="#combining-with--and-">Combining with &amp;&amp; and ||</a></h2>
+<pre><code class="language-bash"># Preferred over -a and -o
+if [ -f "$file" ] &amp;&amp; [ -r "$file" ]; then
+    echo "File exists and readable"
+fi
+
+if [ -z "$a" ] || [ -z "$b" ]; then
+    echo "At least one is empty"
+fi
+</code></pre>
+<h2 id="common-patterns-1"><a class="header" href="#common-patterns-1">Common Patterns</a></h2>
+<h3 id="check-file-exists"><a class="header" href="#check-file-exists">Check File Exists</a></h3>
+<pre><code class="language-bash">if [ -f "$config" ]; then
+    source "$config"
+fi
+</code></pre>
+<h3 id="check-directory"><a class="header" href="#check-directory">Check Directory</a></h3>
+<pre><code class="language-bash">if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+fi
+</code></pre>
+<h3 id="validate-arguments"><a class="header" href="#validate-arguments">Validate Arguments</a></h3>
+<pre><code class="language-bash">if [ $# -eq 0 ]; then
+    echo "Usage: $0 file" &gt;&amp;2
+    exit 1
+fi
+</code></pre>
+<h3 id="compare-strings"><a class="header" href="#compare-strings">Compare Strings</a></h3>
+<pre><code class="language-bash">if [ "$answer" = "yes" ]; then
+    proceed
+fi
+</code></pre>
+<h3 id="numeric-comparison"><a class="header" href="#numeric-comparison">Numeric Comparison</a></h3>
+<pre><code class="language-bash">if [ $count -gt 100 ]; then
+    echo "Too many items"
+fi
+</code></pre>
+<h2 id="important-notes"><a class="header" href="#important-notes">Important Notes</a></h2>
+<h3 id="spaces-required"><a class="header" href="#spaces-required">Spaces Required</a></h3>
+<pre><code class="language-bash"># Wrong
+if [-f "$file"]; then
+
+# Correct
+if [ -f "$file" ]; then
+</code></pre>
+<h3 id="quote-variables"><a class="header" href="#quote-variables">Quote Variables</a></h3>
+<pre><code class="language-bash"># Wrong (breaks if file has spaces)
+if [ -f $file ]; then
+
+# Correct
+if [ -f "$file" ]; then
+</code></pre>
+<h3 id="-vs-"><a class="header" href="#-vs-">= vs ==</a></h3>
+<p>In POSIX shell, use <code>=</code> for string comparison:</p>
+<pre><code class="language-bash"># POSIX compliant
+if [ "$a" = "$b" ]; then
+
+# Also works but less portable
+if [ "$a" == "$b" ]; then
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="operators--redirection"><a class="header" href="#operators--redirection">Operators &amp; Redirection</a></h1>
+<p>Hash shell supports Unix operators for connecting and controlling commands.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>|</code></td><td>Pipe</td><td>Connect stdout to stdin</td></tr>
+<tr><td><code>&gt;</code></td><td>Redirect</td><td>Output to file (overwrite)</td></tr>
+<tr><td><code>&gt;&gt;</code></td><td>Redirect</td><td>Output to file (append)</td></tr>
+<tr><td><code>&lt;</code></td><td>Redirect</td><td>Input from file</td></tr>
+<tr><td><code>2&gt;</code></td><td>Redirect</td><td>Stderr to file</td></tr>
+<tr><td><code>&amp;&gt;</code></td><td>Redirect</td><td>Both stdout and stderr</td></tr>
+<tr><td><code>&amp;&amp;</code></td><td>Chain</td><td>Run if previous succeeded</td></tr>
+<tr><td><code>||</code></td><td>Chain</td><td>Run if previous failed</td></tr>
+<tr><td><code>;</code></td><td>Chain</td><td>Run sequentially</td></tr>
+<tr><td><code>&amp;</code></td><td>Background</td><td>Run in background</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="quick-examples"><a class="header" href="#quick-examples">Quick Examples</a></h2>
+<h3 id="pipes"><a class="header" href="#pipes">Pipes</a></h3>
+<pre><code class="language-bash">ls | grep txt
+cat file.txt | sort | uniq
+ps aux | grep nginx | wc -l
+</code></pre>
+<h3 id="redirection"><a class="header" href="#redirection">Redirection</a></h3>
+<pre><code class="language-bash">echo "Hello" &gt; file.txt       # Overwrite
+echo "World" &gt;&gt; file.txt      # Append
+cat &lt; input.txt               # Input from file
+command 2&gt; errors.log         # Stderr
+command &amp;&gt; all.log            # Both
+</code></pre>
+<h3 id="command-chaining"><a class="header" href="#command-chaining">Command Chaining</a></h3>
+<pre><code class="language-bash">make &amp;&amp; make install          # Run if success
+cd /nonexistent || echo "Failed"  # Run if fail
+echo "Start"; command; echo "End" # Sequential
+</code></pre>
+<h3 id="background"><a class="header" href="#background">Background</a></h3>
+<pre><code class="language-bash">long_command &amp;                # Run in background
+</code></pre>
+<h2 id="learn-more"><a class="header" href="#learn-more">Learn More</a></h2>
+<ul>
+<li><a href="#pipes-1">Pipes</a> - Connect command output to input</li>
+<li><a href="#io-redirection">I/O Redirection</a> - Control file input/output</li>
+<li><a href="#command-chaining-1">Command Chaining</a> - Sequential and conditional execution</li>
+<li><a href="#command-substitution">Command Substitution</a> - Use command output as arguments</li>
+<li><a href="#background-processes">Background Processes</a> - Run commands in background</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pipes-1"><a class="header" href="#pipes-1">Pipes</a></h1>
+<p>Connect the output of one command to the input of another.</p>
+<h2 id="basic-usage-2"><a class="header" href="#basic-usage-2">Basic Usage</a></h2>
+<pre><code class="language-bash">#&gt; ls | grep txt
+file1.txt
+test.txt
+
+#&gt; cat file.txt | grep pattern | sort | uniq
+</code></pre>
+<h2 id="how-pipes-work"><a class="header" href="#how-pipes-work">How Pipes Work</a></h2>
+<pre><code class="language-bash">command1 | command2 | command3
+</code></pre>
+<ul>
+<li><code>command1</code> stdout → <code>command2</code> stdin</li>
+<li><code>command2</code> stdout → <code>command3</code> stdin</li>
+<li><code>command3</code> stdout → terminal</li>
+</ul>
+<p>Each command runs in its own process.</p>
+<h2 id="exit-code"><a class="header" href="#exit-code">Exit Code</a></h2>
+<p>Pipeline exit code is from the <strong>last command</strong>:</p>
+<pre><code class="language-bash">#&gt; false | true
+#&gt; echo $?
+0  # From 'true', not 'false'
+</code></pre>
+<h2 id="common-patterns-2"><a class="header" href="#common-patterns-2">Common Patterns</a></h2>
+<h3 id="filtering"><a class="header" href="#filtering">Filtering</a></h3>
+<pre><code class="language-bash">ls -la | grep txt
+ps aux | grep nginx
+cat log.txt | grep error
+</code></pre>
+<h3 id="counting"><a class="header" href="#counting">Counting</a></h3>
+<pre><code class="language-bash">ls | wc -l                    # Count files
+cat file.txt | wc -l          # Count lines
+ps aux | grep python | wc -l  # Count processes
+</code></pre>
+<h3 id="text-processing"><a class="header" href="#text-processing">Text Processing</a></h3>
+<pre><code class="language-bash">cat names.txt | sort | uniq
+ls -la | awk '{print $5, $9}'
+echo hello | tr '[:lower:]' '[:upper:]'
+</code></pre>
+<h3 id="data-analysis"><a class="header" href="#data-analysis">Data Analysis</a></h3>
+<pre><code class="language-bash">cat data.csv | cut -d, -f2 | sort | uniq -c | sort -rn | head -10
+</code></pre>
+<h2 id="with-other-features"><a class="header" href="#with-other-features">With Other Features</a></h2>
+<h3 id="with-aliases"><a class="header" href="#with-aliases">With Aliases</a></h3>
+<pre><code class="language-bash">alias count='wc -l'
+ls | count
+</code></pre>
+<h3 id="with-variables"><a class="header" href="#with-variables">With Variables</a></h3>
+<pre><code class="language-bash">export PATTERN=error
+cat log.txt | grep $PATTERN
+</code></pre>
+<h3 id="with-chaining"><a class="header" href="#with-chaining">With Chaining</a></h3>
+<pre><code class="language-bash">ls | grep txt &amp;&amp; echo "Found txt files"
+</code></pre>
+<h2 id="difference-from-"><a class="header" href="#difference-from-">Difference from ||</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>|</code></td><td>Connect stdout to stdin</td></tr>
+<tr><td><code>||</code></td><td>Execute if previous failed</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-bash">echo hello | cat      # Pipe: passes "hello" to cat
+false || echo hello   # OR: runs echo because false failed
+</code></pre>
+<h2 id="troubleshooting-5"><a class="header" href="#troubleshooting-5">Troubleshooting</a></h2>
+<h3 id="broken-pipe"><a class="header" href="#broken-pipe">Broken Pipe</a></h3>
+<p>If first command produces lots of output but second exits early:</p>
+<pre><code class="language-bash">cat huge_file.txt | head -10
+# Normal behavior, handled automatically
+</code></pre>
+<h3 id="no-output--hanging"><a class="header" href="#no-output--hanging">No Output / Hanging</a></h3>
+<p>Command waiting for input:</p>
+<pre><code class="language-bash">cat | grep something
+# Waiting forever - press Ctrl+C
+</code></pre>
+<h2 id="limitations-2"><a class="header" href="#limitations-2">Limitations</a></h2>
+<ul>
+<li>No <code>|&amp;</code> (pipe stderr)</li>
+<li>No process substitution <code>&lt;(command)</code></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="io-redirection"><a class="header" href="#io-redirection">I/O Redirection</a></h1>
+<p>Control where commands read from and write to.</p>
+<h2 id="basic-redirections"><a class="header" href="#basic-redirections">Basic Redirections</a></h2>
+<h3 id="output-"><a class="header" href="#output-">Output (&gt;)</a></h3>
+<p>Redirect stdout to file (overwrites):</p>
+<pre><code class="language-bash">echo "Hello" &gt; output.txt
+ls -la &gt; filelist.txt
+</code></pre>
+<h3 id="append-"><a class="header" href="#append-">Append (&gt;&gt;)</a></h3>
+<p>Append to file:</p>
+<pre><code class="language-bash">echo "Line 1" &gt; log.txt
+echo "Line 2" &gt;&gt; log.txt
+</code></pre>
+<h3 id="input-"><a class="header" href="#input-">Input (&lt;)</a></h3>
+<p>Read from file:</p>
+<pre><code class="language-bash">cat &lt; input.txt
+wc -l &lt; file.txt
+sort &lt; unsorted.txt &gt; sorted.txt
+</code></pre>
+<h2 id="error-redirection"><a class="header" href="#error-redirection">Error Redirection</a></h2>
+<h3 id="stderr-2"><a class="header" href="#stderr-2">Stderr (2&gt;)</a></h3>
+<pre><code class="language-bash">ls /nonexistent 2&gt; errors.txt
+command 2&gt;&gt; errors.log  # Append
+</code></pre>
+<h3 id="stderr-to-stdout-21"><a class="header" href="#stderr-to-stdout-21">Stderr to Stdout (2&gt;&amp;1)</a></h3>
+<pre><code class="language-bash">command 2&gt;&amp;1 | grep error
+make 2&gt;&amp;1 | tee build.log
+</code></pre>
+<h3 id="both-streams-"><a class="header" href="#both-streams-">Both Streams (&amp;&gt;)</a></h3>
+<pre><code class="language-bash">command &amp;&gt; all.log
+# Same as: command &gt; all.log 2&gt;&amp;1
+</code></pre>
+<h2 id="common-patterns-3"><a class="header" href="#common-patterns-3">Common Patterns</a></h2>
+<h3 id="discard-output"><a class="header" href="#discard-output">Discard Output</a></h3>
+<pre><code class="language-bash">command &gt; /dev/null           # Discard stdout
+command 2&gt; /dev/null          # Discard stderr
+command &amp;&gt; /dev/null          # Discard both
+</code></pre>
+<h3 id="logging"><a class="header" href="#logging">Logging</a></h3>
+<pre><code class="language-bash">./script.sh &amp;&gt; script.log
+./daily.sh &amp;&gt;&gt; daily.log      # Append
+</code></pre>
+<h3 id="separate-streams"><a class="header" href="#separate-streams">Separate Streams</a></h3>
+<pre><code class="language-bash">command &gt; output.txt 2&gt; errors.txt
+</code></pre>
+<h3 id="processing-files"><a class="header" href="#processing-files">Processing Files</a></h3>
+<pre><code class="language-bash">tr '[:lower:]' '[:upper:]' &lt; input.txt &gt; output.txt
+sort &lt; data.txt &gt; sorted.txt
+</code></pre>
+<h2 id="order-matters"><a class="header" href="#order-matters">Order Matters</a></h2>
+<pre><code class="language-bash"># Both to file
+command &gt; file 2&gt;&amp;1
+
+# Both to pipe
+command 2&gt;&amp;1 | grep error
+</code></pre>
+<h2 id="file-descriptors"><a class="header" href="#file-descriptors">File Descriptors</a></h2>
+<ul>
+<li><code>0</code> = stdin</li>
+<li><code>1</code> = stdout</li>
+<li><code>2</code> = stderr</li>
+</ul>
+<pre><code class="language-bash">2&gt; file    # Redirect fd 2
+1&gt; file    # Same as &gt; file
+0&lt; file    # Same as &lt; file
+</code></pre>
+<h2 id="troubleshooting-6"><a class="header" href="#troubleshooting-6">Troubleshooting</a></h2>
+<h3 id="permission-denied"><a class="header" href="#permission-denied">Permission Denied</a></h3>
+<p>Check file/directory permissions.</p>
+<h3 id="accidental-overwrite"><a class="header" href="#accidental-overwrite">Accidental Overwrite</a></h3>
+<p>Use <code>&gt;&gt;</code> to append, or check first:</p>
+<pre><code class="language-bash">test -f file.txt &amp;&amp; echo "File exists!"
+</code></pre>
+<h2 id="limitations-3"><a class="header" href="#limitations-3">Limitations</a></h2>
+<ul>
+<li>No heredoc (<code>&lt;&lt; EOF</code>)</li>
+<li>No here-string (<code>&lt;&lt;&lt; "string"</code>)</li>
+<li>No process substitution (<code>&lt;(command)</code>)</li>
+<li>No noclobber protection</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="command-chaining-1"><a class="header" href="#command-chaining-1">Command Chaining</a></h1>
+<p>Execute multiple commands with conditional or sequential logic.</p>
+<h2 id="operators"><a class="header" href="#operators">Operators</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Name</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>&amp;&amp;</code></td><td>AND</td><td>Run next if previous succeeded (exit 0)</td></tr>
+<tr><td><code>||</code></td><td>OR</td><td>Run next if previous failed (exit non-0)</td></tr>
+<tr><td><code>;</code></td><td>Sequential</td><td>Run next regardless</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="and-"><a class="header" href="#and-">AND (&amp;&amp;)</a></h2>
+<p>Run second command only if first succeeds:</p>
+<pre><code class="language-bash">make &amp;&amp; make install
+# make install runs only if make succeeds
+
+cd /project &amp;&amp; npm install
+# npm install runs only if cd succeeds
+
+mkdir -p dir &amp;&amp; cd dir &amp;&amp; touch file
+# Creates dir, enters it, creates file
+</code></pre>
+<h2 id="or-"><a class="header" href="#or-">OR (||)</a></h2>
+<p>Run second command only if first fails:</p>
+<pre><code class="language-bash">cd /nonexistent || echo "Directory not found"
+# echo runs because cd failed
+
+command || exit 1
+# Exit script if command fails
+
+test -f config || cp default.conf config
+# Copy default only if config doesn't exist
+</code></pre>
+<h2 id="sequential-"><a class="header" href="#sequential-">Sequential (;)</a></h2>
+<p>Run commands in sequence regardless of exit codes:</p>
+<pre><code class="language-bash">echo "Start"; command; echo "End"
+# All three run
+
+cd /tmp; ls; pwd
+# All run even if one fails
+</code></pre>
+<h2 id="combined-patterns"><a class="header" href="#combined-patterns">Combined Patterns</a></h2>
+<h3 id="build-and-install"><a class="header" href="#build-and-install">Build and Install</a></h3>
+<pre><code class="language-bash">make clean &amp;&amp; make &amp;&amp; make install
+</code></pre>
+<h3 id="create-if-not-exists"><a class="header" href="#create-if-not-exists">Create If Not Exists</a></h3>
+<pre><code class="language-bash">test -d "$dir" || mkdir -p "$dir"
+</code></pre>
+<h3 id="try-multiple-options"><a class="header" href="#try-multiple-options">Try Multiple Options</a></h3>
+<pre><code class="language-bash">command1 || command2 || command3
+# Tries each until one succeeds
+</code></pre>
+<h3 id="fallback-with-message"><a class="header" href="#fallback-with-message">Fallback with Message</a></h3>
+<pre><code class="language-bash">./run.sh || echo "Script failed" &amp;&amp; exit 1
+</code></pre>
+<h3 id="grouped-commands"><a class="header" href="#grouped-commands">Grouped Commands</a></h3>
+<pre><code class="language-bash">(cd /project &amp;&amp; make) || echo "Build failed"
+</code></pre>
+<h2 id="exit-codes-1"><a class="header" href="#exit-codes-1">Exit Codes</a></h2>
+<h3 id="and-chain"><a class="header" href="#and-chain">AND Chain</a></h3>
+<pre><code class="language-bash">true &amp;&amp; echo "runs"     # runs
+false &amp;&amp; echo "skipped" # skipped
+</code></pre>
+<h3 id="or-chain"><a class="header" href="#or-chain">OR Chain</a></h3>
+<pre><code class="language-bash">true || echo "skipped"  # skipped
+false || echo "runs"    # runs
+</code></pre>
+<h3 id="chain-exit-code"><a class="header" href="#chain-exit-code">Chain Exit Code</a></h3>
+<p>Exit code is from the last executed command:</p>
+<pre><code class="language-bash">true &amp;&amp; false
+echo $?  # 1 (from false)
+
+false || true
+echo $?  # 0 (from true)
+</code></pre>
+<h2 id="common-use-cases"><a class="header" href="#common-use-cases">Common Use Cases</a></h2>
+<h3 id="safe-directory-operations"><a class="header" href="#safe-directory-operations">Safe Directory Operations</a></h3>
+<pre><code class="language-bash">cd /some/dir &amp;&amp; rm -rf temp/
+# Only deletes if cd succeeds
+</code></pre>
+<h3 id="conditional-execution"><a class="header" href="#conditional-execution">Conditional Execution</a></h3>
+<pre><code class="language-bash">[ -f config.yml ] &amp;&amp; source config.yml
+</code></pre>
+<h3 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h3>
+<pre><code class="language-bash">command || { echo "Error" &gt;&amp;2; exit 1; }
+</code></pre>
+<h3 id="cleanup-on-success"><a class="header" href="#cleanup-on-success">Cleanup on Success</a></h3>
+<pre><code class="language-bash">make &amp;&amp; make test &amp;&amp; make clean
+</code></pre>
+<h2 id="with-other-features-1"><a class="header" href="#with-other-features-1">With Other Features</a></h2>
+<h3 id="with-pipes"><a class="header" href="#with-pipes">With Pipes</a></h3>
+<pre><code class="language-bash">cat file | grep pattern &amp;&amp; echo "Found"
+make 2&gt;&amp;1 | tee log &amp;&amp; echo "Success"
+</code></pre>
+<h3 id="with-redirection"><a class="header" href="#with-redirection">With Redirection</a></h3>
+<pre><code class="language-bash">command &gt; output &amp;&amp; echo "Saved"
+</code></pre>
+<h3 id="with-variables-1"><a class="header" href="#with-variables-1">With Variables</a></h3>
+<pre><code class="language-bash">export DEBUG=1 &amp;&amp; ./run.sh
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="command-substitution"><a class="header" href="#command-substitution">Command Substitution</a></h1>
+<p>Use command output as part of another command.</p>
+<h2 id="syntax-5"><a class="header" href="#syntax-5">Syntax</a></h2>
+<h3 id="---modern-syntax-recommended"><a class="header" href="#---modern-syntax-recommended">$(…) - Modern Syntax (Recommended)</a></h3>
+<pre><code class="language-bash">result=$(command)
+echo "Today is $(date)"
+</code></pre>
+<h3 id="---backtick-syntax"><a class="header" href="#---backtick-syntax">`…` - Backtick Syntax</a></h3>
+<pre><code class="language-bash">result=`command`
+echo "Today is `date`"
+</code></pre>
+<p>The <code>$(...)</code> syntax is preferred as it’s easier to nest and read.</p>
+<h2 id="basic-usage-3"><a class="header" href="#basic-usage-3">Basic Usage</a></h2>
+<h3 id="capture-output"><a class="header" href="#capture-output">Capture Output</a></h3>
+<pre><code class="language-bash">current_dir=$(pwd)
+echo "You are in: $current_dir"
+
+file_count=$(ls | wc -l)
+echo "Files: $file_count"
+</code></pre>
+<h3 id="in-commands"><a class="header" href="#in-commands">In Commands</a></h3>
+<pre><code class="language-bash">echo "Today is $(date)"
+# Today is Mon Jan 1 12:00:00 UTC 2024
+
+cd $(dirname "$0")
+# Change to script's directory
+</code></pre>
+<h3 id="in-variables"><a class="header" href="#in-variables">In Variables</a></h3>
+<pre><code class="language-bash">VERSION=$(cat VERSION)
+HOSTNAME=$(hostname)
+USER_HOME=$(eval echo ~$USER)
+</code></pre>
+<h2 id="common-patterns-4"><a class="header" href="#common-patterns-4">Common Patterns</a></h2>
+<h3 id="get-current-datetime"><a class="header" href="#get-current-datetime">Get Current Date/Time</a></h3>
+<pre><code class="language-bash">NOW=$(date +%Y%m%d)
+TIMESTAMP=$(date +%H%M%S)
+</code></pre>
+<h3 id="count-items"><a class="header" href="#count-items">Count Items</a></h3>
+<pre><code class="language-bash">NUM_FILES=$(ls *.txt | wc -l)
+NUM_LINES=$(wc -l &lt; file.txt)
+</code></pre>
+<h3 id="find-commands"><a class="header" href="#find-commands">Find Commands</a></h3>
+<pre><code class="language-bash">EDITOR=$(which vim)
+GIT_ROOT=$(git rev-parse --show-toplevel)
+</code></pre>
+<h3 id="process-output"><a class="header" href="#process-output">Process Output</a></h3>
+<pre><code class="language-bash">for file in $(find . -name "*.txt"); do
+    echo "Processing: $file"
+done
+
+for user in $(cat /etc/passwd | cut -d: -f1); do
+    echo "User: $user"
+done
+</code></pre>
+<h2 id="nesting-1"><a class="header" href="#nesting-1">Nesting</a></h2>
+<p>The <code>$(...)</code> syntax allows easy nesting:</p>
+<pre><code class="language-bash">echo "Script dir: $(dirname $(realpath $0))"
+
+# With backticks (harder to read)
+echo "Script dir: `dirname \`realpath $0\``"
+</code></pre>
+<h2 id="in-arithmetic"><a class="header" href="#in-arithmetic">In Arithmetic</a></h2>
+<pre><code class="language-bash">total=$(($(cat file1 | wc -l) + $(cat file2 | wc -l)))
+</code></pre>
+<h2 id="with-quoting"><a class="header" href="#with-quoting">With Quoting</a></h2>
+<pre><code class="language-bash"># Preserve whitespace
+files="$(ls -la)"
+echo "$files"
+
+# Word splitting (each line becomes argument)
+for line in $(cat file.txt); do
+    echo "$line"
+done
+</code></pre>
+<h2 id="exit-codes-2"><a class="header" href="#exit-codes-2">Exit Codes</a></h2>
+<p>Command substitution captures output, not exit code:</p>
+<pre><code class="language-bash">result=$(false)
+echo $?  # 1 (exit code available immediately after)
+
+# Check both
+if output=$(command); then
+    echo "Success: $output"
+else
+    echo "Failed"
+fi
+</code></pre>
+<h2 id="examples-5"><a class="header" href="#examples-5">Examples</a></h2>
+<h3 id="backup-with-date"><a class="header" href="#backup-with-date">Backup with Date</a></h3>
+<pre><code class="language-bash">backup_file="backup_$(date +%Y%m%d).tar.gz"
+tar -czf "$backup_file" /data
+</code></pre>
+<h3 id="dynamic-paths"><a class="header" href="#dynamic-paths">Dynamic Paths</a></h3>
+<pre><code class="language-bash">cd "$(git rev-parse --show-toplevel)"
+source "$(dirname $0)/config.sh"
+</code></pre>
+<h3 id="conditional-on-output"><a class="header" href="#conditional-on-output">Conditional on Output</a></h3>
+<pre><code class="language-bash">if [ "$(whoami)" = "root" ]; then
+    echo "Running as root"
+fi
+</code></pre>
+<h3 id="build-version-string"><a class="header" href="#build-version-string">Build Version String</a></h3>
+<pre><code class="language-bash">VERSION="$(cat VERSION)-$(git rev-parse --short HEAD)"
+</code></pre>
+<h2 id="limitations-4"><a class="header" href="#limitations-4">Limitations</a></h2>
+<ul>
+<li>Trailing newlines are stripped</li>
+<li>Very large output may be slow</li>
+<li>Exit code only available immediately after</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="background-processes"><a class="header" href="#background-processes">Background Processes</a></h1>
+<p>Run commands in the background while continuing to use the shell.</p>
+<h2 id="basic-usage-4"><a class="header" href="#basic-usage-4">Basic Usage</a></h2>
+<p>Add <code>&amp;</code> at the end of a command:</p>
+<pre><code class="language-bash">#&gt; long_running_command &amp;
+[1] 12345
+#&gt;
+</code></pre>
+<p>The shell prints:</p>
+<ul>
+<li>Job number in brackets <code>[1]</code></li>
+<li>Process ID <code>12345</code></li>
+<li>Returns to prompt immediately</li>
+</ul>
+<h2 id="job-control"><a class="header" href="#job-control">Job Control</a></h2>
+<h3 id="list-jobs"><a class="header" href="#list-jobs">List Jobs</a></h3>
+<pre><code class="language-bash">#&gt; jobs
+[1]  Running    sleep 100 &amp;
+[2]  Running    make &amp;
+</code></pre>
+<h3 id="bring-to-foreground"><a class="header" href="#bring-to-foreground">Bring to Foreground</a></h3>
+<pre><code class="language-bash">#&gt; fg %1
+# Job 1 now in foreground
+</code></pre>
+<h3 id="send-to-background"><a class="header" href="#send-to-background">Send to Background</a></h3>
+<pre><code class="language-bash">#&gt; bg %1
+# Continues job 1 in background
+</code></pre>
+<h2 id="stopping-jobs"><a class="header" href="#stopping-jobs">Stopping Jobs</a></h2>
+<h3 id="kill-by-job-number"><a class="header" href="#kill-by-job-number">Kill by Job Number</a></h3>
+<pre><code class="language-bash">#&gt; kill %1
+</code></pre>
+<h3 id="kill-by-pid"><a class="header" href="#kill-by-pid">Kill by PID</a></h3>
+<pre><code class="language-bash">#&gt; kill 12345
+</code></pre>
+<h2 id="job-completion"><a class="header" href="#job-completion">Job Completion</a></h2>
+<p>When a background job completes:</p>
+<pre><code class="language-bash">[1]  Done       sleep 10 &amp;
+</code></pre>
+<h2 id="common-patterns-5"><a class="header" href="#common-patterns-5">Common Patterns</a></h2>
+<h3 id="run-long-command"><a class="header" href="#run-long-command">Run Long Command</a></h3>
+<pre><code class="language-bash">make &amp;
+# Continue working while make runs
+</code></pre>
+<h3 id="multiple-background-jobs"><a class="header" href="#multiple-background-jobs">Multiple Background Jobs</a></h3>
+<pre><code class="language-bash">command1 &amp;
+command2 &amp;
+command3 &amp;
+# All three run simultaneously
+</code></pre>
+<h3 id="redirect-output"><a class="header" href="#redirect-output">Redirect Output</a></h3>
+<pre><code class="language-bash">long_command &gt; output.log 2&gt;&amp;1 &amp;
+# Run in background, save output to file
+</code></pre>
+<h3 id="discard-output-1"><a class="header" href="#discard-output-1">Discard Output</a></h3>
+<pre><code class="language-bash">noisy_command &amp;&gt; /dev/null &amp;
+</code></pre>
+<h2 id="background-process-behavior"><a class="header" href="#background-process-behavior">Background Process Behavior</a></h2>
+<h3 id="stdin"><a class="header" href="#stdin">stdin</a></h3>
+<p>Background processes have stdin disconnected from terminal:</p>
+<pre><code class="language-bash">cat &amp;
+# Will receive EOF immediately
+</code></pre>
+<h3 id="signals"><a class="header" href="#signals">Signals</a></h3>
+<p>Background processes:</p>
+<ul>
+<li>Ignore <code>SIGINT</code> (Ctrl+C)</li>
+<li>Receive <code>SIGHUP</code> when shell exits (unless using <code>nohup</code>)</li>
+</ul>
+<h3 id="exit-warning"><a class="header" href="#exit-warning">Exit Warning</a></h3>
+<p>When exiting with running jobs:</p>
+<pre><code class="language-bash">#&gt; exit
+hash: There are running jobs.
+#&gt; exit
+# Second exit forces quit
+</code></pre>
+<h2 id="practical-examples"><a class="header" href="#practical-examples">Practical Examples</a></h2>
+<h3 id="build-while-working"><a class="header" href="#build-while-working">Build While Working</a></h3>
+<pre><code class="language-bash">make clean &amp;&amp; make &amp;
+# Edit files while building
+</code></pre>
+<h3 id="download-in-background"><a class="header" href="#download-in-background">Download in Background</a></h3>
+<pre><code class="language-bash">curl -O http://example.com/large-file.zip &amp;
+</code></pre>
+<h3 id="run-server"><a class="header" href="#run-server">Run Server</a></h3>
+<pre><code class="language-bash">python -m http.server 8000 &amp;
+</code></pre>
+<h3 id="watch-logs"><a class="header" href="#watch-logs">Watch Logs</a></h3>
+<pre><code class="language-bash">tail -f /var/log/syslog &amp;
+</code></pre>
+<h2 id="tips-2"><a class="header" href="#tips-2">Tips</a></h2>
+<h3 id="check-if-job-running"><a class="header" href="#check-if-job-running">Check if Job Running</a></h3>
+<pre><code class="language-bash">jobs
+# or
+ps aux | grep command
+</code></pre>
+<h3 id="wait-for-completion"><a class="header" href="#wait-for-completion">Wait for Completion</a></h3>
+<pre><code class="language-bash">command &amp;
+pid=$!
+# Do other work...
+wait $pid
+echo "Command finished"
+</code></pre>
+<h3 id="nohup-for-persistent-jobs"><a class="header" href="#nohup-for-persistent-jobs">Nohup for Persistent Jobs</a></h3>
+<p>For jobs that should survive logout:</p>
+<pre><code class="language-bash">nohup long_command &amp;
+# Output goes to nohup.out
+</code></pre>
+<h2 id="limitations-5"><a class="header" href="#limitations-5">Limitations</a></h2>
+<ul>
+<li>Job control is basic compared to bash</li>
+<li>No <code>disown</code> command</li>
+<li>No sophisticated job status tracking</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="quick-reference-1"><a class="header" href="#quick-reference-1">Quick Reference</a></h1>
+<p>A consolidated reference for hash shell features.</p>
+<h2 id="command-line-options-2"><a class="header" href="#command-line-options-2">Command Line Options</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Option</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-c string</code></td><td>Execute commands from string</td></tr>
+<tr><td><code>-i</code></td><td>Force interactive mode</td></tr>
+<tr><td><code>-l</code>, <code>--login</code></td><td>Run as login shell</td></tr>
+<tr><td><code>-s</code></td><td>Read from stdin</td></tr>
+<tr><td><code>-v</code>, <code>--version</code></td><td>Print version</td></tr>
+<tr><td><code>-h</code>, <code>--help</code></td><td>Show help</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="key-bindings-1"><a class="header" href="#key-bindings-1">Key Bindings</a></h2>
+<h3 id="navigation"><a class="header" href="#navigation">Navigation</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Left/Right</code></td><td>Move cursor</td></tr>
+<tr><td><code>Up/Down</code></td><td>History navigation</td></tr>
+<tr><td><code>Ctrl+A</code></td><td>Beginning of line</td></tr>
+<tr><td><code>Ctrl+E</code></td><td>End of line</td></tr>
+<tr><td><code>Home/End</code></td><td>Beginning/End of line</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="editing-1"><a class="header" href="#editing-1">Editing</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Backspace</code></td><td>Delete before cursor</td></tr>
+<tr><td><code>Delete</code></td><td>Delete at cursor</td></tr>
+<tr><td><code>Ctrl+U</code></td><td>Delete to beginning</td></tr>
+<tr><td><code>Ctrl+K</code></td><td>Delete to end</td></tr>
+<tr><td><code>Ctrl+W</code></td><td>Delete word</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="other-1"><a class="header" href="#other-1">Other</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Tab</code></td><td>Auto-complete</td></tr>
+<tr><td><code>Ctrl+L</code></td><td>Clear screen</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Cancel line</td></tr>
+<tr><td><code>Ctrl+D</code></td><td>EOF / Exit</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="operators-1"><a class="header" href="#operators-1">Operators</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operator</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>|</code></td><td>Pipe stdout to stdin</td></tr>
+<tr><td><code>&gt;</code></td><td>Output to file (overwrite)</td></tr>
+<tr><td><code>&gt;&gt;</code></td><td>Output to file (append)</td></tr>
+<tr><td><code>&lt;</code></td><td>Input from file</td></tr>
+<tr><td><code>2&gt;</code></td><td>Stderr to file</td></tr>
+<tr><td><code>&amp;&gt;</code></td><td>Both stdout and stderr</td></tr>
+<tr><td><code>2&gt;&amp;1</code></td><td>Stderr to stdout</td></tr>
+<tr><td><code>&amp;&amp;</code></td><td>Run if previous succeeded</td></tr>
+<tr><td><code>||</code></td><td>Run if previous failed</td></tr>
+<tr><td><code>;</code></td><td>Run sequentially</td></tr>
+<tr><td><code>&amp;</code></td><td>Run in background</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="special-variables-2"><a class="header" href="#special-variables-2">Special Variables</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>$?</code></td><td>Exit code of last command</td></tr>
+<tr><td><code>$$</code></td><td>Shell process ID</td></tr>
+<tr><td><code>$0</code></td><td>Shell/script name</td></tr>
+<tr><td><code>$1</code>-<code>$9</code></td><td>Positional arguments</td></tr>
+<tr><td><code>$#</code></td><td>Number of arguments</td></tr>
+<tr><td><code>$@</code></td><td>All arguments (separate)</td></tr>
+<tr><td><code>$*</code></td><td>All arguments (single)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="test-operators"><a class="header" href="#test-operators">Test Operators</a></h2>
+<h3 id="file-tests-1"><a class="header" href="#file-tests-1">File Tests</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-e</code></td><td>Exists</td></tr>
+<tr><td><code>-f</code></td><td>Regular file</td></tr>
+<tr><td><code>-d</code></td><td>Directory</td></tr>
+<tr><td><code>-r</code></td><td>Readable</td></tr>
+<tr><td><code>-w</code></td><td>Writable</td></tr>
+<tr><td><code>-x</code></td><td>Executable</td></tr>
+<tr><td><code>-s</code></td><td>Size &gt; 0</td></tr>
+<tr><td><code>-L</code></td><td>Symbolic link</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="string-tests-1"><a class="header" href="#string-tests-1">String Tests</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-z</code></td><td>Empty string</td></tr>
+<tr><td><code>-n</code></td><td>Non-empty string</td></tr>
+<tr><td><code>=</code></td><td>Equal</td></tr>
+<tr><td><code>!=</code></td><td>Not equal</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="numeric-tests-1"><a class="header" href="#numeric-tests-1">Numeric Tests</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Test</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-eq</code></td><td>Equal</td></tr>
+<tr><td><code>-ne</code></td><td>Not equal</td></tr>
+<tr><td><code>-lt</code></td><td>Less than</td></tr>
+<tr><td><code>-le</code></td><td>Less or equal</td></tr>
+<tr><td><code>-gt</code></td><td>Greater than</td></tr>
+<tr><td><code>-ge</code></td><td>Greater or equal</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="ps1-escape-sequences"><a class="header" href="#ps1-escape-sequences">PS1 Escape Sequences</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Sequence</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>\w</code></td><td>Full path</td></tr>
+<tr><td><code>\W</code></td><td>Current directory</td></tr>
+<tr><td><code>\u</code></td><td>Username</td></tr>
+<tr><td><code>\h</code></td><td>Hostname</td></tr>
+<tr><td><code>\g</code></td><td>Git branch + status</td></tr>
+<tr><td><code>\e</code></td><td>Exit code color</td></tr>
+<tr><td><code>\$</code></td><td><code>$</code> or <code>#</code></td></tr>
+<tr><td><code>\n</code></td><td>Newline</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="history-expansion-1"><a class="header" href="#history-expansion-1">History Expansion</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Pattern</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>!!</code></td><td>Last command</td></tr>
+<tr><td><code>!n</code></td><td>Command number n</td></tr>
+<tr><td><code>!-n</code></td><td>n commands ago</td></tr>
+<tr><td><code>!prefix</code></td><td>Last starting with prefix</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="environment-variables-2"><a class="header" href="#environment-variables-2">Environment Variables</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>HISTSIZE</code></td><td>Commands in memory</td></tr>
+<tr><td><code>HISTFILESIZE</code></td><td>Commands in file</td></tr>
+<tr><td><code>HISTFILE</code></td><td>History file location</td></tr>
+<tr><td><code>HISTCONTROL</code></td><td>History behavior</td></tr>
+<tr><td><code>PS1</code></td><td>Prompt format</td></tr>
+<tr><td><code>PATH</code></td><td>Command search path</td></tr>
+<tr><td><code>HOME</code></td><td>Home directory</td></tr>
+<tr><td><code>EDITOR</code></td><td>Default editor</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="built-in-commands"><a class="header" href="#built-in-commands">Built-in Commands</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Command</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>alias</code></td><td>Define/list aliases</td></tr>
+<tr><td><code>unalias</code></td><td>Remove alias</td></tr>
+<tr><td><code>cd</code></td><td>Change directory</td></tr>
+<tr><td><code>pwd</code></td><td>Print working directory</td></tr>
+<tr><td><code>echo</code></td><td>Print arguments</td></tr>
+<tr><td><code>export</code></td><td>Set environment variable</td></tr>
+<tr><td><code>source</code></td><td>Execute file in current shell</td></tr>
+<tr><td><code>exit</code></td><td>Exit shell</td></tr>
+<tr><td><code>logout</code></td><td>Exit login shell</td></tr>
+<tr><td><code>history</code></td><td>Show command history</td></tr>
+<tr><td><code>jobs</code></td><td>List background jobs</td></tr>
+<tr><td><code>fg</code></td><td>Bring job to foreground</td></tr>
+<tr><td><code>bg</code></td><td>Continue job in background</td></tr>
+<tr><td><code>kill</code></td><td>Send signal to process</td></tr>
+<tr><td><code>test</code></td><td>Evaluate expression</td></tr>
+<tr><td><code>[</code></td><td>Same as test</td></tr>
+<tr><td><code>true</code></td><td>Return success</td></tr>
+<tr><td><code>false</code></td><td>Return failure</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="configuration-files-1"><a class="header" href="#configuration-files-1">Configuration Files</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File</th><th>When Loaded</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/etc/profile</code></td><td>Login shell</td></tr>
+<tr><td><code>~/.hash_profile</code></td><td>Login shell</td></tr>
+<tr><td><code>~/.profile</code></td><td>Login shell (fallback)</td></tr>
+<tr><td><code>~/.hashrc</code></td><td>Interactive shell</td></tr>
+<tr><td><code>~/.hash_logout</code></td><td>Login shell exit</td></tr>
+</tbody>
+</table>
+</div>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="contributing-guide"><a class="header" href="#contributing-guide">Contributing Guide</a></h1>
+<p>Thank you for your interest in contributing to hash!</p>
+<h2 id="getting-started"><a class="header" href="#getting-started">Getting Started</a></h2>
+<h3 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h3>
+<ul>
+<li>GCC or Clang compiler</li>
+<li>Make build system</li>
+<li>Git</li>
+</ul>
+<h3 id="fork-and-clone"><a class="header" href="#fork-and-clone">Fork and Clone</a></h3>
+<pre><code class="language-bash">git clone https://github.com/YOUR_USERNAME/hash.git
+cd hash
+git remote add upstream https://github.com/juliojimenez/hash.git
+</code></pre>
+<h3 id="build"><a class="header" href="#build">Build</a></h3>
+<pre><code class="language-bash">make clean
+make
+./hash-shell
+</code></pre>
+<h3 id="debug-build-1"><a class="header" href="#debug-build-1">Debug Build</a></h3>
+<pre><code class="language-bash">make debug
+</code></pre>
+<h2 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h2>
+<pre><code>hash/
+├── src/                    # Source files
+│   ├── main.c              # Entry point
+│   ├── hash.h              # Main header
+│   ├── parser.c/h          # Command parsing
+│   ├── execute.c/h         # Execution
+│   ├── builtins.c/h        # Built-in commands
+│   ├── history.c/h         # Command history
+│   ├── completion.c/h      # Tab completion
+│   ├── lineedit.c/h        # Line editing
+│   ├── prompt.c/h          # Prompt generation
+│   └── ...
+├── tests/                  # Unit tests
+├── docs/                   # Documentation
+├── book/                   # Book of Hash source
+└── Makefile
+</code></pre>
+<h2 id="coding-standards"><a class="header" href="#coding-standards">Coding Standards</a></h2>
+<h3 id="style"><a class="header" href="#style">Style</a></h3>
+<ul>
+<li>4 spaces indentation (no tabs)</li>
+<li>Functions: <code>snake_case</code> with module prefix</li>
+<li>Constants: <code>UPPER_SNAKE_CASE</code></li>
+<li>Max line length: 100 characters</li>
+</ul>
+<pre><code class="language-c">int example_function(char *arg) {
+    if (arg == NULL) {
+        return -1;
+    }
+    return 0;
+}
+</code></pre>
+<h3 id="safe-string-functions"><a class="header" href="#safe-string-functions">Safe String Functions</a></h3>
+<p>Always use safe string functions:</p>
+<pre><code class="language-c">// Good
+safe_strcpy(dst, src, sizeof(dst));
+safe_strcat(dst, src, sizeof(dst));
+
+// Avoid
+strcpy(dst, src);   // No bounds checking
+strcat(dst, src);   // No bounds checking
+</code></pre>
+<h3 id="compiler-warnings"><a class="header" href="#compiler-warnings">Compiler Warnings</a></h3>
+<p>Code must compile cleanly:</p>
+<pre><code class="language-bash">gcc -Wall -Wextra -Werror -std=gnu99
+</code></pre>
+<h2 id="testing-1"><a class="header" href="#testing-1">Testing</a></h2>
+<h3 id="setup-test-framework"><a class="header" href="#setup-test-framework">Setup Test Framework</a></h3>
+<pre><code class="language-bash">make test-setup
+</code></pre>
+<h3 id="run-tests"><a class="header" href="#run-tests">Run Tests</a></h3>
+<pre><code class="language-bash">make test        # Unit tests
+./test.sh        # Integration tests
+</code></pre>
+<h3 id="writing-tests"><a class="header" href="#writing-tests">Writing Tests</a></h3>
+<p>Tests use Unity framework:</p>
+<pre><code class="language-c">#include "unity.h"
+
+void test_feature_works(void) {
+    int result = function("input");
+    TEST_ASSERT_EQUAL_INT(0, result);
+}
+
+int main(void) {
+    UNITY_BEGIN();
+    RUN_TEST(test_feature_works);
+    return UNITY_END();
+}
+</code></pre>
+<h2 id="submitting-changes"><a class="header" href="#submitting-changes">Submitting Changes</a></h2>
+<h3 id="branch-naming"><a class="header" href="#branch-naming">Branch Naming</a></h3>
+<ul>
+<li><code>feature/description</code> - New features</li>
+<li><code>fix/description</code> - Bug fixes</li>
+<li><code>docs/description</code> - Documentation</li>
+</ul>
+<h3 id="commit-messages"><a class="header" href="#commit-messages">Commit Messages</a></h3>
+<pre><code>type(scope): description
+
+Types: feat, fix, docs, style, refactor, test, chore
+</code></pre>
+<p>Examples:</p>
+<pre><code>feat(completion): add environment variable completion
+fix(history): prevent duplicate entries
+docs(readme): update installation instructions
+</code></pre>
+<h3 id="before-submitting"><a class="header" href="#before-submitting">Before Submitting</a></h3>
+<pre><code class="language-bash"># Sync with upstream
+git fetch upstream
+git rebase upstream/main
+
+# Run tests
+make clean &amp;&amp; make &amp;&amp; make test
+./test.sh
+
+# Check warnings
+make CFLAGS="-Wall -Wextra -Werror -std=gnu99"
+</code></pre>
+<h3 id="pull-request"><a class="header" href="#pull-request">Pull Request</a></h3>
+<ol>
+<li>Push branch to your fork</li>
+<li>Open PR against <code>juliojimenez/hash:main</code></li>
+<li>Fill out PR template</li>
+<li>Address review feedback</li>
+</ol>
+<h2 id="getting-help-1"><a class="header" href="#getting-help-1">Getting Help</a></h2>
+<ul>
+<li><strong>Questions</strong>: <a href="https://github.com/juliojimenez/hash/discussions">GitHub Discussions</a></li>
+<li><strong>Bugs</strong>: <a href="https://github.com/juliojimenez/hash/issues">GitHub Issues</a></li>
+<li><strong>Email</strong>: julio@julioj.com</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="testing-2"><a class="header" href="#testing-2">Testing</a></h1>
+<p>Hash uses the Unity test framework for unit tests and shell scripts for integration tests.</p>
+<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
+<p>Download the Unity framework (first time only):</p>
+<pre><code class="language-bash">make test-setup
+</code></pre>
+<h2 id="running-tests-1"><a class="header" href="#running-tests-1">Running Tests</a></h2>
+<h3 id="unit-tests"><a class="header" href="#unit-tests">Unit Tests</a></h3>
+<pre><code class="language-bash">make test
+</code></pre>
+<h3 id="integration-tests"><a class="header" href="#integration-tests">Integration Tests</a></h3>
+<pre><code class="language-bash">./test.sh
+</code></pre>
+<h3 id="clean-test-artifacts"><a class="header" href="#clean-test-artifacts">Clean Test Artifacts</a></h3>
+<pre><code class="language-bash">make test-clean
+</code></pre>
+<h2 id="writing-unit-tests"><a class="header" href="#writing-unit-tests">Writing Unit Tests</a></h2>
+<h3 id="test-file-structure"><a class="header" href="#test-file-structure">Test File Structure</a></h3>
+<p>Create <code>tests/test_module.c</code>:</p>
+<pre><code class="language-c">#include "unity.h"
+#include "../src/module.h"
+
+void setUp(void) {
+    // Setup before each test
+}
+
+void tearDown(void) {
+    // Cleanup after each test
+}
+
+void test_feature_works(void) {
+    int result = module_function("input");
+    TEST_ASSERT_EQUAL_INT(0, result);
+}
+
+void test_handles_null(void) {
+    int result = module_function(NULL);
+    TEST_ASSERT_EQUAL_INT(-1, result);
+}
+
+int main(void) {
+    UNITY_BEGIN();
+    RUN_TEST(test_feature_works);
+    RUN_TEST(test_handles_null);
+    return UNITY_END();
+}
+</code></pre>
+<h3 id="common-assertions"><a class="header" href="#common-assertions">Common Assertions</a></h3>
+<pre><code class="language-c">TEST_ASSERT_EQUAL_INT(expected, actual)
+TEST_ASSERT_EQUAL_STRING(expected, actual)
+TEST_ASSERT_NOT_NULL(pointer)
+TEST_ASSERT_NULL(pointer)
+TEST_ASSERT_TRUE(condition)
+TEST_ASSERT_FALSE(condition)
+</code></pre>
+<h2 id="integration-tests-1"><a class="header" href="#integration-tests-1">Integration Tests</a></h2>
+<p>Add tests to <code>test.sh</code>:</p>
+<pre><code class="language-bash">run_test "description" "command" "expected_output"
+run_command_test "description" "command"
+run_file_test "description" "command" "file" "expected"
+</code></pre>
+<h2 id="sanitizer-tests"><a class="header" href="#sanitizer-tests">Sanitizer Tests</a></h2>
+<h3 id="addresssanitizer"><a class="header" href="#addresssanitizer">AddressSanitizer</a></h3>
+<pre><code class="language-bash">make clean
+make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer -std=gnu99"
+make test-clean
+make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address -fno-omit-frame-pointer -std=gnu99"
+</code></pre>
+<h3 id="undefinedbehaviorsanitizer"><a class="header" href="#undefinedbehaviorsanitizer">UndefinedBehaviorSanitizer</a></h3>
+<pre><code class="language-bash">make clean
+make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=undefined -fno-omit-frame-pointer -std=gnu99"
+make test-clean
+make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=undefined -fno-omit-frame-pointer -std=gnu99"
+</code></pre>
+<h3 id="combined-most-thorough"><a class="header" href="#combined-most-thorough">Combined (Most Thorough)</a></h3>
+<pre><code class="language-bash">make clean
+make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -std=gnu99"
+make test-clean
+make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -std=gnu99"
+</code></pre>
+<h2 id="test-coverage-guidelines"><a class="header" href="#test-coverage-guidelines">Test Coverage Guidelines</a></h2>
+<p>When adding features:</p>
+<ul>
+<li>Write unit tests for all public functions</li>
+<li>Write integration tests for user-facing features</li>
+<li>Test edge cases (NULL, empty strings, boundaries)</li>
+<li>Test error handling paths</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="security-policy"><a class="header" href="#security-policy">Security Policy</a></h1>
+<h2 id="supported-versions"><a class="header" href="#supported-versions">Supported Versions</a></h2>
+<p>The last 5 major versions receive security updates:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Version</th><th>Supported</th></tr>
+</thead>
+<tbody>
+<tr><td>v33.x</td><td>Yes</td></tr>
+<tr><td>v32.x</td><td>Yes</td></tr>
+<tr><td>v31.x</td><td>Yes</td></tr>
+<tr><td>v30.x</td><td>Yes</td></tr>
+<tr><td>v29.x</td><td>Yes</td></tr>
+<tr><td>&lt; v29</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="reporting-vulnerabilities"><a class="header" href="#reporting-vulnerabilities">Reporting Vulnerabilities</a></h2>
+<p><strong>Do NOT report security vulnerabilities through public issues.</strong></p>
+<p>Report via: <strong>Settings &gt; Security &gt; Advisories &gt; New draft security advisory</strong></p>
+<p>Include:</p>
+<ul>
+<li>Type of vulnerability</li>
+<li>Affected source files</li>
+<li>Steps to reproduce</li>
+<li>Proof-of-concept (if possible)</li>
+<li>Impact assessment</li>
+</ul>
+<h3 id="response-timeline"><a class="header" href="#response-timeline">Response Timeline</a></h3>
+<ul>
+<li><strong>Acknowledgment</strong>: 48 hours</li>
+<li><strong>Initial Assessment</strong>: 7 days</li>
+<li><strong>Resolution</strong>: 30 days (critical)</li>
+</ul>
+<h2 id="security-best-practices"><a class="header" href="#security-best-practices">Security Best Practices</a></h2>
+<h3 id="for-users"><a class="header" href="#for-users">For Users</a></h3>
+<ol>
+<li>Keep hash updated</li>
+<li>Review .hashrc from untrusted sources</li>
+<li>Set proper permissions on config files (600)</li>
+<li>Use leading space for sensitive commands</li>
+</ol>
+<h3 id="for-contributors"><a class="header" href="#for-contributors">For Contributors</a></h3>
+<ol>
+<li>Use safe string functions (<code>safe_strcpy</code>, <code>safe_strcat</code>)</li>
+<li>Validate all array indices and buffer sizes</li>
+<li>Never trust user input</li>
+<li>Use reentrant functions (<code>getpwuid_r</code> not <code>getpwuid</code>)</li>
+<li>Free all allocated memory</li>
+<li>Pass SonarQube analysis</li>
+</ol>
+<h2 id="security-features"><a class="header" href="#security-features">Security Features</a></h2>
+<p>Hash includes:</p>
+<ul>
+<li>Safe string utilities (bounds-checked)</li>
+<li>Input sanitization in parser</li>
+<li>History privacy (space prefix)</li>
+<li>No unsafe C functions (<code>gets</code>, <code>strcpy</code>, etc.)</li>
+<li>Stack protection (<code>-fstack-protector-strong</code>)</li>
+<li>Fortify source (<code>-D_FORTIFY_SOURCE=2</code>)</li>
+</ul>
+<h2 id="known-limitations"><a class="header" href="#known-limitations">Known Limitations</a></h2>
+<p>As a shell, hash executes arbitrary commands by design:</p>
+<ul>
+<li>Commands run with user privileges</li>
+<li>Aliases can execute arbitrary code</li>
+<li>Sourced scripts run in current context</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
