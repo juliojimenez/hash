@@ -1,12 +1,5 @@
-hash-shell (34-1) unstable; urgency=medium
+hash-shell (35-1) unstable; urgency=medium
 
-  * New documentation site: Book of Hash at https://hash-shell.org
-  * APT repository URL changed from juliojimenez.github.io/hash/ to 
-    hash-shell.org/apt/ - existing users should update their 
-    sources.list
-  * Bug fixes
-  * Finished fixing POSIX compliance tests
-  * Implemented reverse-i-search and forward-i-search
-  * Debian trixie binaries 
+  * fix(suggestion): Clear muted suggestion on Enter (by @kshku)
 
- -- Julio Jimenez <julio@julioj.com>  Mon, 02 Feb 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Sun, 08 Feb 2026 12:00:00 +0000

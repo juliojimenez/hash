@@ -5,18 +5,18 @@
 ### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell-v34-linux-x86_64
-chmod +x hash-shell-v34-linux-x86_64
-sudo mv hash-shell-v34-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell-v35-linux-x86_64
+chmod +x hash-shell-v35-linux-x86_64
+sudo mv hash-shell-v35-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 ### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell-v34-linux-aarch64
-chmod +x hash-shell-v34-linux-aarch64
-sudo mv hash-shell-v34-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell-v35-linux-aarch64
+chmod +x hash-shell-v35-linux-aarch64
+sudo mv hash-shell-v35-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
@@ -25,29 +25,29 @@ hash-shell
 ### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell_34-1~noble_amd64.deb
-sudo dpkg -i hash-shell_34-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell_35-1~noble_amd64.deb
+sudo dpkg -i hash-shell_35-1~noble_amd64.deb
 ```
 
 ### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell_34-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_34-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell_35-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_35-1~jammy_amd64.deb
 ```
 
 ### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell_34-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_34-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell_35-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_35-1~bookworm_amd64.deb
 ```
 
 ### Debian Trixie
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v34/hash-shell_34-1~trixie_amd64.deb
-sudo dpkg -i hash-shell_34-1~trixie_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v35/hash-shell_35-1~trixie_amd64.deb
+sudo dpkg -i hash-shell_35-1~trixie_amd64.deb
 ```
 
 ## APT Repository (Recommended)
