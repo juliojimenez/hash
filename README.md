@@ -133,8 +133,4 @@ docker run -v $(pwd):/scripts juliojimenez/hash-shell /scripts/myscript.sh
 
 https://hash-shell.org
 
-## Newsletter
-
-Keep up with development updates on [Rede Livre](https://redelivre.net/newsletters/hash) <img style="width:16px;margin-left:3px;margin-top:2px;" src="images/redelivre.png" />
-
 <a href="https://www.producthunt.com/products/hash-4?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-hash-6" target="_blank" rel="noopener noreferrer"><img alt="hash - A modern command line interpreter for Linux, macOS, and BSD. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1060873&amp;theme=dark&amp;t=1768026257667"></a>
