@@ -49,9 +49,9 @@ int arith_args(char **args);
  * Check if a string contains arithmetic expansion
  *
  * @param str String to check
- * @return 1 if contains $((...)), 0 otherwise
+ * @return true if contains $((...)), false otherwise
  */
-int has_arith(const char *str);
+bool has_arith(const char *str);
 
 /**
  * Check if an unset variable error occurred during evaluation

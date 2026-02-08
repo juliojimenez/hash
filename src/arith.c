@@ -220,6 +220,67 @@ static void set_variable(const char *name, long value) {
     shellvar_set(name, buf);
 }
 
+static bool is_special_variable(char c) {
+    if (c == '$' || c == '?' || c == '!' || c == '#'
+            || c == '@' || c == '*' || c == '-' || c == '0')
+        return true;
+    return false;
+}
+
+static void get_variable_token(Parser *p) {
+    char c = p->input[p->pos];
+    char nc = p->input[p->pos + 1];
+
+    p->current.type = TOK_VAR;
+
+    // Handle special variables
+    if (c == '$' && is_special_variable(nc)) {
+        // Handle special variables
+        p->current.name[0] = nc;
+        p->current.name[1] = '\0';
+        p->current.value = get_variable(p->current.name);
+        p->pos++;
+        return;
+    }
+
+    // 'var', '$var', or '${var}' syntax
+    size_t start = p->pos;
+    size_t len = 0;
+
+    if (c == '$') {
+        p->pos++;
+        start = p->pos;
+        c = p->input[p->pos];
+    }
+
+    if (c == '{') {
+        // ${var}
+        p->pos++;
+        start = p->pos;
+        while (p->input[p->pos] && p->input[p->pos] != '}') {
+            p->pos++;
+        }
+        len = p->pos - start;
+        if (p->input[p->pos] == '}') {
+            p->pos++;
+        }
+    } else {
+        // var or $var
+        while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
+            p->pos++;
+        }
+        len = p->pos - start;
+    }
+
+    // Copy the name
+    if (len < sizeof(p->current.name)) {
+        memcpy(p->current.name, p->input + start, len);
+        p->current.name[len] = '\0';
+    }
+
+    p->current.value = get_variable(p->current.name);
+}
+
 // Get next token
 static void next_token(Parser *p) {
     skip_whitespace(p);
@@ -243,56 +304,7 @@ static void next_token(Parser *p) {
 
     // Variable names (or starting with $)
     if (isalpha(c) || c == '_' || c == '$') {
-        size_t start = p->pos;
-        if (c == '$') {
-            p->pos++;
-            // Handle ${var} syntax
-            if (p->input[p->pos] == '{') {
-                p->pos++;
-                start = p->pos;
-                while (p->input[p->pos] && p->input[p->pos] != '}') {
-                    p->pos++;
-                }
-                size_t len = p->pos - start;
-                if (len < sizeof(p->current.name)) {
-                    memcpy(p->current.name, p->input + start, len);
-                    p->current.name[len] = '\0';
-                }
-                if (p->input[p->pos] == '}') p->pos++;
-            } else {
-                // Handle special variables like $$, $?, $!, $#, $@, $*, $-, $0
-                char special = p->input[p->pos];
-                if (special == '$' || special == '?' || special == '!' ||
-                    special == '#' || special == '@' || special == '*' ||
-                    special == '-' || special == '0') {
-                    p->current.name[0] = special;
-                    p->current.name[1] = '\0';
-                    p->pos++;
-                } else {
-                    // Handle $var syntax
-                    start = p->pos;
-                    while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
-                        p->pos++;
-                    }
-                    size_t len = p->pos - start;
-                    if (len < sizeof(p->current.name)) {
-                        memcpy(p->current.name, p->input + start, len);
-                        p->current.name[len] = '\0';
-                    }
-                }
-            }
-        } else {
-            while (isalnum(p->input[p->pos]) || p->input[p->pos] == '_') {
-                p->pos++;
-            }
-            size_t len = p->pos - start;
-            if (len < sizeof(p->current.name)) {
-                memcpy(p->current.name, p->input + start, len);
-                p->current.name[len] = '\0';
-            }
-        }
-        p->current.type = TOK_VAR;
-        p->current.value = get_variable(p->current.name);
+        get_variable_token(p);
         return;
     }
 
@@ -340,94 +352,119 @@ static void next_token(Parser *p) {
     p->pos++;
 }
 
+// Returns false if result is not set
+static bool parse_post_ops(Parser *p, const char *name, long val, long *result) {
+    if (p->error) return false;
+
+    switch (p->current.type) {
+        // Check for post-increment/decrement
+        case TOK_INC:
+            set_variable(name, val + 1);
+            next_token(p);
+            *result = val; // Return original value
+            return true;
+        case TOK_DEC:
+            set_variable(name, val - 1);
+            next_token(p);
+            *result = val;  // Return original value
+            return true;
+        // Check for assignment operators
+        case TOK_ASSIGN: {
+                next_token(p);
+                long newval = parse_ternary(p);
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        case TOK_PLUSEQ: {
+                next_token(p);
+                long newval = val + parse_ternary(p);
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        case TOK_MINUSEQ: {
+                next_token(p);
+                long newval = val - parse_ternary(p);
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        case TOK_STAREQ: {
+                next_token(p);
+                long newval = val * parse_ternary(p);
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        case TOK_SLASHEQ: {
+                next_token(p);
+                long divisor = parse_ternary(p);
+                if (divisor == 0) {
+                    p->error = 1;
+                    *result = 0;
+                    return true;
+                }
+                long newval = val / divisor;
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        case TOK_PERCENTEQ: {
+                next_token(p);
+                long divisor = parse_ternary(p);
+                if (divisor == 0) {
+                    p->error = 1;
+                    *result = 0;
+                    return true;
+                }
+                long newval = val % divisor;
+                set_variable(name, newval);
+                *result = newval;
+                return true;
+            }
+        default:
+            break;
+    }
+
+    return false;
+}
+
 // Primary: number, variable, (expression)
 static long parse_primary(Parser *p) {
     if (p->error) return 0;
 
-    if (p->current.type == TOK_NUMBER) {
-        long val = p->current.value;
-        next_token(p);
-        return val;
-    }
-
-    if (p->current.type == TOK_VAR) {
-        char name[256];
-        safe_strcpy(name, p->current.name, sizeof(name));
-        long val = p->current.value;
-        next_token(p);
-
-        // Check for post-increment/decrement
-        if (p->current.type == TOK_INC) {
-            set_variable(name, val + 1);
-            next_token(p);
-            return val;  // Return original value
-        }
-        if (p->current.type == TOK_DEC) {
-            set_variable(name, val - 1);
-            next_token(p);
-            return val;  // Return original value
-        }
-
-        // Check for assignment operators
-        if (p->current.type == TOK_ASSIGN) {
-            next_token(p);
-            long newval = parse_ternary(p);
-            set_variable(name, newval);
-            return newval;
-        }
-        if (p->current.type == TOK_PLUSEQ) {
-            next_token(p);
-            long newval = val + parse_ternary(p);
-            set_variable(name, newval);
-            return newval;
-        }
-        if (p->current.type == TOK_MINUSEQ) {
-            next_token(p);
-            long newval = val - parse_ternary(p);
-            set_variable(name, newval);
-            return newval;
-        }
-        if (p->current.type == TOK_STAREQ) {
-            next_token(p);
-            long newval = val * parse_ternary(p);
-            set_variable(name, newval);
-            return newval;
-        }
-        if (p->current.type == TOK_SLASHEQ) {
-            next_token(p);
-            long divisor = parse_ternary(p);
-            if (divisor == 0) {
-                p->error = 1;
-                return 0;
+    switch (p->current.type) {
+        case TOK_NUMBER: {
+                long val = p->current.value;
+                next_token(p);
+                return val;
             }
-            long newval = val / divisor;
-            set_variable(name, newval);
-            return newval;
-        }
-        if (p->current.type == TOK_PERCENTEQ) {
-            next_token(p);
-            long divisor = parse_ternary(p);
-            if (divisor == 0) {
-                p->error = 1;
-                return 0;
+        case TOK_VAR: {
+                char name[256];
+                safe_strcpy(name, p->current.name, sizeof(name));
+                long val = p->current.value;
+                next_token(p);
+
+                long result;
+                if (parse_post_ops(p, name, val, &result)) {
+                    return result;
+                }
+
+                return val;
             }
-            long newval = val % divisor;
-            set_variable(name, newval);
-            return newval;
-        }
-
-        return val;
-    }
-
-    if (p->current.type == TOK_LPAREN) {
-        next_token(p);
-        long val = parse_expression(p);
-        if (p->current.type == TOK_RPAREN) {
-            next_token(p);
-        } else {
-            p->error = 1;
-        }
-        return val;
+        case TOK_LPAREN: {
+                next_token(p);
+                long val = parse_expression(p);
+                if (p->current.type == TOK_RPAREN) {
+                    next_token(p);
+                } else {
+                    p->error = 1;
+                }
+                return val;
+            }
+        default:
+            break;
     }
 
     // Unexpected token
@@ -439,49 +476,46 @@ static long parse_primary(Parser *p) {
 static long parse_unary(Parser *p) {
     if (p->error) return 0;
 
-    if (p->current.type == TOK_PLUS) {
-        next_token(p);
-        return parse_unary(p);
-    }
-    if (p->current.type == TOK_MINUS) {
-        next_token(p);
-        return -parse_unary(p);
-    }
-    if (p->current.type == TOK_NOT) {
-        next_token(p);
-        return !parse_unary(p);
-    }
-    if (p->current.type == TOK_BNOT) {
-        next_token(p);
-        return ~parse_unary(p);
-    }
-    if (p->current.type == TOK_INC) {
-        next_token(p);
-        if (p->current.type == TOK_VAR) {
-            char name[256];
-            safe_strcpy(name, p->current.name, sizeof(name));
-            long val = p->current.value + 1;
-            set_variable(name, val);
+    switch (p->current.type) {
+        case TOK_PLUS:
             next_token(p);
-            return val;
-        }
-        p->error = 1;
-        return 0;
-    }
-    if (p->current.type == TOK_DEC) {
-        next_token(p);
-        if (p->current.type == TOK_VAR) {
-            char name[256];
-            safe_strcpy(name, p->current.name, sizeof(name));
-            long val = p->current.value - 1;
-            set_variable(name, val);
+            return parse_unary(p);
+        case TOK_MINUS:
             next_token(p);
-            return val;
-        }
-        p->error = 1;
-        return 0;
+            return -parse_unary(p);
+        case TOK_NOT:
+            next_token(p);
+            return !parse_unary(p);
+        case TOK_BNOT:
+            next_token(p);
+            return ~parse_unary(p);
+        case TOK_INC:
+            next_token(p);
+            if (p->current.type == TOK_VAR) {
+                char name[256];
+                safe_strcpy(name, p->current.name, sizeof(name));
+                long val = p->current.value + 1;
+                set_variable(name, val);
+                next_token(p);
+                return val;
+            }
+            p->error = 1;
+            return 0;
+        case TOK_DEC:
+            next_token(p);
+            if (p->current.type == TOK_VAR) {
+                char name[256];
+                safe_strcpy(name, p->current.name, sizeof(name));
+                long val = p->current.value - 1;
+                set_variable(name, val);
+                next_token(p);
+                return val;
+            }
+            p->error = 1;
+            return 0;
+        default:
+            break;
     }
-
     return parse_primary(p);
 }
 
@@ -750,8 +784,8 @@ int arith_evaluate(const char *expr, long *result) {
 }
 
 // Check if string contains arithmetic expansion
-int has_arith(const char *str) {
-    if (!str) return 0;
+bool has_arith(const char *str) {
+    if (!str) return false;
 
     const char *p = str;
     const char *prev = NULL;
@@ -763,12 +797,13 @@ int has_arith(const char *str) {
                 p++;
                 continue;
             }
-            return 1;
+            return true;
         }
         prev = p;
         p++;
     }
-    return 0;
+
+    return false;
 }
 
 // Find matching )) for $((
@@ -796,6 +831,40 @@ static const char *find_arith_end(const char *start) {
     return NULL;  // No matching )) found
 }
 
+static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, long *result) {
+    char *expr= malloc(expr_len + 1);
+    if (!expr) {
+        return -2;
+    }
+
+    memcpy(expr, expr_start, expr_len);
+    expr[expr_len] = '\0';
+
+    // First, expand any command substitutions in the expression
+    char *cmdsub_expanded = cmdsub_expand(expr);
+    if (cmdsub_expanded) {
+        free(expr);
+        expr= cmdsub_expanded;
+        // Strip \x03 IFS markers from cmdsub output - they're not needed
+        // for arithmetic and would cause the parser to error
+        const char *read = expr;
+        char *write = expr;
+        while (*read) {
+            if (*read != '\x03') {
+                *write++ = *read;
+            }
+            read++;
+        }
+        *write = '\0';
+    }
+
+    int ret = arith_evaluate(expr, result);
+
+    free(expr);
+
+    return ret;
+}
+
 // Expand arithmetic substitutions in a string
 char *arith_expand(const char *str) {
     if (!str || !has_arith(str)) return NULL;
@@ -807,78 +876,55 @@ char *arith_expand(const char *str) {
     const char *p = str;
 
     while (*p && out_pos < MAX_ARITH_LENGTH - 1) {
-        // Look for $(( but not if escaped
-        if (*p == '$' && *(p + 1) == '(' && *(p + 2) == '(') {
-            // Check if $( is escaped by \ or \x01 marker (from single quotes)
-            if (out_pos > 0 && (result[out_pos - 1] == '\\' || result[out_pos - 1] == '\x01')) {
-                // Escaped - copy $ literally and continue
-                result[out_pos++] = *p++;
-                continue;
-            }
-            p += 3;  // Skip $((
-
-            const char *end = find_arith_end(p);
-            if (!end) {
-                // Malformed, copy literally
-                if (out_pos < MAX_ARITH_LENGTH - 3) {
-                    result[out_pos++] = '$';
-                    result[out_pos++] = '(';
-                    result[out_pos++] = '(';
-                }
-                continue;
-            }
-
-            // Extract expression
-            size_t expr_len = end - p;
-            char *expr = malloc(expr_len + 1);
-            if (!expr) {
-                free(result);
-                return NULL;
-            }
-            memcpy(expr, p, expr_len);
-            expr[expr_len] = '\0';
-
-            // First, expand any command substitutions in the expression
-            char *cmdsub_expanded = cmdsub_expand(expr);
-            if (cmdsub_expanded) {
-                free(expr);
-                expr = cmdsub_expanded;
-                // Strip \x03 IFS markers from cmdsub output - they're not needed
-                // for arithmetic and would cause the parser to error
-                const char *read = expr;
-                char *write = expr;
-                while (*read) {
-                    if (*read != '\x03') {
-                        *write++ = *read;
-                    }
-                    read++;
-                }
-                *write = '\0';
-            }
-
-            // Evaluate
-            long value;
-            if (arith_evaluate(expr, &value) == 0) {
-                // Format result
-                char buf[32];
-                int n = snprintf(buf, sizeof(buf), "%ld", value);
-                if (n > 0 && out_pos + n < MAX_ARITH_LENGTH) {
-                    memcpy(result + out_pos, buf, n);
-                    out_pos += n;
-                }
-            } else {
-                // Error - output 0 or keep original?
-                // POSIX says error, but let's be lenient
-                result[out_pos++] = '0';
-            }
-
-            free(expr);
-            p = end + 2;  // Skip ))
+        // Check if regular characters Regular character
+        if (!(*p == '$' && *(p + 1) == '(' && *(p + 2) == '(')) {
+            result[out_pos++] = *p++;
             continue;
         }
 
-        // Regular character
-        result[out_pos++] = *p++;
+        // Check if $( is escaped by \ or \x01 marker (from single quotes)
+        if (out_pos > 0 && (result[out_pos - 1] == '\\' || result[out_pos - 1] == '\x01')) {
+            // Escaped - copy $ literally and continue
+            result[out_pos++] = *p++;
+            continue;
+        }
+
+        // Found $((
+        p += 3;  // Skip $((
+
+        const char *end = find_arith_end(p);
+        if (!end) {
+            // Malformed, copy literally
+            if (out_pos < MAX_ARITH_LENGTH - 3) {
+                result[out_pos++] = '$';
+                result[out_pos++] = '(';
+                result[out_pos++] = '(';
+            }
+            continue;
+        }
+
+        // Expand and Evaluate
+        long value;
+        int ret = expand_and_evaluate_expr(p, end - p, &value);
+        if (ret == 0) {
+            // Format result
+            char buf[32];
+            int n = snprintf(buf, sizeof(buf), "%ld", value);
+            if (n > 0 && out_pos + n < MAX_ARITH_LENGTH) {
+                memcpy(result + out_pos, buf, n);
+                out_pos += n;
+            }
+        } else if (ret == -2) {
+            // Failed malloc
+            free(result);
+            return NULL;
+        } else {
+            // Error - output 0 or keep original?
+            // POSIX says error, but let's be lenient
+            result[out_pos++] = '0';
+        }
+
+        p = end + 2;  // Skip ))
     }
 
     result[out_pos] = '\0';
@@ -890,11 +936,10 @@ int arith_args(char **args) {
     if (!args) return -1;
 
     for (int i = 0; args[i] != NULL; i++) {
-        if (has_arith(args[i])) {
-            char *expanded = arith_expand(args[i]);
-            if (expanded) {
-                args[i] = expanded;
-            }
+        // arith_expand checks for has_arith()
+        char *expanded = arith_expand(args[i]);
+        if (expanded) {
+            args[i] = expanded;
         }
     }
 
