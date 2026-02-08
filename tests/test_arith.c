@@ -107,6 +107,15 @@ void test_arith_dollar_var(void) {
     TEST_ASSERT_EQUAL_INT(14, result);
 }
 
+// Test variable with ${var} syntax
+void test_arith_dollar2_var(void) {
+    shellvar_set("x", "10");
+    long result;
+    int ret = arith_evaluate("${x} * 10", &result);
+    TEST_ASSERT_EQUAL_INT(0, ret);
+    TEST_ASSERT_EQUAL_INT(100, result);
+}
+
 // Test comparison operators
 void test_arith_less_than(void) {
     long result;
@@ -203,14 +212,14 @@ void test_arith_post_increment(void) {
 
 // Test has_arith function
 void test_has_arith_true(void) {
-    TEST_ASSERT_EQUAL_INT(1, has_arith("echo $((1+2))"));
-    TEST_ASSERT_EQUAL_INT(1, has_arith("$((x))"));
+    TEST_ASSERT_TRUE(has_arith("echo $((1+2))"));
+    TEST_ASSERT_TRUE(has_arith("$((x))"));
 }
 
 void test_has_arith_false(void) {
-    TEST_ASSERT_EQUAL_INT(0, has_arith("echo hello"));
-    TEST_ASSERT_EQUAL_INT(0, has_arith("$(command)"));  // Command sub, not arith
-    TEST_ASSERT_EQUAL_INT(0, has_arith("$variable"));
+    TEST_ASSERT_FALSE(has_arith("echo hello"));
+    TEST_ASSERT_FALSE(has_arith("$(command)"));  // Command sub, not arith
+    TEST_ASSERT_FALSE(has_arith("$variable"));
 }
 
 // Test arith_expand
@@ -274,6 +283,7 @@ int main(void) {
     RUN_TEST(test_arith_undefined_var);
     RUN_TEST(test_arith_defined_var);
     RUN_TEST(test_arith_dollar_var);
+    RUN_TEST(test_arith_dollar2_var);
     RUN_TEST(test_arith_less_than);
     RUN_TEST(test_arith_greater_than);
     RUN_TEST(test_arith_equal);
