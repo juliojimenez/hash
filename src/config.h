@@ -39,52 +39,165 @@ typedef struct {
 // Global config
 extern Config shell_config;
 
-// Initialize config with defaults
+/**
+ * Initialize config with defaults
+ */
 void config_init(void);
 
-// Load config from file
+/**
+ * Load config from file
+ *
+ * @param filepath Path to the file
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_load(const char *filepath);
 
-// Load default config file (~/.hashrc)
+/**
+ * Load default config file (~/.hashrc)
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_load_default(void);
 
-// Add an alias
+/**
+ * Add an alias
+ *
+ * @param name The alias name
+ * @param value The value of alias
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_add_alias(const char *name, const char *value);
 
-// Get alias value (returns NULL if not found)
+/**
+ * Get alias value (returns NULL if not found)
+ *
+ * @param name Name of alias
+ *
+ * @return Returns alias value or NULL if not found
+ */
 const char *config_get_alias(const char *name);
 
-// Remove an alias
+/**
+ * Remove an alias
+ *
+ * @param name Name of alias to remove
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_remove_alias(const char *name);
 
-// List all aliases
+/**
+ * List all aliases
+ */
 void config_list_aliases(void);
 
-// Process a config line (returns 0 on success)
+/**
+ * Process a config line (returns 0 on success)
+ *
+ * @param line The line to process
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_process_line(char *line);
 
-// Load config file silently (no error if file doesn't exist)
+/**
+ * Load config file silently (no error if file doesn't exist)
+ *
+ * @param filepath Path to file
+ *
+ * @return Returns -1 on error, 0 otherwise.
+ */
 int config_load_silent(const char *filepath);
 
-// Load startup files based on shell type
-// is_login_shell: true if invoked as login shell (argv[0] starts with '-' or --login)
+/**
+ * Load startup files based on shell type
+ *
+ * @param is_login_shell true if invoked as login shell (argv[0] starts with '-' or --login)
+ */
 void config_load_startup_files(bool is_login_shell);
 
-// Load logout files for login shell exit
-// Executes ~/.hash_logout if it exists (for login shells only)
+/**
+ * Load logout files for login shell exit
+ *
+ * Executes ~/.hash_logout if it exists (for login shells only)
+ */
 void config_load_logout_files(void);
 
-// Shell option functions
+/**
+ * Initialize the shell options
+ */
 void shell_options_init(void);
+
+/**
+ * Get the nounset option value
+ *
+ * @return Value of nounset option
+ */
 bool shell_option_nounset(void);
+
+/**
+ * Set the nounset option value
+ *
+ * @param value The value to set to
+ */
 void shell_option_set_nounset(bool value);
+
+/**
+ * Get the errexit option value
+ *
+ * @return Value of errexit option
+ */
 bool shell_option_errexit(void);
+
+/**
+ * Set the errexit option value
+ *
+ * @param value The value to set to
+ */
 void shell_option_set_errexit(bool value);
+
+/**
+ * Get the monitor option value
+ *
+ * @return Value of monitor option
+ */
 bool shell_option_monitor(void);
+
+/**
+ * Set the monitor option value
+ *
+ * @param value The value to set to
+ */
 void shell_option_set_monitor(bool value);
+
+/**
+ * Get the nonlexicalctrl option value
+ *
+ * @return Value of nonlexicalctrl option
+ */
 bool shell_option_nonlexicalctrl(void);
+
+/**
+ * Set the nonlexicalctrl option value
+ *
+ * @param value The value to set to
+ */
 void shell_option_set_nonlexicalctrl(bool value);
+
+/**
+ * Get the nolog option value
+ *
+ * @return Value of nolog option
+ */
 bool shell_option_nolog(void);
+
+/**
+ * Set the nolog option value
+ *
+ * @param value The value to set to
+ */
 void shell_option_set_nolog(bool value);
 
 #endif // CONFIG_H

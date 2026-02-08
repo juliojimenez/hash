@@ -51,22 +51,78 @@
 // Color control
 extern int colors_enabled;
 
-// Initialize color support (checks if terminal supports colors)
+/**
+ * Initialize color support (checks if terminal supports colors)
+ */
 void colors_init(void);
 
-// Enable/disable colors
+/**
+ * Enable colors
+ */
 void colors_enable(void);
+
+/**
+ * Enable colors
+ */
 void colors_disable(void);
 
-// Get color code (returns empty string if colors disabled)
+/**
+ * Helper function do use the color code.
+ *
+ * @param code The color code.
+ *
+ * @return Returns empty string if colors disabled, else returns the code itself.
+ */
 const char *color_code(const char *code);
 
-// Convenience functions for colored output
+/**
+ * Prints the format string with given color
+ *
+ * @param color The color to use
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_print(const char *color, const char *format, ...) COLOR_PRINTF_FORMAT(2, 3);
+
+/**
+ * Prints the format string with given color and adds a new line
+ *
+ * @param color The color to use
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_println(const char *color, const char *format, ...) COLOR_PRINTF_FORMAT(2, 3);
+
+/**
+ * Print a format string error message (red)
+ *
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_error(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+
+/**
+ * Print a format string success message (green)
+ *
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_success(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+
+/**
+ * Print a format string warning message (yellow)
+ *
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_warning(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
+
+/**
+ * Print a format string info message (cyan)
+ *
+ * @param format The format string
+ * @param ... args to format string
+ */
 void color_info(const char *format, ...) COLOR_PRINTF_FORMAT(1, 2);
 
 #endif // COLORS_H

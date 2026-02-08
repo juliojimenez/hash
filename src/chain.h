@@ -26,14 +26,29 @@ typedef struct {
     bool background;  // Entire chain runs in background
 } CommandChain;
 
-// Parse a line into chained commands
+/**
+ * Parse a line into chained commands
+ *
+ * @param line The line to parse
+ *
+ * @return Returns pointer to CommandChain or NULL on failure.
+ */
 CommandChain *chain_parse(char *line);
 
-// Free a command chain
+/**
+ * Free a command chain
+ *
+ * @param chain The command chain to free
+ */
 void chain_free(CommandChain *chain);
 
-// Execute a command chain
-// Returns 1 to continue shell loop, 0 to exit
+/**
+ * Execute a command chain
+ *
+ * @param chain The command chain to execute
+ *
+ * @return Returns 1 to continue shell loop, 0 to exit
+ */
 int chain_execute(const CommandChain *chain);
 
 #endif // CHAIN_H

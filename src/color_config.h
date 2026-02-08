@@ -43,23 +43,46 @@ typedef struct {
 // Global color configuration
 extern ColorConfig color_config;
 
-// Initialize color configuration with defaults
+/**
+ * Initialize color configuration with defaults
+ */
 void color_config_init(void);
 
-// Load color configuration from environment variables
+/**
+ * Load color configuration from environment variables
+ */
 void color_config_load_env(void);
 
-// Parse a color string (e.g., "bold,red" or "bright_blue")
-// Returns 0 on success, -1 on error
-// Stores ANSI escape sequence in buf
+/**
+ * Parse a color string (e.g., "bold,red" or "bright_blue")
+ *
+ * Stores ANSI escape sequence in buf
+ *
+ * @param color_str The color string to parse
+ * @param buf The buffer to write the parsed result
+ * @param buf_size Size of the buffer
+ *
+ * @return Returns 0 on success, -1 on error
+ */
 int color_config_parse(const char *color_str, char *buf, size_t buf_size);
 
-// Set a specific color element by name
-// Returns 0 on success, -1 on error
+/**
+ * Set a specific color element by name
+ *
+ * @param element The element to set color for
+ * @param value The value to set to
+ *
+ * @return Returns 0 on success, -1 on error
+ */
 int color_config_set(const char *element, const char *value);
 
-// Get color for element (respects NO_COLOR and colors_enabled)
-// Returns the color code or empty string if colors disabled
+/**
+ * Get color for element (respects NO_COLOR and colors_enabled)
+ *
+ * @param element_color The element to get the color for
+ *
+ * @return Returns the color code or empty string if colors disabled
+ */
 const char *color_config_get(const char *element_color);
 
 #endif // COLOR_CONFIG_H
