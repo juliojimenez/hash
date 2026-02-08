@@ -636,10 +636,12 @@ char *lineedit_read_line(const char *prompt) {
 
                 // Refresh line and move the cursor to end of line
                 // Hack to disable auto suggestion, move cursor one position back
-                set_cursor(buf, pos - 1, pos, prompt_str);
-                pos--;
-                refresh_line(buf, len, pos, prompt_str, newline_count);
-                set_cursor(buf, len, pos, prompt_str);
+                if (len > 0) {
+                    set_cursor(buf, pos - 1, pos, prompt_str);
+                    pos--;
+                    refresh_line(buf, len, pos, prompt_str, newline_count);
+                    set_cursor(buf, len, pos, prompt_str);
+                }
 
                 disable_raw_mode();
 
