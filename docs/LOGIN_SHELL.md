@@ -194,7 +194,7 @@ hash --login
 exec -a -hash /usr/local/bin/hash
 
 # Check if you're in a login shell (look for "(login)" in welcome)
-hash v35 (login)
+hash v36 (login)
 Type 'exit' to quit
 
 # Test logout
