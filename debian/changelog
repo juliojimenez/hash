@@ -1,5 +1,7 @@
-hash-shell (36-1) unstable; urgency=medium
+hash-shell (37-1) unstable; urgency=medium
 
-  * fix(lineedit): Empty Input Exits Shell
+  * Bug fixes
+  * docs(headers): convert comments to doxygen style (by @kshku)
+  * Refactor arith parser (by @kshku)
 
- -- Julio Jimenez <julio@julioj.com>  Sun, 08 Feb 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Wed, 11 Feb 2026 12:00:00 +0000

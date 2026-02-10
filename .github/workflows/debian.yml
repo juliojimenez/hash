@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Release Tag'
         required: true
-        default: 'v36'
+        default: 'v37'
 
 # Allow only one concurrent deployment
 concurrency:
