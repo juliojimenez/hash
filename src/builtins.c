@@ -41,88 +41,91 @@ void builtins_set_login_shell(bool is_login) {
     is_login_shell = is_login;
 }
 
+typedef enum {
+    BUILTIN_FUNC_CD,
+    BUILTIN_FUNC_EXIT,
+    BUILTIN_FUNC_ALIAS,
+    BUILTIN_FUNC_UNALIAS,
+    BUILTIN_FUNC_SOURCE,
+    BUILTIN_FUNC_DOT,
+    BUILTIN_FUNC_EXPORT,
+    BUILTIN_FUNC_SET,
+    BUILTIN_FUNC_HISTORY,
+    BUILTIN_FUNC_JOBS,
+    BUILTIN_FUNC_FG,
+    BUILTIN_FUNC_BG,
+    BUILTIN_FUNC_LOGOUT,
+    BUILTIN_FUNC_TEST,
+    BUILTIN_FUNC_BRACKET,
+    BUILTIN_FUNC_DOUBLE_BRACKET,
+    BUILTIN_FUNC_UNSET,
+    BUILTIN_FUNC_TRUE,
+    BUILTIN_FUNC_FALSE,
+    BUILTIN_FUNC_COLON,
+    BUILTIN_FUNC_ECHO,
+    BUILTIN_FUNC_READ,
+    BUILTIN_FUNC_RETURN,
+    BUILTIN_FUNC_BREAK,
+    BUILTIN_FUNC_CONTINUE,
+    BUILTIN_FUNC_EVAL,
+    BUILTIN_FUNC_UPDATE,
+    BUILTIN_FUNC_COMMAND,
+    BUILTIN_FUNC_EXEC,
+    BUILTIN_FUNC_TIMES,
+    BUILTIN_FUNC_TYPE,
+    BUILTIN_FUNC_READONLY,
+    BUILTIN_FUNC_TRAP,
+    BUILTIN_FUNC_WAIT,
+    BUILTIN_FUNC_KILL,
+    BUILTIN_FUNC_HASH,
+
+    BUILTIN_FUNC_MAX
+} BuiltinFunc;
+
+typedef struct {
+    const char *name;
+    int (*func)(char **);
+} Builtin;
+
 // Builtin command names and functions
-static char *builtin_str[] = {
-    "cd",
-    "exit",
-    "alias",
-    "unalias",
-    "source",
-    ".",          // Alias for source (POSIX)
-    "export",
-    "set",
-    "history",
-    "jobs",
-    "fg",
-    "bg",
-    "logout",
-    "test",
-    "[",
-    "[[",         // Bash-style extended test
-    "unset",
-    "true",
-    "false",
-    ":",
-    "echo",
-    "read",
-    "return",
-    "break",
-    "continue",
-    "eval",
-    "update",
-    "command",
-    "exec",
-    "times",
-    "type",
-    "readonly",
-    "trap",
-    "wait",
-    "kill",
-    "hash"
+static Builtin builtin[BUILTIN_FUNC_MAX] = {
+    [BUILTIN_FUNC_CD]               = (Builtin){"cd",           &shell_cd},
+    [BUILTIN_FUNC_EXIT]             = (Builtin){"exit",         &shell_exit},
+    [BUILTIN_FUNC_ALIAS]            = (Builtin){"alias",        &shell_alias},
+    [BUILTIN_FUNC_UNALIAS]          = (Builtin){"unalias",      &shell_unalias},
+    [BUILTIN_FUNC_SOURCE]           = (Builtin){"source",       &shell_source},
+    [BUILTIN_FUNC_DOT]              = (Builtin){".",            &shell_source},         // Alias for source (POSIX)
+    [BUILTIN_FUNC_EXPORT]           = (Builtin){"export",       &shell_export},
+    [BUILTIN_FUNC_SET]              = (Builtin){"set",          &shell_set},
+    [BUILTIN_FUNC_HISTORY]          = (Builtin){"history",      &shell_history},
+    [BUILTIN_FUNC_JOBS]             = (Builtin){"jobs",         &shell_jobs},
+    [BUILTIN_FUNC_FG]               = (Builtin){"fg",           &shell_fg},
+    [BUILTIN_FUNC_BG]               = (Builtin){"bg",           &shell_bg},
+    [BUILTIN_FUNC_LOGOUT]           = (Builtin){"logout",       &shell_logout},
+    [BUILTIN_FUNC_TEST]             = (Builtin){"test",         &shell_test},
+    [BUILTIN_FUNC_BRACKET]          = (Builtin){"[",            &shell_bracket},
+    [BUILTIN_FUNC_DOUBLE_BRACKET]   = (Builtin){"[[",           &shell_double_bracket}, // Bash-style extended test
+    [BUILTIN_FUNC_UNSET]            = (Builtin){"unset",        &shell_unset},
+    [BUILTIN_FUNC_TRUE]             = (Builtin){"true",         &shell_true},
+    [BUILTIN_FUNC_FALSE]            = (Builtin){"false",        &shell_false},
+    [BUILTIN_FUNC_COLON]            = (Builtin){":",            &shell_colon},
+    [BUILTIN_FUNC_ECHO]             = (Builtin){"echo",         &shell_echo},
+    [BUILTIN_FUNC_READ]             = (Builtin){"read",         &shell_read},
+    [BUILTIN_FUNC_RETURN]           = (Builtin){"return",       &shell_return},
+    [BUILTIN_FUNC_BREAK]            = (Builtin){"break",        &shell_break},
+    [BUILTIN_FUNC_CONTINUE]         = (Builtin){"continue",     &shell_continue_cmd},
+    [BUILTIN_FUNC_EVAL]             = (Builtin){"eval",         &shell_eval},
+    [BUILTIN_FUNC_UPDATE]           = (Builtin){"update",       &shell_update},
+    [BUILTIN_FUNC_COMMAND]          = (Builtin){"command",      &shell_command},
+    [BUILTIN_FUNC_EXEC]             = (Builtin){"exec",         &shell_exec},
+    [BUILTIN_FUNC_TIMES]            = (Builtin){"times",        &shell_times},
+    [BUILTIN_FUNC_TYPE]             = (Builtin){"type",         &shell_type},
+    [BUILTIN_FUNC_READONLY]         = (Builtin){"readonly",     &shell_readonly},
+    [BUILTIN_FUNC_TRAP]             = (Builtin){"trap",         &shell_trap},
+    [BUILTIN_FUNC_WAIT]             = (Builtin){"wait",         &shell_wait},
+    [BUILTIN_FUNC_KILL]             = (Builtin){"kill",         &shell_kill},
+    [BUILTIN_FUNC_HASH]             = (Builtin){"hash",         &shell_hash},
 };
-
-static int (*builtin_func[])(char **) = {
-    &shell_cd,
-    &shell_exit,
-    &shell_alias,
-    &shell_unalias,
-    &shell_source,
-    &shell_source,    // . is alias for source
-    &shell_export,
-    &shell_set,
-    &shell_history,
-    &shell_jobs,
-    &shell_fg,
-    &shell_bg,
-    &shell_logout,
-    &shell_test,
-    &shell_bracket,
-    &shell_double_bracket,
-    &shell_unset,
-    &shell_true,
-    &shell_false,
-    &shell_colon,
-    &shell_echo,
-    &shell_read,
-    &shell_return,
-    &shell_break,
-    &shell_continue_cmd,
-    &shell_eval,
-    &shell_update,
-    &shell_command,
-    &shell_exec,
-    &shell_times,
-    &shell_type,
-    &shell_readonly,
-    &shell_trap,
-    &shell_wait,
-    &shell_kill,
-    &shell_hash
-};
-
-static int num_builtins(void) {
-    return sizeof(builtin_str) / sizeof(char *);
-}
 
 // Parse job ID from argument (handles %n, %%, %+, %-, n)
 static int parse_job_id(const char *arg) {
@@ -451,6 +454,143 @@ int shell_history(char **args) {
     return 1;
 }
 
+static void handle_positional_arguments(char **args) {
+    int argc = 0;
+    // Count arguments
+    for (argc = 0; args[argc] != NULL; ++argc);
+
+    // Set positional parameters ($1, $2, ...)
+    script_set_positional_params(argc, argc > 0 ? args : NULL);
+    last_command_exit_code = 0;
+}
+
+// Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
+// Returns true if arg was handled and last_command_exit_code was set.
+static bool handle_posix_shell_options(char **args, int *i) {
+    const char *arg = args[*i];
+    if (strcmp(arg, "-u") == 0) {
+        shell_option_set_nounset(true);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "+u") == 0) {
+        shell_option_set_nounset(false);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "-e") == 0) {
+        shell_option_set_errexit(true);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "+e") == 0) {
+        shell_option_set_errexit(false);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "-m") == 0) {
+        shell_option_set_monitor(true);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "+m") == 0) {
+        shell_option_set_monitor(false);
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "-o") == 0 && args[(*i) + 1] != NULL) {
+        // Handle -o option_name
+        const char *opt = args[++(*i)];
+        if (strcmp(opt, "nounset") == 0) {
+            shell_option_set_nounset(true);
+        } else if (strcmp(opt, "errexit") == 0) {
+            shell_option_set_errexit(true);
+        } else if (strcmp(opt, "monitor") == 0) {
+            shell_option_set_monitor(true);
+        } else if (strcmp(opt, "nonlexicalctrl") == 0) {
+            shell_option_set_nonlexicalctrl(true);
+        } else if (strcmp(opt, "nolog") == 0) {
+            shell_option_set_nolog(true);
+        } else {
+            // POSIX: unknown option is an error
+            color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
+            last_command_exit_code = 1;
+            return true;
+        }
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "+o") == 0 && args[(*i) + 1] != NULL) {
+        // Handle +o option_name (disable option)
+        const char *opt = args[++(*i)];
+        if (strcmp(opt, "nounset") == 0) {
+            shell_option_set_nounset(false);
+        } else if (strcmp(opt, "errexit") == 0) {
+            shell_option_set_errexit(false);
+        } else if (strcmp(opt, "monitor") == 0) {
+            shell_option_set_monitor(false);
+        } else if (strcmp(opt, "nonlexicalctrl") == 0) {
+            shell_option_set_nonlexicalctrl(false);
+        } else if (strcmp(opt, "nolog") == 0) {
+            shell_option_set_nolog(false);
+        } else {
+            // POSIX: unknown option is an error
+            color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
+            last_command_exit_code = 1;
+            return true;
+        }
+        last_command_exit_code = 0;
+        return true;
+    }
+
+    return false;
+}
+
+// Returns true if arg was handled and last_command_exit_code was set.
+static bool handle_hash_shell_options(const char *arg) {
+    // Handle colors option
+    if (strcmp(arg, "colors=on") == 0) {
+        shell_config.colors_enabled = true;
+        colors_enable();
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "colors=off") == 0) {
+        shell_config.colors_enabled = false;
+        colors_disable();
+        last_command_exit_code = 0;
+        return true;
+    }
+
+    // Handle welcome option
+    if (strcmp(arg, "welcome=on") == 0) {
+        shell_config.show_welcome = true;
+        last_command_exit_code = 0;
+        return true;
+    } else if (strcmp(arg, "welcome=off") == 0) {
+        shell_config.show_welcome = false;
+        last_command_exit_code = 0;
+        return true;
+    }
+
+    // Handle PS1 setting
+    if (strncmp(arg, "PS1=", 4) == 0) {
+        const char *ps1_value = arg + 4;
+
+        // Remove quotes if present
+        size_t val_len = strlen(ps1_value);
+        if (val_len >= 2 &&
+            (ps1_value[0] == '"' || ps1_value[0] == '\'') &&
+            ps1_value[0] == ps1_value[val_len - 1]) {
+            // Make a mutable copy to remove quotes
+            char *temp = strdup(ps1_value);
+            if (temp) {
+                temp[val_len - 1] = '\0';
+                prompt_set_ps1(temp + 1);
+                free(temp);
+            }
+        } else {
+            prompt_set_ps1(ps1_value);
+        }
+        last_command_exit_code = 0;
+        return true;
+    }
+
+    return false;
+}
+
 int shell_set(char **args) {
     // Handle set with no arguments - list all shell variables
     if (args[1] == NULL) {
@@ -467,144 +607,29 @@ int shell_set(char **args) {
         // set -- arg1 arg2 ... sets $1, $2, etc.
         // set -- (with no args) clears positional parameters
         if (strcmp(arg, "--") == 0) {
-            // Count remaining arguments
-            int argc = 0;
-            for (int j = i + 1; args[j] != NULL; j++) {
-                argc++;
-            }
-            // Set positional parameters ($1, $2, ...)
-            script_set_positional_params(argc, argc > 0 ? &args[i + 1] : NULL);
-            last_command_exit_code = 0;
+            // All remaining arguments are used as positional arguments
+            handle_positional_arguments(&args[i + 1]);
             return 1;
         }
 
         // POSIX: If argument doesn't start with - or +, and isn't an option=value,
         // treat it and all following arguments as positional parameters
         if (arg[0] != '-' && arg[0] != '+' && !strchr(arg, '=')) {
-            // Count arguments from this point
-            int argc = 0;
-            for (int j = i; args[j] != NULL; j++) {
-                argc++;
-            }
-            // Set positional parameters ($1, $2, ...)
-            script_set_positional_params(argc, &args[i]);
-            last_command_exit_code = 0;
+            // arguments from this point are used as positional arguments
+            handle_positional_arguments(&args[i]);
             return 1;
         }
 
         // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
-        if (strcmp(arg, "-u") == 0) {
-            shell_option_set_nounset(true);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "+u") == 0) {
-            shell_option_set_nounset(false);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "-e") == 0) {
-            shell_option_set_errexit(true);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "+e") == 0) {
-            shell_option_set_errexit(false);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "-m") == 0) {
-            shell_option_set_monitor(true);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "+m") == 0) {
-            shell_option_set_monitor(false);
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "-o") == 0 && args[i + 1] != NULL) {
-            // Handle -o option_name
-            const char *opt = args[++i];
-            if (strcmp(opt, "nounset") == 0) {
-                shell_option_set_nounset(true);
-            } else if (strcmp(opt, "errexit") == 0) {
-                shell_option_set_errexit(true);
-            } else if (strcmp(opt, "monitor") == 0) {
-                shell_option_set_monitor(true);
-            } else if (strcmp(opt, "nonlexicalctrl") == 0) {
-                shell_option_set_nonlexicalctrl(true);
-            } else if (strcmp(opt, "nolog") == 0) {
-                shell_option_set_nolog(true);
-            } else {
-                // POSIX: unknown option is an error
-                color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
-                last_command_exit_code = 1;
+        if (handle_posix_shell_options(args, &i)) {
+            // On error it sets last_command_exit code to 1
+            if (last_command_exit_code == 1) {
                 return 1;
             }
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "+o") == 0 && args[i + 1] != NULL) {
-            // Handle +o option_name (disable option)
-            const char *opt = args[++i];
-            if (strcmp(opt, "nounset") == 0) {
-                shell_option_set_nounset(false);
-            } else if (strcmp(opt, "errexit") == 0) {
-                shell_option_set_errexit(false);
-            } else if (strcmp(opt, "monitor") == 0) {
-                shell_option_set_monitor(false);
-            } else if (strcmp(opt, "nonlexicalctrl") == 0) {
-                shell_option_set_nonlexicalctrl(false);
-            } else if (strcmp(opt, "nolog") == 0) {
-                shell_option_set_nolog(false);
-            } else {
-                // POSIX: unknown option is an error
-                color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
-                last_command_exit_code = 1;
-                return 1;
-            }
-            last_command_exit_code = 0;
             continue;
         }
 
-        // Handle colors option
-        if (strcmp(arg, "colors=on") == 0) {
-            shell_config.colors_enabled = true;
-            colors_enable();
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "colors=off") == 0) {
-            shell_config.colors_enabled = false;
-            colors_disable();
-            last_command_exit_code = 0;
-            continue;
-        }
-
-        // Handle welcome option
-        if (strcmp(arg, "welcome=on") == 0) {
-            shell_config.show_welcome = true;
-            last_command_exit_code = 0;
-            continue;
-        } else if (strcmp(arg, "welcome=off") == 0) {
-            shell_config.show_welcome = false;
-            last_command_exit_code = 0;
-            continue;
-        }
-
-        // Handle PS1 setting
-        if (strncmp(arg, "PS1=", 4) == 0) {
-            const char *ps1_value = arg + 4;
-
-            // Remove quotes if present
-            size_t val_len = strlen(ps1_value);
-            if (val_len >= 2 &&
-                (ps1_value[0] == '"' || ps1_value[0] == '\'') &&
-                ps1_value[0] == ps1_value[val_len - 1]) {
-                // Make a mutable copy to remove quotes
-                char *temp = strdup(ps1_value);
-                if (temp) {
-                    temp[val_len - 1] = '\0';
-                    prompt_set_ps1(temp + 1);
-                    free(temp);
-                }
-            } else {
-                prompt_set_ps1(ps1_value);
-            }
-            last_command_exit_code = 0;
+        if (handle_hash_shell_options(arg)) {
             continue;
         }
 
@@ -896,6 +921,7 @@ int shell_read(char **args) {
 
     // Split line into words and assign to variables
     char *saveptr;
+    // TODO: Use the IFS
     const char *word = strtok_r(line, " \t", &saveptr);
     int i = start;
 
@@ -918,6 +944,7 @@ int shell_read(char **args) {
         } else {
             setenv(args[i], word ? word : "", 1);
             if (word) {
+                // TODO: Use the IFS
                 word = strtok_r(NULL, " \t", &saveptr);
             }
         }
@@ -1118,8 +1145,8 @@ static bool is_posix_keyword(const char *word) {
 
 // Check if name is a builtin (helper for command -v/-V)
 static bool is_builtin_name(const char *name) {
-    for (int i = 0; i < num_builtins(); i++) {
-        if (strcmp(name, builtin_str[i]) == 0) {
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        if (strcmp(name, builtin[i].name) == 0) {
             return true;
         }
     }
@@ -1162,6 +1189,73 @@ char *find_in_path(const char *cmd) {
     return NULL;
 }
 
+static bool find_command(const char *cmd, bool verbose) {
+    bool found = false;
+
+    // Check for alias first
+    const char *alias_val = config_get_alias(cmd);
+    if (alias_val) {
+        if (verbose) {
+            printf("%s is aliased to '%s'\n", cmd, alias_val);
+        } else {
+            printf("alias %s='%s'\n", cmd, alias_val);
+        }
+        found = true;
+    }
+
+    // Check for keyword
+    if (is_posix_keyword(cmd)) {
+        if (verbose) {
+            printf("%s is a shell keyword\n", cmd);
+        } else {
+            printf("%s\n", cmd);
+        }
+        found = true;
+    }
+
+    // Check for builtin
+    if (is_builtin_name(cmd)) {
+        if (verbose) {
+            printf("%s is a shell builtin\n", cmd);
+        } else {
+            printf("%s\n", cmd);
+        }
+        found = true;
+    }
+
+    // Check for function
+    if (script_get_function(cmd)) {
+        if (verbose) {
+            printf("%s is a function\n", cmd);
+        } else {
+            printf("%s\n", cmd);
+        }
+        found = true;
+    }
+
+    // Check for external command
+    if (!found) {
+        char *path = find_in_path(cmd);
+        if (path) {
+            if (verbose) {
+                printf("%s is %s\n", cmd, path);
+            } else {
+                printf("%s\n", path);
+            }
+            free(path);
+            found = true;
+        }
+    }
+
+    if (!found && verbose) {
+        fprintf(stderr, "%s: %s: not found\n", HASH_NAME, cmd);
+    }
+
+    last_command_exit_code = found ? 0 : 1;
+
+    return found;
+}
+
 int shell_command(char **args) {
     bool opt_v = false;  // -v: print command path
     bool opt_V = false;  // -V: verbose description
@@ -1201,91 +1295,15 @@ int shell_command(char **args) {
 
     // Handle -v option (print command location/type)
     if (opt_v) {
-        int found = 0;
-
-        // Check for alias first
-        const char *alias_val = config_get_alias(cmd);
-        if (alias_val) {
-            printf("alias %s='%s'\n", cmd, alias_val);
-            found = 1;
-        }
-
-        // Check for keyword
-        if (is_posix_keyword(cmd)) {
-            printf("%s\n", cmd);
-            found = 1;
-        }
-
-        // Check for builtin
-        if (is_builtin_name(cmd)) {
-            printf("%s\n", cmd);
-            found = 1;
-        }
-
-        // Check for function
-        if (script_get_function(cmd)) {
-            printf("%s\n", cmd);
-            found = 1;
-        }
-
-        // Check for external command
-        if (!found) {
-            char *path = find_in_path(cmd);
-            if (path) {
-                printf("%s\n", path);
-                free(path);
-                found = 1;
-            }
-        }
-
-        last_command_exit_code = found ? 0 : 1;
+        bool ret = find_command(cmd, false);
+        (void)ret;
         return 1;
     }
 
     // Handle -V option (verbose description)
     if (opt_V) {
-        int found = 0;
-
-        // Check for alias
-        const char *alias_val = config_get_alias(cmd);
-        if (alias_val) {
-            printf("%s is aliased to '%s'\n", cmd, alias_val);
-            found = 1;
-        }
-
-        // Check for keyword
-        if (is_posix_keyword(cmd)) {
-            printf("%s is a shell keyword\n", cmd);
-            found = 1;
-        }
-
-        // Check for builtin
-        if (is_builtin_name(cmd)) {
-            printf("%s is a shell builtin\n", cmd);
-            found = 1;
-        }
-
-        // Check for function
-        if (script_get_function(cmd)) {
-            printf("%s is a function\n", cmd);
-            found = 1;
-        }
-
-        // Check for external command
-        if (!found) {
-            char *path = find_in_path(cmd);
-            if (path) {
-                printf("%s is %s\n", cmd, path);
-                free(path);
-                found = 1;
-            }
-        }
-
-        if (!found) {
-            fprintf(stderr, "%s: %s: not found\n", HASH_NAME, cmd);
-        }
-
-        last_command_exit_code = found ? 0 : 1;
+        bool ret = find_command(cmd, true);
+        (void)ret;
         return 1;
     }
 
@@ -1307,20 +1325,9 @@ int shell_command(char **args) {
     return 1;
 }
 
-int shell_exec(char **args) {
-    // exec with no arguments: just return success (noop)
-    if (!args[1]) {
-        last_command_exit_code = 0;
-        return 1;
-    }
-
-    // Check for redirections only (exec N<file, exec N>file, etc.)
-    // These persist for the shell process
-    int i = 1;
-    bool has_command = false;
-
+static bool check_has_command(char **args) {
     // Parse for redirections vs command
-    for (i = 1; args[i]; i++) {
+    for (int i = 0; args[i]; i++) {
         const char *arg = args[i];
         // Check if this looks like a redirection
         // Patterns: N<file, N>file, N>>file, N<&M, N>&M, <file, >file, etc.
@@ -1340,13 +1347,16 @@ int shell_exec(char **args) {
         }
 
         if (!is_redir) {
-            has_command = true;
-            break;
+            // has command
+            return true;
         }
     }
 
-    // Handle redirections
-    for (i = 1; args[i]; i++) {
+    return false;
+}
+
+static int handle_redirections(char **args, bool has_command) {
+    for (int i = 0; args[i]; i++) {
         const char *arg = args[i];
 
         // Parse fd number (default to 0 for input, 1 for output)
@@ -1443,10 +1453,30 @@ int shell_exec(char **args) {
         }
     }
 
+    return 0;
+}
+
+int shell_exec(char **args) {
+    // exec with no arguments: just return success (noop)
+    if (!args[1]) {
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Check for redirections only (exec N<file, exec N>file, etc.)
+    // These persist for the shell process
+    bool has_command = check_has_command(&args[1]);
+
+    // Handle redirections
+    int ret = handle_redirections(&args[1], has_command);
+    if (ret != 0) {
+        return ret;
+    }
+
     // If there's a command, replace the shell
     if (has_command) {
         // Find the command start
-        for (i = 1; args[i]; i++) {
+        for (int i = 1; args[i]; i++) {
             const char *arg = args[i];
             const char *p = arg;
             while (*p && isdigit(*p)) p++;
@@ -1529,50 +1559,12 @@ int shell_type(char **args) {
         return 1;
     }
 
-    int all_found = 1;
+    bool all_found = true;
 
     for (int i = 1; args[i]; i++) {
         const char *cmd = args[i];
-        int found = 0;
-
-        // Check for alias
-        const char *alias_val = config_get_alias(cmd);
-        if (alias_val) {
-            printf("%s is aliased to '%s'\n", cmd, alias_val);
-            found = 1;
-        }
-
-        // Check for keyword
-        if (is_posix_keyword(cmd)) {
-            printf("%s is a shell keyword\n", cmd);
-            found = 1;
-        }
-
-        // Check for builtin
-        if (is_builtin_name(cmd)) {
-            printf("%s is a shell builtin\n", cmd);
-            found = 1;
-        }
-
-        // Check for function
-        if (script_get_function(cmd)) {
-            printf("%s is a function\n", cmd);
-            found = 1;
-        }
-
-        // Check for external command
-        if (!found) {
-            char *path = find_in_path(cmd);
-            if (path) {
-                printf("%s is %s\n", cmd, path);
-                free(path);
-                found = 1;
-            }
-        }
-
-        if (!found) {
-            fprintf(stderr, "%s: type: %s: not found\n", HASH_NAME, cmd);
-            all_found = 0;
+        if (!find_command(cmd, true)) {
+            all_found = false;
         }
     }
 
@@ -1725,6 +1717,77 @@ int shell_trap(char **args) {
     return 1;
 }
 
+static void wait_for_all_jobs(sigset_t old_mask) {
+    int status;
+    pid_t pid;
+
+    // Wait for all child processes
+    // Keep trying until no more children (ECHILD) or interrupted
+    while (1) {
+        pid = waitpid(-1, &status, 0);
+        if (pid > 0) {
+            // Successfully waited for a child
+            jobs_update_status(pid, status);
+            const Job *job = jobs_get_by_pid(pid);
+            if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
+                jobs_remove(job->job_id);
+            }
+        } else if (pid == -1) {
+            if (errno == ECHILD) {
+                // No more children to wait for
+                break;
+            } else if (errno == EINTR) {
+                // Interrupted by signal, try again
+                continue;
+            } else {
+                // Other error, stop waiting
+                break;
+            }
+        } else {
+            // pid == 0 shouldn't happen without WNOHANG, but handle it
+            break;
+        }
+    }
+
+    sigprocmask(SIG_SETMASK, &old_mask, NULL);
+    last_command_exit_code = 0;
+}
+
+static void wait_for_job_pid(pid_t pid, int job_id_to_remove) {
+    int status;
+    pid_t result = waitpid(pid, &status, 0);
+    if (result > 0) {
+        if (WIFEXITED(status)) {
+            last_command_exit_code = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            last_command_exit_code = 128 + WTERMSIG(status);
+        } else {
+            last_command_exit_code = 1;
+        }
+        jobs_update_status(pid, status);
+        // Remove the completed job from the table
+        if (job_id_to_remove > 0) {
+            jobs_remove(job_id_to_remove);
+        }
+    } else {
+        // Process already exited (reaped by SIGCHLD handler) or doesn't exist
+        // Check if we have a stored exit status from the job table
+        const Job *job = jobs_get_by_pid(pid);
+        if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
+            // Use the stored exit status from when SIGCHLD reaped it
+            last_command_exit_code = job->exit_status;
+            jobs_remove(job->job_id);
+        } else if (job_id_to_remove > 0) {
+            // Job exists but no stored status - shouldn't happen
+            last_command_exit_code = 127;
+            jobs_remove(job_id_to_remove);
+        } else {
+            // Not a known job - just report 127
+            last_command_exit_code = 127;
+        }
+    }
+}
+
 int shell_wait(char **args) {
     // Block SIGCHLD during wait to prevent race condition where
     // the SIGCHLD handler reaps children before waitpid can see them
@@ -1735,39 +1798,7 @@ int shell_wait(char **args) {
 
     // wait with no args: wait for all background jobs
     if (args[1] == NULL) {
-        int status;
-        pid_t pid;
-
-        // Wait for all child processes
-        // Keep trying until no more children (ECHILD) or interrupted
-        while (1) {
-            pid = waitpid(-1, &status, 0);
-            if (pid > 0) {
-                // Successfully waited for a child
-                jobs_update_status(pid, status);
-                const Job *job = jobs_get_by_pid(pid);
-                if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
-                    jobs_remove(job->job_id);
-                }
-            } else if (pid == -1) {
-                if (errno == ECHILD) {
-                    // No more children to wait for
-                    break;
-                } else if (errno == EINTR) {
-                    // Interrupted by signal, try again
-                    continue;
-                } else {
-                    // Other error, stop waiting
-                    break;
-                }
-            } else {
-                // pid == 0 shouldn't happen without WNOHANG, but handle it
-                break;
-            }
-        }
-
-        sigprocmask(SIG_SETMASK, &old_mask, NULL);
-        last_command_exit_code = 0;
+        wait_for_all_jobs(old_mask);
         return 1;
     }
 
@@ -1806,38 +1837,7 @@ int shell_wait(char **args) {
         }
 
         if (pid > 0) {
-            int status;
-            pid_t result = waitpid(pid, &status, 0);
-            if (result > 0) {
-                if (WIFEXITED(status)) {
-                    last_command_exit_code = WEXITSTATUS(status);
-                } else if (WIFSIGNALED(status)) {
-                    last_command_exit_code = 128 + WTERMSIG(status);
-                } else {
-                    last_command_exit_code = 1;
-                }
-                jobs_update_status(pid, status);
-                // Remove the completed job from the table
-                if (job_id_to_remove > 0) {
-                    jobs_remove(job_id_to_remove);
-                }
-            } else {
-                // Process already exited (reaped by SIGCHLD handler) or doesn't exist
-                // Check if we have a stored exit status from the job table
-                const Job *job = jobs_get_by_pid(pid);
-                if (job && (job->state == JOB_DONE || job->state == JOB_TERMINATED)) {
-                    // Use the stored exit status from when SIGCHLD reaped it
-                    last_command_exit_code = job->exit_status;
-                    jobs_remove(job->job_id);
-                } else if (job_id_to_remove > 0) {
-                    // Job exists but no stored status - shouldn't happen
-                    last_command_exit_code = 127;
-                    jobs_remove(job_id_to_remove);
-                } else {
-                    // Not a known job - just report 127
-                    last_command_exit_code = 127;
-                }
-            }
+            wait_for_job_pid(pid, job_id_to_remove);
         }
     }
 
@@ -1900,59 +1900,36 @@ static int signal_name_to_number(const char *name) {
     return -1;  // Unknown signal
 }
 
-int shell_kill(char **args) {
-    int sig = SIGTERM;  // Default signal
-    int start_idx = 1;
+static void print_signals(void) {
+    printf("HUP INT QUIT ILL ");
+#ifdef SIGTRAP
+    printf("TRAP ");
+#endif
+    printf("ABRT FPE KILL BUS SEGV SYS PIPE ALRM TERM\n");
 
-    // Check for -l option (list signals)
-    if (args[1] && strcmp(args[1], "-l") == 0) {
-        printf("HUP INT QUIT ILL TRAP ABRT FPE KILL BUS SEGV SYS PIPE ALRM TERM\n");
-        printf("URG STOP TSTP CONT CHLD TTIN TTOU IO XCPU XFSZ VTALRM PROF WINCH USR1 USR2\n");
-        last_command_exit_code = 0;
-        return 1;
-    }
+    printf("URG STOP TSTP CONT CHLD TTIN TTOU ");
+#ifdef SIGIO
+    printf("IO ");
+#endif
+#ifdef SIGXCPU
+    printf("XCPU ");
+#endif
+#ifdef SIGXFSZ
+    printf("XFSZ ");
+#endif
+#ifdef SIGVTALRM
+    printf("VTALRM ");
+#endif
+#ifdef SIGPROF
+    printf("PROF ");
+#endif
+#ifdef SIGWINCH
+    printf("WINCH ");
+#endif
+    printf("USR1 USR2\n");
+}
 
-    // Parse signal specification
-    if (args[1] && args[1][0] == '-') {
-        const char *sigspec = args[1] + 1;
-
-        if (strcmp(sigspec, "s") == 0) {
-            // -s SIG format
-            if (!args[2]) {
-                fprintf(stderr, "%s: kill: -s requires an argument\n", HASH_NAME);
-                last_command_exit_code = 1;
-                return 1;
-            }
-            sigspec = args[2];
-            start_idx = 3;
-        } else {
-            start_idx = 2;
-        }
-
-        // Check if it's a number
-        char *endptr;
-        long num = strtol(sigspec, &endptr, 10);
-        if (*endptr == '\0') {
-            sig = (int)num;
-        } else {
-            // It's a signal name
-            sig = signal_name_to_number(sigspec);
-            if (sig == -1) {
-                fprintf(stderr, "%s: kill: %s: invalid signal specification\n", HASH_NAME, sigspec);
-                last_command_exit_code = 1;
-                return 1;
-            }
-        }
-    }
-
-    // No targets specified
-    if (!args[start_idx]) {
-        fprintf(stderr, "usage: kill [-s sigspec | -sigspec] pid | jobspec ...\n");
-        last_command_exit_code = 1;
-        return 1;
-    }
-
-    // Process each target
+static int process_each_target(char **args, int start_idx, int sig) {
     int result = 0;
     for (int i = start_idx; args[i]; i++) {
         pid_t pid = 0;
@@ -2006,7 +1983,62 @@ int shell_kill(char **args) {
         }
     }
 
-    last_command_exit_code = result;
+    return result;
+}
+
+int shell_kill(char **args) {
+    int sig = SIGTERM;  // Default signal
+    int start_idx = 1;
+
+    // Check for -l option (list signals)
+    if (args[1] && strcmp(args[1], "-l") == 0) {
+        print_signals();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // Parse signal specification
+    if (args[1] && args[1][0] == '-') {
+        const char *sigspec = args[1] + 1;
+
+        if (strcmp(sigspec, "s") == 0) {
+            // -s SIG format
+            if (!args[2]) {
+                fprintf(stderr, "%s: kill: -s requires an argument\n", HASH_NAME);
+                last_command_exit_code = 1;
+                return 1;
+            }
+            sigspec = args[2];
+            start_idx = 3;
+        } else {
+            start_idx = 2;
+        }
+
+        // Check if it's a number
+        char *endptr;
+        long num = strtol(sigspec, &endptr, 10);
+        if (*endptr == '\0') {
+            sig = (int)num;
+        } else {
+            // It's a signal name
+            sig = signal_name_to_number(sigspec);
+            if (sig == -1) {
+                fprintf(stderr, "%s: kill: %s: invalid signal specification\n", HASH_NAME, sigspec);
+                last_command_exit_code = 1;
+                return 1;
+            }
+        }
+    }
+
+    // No targets specified
+    if (!args[start_idx]) {
+        fprintf(stderr, "usage: kill [-s sigspec | -sigspec] pid | jobspec ...\n");
+        last_command_exit_code = 1;
+        return 1;
+    }
+
+    // Process each target
+    last_command_exit_code = process_each_target(args, start_idx, sig);
     return 1;
 }
 
@@ -2150,9 +2182,9 @@ int try_builtin(char **args) {
         return -1;
     }
 
-    for (int i = 0; i < num_builtins(); i++) {
-        if (strcmp(args[0], builtin_str[i]) == 0) {
-            return (*builtin_func[i])(args);
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        if (strcmp(args[0], builtin[i].name) == 0) {
+            return (*builtin[i].func)(args);
         }
     }
 
@@ -2164,8 +2196,8 @@ bool is_builtin(const char *cmd) {
         return false;
     }
 
-    for (int i = 0; i < num_builtins(); i++) {
-        if (strcmp(cmd, builtin_str[i]) == 0) {
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        if (strcmp(cmd, builtin[i].name) == 0) {
             return true;
         }
     }
