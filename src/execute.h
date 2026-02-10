@@ -11,7 +11,7 @@ extern int last_command_exit_code;
  *
  * @param args The arguments (including command)
  *
- * @return 
+ * @return
  */
 int execute(char **args);
 
