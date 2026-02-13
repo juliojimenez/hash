@@ -39,7 +39,7 @@ hash-shell
 
 ```bash
 $ hash-shell
-hash v37
+hash v38
 Type 'exit' to quit
 
 #> echo "Hello, World!"
