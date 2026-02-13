@@ -7,18 +7,12 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <limits.h>
 #include "completion.h"
 #include "safe_string.h"
 #include "config.h"
 #include "builtins.h"
 #include "expand.h"
-
-// Built-in commands for completion
-static const char *builtin_commands[] = {
-    "cd", "exit", "alias", "unalias", "source", "export", "history",
-    "jobs", "fg", "bg", "logout", "test", "unset", "true", "false",
-    "echo", "read", "return", "break", "continue", "eval", "update", NULL
-};
 
 // Initialize completion
 void completion_init(void) {
@@ -90,25 +84,23 @@ char *completion_common_prefix(char **matches, int count) {
     return prefix;
 }
 
-// Complete commands from PATH
-static void complete_commands(CompletionResult *result, const char *prefix) {
-    size_t prefix_len = strlen(prefix);
-
-    // Add built-in commands
-    for (int i = 0; builtin_commands[i] != NULL; i++) {
-        if (strncmp(builtin_commands[i], prefix, prefix_len) == 0) {
-            add_match(result, builtin_commands[i]);
+static void add_builtin_commands(CompletionResult *result, const char *prefix, size_t prefix_len) {
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        if (strncmp(builtins[i].name, prefix, prefix_len) == 0) {
+            add_match(result, builtins[i].name);
         }
     }
+}
 
-    // Add aliases
+static void add_aliases(CompletionResult *result, const char *prefix, size_t prefix_len) {
     for (int i = 0; i < shell_config.alias_count; i++) {
         if (strncmp(shell_config.aliases[i].name, prefix, prefix_len) == 0) {
             add_match(result, shell_config.aliases[i].name);
         }
     }
+}
 
-    // Search PATH for executables
+static void add_executables_from_path(CompletionResult *result, const char *prefix, size_t prefix_len) {
     const char *path_env = getenv("PATH");
     if (!path_env) return;
 
@@ -129,7 +121,7 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
             // Check if name matches prefix
             if (strncmp(entry->d_name, prefix, prefix_len) == 0) {
                 // Check if it's executable
-                char full_path[1024];
+                char full_path[PATH_MAX];
                 snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);
 
                 if (access(full_path, X_OK) == 0) {
@@ -156,16 +148,158 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
     free(path_copy);
 }
 
+// Complete commands from PATH
+static void complete_commands(CompletionResult *result, const char *prefix) {
+    size_t prefix_len = strlen(prefix);
+
+    // Add built-in commands
+    add_builtin_commands(result, prefix, prefix_len);
+
+    // Add aliases
+    add_aliases(result, prefix, prefix_len);
+
+    // Search PATH for executables
+    add_executables_from_path(result, prefix, prefix_len);
+}
+
+static void build_full_match(const struct dirent *entry, char *full_match,
+        const char *dir_path, char *tilde_part, bool has_tilde) {
+    if (has_tilde && tilde_part[0] != '\0') {
+        // Reconstruct path with original tilde prefix
+        // We need to replace the expanded home path with tilde_part
+        char *home_expanded = expand_tilde_path(tilde_part);
+        if (home_expanded) {
+            size_t home_len = strlen(home_expanded);
+            size_t dir_path_len = strlen(dir_path);
+
+            // Start with tilde part
+            safe_strcpy(full_match, tilde_part, sizeof(full_match));
+
+            // Add any path components after the home directory
+            // e.g., if dir_path is /Users/julio/Documents and home is /Users/julio
+            // then we add /Documents
+            if (dir_path_len > home_len) {
+                safe_strcat(full_match, dir_path + home_len, sizeof(full_match));
+            }
+
+            // Add slash and filename
+            size_t written = strlen(full_match);
+            if (written > 0 && full_match[written - 1] != '/'
+                    && written + 1 < sizeof(full_match)) {
+                full_match[written++] = '/';
+                full_match[written] = '\0';
+            }
+            safe_strcat(full_match, entry->d_name, sizeof(full_match));
+
+            free(home_expanded);
+        } else {
+            // Fallback to expanded path
+            safe_strcpy(full_match, dir_path, sizeof(full_match));
+            size_t written = strlen(full_match);
+            if (written > 0 && full_match[written - 1] != '/'
+                    && written + 1 < sizeof(full_match)) {
+                full_match[written++] = '/';
+                full_match[written] = '\0';
+            }
+            safe_strcat(full_match, entry->d_name, sizeof(full_match));
+        }
+    } else {
+        // Manually build path to avoid truncation warning
+        size_t written = 0;
+        safe_strcpy(full_match, dir_path, sizeof(full_match));
+        written = strlen(full_match);
+
+        // Only add slash if dir_path doesn't already end with one
+        if (written > 0 && full_match[written - 1] != '/'
+                && written + 1 < sizeof(full_match)) {
+            full_match[written++] = '/';
+            full_match[written] = '\0';
+        }
+        safe_strcat(full_match, entry->d_name, sizeof(full_match));
+    }
+}
+
+static void build_check_path(const struct dirent *entry, const char *dir_path, char *full_match, size_t name_len) {
+    char check_path[PATH_MAX];
+
+    if (strcmp(dir_path, ".") == 0) {
+        safe_strcpy(check_path, entry->d_name, sizeof(check_path));
+    } else {
+        // Manually build to avoid warning
+        safe_strcpy(check_path, dir_path, sizeof(check_path));
+        size_t written = safe_strlen(check_path, sizeof(check_path));
+
+        // Only add slash if dir_path doesn't already end with one
+        if (written > 0 && check_path[written - 1] != '/'
+                && written + 1 + name_len < sizeof(check_path)) {
+            check_path[written++] = '/';
+        }
+        if (written + name_len < sizeof(check_path)) {
+            safe_strcpy(check_path + written, entry->d_name, sizeof(check_path) - written);
+        }
+    }
+
+    struct stat st;
+    if (stat(check_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+        safe_strcat(full_match, "/", sizeof(full_match));
+    }
+}
+
+// Returns false if couldn't open the directory
+static void handle_directory(CompletionResult *result, const char *dir_path,
+        const char *filename_prefix, size_t prefix_len, char *tilde_part,
+        bool has_tilde) {
+    // Open directory
+    DIR *dp = opendir(dir_path);
+    if (!dp) {
+        return;
+    }
+
+    const struct dirent *entry;
+    while ((entry = readdir(dp)) != NULL && result->count < MAX_COMPLETIONS) {
+        // Skip . and .. unless explicitly requested
+        if (prefix_len == 0 && (strcmp(entry->d_name, ".") == 0
+                    || strcmp(entry->d_name, "..") == 0)) {
+            continue;
+        }
+
+        // Check if name matches prefix
+        if (strncmp(entry->d_name, filename_prefix, prefix_len) == 0) {
+            // Calculate required buffer size
+            size_t dir_len = safe_strlen(dir_path, sizeof(dir_path));
+            size_t name_len = strlen(entry->d_name);
+            size_t required_size = dir_len + 1 + name_len + 1;  // dir + / + name + \0
+
+            // Skip if path would be too long
+            if (required_size > MAX_COMPLETION_LENGTH) {
+                continue;
+            }
+
+            // Build full match
+            char full_match[MAX_COMPLETION_LENGTH];
+            build_full_match(entry, full_match, dir_path, tilde_part,
+                    has_tilde);
+
+            // Build check path for stat
+            build_check_path(entry, dir_path, full_match, name_len);
+
+            add_match(result, full_match);
+        }
+    }
+
+    closedir(dp);
+}
+
 // Complete files and directories
-static void complete_files(CompletionResult *result, const char *prefix, int is_first_word) {
+static void complete_files(CompletionResult *result, const char *prefix) {
     // Handle tilde expansion
     char *expanded_prefix = NULL;
     const char *working_prefix = prefix;
     char tilde_part[256] = {0};  // To preserve ~/ or ~user/ in results
-    int has_tilde = 0;
+    bool has_tilde = false;
 
     if (prefix[0] == '~') {
-        has_tilde = 1;
+        has_tilde = true;
         expanded_prefix = expand_tilde_path(prefix);
         if (expanded_prefix) {
             working_prefix = expanded_prefix;
@@ -185,7 +319,7 @@ static void complete_files(CompletionResult *result, const char *prefix, int is_
     }
 
     // Split prefix into directory and filename
-    char dir_path[1024];
+    char dir_path[PATH_MAX];
     const char *filename_prefix;
 
     // Check if original prefix had a slash (not the expanded one)
@@ -217,118 +351,9 @@ static void complete_files(CompletionResult *result, const char *prefix, int is_
 
     size_t prefix_len = strlen(filename_prefix);
 
-    // Open directory
-    DIR *dp = opendir(dir_path);
-    if (!dp) {
-        free(expanded_prefix);
-        return;
-    }
+    handle_directory(result, dir_path, filename_prefix, prefix_len, tilde_part,
+            has_tilde);
 
-    const struct dirent *entry;
-    while ((entry = readdir(dp)) != NULL && result->count < MAX_COMPLETIONS) {
-        // Skip . and .. unless explicitly requested
-        if (prefix_len == 0 && (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)) {
-            continue;
-        }
-
-        // Check if name matches prefix
-        if (strncmp(entry->d_name, filename_prefix, prefix_len) == 0) {
-            // Calculate required buffer size
-            size_t dir_len = safe_strlen(dir_path, sizeof(dir_path));
-            size_t name_len = strlen(entry->d_name);
-            size_t required_size = dir_len + 1 + name_len + 1;  // dir + / + name + \0
-
-            // Skip if path would be too long
-            if (required_size > MAX_COMPLETION_LENGTH) {
-                continue;
-            }
-
-            // Build full match
-            char full_match[MAX_COMPLETION_LENGTH];
-
-            // Preserve './' when completing the first word; otherwise strip it.
-            if (strcmp(dir_path, ".") == 0 && !is_first_word) {
-                safe_strcpy(full_match, entry->d_name, sizeof(full_match));
-            } else if (has_tilde && tilde_part[0] != '\0') {
-                // Reconstruct path with original tilde prefix
-                // We need to replace the expanded home path with tilde_part
-                char *home_expanded = expand_tilde_path(tilde_part);
-                if (home_expanded) {
-                    size_t home_len = strlen(home_expanded);
-                    size_t dir_path_len = strlen(dir_path);
-
-                    // Start with tilde part
-                    safe_strcpy(full_match, tilde_part, sizeof(full_match));
-
-                    // Add any path components after the home directory
-                    // e.g., if dir_path is /Users/julio/Documents and home is /Users/julio
-                    // then we add /Documents
-                    if (dir_path_len > home_len) {
-                        safe_strcat(full_match, dir_path + home_len, sizeof(full_match));
-                    }
-
-                    // Add slash and filename
-                    size_t written = strlen(full_match);
-                    if (written > 0 && full_match[written - 1] != '/' && written + 1 < sizeof(full_match)) {
-                        full_match[written++] = '/';
-                        full_match[written] = '\0';
-                    }
-                    safe_strcat(full_match, entry->d_name, sizeof(full_match));
-
-                    free(home_expanded);
-                } else {
-                    // Fallback to expanded path
-                    safe_strcpy(full_match, dir_path, sizeof(full_match));
-                    size_t written = strlen(full_match);
-                    if (written > 0 && full_match[written - 1] != '/' && written + 1 < sizeof(full_match)) {
-                        full_match[written++] = '/';
-                        full_match[written] = '\0';
-                    }
-                    safe_strcat(full_match, entry->d_name, sizeof(full_match));
-                }
-            } else {
-                // Manually build path to avoid truncation warning
-                size_t written = 0;
-                safe_strcpy(full_match, dir_path, sizeof(full_match));
-                written = strlen(full_match);
-
-                // Only add slash if dir_path doesn't already end with one
-                if (written > 0 && full_match[written - 1] != '/' && written + 1 < sizeof(full_match)) {
-                    full_match[written++] = '/';
-                    full_match[written] = '\0';
-                }
-                safe_strcat(full_match, entry->d_name, sizeof(full_match));
-            }
-
-            // Build check path for stat
-            char check_path[1024];
-
-            if (strcmp(dir_path, ".") == 0) {
-                safe_strcpy(check_path, entry->d_name, sizeof(check_path));
-            } else {
-                // Manually build to avoid warning
-                safe_strcpy(check_path, dir_path, sizeof(check_path));
-                size_t written = safe_strlen(check_path, sizeof(check_path));
-
-                // Only add slash if dir_path doesn't already end with one
-                if (written > 0 && check_path[written - 1] != '/' && written + 1 + name_len < sizeof(check_path)) {
-                    check_path[written++] = '/';
-                }
-                if (written + name_len < sizeof(check_path)) {
-                    safe_strcpy(check_path + written, entry->d_name, sizeof(check_path) - written);
-                }
-            }
-
-            struct stat st;
-            if (stat(check_path, &st) == 0 && S_ISDIR(st.st_mode)) {
-                safe_strcat(full_match, "/", sizeof(full_match));
-            }
-
-            add_match(result, full_match);
-        }
-    }
-
-    closedir(dp);
     free(expanded_prefix);
 }
 
@@ -352,10 +377,10 @@ CompletionResult *completion_generate(const char *line, size_t pos) {
     word[word_len] = '\0';
 
     // Determine if this is the first word (command) or argument
-    int is_first_word = 1;
+    bool is_first_word = true;
     for (size_t i = 0; i < word_start; i++) {
         if (!isspace(line[i])) {
-            is_first_word = 0;
+            is_first_word = false;
             break;
         }
     }
@@ -364,7 +389,7 @@ CompletionResult *completion_generate(const char *line, size_t pos) {
     if (is_first_word && !(word[0] == '.' || word[0] == '~' || strchr(word, '/') != NULL)) {
         complete_commands(result, word);
     } else {
-        complete_files(result, word, is_first_word);
+        complete_files(result, word);
     }
 
     // Calculate common prefix

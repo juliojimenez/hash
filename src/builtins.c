@@ -41,54 +41,8 @@ void builtins_set_login_shell(bool is_login) {
     is_login_shell = is_login;
 }
 
-typedef enum {
-    BUILTIN_FUNC_CD,
-    BUILTIN_FUNC_EXIT,
-    BUILTIN_FUNC_ALIAS,
-    BUILTIN_FUNC_UNALIAS,
-    BUILTIN_FUNC_SOURCE,
-    BUILTIN_FUNC_DOT,
-    BUILTIN_FUNC_EXPORT,
-    BUILTIN_FUNC_SET,
-    BUILTIN_FUNC_HISTORY,
-    BUILTIN_FUNC_JOBS,
-    BUILTIN_FUNC_FG,
-    BUILTIN_FUNC_BG,
-    BUILTIN_FUNC_LOGOUT,
-    BUILTIN_FUNC_TEST,
-    BUILTIN_FUNC_BRACKET,
-    BUILTIN_FUNC_DOUBLE_BRACKET,
-    BUILTIN_FUNC_UNSET,
-    BUILTIN_FUNC_TRUE,
-    BUILTIN_FUNC_FALSE,
-    BUILTIN_FUNC_COLON,
-    BUILTIN_FUNC_ECHO,
-    BUILTIN_FUNC_READ,
-    BUILTIN_FUNC_RETURN,
-    BUILTIN_FUNC_BREAK,
-    BUILTIN_FUNC_CONTINUE,
-    BUILTIN_FUNC_EVAL,
-    BUILTIN_FUNC_UPDATE,
-    BUILTIN_FUNC_COMMAND,
-    BUILTIN_FUNC_EXEC,
-    BUILTIN_FUNC_TIMES,
-    BUILTIN_FUNC_TYPE,
-    BUILTIN_FUNC_READONLY,
-    BUILTIN_FUNC_TRAP,
-    BUILTIN_FUNC_WAIT,
-    BUILTIN_FUNC_KILL,
-    BUILTIN_FUNC_HASH,
-
-    BUILTIN_FUNC_MAX
-} BuiltinFunc;
-
-typedef struct {
-    const char *name;
-    int (*func)(char **);
-} Builtin;
-
 // Builtin command names and functions
-static Builtin builtin[BUILTIN_FUNC_MAX] = {
+Builtin builtins[BUILTIN_FUNC_MAX] = {
     [BUILTIN_FUNC_CD]               = (Builtin){"cd",           &shell_cd},
     [BUILTIN_FUNC_EXIT]             = (Builtin){"exit",         &shell_exit},
     [BUILTIN_FUNC_ALIAS]            = (Builtin){"alias",        &shell_alias},
@@ -1146,7 +1100,7 @@ static bool is_posix_keyword(const char *word) {
 // Check if name is a builtin (helper for command -v/-V)
 static bool is_builtin_name(const char *name) {
     for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
-        if (strcmp(name, builtin[i].name) == 0) {
+        if (strcmp(name, builtins[i].name) == 0) {
             return true;
         }
     }
@@ -2183,8 +2137,8 @@ int try_builtin(char **args) {
     }
 
     for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
-        if (strcmp(args[0], builtin[i].name) == 0) {
-            return (*builtin[i].func)(args);
+        if (strcmp(args[0], builtins[i].name) == 0) {
+            return (*builtins[i].func)(args);
         }
     }
 
@@ -2197,7 +2151,7 @@ bool is_builtin(const char *cmd) {
     }
 
     for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
-        if (strcmp(cmd, builtin[i].name) == 0) {
+        if (strcmp(cmd, builtins[i].name) == 0) {
             return true;
         }
     }
