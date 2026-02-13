@@ -39,7 +39,7 @@ void cmdsub_reset_exit_code(void) {
     last_cmdsub_exit_code = 0;
 }
 
-static void child_process(const char *cmd, int pipefd[2]) {
+static void child_process(const char *cmd, const int pipefd[2]) {
     close(pipefd[0]);
     dup2(pipefd[1], STDOUT_FILENO);
     close(pipefd[1]);
@@ -69,7 +69,7 @@ static void child_process(const char *cmd, int pipefd[2]) {
     _exit((trap_exit >= 0) ? trap_exit : result);
 }
 
-static char *get_child_output(pid_t pid, int pipefd[2]) {
+static char *get_child_output(pid_t pid, const int pipefd[2]) {
     close(pipefd[1]);
 
     char *output = malloc(MAX_CMD_OUTPUT);
