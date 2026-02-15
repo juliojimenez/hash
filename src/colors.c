@@ -46,6 +46,7 @@ const char *color_code(const char *code) {
     return colors_enabled ? code : "";
 }
 
+__attribute__((format(printf, 3, 0)))
 static void color_fprint_va(FILE *stream, const char *color, const char *format, va_list args) {
     if (colors_enabled) {
         fprintf(stream, "%s", color);
@@ -58,6 +59,7 @@ static void color_fprint_va(FILE *stream, const char *color, const char *format,
     }
 }
 
+__attribute__((format(printf, 3, 0)))
 static void color_fprintln_va(FILE *stream, const char *color, const char *format, va_list args) {
     if (colors_enabled) {
         fprintf(stream, "%s", color);
