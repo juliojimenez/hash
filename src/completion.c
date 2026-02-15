@@ -163,7 +163,7 @@ static void complete_commands(CompletionResult *result, const char *prefix) {
 }
 
 static void build_full_match(const struct dirent *entry, char *full_match,
-        const char *dir_path, char *tilde_part, bool has_tilde) {
+        const char *dir_path, const char *tilde_part, bool has_tilde) {
     if (has_tilde && tilde_part[0] != '\0') {
         // Reconstruct path with original tilde prefix
         // We need to replace the expanded home path with tilde_part
