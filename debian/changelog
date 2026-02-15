@@ -1,7 +1,8 @@
-hash-shell (38-1) unstable; urgency=medium
+hash-shell (39-1) unstable; urgency=medium
 
-  * refactor(builtins): extract helper functions (by @kshku)
-  * refactor(cmdsub): extract helper functions (by @kshku)
-  * fix(test): Run Unit Tests In Contributor PRs
+  * refactor(colors): add helper functions (by @kshku)
+  * refactor(completion): extract helper functions (by @kshku)
+  * refactor(config): extract helper functions (by @kshku)
+  * fix(sonar): 2026-02-15
 
- -- Julio Jimenez <julio@julioj.com>  Friday, 13 Feb 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Sunday, 15 Feb 2026 12:00:00 +0000

@@ -26,9 +26,9 @@ brew uninstall hash-shell
 ### Apple Silicon (M1/M2/M3)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v38/hash-shell-v38-darwin-arm64
-chmod +x hash-shell-v38-darwin-arm64
-sudo mv hash-shell-v38-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v39/hash-shell-v39-darwin-arm64
+chmod +x hash-shell-v39-darwin-arm64
+sudo mv hash-shell-v39-darwin-arm64 /usr/local/bin/hash-shell
 hash-shell
 ```
 

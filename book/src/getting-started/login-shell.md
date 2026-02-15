@@ -163,6 +163,6 @@ echo "Session ended. Goodbye!"
 hash-shell --login
 
 # Check for "(login)" in welcome message
-hash v38 (login)
+hash v39 (login)
 Type 'exit' to quit
 ```
