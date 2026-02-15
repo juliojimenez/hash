@@ -247,7 +247,7 @@ static void build_check_path(const struct dirent *entry, const char *dir_path, c
 
 // Returns false if couldn't open the directory
 static void handle_directory(CompletionResult *result, const char *dir_path,
-        const char *filename_prefix, size_t prefix_len, char *tilde_part,
+        const char *filename_prefix, size_t prefix_len, const char *tilde_part,
         bool has_tilde) {
     // Open directory
     DIR *dp = opendir(dir_path);
