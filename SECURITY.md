@@ -6,12 +6,12 @@ The **last 5 major versions** of hash are supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
+| v40.x   | :white_check_mark: |
 | v39.x   | :white_check_mark: |
 | v38.x   | :white_check_mark: |
 | v37.x   | :white_check_mark: |
 | v36.x   | :white_check_mark: |
-| v35.x   | :white_check_mark: |
-| < v35   | :x:                |
+| < v36   | :x:                |
 
 ## Reporting a Vulnerability
 

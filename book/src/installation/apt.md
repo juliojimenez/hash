@@ -75,7 +75,7 @@ sudo dpkg -i hash-shell_*~bookworm_amd64.deb
 
 ```bash
 hash-shell
-# hash v39
+# hash v40
 # Type 'exit' to quit
 ```
 

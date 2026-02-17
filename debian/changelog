@@ -1,8 +1,5 @@
-hash-shell (39-1) unstable; urgency=medium
+hash-shell (40-1) unstable; urgency=medium
 
-  * refactor(colors): add helper functions (by @kshku)
-  * refactor(completion): extract helper functions (by @kshku)
-  * refactor(config): extract helper functions (by @kshku)
-  * fix(sonar): 2026-02-15
+  * feat(tab): Colorize Directories
 
- -- Julio Jimenez <julio@julioj.com>  Sunday, 15 Feb 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Tuesday, 17 Feb 2026 12:00:00 +0000
