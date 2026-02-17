@@ -8,6 +8,7 @@
 #include <termios.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <wchar.h>
 #include <locale.h>
 #include "lineedit.h"
@@ -990,8 +991,26 @@ char *lineedit_read_line(const char *prompt) {
                                 // Display matches in columns (basenames only)
                                 for (int i = 0; i < comp->count; i++) {
                                     const char *display = get_display_name(comp->matches[i]);
+
+                                    // Colorize directories
+                                    struct stat st;
+                                    int is_dir = (stat(comp->matches[i], &st) == 0 &&
+                                                  S_ISDIR(st.st_mode));
+                                    if (is_dir) {
+                                        const char *dcolor = color_config_get(
+                                            color_config.comp_directory);
+                                        ret = write(STDOUT_FILENO, dcolor, strlen(dcolor));
+                                        (void)ret;
+                                    }
+
                                     ret = write(STDOUT_FILENO, display, strlen(display));
                                     (void)ret;
+
+                                    if (is_dir) {
+                                        ret = write(STDOUT_FILENO, COLOR_RESET,
+                                                    strlen(COLOR_RESET));
+                                        (void)ret;
+                                    }
 
                                     // Add padding to align columns
                                     size_t display_len = strlen(display);

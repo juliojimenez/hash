@@ -82,6 +82,7 @@ static const EnvMapping env_map[] = {
     {"HASH_COLOR_SUGGESTION", offsetof(ColorConfig, suggestion)},
     {"HASH_COLOR_DANGER", offsetof(ColorConfig, danger)},
     {"HASH_COLOR_DANGER_HIGH", offsetof(ColorConfig, danger_high)},
+    {"HASH_COLOR_DIRECTORY", offsetof(ColorConfig, comp_directory)},
     {NULL, 0}
 };
 
@@ -105,6 +106,7 @@ static const EnvMapping element_map[] = {
     {"suggestion", offsetof(ColorConfig, suggestion)},
     {"danger", offsetof(ColorConfig, danger)},
     {"danger_high", offsetof(ColorConfig, danger_high)},
+    {"directory", offsetof(ColorConfig, comp_directory)},
     {NULL, 0}
 };
 
@@ -145,6 +147,9 @@ void color_config_init(void) {
     // Danger highlighting
     safe_strcpy(color_config.danger, COLOR_BOLD COLOR_RED, MAX_COLOR_CODE);      // Medium: bold red
     safe_strcpy(color_config.danger_high, COLOR_BOLD COLOR_WHITE COLOR_BG_RED, MAX_COLOR_CODE);  // High: white on red
+
+    // Completion colors
+    safe_strcpy(color_config.comp_directory, COLOR_BOLD COLOR_BLUE, MAX_COLOR_CODE);
 
     // Feature toggles - all enabled by default
     color_config.syntax_highlight_enabled = true;

@@ -34,6 +34,9 @@ typedef struct {
     char danger[MAX_COLOR_CODE];           // Medium danger (bold red)
     char danger_high[MAX_COLOR_CODE];      // High danger (white on red bg)
 
+    // Completion colors (Phase 5)
+    char comp_directory[MAX_COLOR_CODE];   // Directories in completion
+
     // Feature toggles
     bool syntax_highlight_enabled;
     bool autosuggestion_enabled;
