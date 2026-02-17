@@ -28,7 +28,7 @@ bool exec_directly_in_child = false;
 // Initialize config with defaults
 void config_init(void) {
     shell_config.alias_count = 0;
-    shell_config.colors_enabled = true;
+    shell_config.use_colors = true;
     shell_config.show_welcome = true;
     memset(shell_config.aliases, 0, sizeof(shell_config.aliases));
     shell_options_init();
@@ -280,11 +280,11 @@ static int handle_set(char *line) {
     set_def = trim_whitespace(set_def);
 
     if (strcmp(set_def, "colors=on") == 0) {
-        shell_config.colors_enabled = true;
+        shell_config.use_colors = true;
         colors_enable();
         return 0;
     } else if (strcmp(set_def, "colors=off") == 0) {
-        shell_config.colors_enabled = false;
+        shell_config.use_colors = false;
         colors_disable();
         return 0;
     } else if (strcmp(set_def, "welcome=on") == 0) {

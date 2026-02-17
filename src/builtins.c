@@ -497,12 +497,12 @@ static bool handle_posix_shell_options(char **args, int *i) {
 static bool handle_hash_shell_options(const char *arg) {
     // Handle colors option
     if (strcmp(arg, "colors=on") == 0) {
-        shell_config.colors_enabled = true;
+        shell_config.use_colors = true;
         colors_enable();
         last_command_exit_code = 0;
         return true;
     } else if (strcmp(arg, "colors=off") == 0) {
-        shell_config.colors_enabled = false;
+        shell_config.use_colors = false;
         colors_disable();
         last_command_exit_code = 0;
         return true;

@@ -31,7 +31,7 @@ typedef struct {
 typedef struct {
     Alias aliases[MAX_ALIASES];
     int alias_count;
-    bool colors_enabled;
+    bool use_colors;
     bool show_welcome;
     ShellOptions options;
 } Config;

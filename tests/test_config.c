@@ -15,7 +15,7 @@ void tearDown(void) {
 void test_config_init(void) {
     config_init();
     TEST_ASSERT_EQUAL_INT(0, shell_config.alias_count);
-    TEST_ASSERT_TRUE(shell_config.colors_enabled);
+    TEST_ASSERT_TRUE(shell_config.use_colors);
     TEST_ASSERT_TRUE(shell_config.show_welcome);
 }
 
@@ -127,7 +127,7 @@ void test_process_set_colors_on(void) {
     char line[] = "set colors=on";
     int result = config_process_line(line);
     TEST_ASSERT_EQUAL_INT(0, result);
-    TEST_ASSERT_TRUE(shell_config.colors_enabled);
+    TEST_ASSERT_TRUE(shell_config.use_colors);
 }
 
 // Test processing set welcome=off
