@@ -250,8 +250,6 @@ void color_config_load_env(void) {
 
 // Get color for element (respects NO_COLOR and colors_enabled)
 const char *color_config_get(const char *element_color) {
-    extern int colors_enabled;
-
     if (!colors_enabled || !element_color) {
         return "";
     }

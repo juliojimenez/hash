@@ -173,49 +173,49 @@ static void build_full_match(const struct dirent *entry, char *full_match,
             size_t dir_path_len = strlen(dir_path);
 
             // Start with tilde part
-            safe_strcpy(full_match, tilde_part, sizeof(full_match));
+            safe_strcpy(full_match, tilde_part, MAX_COMPLETION_LENGTH);
 
             // Add any path components after the home directory
             // e.g., if dir_path is /Users/julio/Documents and home is /Users/julio
             // then we add /Documents
             if (dir_path_len > home_len) {
-                safe_strcat(full_match, dir_path + home_len, sizeof(full_match));
+                safe_strcat(full_match, dir_path + home_len, MAX_COMPLETION_LENGTH);
             }
 
             // Add slash and filename
             size_t written = strlen(full_match);
             if (written > 0 && full_match[written - 1] != '/'
-                    && written + 1 < sizeof(full_match)) {
+                    && written + 1 < MAX_COMPLETION_LENGTH) {
                 full_match[written++] = '/';
                 full_match[written] = '\0';
             }
-            safe_strcat(full_match, entry->d_name, sizeof(full_match));
+            safe_strcat(full_match, entry->d_name, MAX_COMPLETION_LENGTH);
 
             free(home_expanded);
         } else {
             // Fallback to expanded path
-            safe_strcpy(full_match, dir_path, sizeof(full_match));
+            safe_strcpy(full_match, dir_path, MAX_COMPLETION_LENGTH);
             size_t written = strlen(full_match);
             if (written > 0 && full_match[written - 1] != '/'
-                    && written + 1 < sizeof(full_match)) {
+                    && written + 1 < MAX_COMPLETION_LENGTH) {
                 full_match[written++] = '/';
                 full_match[written] = '\0';
             }
-            safe_strcat(full_match, entry->d_name, sizeof(full_match));
+            safe_strcat(full_match, entry->d_name, MAX_COMPLETION_LENGTH);
         }
     } else {
         // Manually build path to avoid truncation warning
         size_t written = 0;
-        safe_strcpy(full_match, dir_path, sizeof(full_match));
+        safe_strcpy(full_match, dir_path, MAX_COMPLETION_LENGTH);
         written = strlen(full_match);
 
         // Only add slash if dir_path doesn't already end with one
         if (written > 0 && full_match[written - 1] != '/'
-                && written + 1 < sizeof(full_match)) {
+                && written + 1 < MAX_COMPLETION_LENGTH) {
             full_match[written++] = '/';
             full_match[written] = '\0';
         }
-        safe_strcat(full_match, entry->d_name, sizeof(full_match));
+        safe_strcat(full_match, entry->d_name, MAX_COMPLETION_LENGTH);
     }
 }
 
@@ -241,7 +241,7 @@ static void build_check_path(const struct dirent *entry, const char *dir_path, c
 
     struct stat st;
     if (stat(check_path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        safe_strcat(full_match, "/", sizeof(full_match));
+        safe_strcat(full_match, "/", MAX_COMPLETION_LENGTH);
     }
 }
 
@@ -266,7 +266,7 @@ static void handle_directory(CompletionResult *result, const char *dir_path,
         // Check if name matches prefix
         if (strncmp(entry->d_name, filename_prefix, prefix_len) == 0) {
             // Calculate required buffer size
-            size_t dir_len = safe_strlen(dir_path, sizeof(dir_path));
+            size_t dir_len = safe_strlen(dir_path, PATH_MAX);
             size_t name_len = strlen(entry->d_name);
             size_t required_size = dir_len + 1 + name_len + 1;  // dir + / + name + \0
 
