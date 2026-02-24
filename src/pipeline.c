@@ -179,6 +179,140 @@ Pipeline *pipeline_parse(char *line) {
     return pipeline;
 }
 
+// Calls _exit()
+static void run_child_process(const Pipeline *pipeline, int (*pipes)[2], int num_pipes, int i) {
+    // Child process
+
+    // Set up input (stdin)
+    if (i > 0) {
+        // Not first command - read from previous pipe
+        dup2(pipes[i - 1][0], STDIN_FILENO);
+    }
+
+    // Set up output (stdout)
+    if (i < pipeline->count - 1) {
+        // Not last command - write to next pipe
+        dup2(pipes[i][1], STDOUT_FILENO);
+    }
+
+    // Close all pipe file descriptors
+    for (int j = 0; j < num_pipes; j++) {
+        close(pipes[j][0]);
+        close(pipes[j][1]);
+    }
+
+    // Check if this is a compound command (brace group or subshell)
+    // If so, execute via script_execute_string which handles these properly
+    if (is_compound_command(pipeline->commands[i].cmd_line)) {
+        // Replace newlines with semicolons to handle multi-line compound commands
+        // script_execute_string tokenizes by newlines, which would break up the command
+        char *cmd_copy = strdup(pipeline->commands[i].cmd_line);
+        if (cmd_copy) {
+            for (char *p = cmd_copy; *p; p++) {
+                if (*p == '\n') *p = ';';
+            }
+        }
+        int result = script_execute_string(cmd_copy ? cmd_copy : pipeline->commands[i].cmd_line);
+        free(cmd_copy);
+        fflush(stdout);
+        fflush(stderr);
+        _exit(result < 0 ? EXIT_FAILURE : last_command_exit_code);
+    }
+
+    // Parse and execute command
+    char *line_copy = strdup(pipeline->commands[i].cmd_line);
+    if (!line_copy) _exit(EXIT_FAILURE);
+
+    ParseResult parsed = parse_line(line_copy);
+    if (!parsed.tokens) {
+        free(line_copy);
+        _exit(EXIT_FAILURE);
+    }
+    char **args = parsed.tokens;
+
+    // Perform variable expansion, command substitution, and arithmetic expansion
+    expand_tilde(args);
+    cmdsub_args(args);
+    arith_args(args);
+    varexpand_args(args, last_command_exit_code);
+
+    // Count args for glob expansion
+    int arg_count = 0;
+    while (args[arg_count] != NULL) arg_count++;
+
+    // Glob (pathname) expansion
+    char **glob_args = args;
+    int glob_arg_count = arg_count;
+    expand_glob(&glob_args, &glob_arg_count);
+
+    // Use expanded args if glob expansion happened
+    if (glob_args != args) {
+        free(args);
+        args = glob_args;
+    }
+
+    // Parse redirections (before stripping markers, so escaped operators aren't treated as redirections)
+    RedirInfo *redir = redirect_parse(args);
+    char **exec_args = redir ? redir->args : args;
+
+    // Strip quote markers after redirect parsing
+    strip_quote_markers_args(exec_args);
+
+    // Handle prefix variable assignments (VAR=value cmd)
+    // Count prefix assignments and set them in the environment
+    int prefix_count = 0;
+    while (exec_args[prefix_count] && is_var_assignment(exec_args[prefix_count])) {
+        prefix_count++;
+    }
+
+    // Set prefix variables in environment and shift exec_args to actual command
+    if (prefix_count > 0 && exec_args[prefix_count] != NULL) {
+        for (int j = 0; j < prefix_count; j++) {
+            char *equals = is_var_assignment(exec_args[j]);
+            *equals = '\0';
+            const char *name = exec_args[j];
+            const char *value = equals + 1;
+            setenv(name, value, 1);
+            *equals = '=';  // Restore for potential debugging
+        }
+        // Point exec_args past the prefix assignments to the actual command
+        exec_args = &exec_args[prefix_count];
+    }
+
+    // Apply redirections
+    if (redir && redirect_apply(redir) != 0) {
+        redirect_free(redir);
+        free(parsed.buffer);
+        free(args);
+        free(line_copy);
+        _exit(EXIT_FAILURE);
+    }
+
+    // Try builtin first (handles times, echo, etc. in pipelines)
+    int builtin_result = try_builtin(exec_args);
+    if (builtin_result != -1) {
+        // It was a builtin - flush output and exit with appropriate code
+        fflush(stdout);
+        fflush(stderr);
+        redirect_free(redir);
+        free(parsed.buffer);
+        free(args);
+        free(line_copy);
+        _exit(builtin_result == 1 ? 0 : builtin_result);
+    }
+
+    // Not a builtin - execute as external command
+    if (execvp(exec_args[0], exec_args) == -1) {
+        perror(HASH_NAME);
+    }
+
+    redirect_free(redir);
+    free(parsed.buffer);
+    free(args);
+    free(line_copy);
+    _exit(EXIT_FAILURE);
+}
+
 // Execute a pipeline
 int pipeline_execute(const Pipeline *pipeline) {
     if (!pipeline || pipeline->count == 0) return -1;
@@ -221,136 +355,8 @@ int pipeline_execute(const Pipeline *pipeline) {
         }
 
         if (pids[i] == 0) {
-            // Child process
-
-            // Set up input (stdin)
-            if (i > 0) {
-                // Not first command - read from previous pipe
-                dup2(pipes[i - 1][0], STDIN_FILENO);
-            }
-
-            // Set up output (stdout)
-            if (i < pipeline->count - 1) {
-                // Not last command - write to next pipe
-                dup2(pipes[i][1], STDOUT_FILENO);
-            }
-
-            // Close all pipe file descriptors
-            for (int j = 0; j < num_pipes; j++) {
-                close(pipes[j][0]);
-                close(pipes[j][1]);
-            }
-
-            // Check if this is a compound command (brace group or subshell)
-            // If so, execute via script_execute_string which handles these properly
-            if (is_compound_command(pipeline->commands[i].cmd_line)) {
-                // Replace newlines with semicolons to handle multi-line compound commands
-                // script_execute_string tokenizes by newlines, which would break up the command
-                char *cmd_copy = strdup(pipeline->commands[i].cmd_line);
-                if (cmd_copy) {
-                    for (char *p = cmd_copy; *p; p++) {
-                        if (*p == '\n') *p = ';';
-                    }
-                }
-                int result = script_execute_string(cmd_copy ? cmd_copy : pipeline->commands[i].cmd_line);
-                free(cmd_copy);
-                fflush(stdout);
-                fflush(stderr);
-                _exit(result < 0 ? EXIT_FAILURE : last_command_exit_code);
-            }
-
-            // Parse and execute command
-            char *line_copy = strdup(pipeline->commands[i].cmd_line);
-            if (!line_copy) _exit(EXIT_FAILURE);
-
-            ParseResult parsed = parse_line(line_copy);
-            if (!parsed.tokens) {
-                free(line_copy);
-                _exit(EXIT_FAILURE);
-            }
-            char **args = parsed.tokens;
-
-            // Perform variable expansion, command substitution, and arithmetic expansion
-            expand_tilde(args);
-            cmdsub_args(args);
-            arith_args(args);
-            varexpand_args(args, last_command_exit_code);
-
-            // Count args for glob expansion
-            int arg_count = 0;
-            while (args[arg_count] != NULL) arg_count++;
-
-            // Glob (pathname) expansion
-            char **glob_args = args;
-            int glob_arg_count = arg_count;
-            expand_glob(&glob_args, &glob_arg_count);
-
-            // Use expanded args if glob expansion happened
-            if (glob_args != args) {
-                free(args);
-                args = glob_args;
-            }
-
-            // Parse redirections (before stripping markers, so escaped operators aren't treated as redirections)
-            RedirInfo *redir = redirect_parse(args);
-            char **exec_args = redir ? redir->args : args;
-
-            // Strip quote markers after redirect parsing
-            strip_quote_markers_args(exec_args);
-
-            // Handle prefix variable assignments (VAR=value cmd)
-            // Count prefix assignments and set them in the environment
-            int prefix_count = 0;
-            while (exec_args[prefix_count] && is_var_assignment(exec_args[prefix_count])) {
-                prefix_count++;
-            }
-
-            // Set prefix variables in environment and shift exec_args to actual command
-            if (prefix_count > 0 && exec_args[prefix_count] != NULL) {
-                for (int j = 0; j < prefix_count; j++) {
-                    char *equals = is_var_assignment(exec_args[j]);
-                    *equals = '\0';
-                    const char *name = exec_args[j];
-                    const char *value = equals + 1;
-                    setenv(name, value, 1);
-                    *equals = '=';  // Restore for potential debugging
-                }
-                // Point exec_args past the prefix assignments to the actual command
-                exec_args = &exec_args[prefix_count];
-            }
-
-            // Apply redirections
-            if (redir && redirect_apply(redir) != 0) {
-                redirect_free(redir);
-                free(parsed.buffer);
-                free(args);
-                free(line_copy);
-                _exit(EXIT_FAILURE);
-            }
-
-            // Try builtin first (handles times, echo, etc. in pipelines)
-            int builtin_result = try_builtin(exec_args);
-            if (builtin_result != -1) {
-                // It was a builtin - flush output and exit with appropriate code
-                fflush(stdout);
-                fflush(stderr);
-                redirect_free(redir);
-                free(parsed.buffer);
-                free(args);
-                free(line_copy);
-                _exit(builtin_result == 1 ? 0 : builtin_result);
-            }
-
-            // Not a builtin - execute as external command
-            if (execvp(exec_args[0], exec_args) == -1) {
-                perror(HASH_NAME);
-            }
-
-            redirect_free(redir);
-            free(parsed.buffer);
-            free(args);
-            free(line_copy);
-            _exit(EXIT_FAILURE);
+            // run_child_process calls _exit()
+            run_child_process(pipeline, pipes, num_pipes, i);
         }
     }
 
