@@ -166,6 +166,51 @@ static size_t safe_append(char *output, size_t out_pos, size_t max_pos, const ch
     return out_pos;
 }
 
+static size_t handle_directories(char c, char *output, size_t out_pos, size_t max_pos, const char *base_color) {
+    const char *dir;
+    if (c == 'w') {
+        dir = prompt_get_cwd();
+    } else if (c == 'W') {
+        dir = prompt_get_current_dir();
+    } else {
+        return out_pos;
+    }
+
+    out_pos = safe_append(output, out_pos, max_pos, color_config_get(color_config.prompt_path));
+    out_pos = safe_append(output, out_pos, max_pos, dir);
+    // Reset and re-apply base color to maintain bold
+    out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
+    out_pos = safe_append(output, out_pos, max_pos, base_color);
+
+    return out_pos;
+}
+
+static size_t handle_git_branches(char *output, size_t out_pos, size_t max_pos, const char *base_color) {
+    char *branch = prompt_git_branch();
+    if (branch) {
+        bool dirty = prompt_git_dirty();
+        const char *git_status_color = dirty ?
+            color_config_get(color_config.prompt_git_dirty) :
+            color_config_get(color_config.prompt_git_clean);
+
+        // Build git string with proper color handling
+        // After each reset, re-apply base color for bold
+        char temp[512];
+        int n = snprintf(temp, sizeof(temp), " %s%sgit:%s%s(%s%s%s%s%s)",
+            base_color, git_status_color,  // bold + status color for "git:"
+            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for "("
+            color_config_get(color_config.prompt_git_branch), branch,  // branch color + name
+            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for ")"
+            "");
+
+        if (n > 0 && (size_t)n < sizeof(temp)) {
+            out_pos = safe_append(output, out_pos, max_pos, temp);
+        }
+    }
+
+    return out_pos;
+}
+
 // Process escape sequences in PS1
 static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, int last_exit_code) {
     if (out_size == 0) return;
@@ -178,114 +223,75 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
     const char *base_color = color_config_get(color_config.prompt);
 
     while (*p && out_pos < max_pos) {
-        if (*p == '\\' && *(p + 1)) {
-            p++;
-
-            switch (*p) {
-                case 'u':
-                    out_pos = safe_append(output, out_pos, max_pos, prompt_get_user());
-                    break;
-
-                case 'h':
-                    out_pos = safe_append(output, out_pos, max_pos, prompt_get_hostname());
-                    break;
-
-                case 'w': {
-                    const char *cwd = prompt_get_cwd();
-                    if (cwd) {
-                        out_pos = safe_append(output, out_pos, max_pos, color_config_get(color_config.prompt_path));
-                        out_pos = safe_append(output, out_pos, max_pos, cwd);
-                        // Reset and re-apply base color to maintain bold
-                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
-                        out_pos = safe_append(output, out_pos, max_pos, base_color);
-                    }
-                    break;
-                }
-
-                case 'W': {
-                    const char *dir = prompt_get_current_dir();
-                    if (dir) {
-                        out_pos = safe_append(output, out_pos, max_pos, color_config_get(color_config.prompt_path));
-                        out_pos = safe_append(output, out_pos, max_pos, dir);
-                        // Reset and re-apply base color to maintain bold
-                        out_pos = safe_append(output, out_pos, max_pos, color_code(COLOR_RESET));
-                        out_pos = safe_append(output, out_pos, max_pos, base_color);
-                    }
-                    break;
-                }
-
-                case 'g': {
-                    char *branch = prompt_git_branch();
-                    if (branch) {
-                        bool dirty = prompt_git_dirty();
-                        const char *git_status_color = dirty ?
-                            color_config_get(color_config.prompt_git_dirty) :
-                            color_config_get(color_config.prompt_git_clean);
-
-                        // Build git string with proper color handling
-                        // After each reset, re-apply base color for bold
-                        char temp[512];
-                        int n = snprintf(temp, sizeof(temp), " %s%sgit:%s%s(%s%s%s%s%s)",
-                            base_color, git_status_color,  // bold + status color for "git:"
-                            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for "("
-                            color_config_get(color_config.prompt_git_branch), branch,  // branch color + name
-                            color_code(COLOR_RESET), base_color,  // reset then re-apply bold for ")"
-                            "");
-
-                        if (n > 0 && (size_t)n < sizeof(temp)) {
-                            out_pos = safe_append(output, out_pos, max_pos, temp);
-                        }
-                    }
-                    break;
-                }
-
-                case '$': {
-                    const char *symbol = (getuid() == 0) ? "#" : "$";
-                    if (out_pos < max_pos) {
-                        output[out_pos++] = *symbol;
-                    }
-                    break;
-                }
-
-                case 'e':
-                    {
-                        // \e outputs the exit-code-based color (success or error)
-                        const char *bracket_color = (last_exit_code == 0) ?
-                            color_config_get(color_config.prompt) :
-                            color_config_get(color_config.prompt_error);
-                        out_pos = safe_append(output, out_pos, max_pos, bracket_color);
-                    }
-                    break;
-
-                case 'n':
-                    if (out_pos < max_pos) {
-                        output[out_pos++] = '\n';
-                    }
-                    break;
-
-                case '\\':
-                    if (out_pos < max_pos) {
-                        output[out_pos++] = '\\';
-                    }
-                    break;
-
-                default:
-                    if (out_pos < max_pos) {
-                        output[out_pos++] = '\\';
-                    }
-                    if (out_pos < max_pos) {
-                        output[out_pos++] = *p;
-                    }
-                    break;
-            }
-            p++;
-        } else {
+        if (*p != '\\' || !(*(p + 1))) {
             if (out_pos < max_pos) {
                 output[out_pos++] = *p++;
             } else {
                 break;
             }
+            continue;
         }
+
+        // We got '\something'
+        // Skip '\'
+        p++;
+
+        switch (*p) {
+            case 'u':
+                out_pos = safe_append(output, out_pos, max_pos, prompt_get_user());
+                break;
+
+            case 'h':
+                out_pos = safe_append(output, out_pos, max_pos, prompt_get_hostname());
+                break;
+
+            case 'w':
+            case 'W':
+                out_pos = handle_directories(*p, output, out_pos, max_pos, base_color);
+                break;
+
+            case 'g':
+                out_pos = handle_git_branches(output, out_pos, max_pos, base_color);
+                break;
+
+            case '$':
+                if (out_pos < max_pos) {
+                    const char symbol = (getuid() == 0) ? '#' : '$';
+                    output[out_pos++] = symbol;
+                }
+                break;
+
+            case 'e': {
+                    // \e outputs the exit-code-based color (success or error)
+                    const char *bracket_color = (last_exit_code == 0) ?
+                        color_config_get(color_config.prompt) :
+                        color_config_get(color_config.prompt_error);
+                    out_pos = safe_append(output, out_pos, max_pos, bracket_color);
+                }
+                break;
+
+            case 'n':
+                if (out_pos < max_pos) {
+                    output[out_pos++] = '\n';
+                }
+                break;
+
+            case '\\':
+                if (out_pos < max_pos) {
+                    output[out_pos++] = '\\';
+                }
+                break;
+
+            default:
+                if (out_pos < max_pos) {
+                    output[out_pos++] = '\\';
+                }
+                if (out_pos < max_pos) {
+                    output[out_pos++] = *p;
+                }
+                break;
+        }
+        p++;
     }
 
     output[out_pos] = '\0';
@@ -298,6 +304,51 @@ static bool ps1_needs_expansion(const char *ps1) {
     return (strstr(ps1, "$(") != NULL ||
             strstr(ps1, "${") != NULL ||
             strchr(ps1, '`') != NULL);
+}
+
+static void handle_dynamic_expansion(char *prompt, const char *ps1, int last_exit_code) {
+    // Set environment variables for prompt programs like Starship
+    char status_str[16];
+    snprintf(status_str, sizeof(status_str), "%d", last_exit_code);
+    setenv("STATUS", status_str, 1);
+
+    char jobs_str[16];
+    snprintf(jobs_str, sizeof(jobs_str), "%d", jobs_count());
+    setenv("NUM_JOBS", jobs_str, 1);
+
+    // Make a mutable copy for expansion
+    char ps1_copy[MAX_PROMPT_LENGTH];
+    safe_strcpy(ps1_copy, ps1, sizeof(ps1_copy));
+
+    // Expand variables first (e.g., $STATUS -> "0")
+    char *var_expanded = varexpand_expand(ps1_copy, 0);
+    const char *to_expand = var_expanded ? var_expanded : ps1_copy;
+
+    // Expand command substitutions (e.g., $(starship prompt) -> actual prompt)
+    char *cmd_expanded = cmdsub_expand(to_expand);
+
+    if (cmd_expanded) {
+        // Strip leading newlines - hash already ensures prompts start on a new line
+        const char *src = cmd_expanded;
+        while (*src == '\n') src++;
+        safe_strcpy(prompt, src, sizeof(prompt));
+
+        // Strip trailing whitespace from the last line (but keep the newline structure)
+        size_t plen = strlen(prompt);
+        while (plen > 0 && (prompt[plen-1] == ' ' || prompt[plen-1] == '\t')) {
+            prompt[--plen] = '\0';
+        }
+
+        free(cmd_expanded);
+    } else if (var_expanded) {
+        safe_strcpy(prompt, var_expanded, sizeof(prompt));
+    } else {
+        safe_strcpy(prompt, ps1, sizeof(prompt));
+    }
+
+    free(var_expanded);  // Safe to free NULL
+
+    // Don't add extra reset/space for external prompts - they handle their own formatting
 }
 
 // Generate prompt
@@ -325,48 +376,7 @@ char *prompt_generate(int last_exit_code) {
 
     // Check if PS1 needs dynamic expansion (for Starship, etc.)
     if (ps1_needs_expansion(ps1)) {
-        // Set environment variables for prompt programs like Starship
-        char status_str[16];
-        snprintf(status_str, sizeof(status_str), "%d", last_exit_code);
-        setenv("STATUS", status_str, 1);
-
-        char jobs_str[16];
-        snprintf(jobs_str, sizeof(jobs_str), "%d", jobs_count());
-        setenv("NUM_JOBS", jobs_str, 1);
-
-        // Make a mutable copy for expansion
-        char ps1_copy[MAX_PROMPT_LENGTH];
-        safe_strcpy(ps1_copy, ps1, sizeof(ps1_copy));
-
-        // Expand variables first (e.g., $STATUS -> "0")
-        char *var_expanded = varexpand_expand(ps1_copy, 0);
-        const char *to_expand = var_expanded ? var_expanded : ps1_copy;
-
-        // Expand command substitutions (e.g., $(starship prompt) -> actual prompt)
-        char *cmd_expanded = cmdsub_expand(to_expand);
-
-        if (cmd_expanded) {
-            // Strip leading newlines - hash already ensures prompts start on a new line
-            const char *src = cmd_expanded;
-            while (*src == '\n') src++;
-            safe_strcpy(prompt, src, sizeof(prompt));
-
-            // Strip trailing whitespace from the last line (but keep the newline structure)
-            size_t plen = strlen(prompt);
-            while (plen > 0 && (prompt[plen-1] == ' ' || prompt[plen-1] == '\t')) {
-                prompt[--plen] = '\0';
-            }
-
-            free(cmd_expanded);
-        } else if (var_expanded) {
-            safe_strcpy(prompt, var_expanded, sizeof(prompt));
-        } else {
-            safe_strcpy(prompt, ps1, sizeof(prompt));
-        }
-
-        free(var_expanded);  // Safe to free NULL
-
-        // Don't add extra reset/space for external prompts - they handle their own formatting
+        handle_dynamic_expansion(prompt, ps1, last_exit_code);
         return prompt;
     }
 
