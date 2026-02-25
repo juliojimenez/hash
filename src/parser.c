@@ -46,11 +46,11 @@ static void mark_and_write_char(Parser *parser) {
     *parser->write_pos++ = *parser->read_pos++;
 }
 
-static bool is_special_symbol(char c) {
-    if (c == '*' || c == '?' || c == '[' ||
-        c == '<' || c == '>' || c == '|' ||
-        c == '&' || c == ';' || c == '~') {
-        return true;
+static bool char_in_string(char c, const char *str) {
+    for (int i = 0; str[i]; ++i) {
+        if (c == str[i]) {
+            return true;
+        }
     }
 
     return false;
@@ -106,7 +106,7 @@ static void handle_backslash(Parser *parser) {
         } else {
             // Remove backslash, keep the character
             // If it's a glob character, redirection operator, or tilde, mark it to prevent special handling
-            if (is_special_symbol(*parser->read_pos)) {
+            if (char_in_string(*parser->read_pos, "*?[<>|&;~")) {
                 mark_and_write_char(parser); // Marker to prevent special interpretation
                 return;
             }
@@ -176,7 +176,7 @@ static void handle_doller(Parser *parser) {
                 // Single quote inside ${...} - strip quotes and mark glob chars as literal
                 parser->read_pos++;  // Skip opening quote
                 while (*parser->read_pos && *parser->read_pos != '\'') {
-                    if (*parser->read_pos == '*' || *parser->read_pos == '?' || *parser->read_pos == '[') {
+                    if (char_in_string(*parser->read_pos, "*?[")) {
                         // Glob character inside quotes - add marker for literal match
                         mark_and_write_char(parser);
                     } else {
@@ -194,7 +194,7 @@ static void handle_doller(Parser *parser) {
                         // Escaped character - keep the backslash escape
                         *parser->write_pos++ = *parser->read_pos++;
                         *parser->write_pos++ = *parser->read_pos++;
-                    } else if (*parser->read_pos == '*' || *parser->read_pos == '?' || *parser->read_pos == '[') {
+                    } else if (char_in_string(*parser->read_pos, "*?[")) {
                         // Glob character inside quotes - add marker for literal match
                         mark_and_write_char(parser);
                     } else {
@@ -324,14 +324,12 @@ static void handle_angle_bracket(Parser *parser) {
     // Now collect the redirection operator (>, >>, <, <<, etc.)
     *parser->write_pos++ = *parser->read_pos++;
     // Check for >> or << or <<- or >& or <&
-    while (*parser->read_pos == '>' || *parser->read_pos == '<' || *parser->read_pos == '&' || *parser->read_pos == '-') {
+    while (char_in_string(*parser->read_pos, "><&-")) {
         *parser->write_pos++ = *parser->read_pos++;
     }
     // For >&N or <&N patterns, also collect the fd number
     // For >file or <file patterns, also collect the filename (until whitespace)
-    while (*parser->read_pos && !isspace(*parser->read_pos) && *parser->read_pos != '>' && *parser->read_pos != '<' &&
-           *parser->read_pos != '|' && *parser->read_pos != '&' && *parser->read_pos != ';' &&
-           *parser->read_pos != '(' && *parser->read_pos != ')') {
+    while (*parser->read_pos && !isspace(*parser->read_pos) && !char_in_string(*parser->read_pos, "><|&;()")) {
         *parser->write_pos++ = *parser->read_pos++;
     }
     // End this token
@@ -365,7 +363,7 @@ static void handle_tilde(Parser *parser) {
         const char *lookahead = parser->read_pos + 1;
         bool has_quoted_chars = false;
         while (*lookahead && !isspace(*lookahead) && *lookahead != '/') {
-            if (*lookahead == '\'' || *lookahead == '"') {
+            if (char_in_string(*lookahead, "'\"")) {
                 has_quoted_chars = true;
                 break;
             }
