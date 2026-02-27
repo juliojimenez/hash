@@ -74,7 +74,7 @@ jobs:
             hash-shell-${{ steps.get_version.outputs.version }}-linux-${{ matrix.arch }}.tar.gz.sha256
 
       - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: hash-shell-linux-${{ matrix.arch }}
           path: |
@@ -127,7 +127,7 @@ jobs:
             hash-shell-${{ steps.get_version.outputs.version }}-darwin-arm64.tar.gz.sha256
 
       - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: hash-shell-darwin-arm64
           path: |
@@ -210,7 +210,7 @@ jobs:
             hash-shell-${{ steps.get_version.outputs.version }}-freebsd-${{ matrix.arch }}.tar.gz.sha256
 
       - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: hash-shell-freebsd-${{ matrix.arch }}
           path: |

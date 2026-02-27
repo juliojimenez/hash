@@ -175,7 +175,7 @@ jobs:
           echo "results=Passed: $PASSED, Failed: $FAILED, Timeout: $TIMEOUT, Skipped: $SKIPPED" >> $GITHUB_OUTPUT
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoosh-test-results
