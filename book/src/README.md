@@ -65,4 +65,4 @@ Hash is open source software licensed under the Apache 2.0 License.
 
 ---
 
-Continue to [Installation](installation/README.md) to get started.
+Continue to [Installation](./installation/) to get started.
