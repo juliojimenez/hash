@@ -1,5 +1,5 @@
 PORTNAME=	hash-shell
-DISTVERSION=	40
+DISTVERSION=	41
 CATEGORIES=	shells
 
 MAINTAINER=	julio@julioj.com

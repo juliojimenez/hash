@@ -1,5 +1,10 @@
-hash-shell (40-1) unstable; urgency=medium
+hash-shell (41-1) unstable; urgency=medium
 
-  * feat(tab): Colorize Directories
+  * refactor(parser): extract helper functions (by @kshku)
+  * refactor(pipeline): extract helper function (by @kshku)
+  * refactor(prompt): extract helper functions (by @kshku)
+  * Dependency updates
+  * fix(book): Installation Link
+  * fix(smoosh): semantics.escaping.backslash (timeout)
 
- -- Julio Jimenez <julio@julioj.com>  Tuesday, 17 Feb 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Sun, 1 Mar 2026 12:00:00 +0000
