@@ -225,21 +225,25 @@ static void handle_doller(Parser *parser) {
 }
 
 static void handle_backtick(Parser *parser) {
-    if (!parser->in_single_quote) {
-        // Backtick command substitution - keep everything until matching `
-        *parser->write_pos++ = *parser->read_pos++;  // Opening `
-        while (*parser->read_pos && *parser->read_pos != '`') {
-            if (*parser->read_pos == '\\' && *(parser->read_pos + 1) == '`') {
-                // Escaped backtick inside backticks
-                *parser->write_pos++ = *parser->read_pos++;  // backslash
-                *parser->write_pos++ = *parser->read_pos++;  // `
-            } else {
-                *parser->write_pos++ = *parser->read_pos++;
-            }
+    if (parser->in_single_quote) {
+        // In single quotes, backtick is literal
+        *parser->write_pos++ = *parser->read_pos++;
+        return;
+    }
+
+    // Backtick command substitution - keep everything until matching `
+    *parser->write_pos++ = *parser->read_pos++;  // Opening `
+    while (*parser->read_pos && *parser->read_pos != '`') {
+        if (*parser->read_pos == '\\' && *(parser->read_pos + 1) == '`') {
+            // Escaped backtick inside backticks
+            *parser->write_pos++ = *parser->read_pos++;  // backslash
+            *parser->write_pos++ = *parser->read_pos++;  // `
+        } else {
+            *parser->write_pos++ = *parser->read_pos++;
         }
-        if (*parser->read_pos == '`') {
-            *parser->write_pos++ = *parser->read_pos++;  // Closing `
-        }
+    }
+    if (*parser->read_pos == '`') {
+        *parser->write_pos++ = *parser->read_pos++;  // Closing `
     }
 }
 
