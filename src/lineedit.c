@@ -279,6 +279,61 @@ static size_t visible_prompt_length(const char *prompt) {
     return visible;
 }
 
+// Compute the visual row and column for a given buffer position,
+// accounting for prompt width and terminal-width wrapping.
+// row 0 is the first line of the prompt's last line.
+static void visual_pos(const char *buf, size_t pos, size_t prompt_width,
+                       int term_width, size_t *out_row, size_t *out_col) {
+    size_t col = prompt_width;
+    size_t row = 0;
+
+    // Walk through buffer up to pos
+    for (size_t i = 0; i < pos; i++) {
+        if (buf[i] == '\n') {
+            // Explicit newline resets to column 0 on next row
+            row++;
+            col = 0;
+        } else if ((unsigned char)buf[i] >= 0x80) {
+            // UTF-8 continuation bytes don't start a new character
+            // Only count width at the start byte
+            if (((unsigned char)buf[i] & 0xC0) != 0x80) {
+                wchar_t wc;
+                int len = utf8_decode((const unsigned char *)buf + i, &wc);
+                if (len > 0) {
+                    int w = wcwidth(wc);
+                    if (w < 0) {
+                        w = 1;
+                    }
+                    col += (size_t)w;
+                } else {
+                    col++;
+                }
+            }
+            // Check for wrap
+            if (term_width > 0 && col >= (size_t)term_width) {
+                row += col / (size_t)term_width;
+                col = col % (size_t)term_width;
+            }
+        } else {
+            col++;
+            if (term_width > 0 && col >= (size_t)term_width) {
+                row += col / (size_t)term_width;
+                col = col % (size_t)term_width;
+            }
+        }
+    }
+
+    // Final wrap check (handles prompt_width >= term_width when pos=0,
+    // or accumulated width after last newline)
+    if (term_width > 0 && col >= (size_t)term_width) {
+        row += col / (size_t)term_width;
+        col = col % (size_t)term_width;
+    }
+
+    *out_row = row;
+    *out_col = col;
+}
+
 // Count the number of newlines in a string (to determine prompt line count)
 static int count_newlines(const char *str) {
     if (!str) return 0;
@@ -322,87 +377,70 @@ static void write_with_crlf(const char *str) {
     }
 }
 
-// Set the cursor to given position.
+// Track the visual row of the cursor from the prompt start across refreshes
+static size_t last_cursor_visual_row = 0;
+
+// Reset refresh state (call when starting a new line edit session)
+static void refresh_line_reset(void) {
+    last_cursor_visual_row = 0;
+}
+
+// Set the cursor to given position using visual row/col calculation.
 static void set_cursor(const char *buf, size_t pos, size_t prev_pos,
         const char *prompt) {
-    size_t ret;
+    ssize_t ret;
 
     // Only reposition cursor if it's not at the desired position
     if (prev_pos == pos) return;
 
-    size_t count = 0;
-    if (prev_pos > pos) {
-        // Calculate how many lines to go up
-        for (ssize_t i = prev_pos; i >= (ssize_t)pos; --i) {
-            if (buf[i] == '\n') ++count;
-        }
-    } else {
-        // calculate how many lines to go down
-        for (size_t i = prev_pos; i <= pos; ++i) {
-            if (buf[i] == '\n') ++count;
-        }
-    }
+    int term_width = get_terminal_width();
+    size_t prompt_width = visible_prompt_length(prompt);
+
+    size_t prev_row, prev_col, new_row, new_col;
+    visual_pos(buf, prev_pos, prompt_width, term_width, &prev_row, &prev_col);
+    visual_pos(buf, pos, prompt_width, term_width, &new_row, &new_col);
 
     char cursor_seq[32];
 
-    if (count > 0) {
-        // Move cursor that many lines up
-        snprintf(cursor_seq, sizeof(cursor_seq),
-                (prev_pos > pos) ? "\x1b[%zuA" : "\x1b[%zuB", count);
+    // Move vertically
+    if (prev_row > new_row) {
+        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuA", prev_row - new_row);
+        ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
+        (void)ret;
+    } else if (new_row > prev_row) {
+        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuB", new_row - prev_row);
         ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
         (void)ret;
     }
 
-    size_t begin = 0;
-    if (pos > 0) {
-        // Move cursor to correct position on that line
-        // Count number of cols to move to right
-        for (size_t i = pos - 1; i > 0; --i) {
-            if (buf[i] == '\n') {
-                begin = i + 1;
-                break;
-            }
-        }
-    }
-
-    // Move cursor to the begining of line
+    // Move to correct column (absolute positioning via \r then forward)
     ret = write(STDOUT_FILENO, "\r", 1);
     (void)ret;
 
-    if (begin == 0) {
-        // Skip the prompt
-        size_t visible_prompt = visible_prompt_length(prompt);
-        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuC", visible_prompt);
+    if (new_col > 0) {
+        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuC", new_col);
         ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
         (void)ret;
     }
 
-    if (pos - begin > 0) {
-        // Go to pos
-        snprintf(cursor_seq, sizeof(cursor_seq), "\x1b[%zuC", (pos - begin));
-        ret = write(STDOUT_FILENO, cursor_seq, safe_strlen(cursor_seq, sizeof(cursor_seq)));
-        (void)ret;
-    }
+    // Update tracked cursor row
+    last_cursor_visual_row = new_row;
 }
 
 // Refresh the line on screen (supports multi-line prompt and buffer)
 static void refresh_line(const char *buf, size_t len, size_t pos, const char *prompt,
         size_t prev_buffer_lines) {
     ssize_t ret;
+    int term_width = get_terminal_width();
+    size_t prompt_width = visible_prompt_length(prompt);
+    size_t prompt_newlines = (size_t)count_newlines(prompt);
+    (void)prev_buffer_lines;
 
-    // Count how many lines up the cursor is
-    size_t count = 0;
-    for (ssize_t i = len - 1; i >= (ssize_t)pos; --i) {
-        if (buf[i] == '\n') ++count;
-    }
-
-    // Count new lines in prompt and previous buffer
-    size_t prompt_lines = count_newlines(prompt) + prev_buffer_lines - count;
-
-    // For multi-line prompt and buffer, move cursor up to where the prompt started
-    if (prompt_lines > 0) {
+    // Move cursor up from its current visual row to the prompt start
+    size_t total_up = last_cursor_visual_row + prompt_newlines;
+    if (total_up > 0) {
         char up_seq[32];
-        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", prompt_lines);
+        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", total_up);
         ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
         (void)ret;
     }
@@ -431,7 +469,20 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
         write_with_crlf(buf);
     }
 
-    size_t previous_pos = len;
+    // Calculate where the end of buffer is visually (for autosuggestion handling)
+    size_t end_row, end_col;
+    visual_pos(buf, len, prompt_width, term_width, &end_row, &end_col);
+
+    // Handle deferred wrap: when content fills exactly to the terminal edge,
+    // the terminal cursor is in a "pending wrap" state (visually at end of
+    // current row, not yet on the next row). Force it to actually wrap so
+    // our row/col calculations match the real cursor position.
+    if (term_width > 0 && end_col == 0 && end_row > 0 &&
+            (len == 0 || buf[len - 1] != '\n')) {
+        // Write space to force wrap, \r to go to col 0 of the new line
+        ret = write(STDOUT_FILENO, " \r", 2);
+        (void)ret;
+    }
 
     // Show autosuggestion if enabled and cursor is at end of buffer
     if (colors_enabled && color_config.autosuggestion_enabled && pos == len && len > 0) {
@@ -440,26 +491,86 @@ static void refresh_line(const char *buf, size_t len, size_t pos, const char *pr
             // Write suggestion in dim color
             const char *suggest_color = color_config_get(color_config.suggestion);
             ret = write(STDOUT_FILENO, suggest_color, strlen(suggest_color));
-            previous_pos += ret;
-            ret = write(STDOUT_FILENO, suggestion, strlen(suggestion));
-            previous_pos += ret;
+            (void)ret;
+            write_with_crlf(suggestion);
             // Reset color
             const char *reset = color_code(COLOR_RESET);
             ret = write(STDOUT_FILENO, reset, strlen(reset));
-            previous_pos += ret;
+            (void)ret;
 
-            // Move the cursor up if there was a new line
-            for (size_t i = 0; suggestion[i]; ++i) {
-                if (suggestion[i] == '\n') {
-                    ret = write(STDOUT_FILENO, "\x1b[A", 3);
-                    (void)ret;
+            // Move cursor back up past suggestion lines (newlines + wraps)
+            // Count visual lines in the suggestion
+            size_t suggest_row = 0;
+            size_t suggest_col = end_col;
+            const unsigned char *sp = (const unsigned char *)suggestion;
+            while (*sp) {
+                if (*sp == '\n') {
+                    suggest_row++;
+                    suggest_col = 0;
+                } else if (*sp >= 0x80) {
+                    wchar_t wc;
+                    int slen = utf8_decode(sp, &wc);
+                    if (slen > 0) {
+                        int w = wcwidth(wc);
+                        if (w < 0) {
+                            w = 1;
+                        }
+                        suggest_col += (size_t)w;
+                        sp += slen - 1;
+                    }
+                } else {
+                    suggest_col++;
                 }
+                if (term_width > 0 && suggest_col >= (size_t)term_width) {
+                    suggest_row += suggest_col / (size_t)term_width;
+                    suggest_col = suggest_col % (size_t)term_width;
+                }
+                sp++;
+            }
+            if (suggest_row > 0) {
+                char up_seq[32];
+                snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", suggest_row);
+                ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
+                (void)ret;
+            }
+            // Move to correct column (end of buffer)
+            ret = write(STDOUT_FILENO, "\r", 1);
+            (void)ret;
+            if (end_col > 0) {
+                char col_seq[32];
+                snprintf(col_seq, sizeof(col_seq), "\x1b[%zuC", end_col);
+                ret = write(STDOUT_FILENO, col_seq, strlen(col_seq));
+                (void)ret;
             }
         }
     }
 
+    // Now cursor is at the end of buffer; move it to desired pos
+    size_t pos_row, pos_col;
+    visual_pos(buf, pos, prompt_width, term_width, &pos_row, &pos_col);
 
-    set_cursor(buf, pos, previous_pos, prompt);
+    if (end_row > pos_row) {
+        char up_seq[32];
+        snprintf(up_seq, sizeof(up_seq), "\x1b[%zuA", end_row - pos_row);
+        ret = write(STDOUT_FILENO, up_seq, strlen(up_seq));
+        (void)ret;
+    } else if (pos_row > end_row) {
+        char down_seq[32];
+        snprintf(down_seq, sizeof(down_seq), "\x1b[%zuB", pos_row - end_row);
+        ret = write(STDOUT_FILENO, down_seq, strlen(down_seq));
+        (void)ret;
+    }
+    ret = write(STDOUT_FILENO, "\r", 1);
+    (void)ret;
+    if (pos_col > 0) {
+        char col_seq[32];
+        snprintf(col_seq, sizeof(col_seq), "\x1b[%zuC", pos_col);
+        ret = write(STDOUT_FILENO, col_seq, strlen(col_seq));
+        (void)ret;
+    }
+
+    // Remember the cursor's visual row for next refresh
+    last_cursor_visual_row = pos_row;
 }
 
 // Initialize line editor
@@ -605,6 +716,7 @@ char *lineedit_read_line(const char *prompt) {
 
     const char *prompt_str = prompt ? prompt : "";
     size_t newline_count = 0;
+    refresh_line_reset();
 
     while (1) {
         int c = read_key();
@@ -717,15 +829,9 @@ char *lineedit_read_line(const char *prompt) {
                     break;
                 }
                 if (pos < len) {
+                    size_t old_pos = pos;
                     pos++;
-                    // If in the end of current line in multi line buffer, move to next line
-                    if (buf[pos - 1] == '\n') {
-                        ret = write(STDOUT_FILENO, "\x1b[E", 3);
-                        (void)ret;
-                        break;
-                    }
-                    ret = write(STDOUT_FILENO, "\x1b[C", 3);
-                    (void)ret;
+                    set_cursor(buf, pos, old_pos, prompt_str);
                 } else if (pos == len && colors_enabled && color_config.autosuggestion_enabled) {
                     // At end of buffer - accept autosuggestion if available
                     const char *suggestion = autosuggest_get(buf, len);
@@ -758,14 +864,9 @@ char *lineedit_read_line(const char *prompt) {
                     break;
                 }
                 if (pos > 0) {
+                    size_t old_pos = pos;
                     pos--;
-                    // If n the begining of current line in multi line buffer, move to previous line
-                    if (buf[pos] == '\n') {
-                        set_cursor(buf, pos, pos + 1, prompt);
-                        break;
-                    }
-                    ret = write(STDOUT_FILENO, "\x1b[D", 3);
-                    (void)ret;
+                    set_cursor(buf, pos, old_pos, prompt_str);
                 }
                 break;
 
@@ -809,19 +910,27 @@ char *lineedit_read_line(const char *prompt) {
 
             case KEY_CTRL_A:  // Beginning
                 last_was_tab = 0;
-                while (pos > 0 && buf[pos - 1] != '\n') {
-                    pos--;
-                    ret = write(STDOUT_FILENO, "\x1b[D", 3);
-                    (void)ret;
+                {
+                    size_t old_pos = pos;
+                    while (pos > 0 && buf[pos - 1] != '\n') {
+                        pos--;
+                    }
+                    if (pos != old_pos) {
+                        set_cursor(buf, pos, old_pos, prompt_str);
+                    }
                 }
                 break;
 
             case KEY_CTRL_E:  // End
                 last_was_tab = 0;
-                while (pos < len && buf[pos + 1] != '\n') {
-                    pos++;
-                    ret = write(STDOUT_FILENO, "\x1b[C", 3);
-                    (void)ret;
+                {
+                    size_t old_pos = pos;
+                    while (pos < len && buf[pos + 1] != '\n') {
+                        pos++;
+                    }
+                    if (pos != old_pos) {
+                        set_cursor(buf, pos, old_pos, prompt_str);
+                    }
                 }
                 break;
 
@@ -1105,8 +1214,20 @@ char *lineedit_read_line(const char *prompt) {
                     if (pos < len || (colors_enabled && color_config.syntax_highlight_enabled)) {
                         refresh_line(buf, len, pos, prompt_str, newline_count);
                     } else {
+                        // Fast path: append at end without syntax highlighting
                         ret = write(STDOUT_FILENO, &c, 1);
                         (void)ret;
+                        // Update visual row tracking since terminal may wrap
+                        int tw = get_terminal_width();
+                        size_t pw = visible_prompt_length(prompt_str);
+                        size_t vr, vc;
+                        visual_pos(buf, pos, pw, tw, &vr, &vc);
+                        last_cursor_visual_row = vr;
+                        // Force deferred wrap if at exact terminal edge
+                        if (tw > 0 && vc == 0 && vr > 0) {
+                            ret = write(STDOUT_FILENO, " \r", 2);
+                            (void)ret;
+                        }
                     }
                 }
                 break;
