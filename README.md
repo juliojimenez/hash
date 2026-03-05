@@ -8,6 +8,8 @@ A modern command line interpreter for Linux, macOS, and BSD.
 
 <center><img src="demo.gif" /></center>
 
+Demo made with [vhs](https://github.com/charmbracelet/vhs).
+
 ## Install
 
 ### From Release
