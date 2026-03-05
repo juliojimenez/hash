@@ -6,6 +6,8 @@
 # hash
 A modern command line interpreter for Linux, macOS, and BSD.
 
+<center><img src="demo.gif" /></center>
+
 ## Install
 
 ### From Release
