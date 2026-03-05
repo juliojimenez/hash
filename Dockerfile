@@ -28,6 +28,9 @@ LABEL org.opencontainers.image.title="hash-shell"
 LABEL org.opencontainers.image.description="A modern command line interpreter for Linux, macOS, and BSD."
 LABEL org.opencontainers.image.source="https://github.com/juliojimenez/hash"
 
+# Update base packages to patch known CVEs
+RUN apk upgrade --no-cache
+
 # Copy binary from builder
 COPY --from=builder /build/hash-shell /usr/local/bin/hash-shell
 
