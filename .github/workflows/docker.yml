@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build (e.g., v42)'
+        description: 'Tag to build (e.g., v43)'
         required: true
-        default: v42
+        default: v43
 
 env:
   REGISTRY: docker.io
