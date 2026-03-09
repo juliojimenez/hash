@@ -631,7 +631,7 @@ static void search_cleanup(void) {
 }
 
 // Refresh line with search prompt
-static void search_refresh_line(LineEdit *edit, bool has_match) {
+static void search_refresh_line(const LineEdit *edit, bool has_match) {
     // Build search prompt
     char search_prompt[512];
     const char *mode = (search_state.direction == 1) ? "reverse" : "forward";
