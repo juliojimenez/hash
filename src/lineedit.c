@@ -442,7 +442,7 @@ static void set_cursor(LineEdit *edit, size_t new_pos) {
 }
 
 // Refresh the line on screen (supports multi-line prompt and buffer)
-static void refresh_line(LineEdit *edit) {
+static void refresh_line(const LineEdit *edit) {
     ssize_t ret;
     int term_width = get_terminal_width();
     size_t prompt_width = visible_prompt_length(edit->prompt);
@@ -602,8 +602,8 @@ bool inside_quote(const char *buf, size_t len) {
     // Loop through buffer to check whether we are inside the quote
     // If we are already inside one type of quote, then other type of quote is ignored.
     for (size_t i = 0; i < len; ++i) {
-        if (buf[i] == '\'' && !double_quote) single_quote ^= 1;
-        else if (buf[i] == '"' && !single_quote) double_quote ^= 1;
+        if (buf[i] == '\'' && !double_quote) single_quote = !single_quote;
+        else if (buf[i] == '"' && !single_quote) double_quote = !double_quote;
     }
     return single_quote || double_quote;
 }
