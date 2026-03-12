@@ -15,8 +15,38 @@
 #include "trap.h"
 #include "hash.h"
 
-#define MAX_CMDSUB_LENGTH 8192
-#define MAX_CMD_OUTPUT 65536
+#define INITIAL_BUF_SIZE 65536
+
+// Dynamic buffer for building command substitution results
+typedef struct {
+    char *data;
+    size_t len;
+    size_t cap;
+} CmdSubBuf;
+
+static int cmdsub_buf_ensure(CmdSubBuf *buf, size_t additional) {
+    size_t needed = buf->len + additional;
+    if (needed < buf->cap) {
+        return 0;
+    }
+    size_t new_cap = buf->cap;
+    while (new_cap <= needed) {
+        new_cap *= 2;
+    }
+    char *new_data = realloc(buf->data, new_cap);
+    if (!new_data) {
+        return -1;
+    }
+    buf->data = new_data;
+    buf->cap = new_cap;
+    return 0;
+}
+
+static void cmdsub_buf_putc(CmdSubBuf *buf, char c) {
+    if (cmdsub_buf_ensure(buf, 1) == 0) {
+        buf->data[buf->len++] = c;
+    }
+}
 
 // Helper to check if a character needs protection in quoted context
 // This includes glob chars, redirect operators, quote chars, and other special chars
@@ -72,7 +102,8 @@ static void child_process(const char *cmd, const int pipefd[2]) {
 static char *get_child_output(pid_t pid, const int pipefd[2]) {
     close(pipefd[1]);
 
-    char *output = malloc(MAX_CMD_OUTPUT);
+    size_t buf_size = INITIAL_BUF_SIZE;
+    char *output = malloc(buf_size);
     if (!output) {
         close(pipefd[0]);
         waitpid(pid, NULL, 0);
@@ -83,9 +114,17 @@ static char *get_child_output(pid_t pid, const int pipefd[2]) {
     ssize_t bytes_read;
 
     while ((bytes_read = read(pipefd[0], output + total_read,
-                              MAX_CMD_OUTPUT - total_read - 1)) > 0) {
+                              buf_size - total_read - 1)) > 0) {
         total_read += bytes_read;
-        if (total_read >= MAX_CMD_OUTPUT - 1) break;
+        if (total_read >= buf_size - 1) {
+            size_t new_size = buf_size * 2;
+            char *new_output = realloc(output, new_size);
+            if (!new_output) {
+                break;
+            }
+            output = new_output;
+            buf_size = new_size;
+        }
     }
 
     close(pipefd[0]);
@@ -211,9 +250,9 @@ static int has_cmdsub(const char *str) {
 
 // Extract command, execute it, and append output to result buffer
 // When in_quoted is true, protect glob characters with \x01 markers
-// Returns new position in result buffer, or -1 on allocation failure
-static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
-                                    char *result, size_t out_pos, int in_quoted) {
+// Returns 0 on success, -1 on allocation failure
+static int process_substitution(const char *cmd_start, size_t cmd_len,
+                                CmdSubBuf *buf, int in_quoted) {
     char *cmd = malloc(cmd_len + 1);
     if (!cmd) {
         return -1;
@@ -226,45 +265,52 @@ static ssize_t process_substitution(const char *cmd_start, size_t cmd_len,
 
     if (output) {
         size_t output_len = strlen(output);
+        // Pre-allocate space: worst case is 2x output (every char gets a marker)
+        if (cmdsub_buf_ensure(buf, output_len * 2 + 4) < 0) {
+            free(output);
+            return -1;
+        }
         // Copy output to result
         // - If in_quoted: protect special chars with \x01 markers
         // - If not in_quoted: wrap with \x03 markers for IFS splitting
-        if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 2) {
-            result[out_pos++] = '\x03';  // Start IFS split marker
+        if (!in_quoted) {
+            buf->data[buf->len++] = '\x03';  // Start IFS split marker
         }
-        for (size_t i = 0; i < output_len && out_pos < MAX_CMDSUB_LENGTH - 2; i++) {
+        for (size_t i = 0; i < output_len; i++) {
             char c = output[i];
             if (in_quoted && needs_quote_protection(c)) {
                 // Protect special character with \x01 marker
-                result[out_pos++] = '\x01';
+                buf->data[buf->len++] = '\x01';
             }
-            result[out_pos++] = c;
+            buf->data[buf->len++] = c;
         }
-        if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 1) {
-            result[out_pos++] = '\x03';  // End IFS split marker
+        if (!in_quoted) {
+            buf->data[buf->len++] = '\x03';  // End IFS split marker
         }
         free(output);
-    } else if (!in_quoted && out_pos < MAX_CMDSUB_LENGTH - 2) {
+    } else if (!in_quoted) {
         // Empty output in unquoted context - add markers so it can be removed
-        result[out_pos++] = '\x03';
-        result[out_pos++] = '\x03';
+        if (cmdsub_buf_ensure(buf, 2) < 0) {
+            return -1;
+        }
+        buf->data[buf->len++] = '\x03';
+        buf->data[buf->len++] = '\x03';
     }
 
-    return (ssize_t)out_pos;
+    return 0;
 }
 
 // Returns true if handled
-static bool handle_soh_marker(const char **read_char, char *result, size_t *write_index) {
+static bool handle_soh_marker(const char **read_char, CmdSubBuf *buf) {
     const char *p = *read_char;
-    size_t out_pos = *write_index;
 
     // Handle SOH marker with protected backslash (from single quotes: \$ or \`)
     // Pass through to varexpand which will output \$ or \` literally
     if (*p == '\x01' && *(p + 1) == '\\' && (*(p + 2) == '$' || *(p + 2) == '`')) {
-        if (out_pos < MAX_CMDSUB_LENGTH - 3) {
-            result[out_pos++] = *p++;  // marker
-            result[out_pos++] = *p++;  // backslash
-            result[out_pos++] = *p++;  // $ or `
+        if (cmdsub_buf_ensure(buf, 3) == 0) {
+            buf->data[buf->len++] = *p++;  // marker
+            buf->data[buf->len++] = *p++;  // backslash
+            buf->data[buf->len++] = *p++;  // $ or `
         } else {
             p += 3;
         }
@@ -273,9 +319,9 @@ static bool handle_soh_marker(const char **read_char, char *result, size_t *writ
     // Handle SOH marker (single-quoted dollar sign from parser)
     // Pass through to varexpand which will output literal $
     if (*p == '\x01' && *(p + 1) == '$') {
-        if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-            result[out_pos++] = *p++;  // marker
-            result[out_pos++] = *p++;  // $
+        if (cmdsub_buf_ensure(buf, 2) == 0) {
+            buf->data[buf->len++] = *p++;  // marker
+            buf->data[buf->len++] = *p++;  // $
         } else {
             p += 2;
         }
@@ -286,41 +332,31 @@ static bool handle_soh_marker(const char **read_char, char *result, size_t *writ
 
 handled:
     *read_char = p;
-    *write_index = out_pos;
     return true;
 }
 
 // Returns true if handled
-static bool handle_arith_expr(const char **read_char, char *result, size_t *write_index) {
+static bool handle_arith_expr(const char **read_char, CmdSubBuf *buf) {
     const char *p = *read_char;
-    size_t out_pos = *write_index;
 
     if (*p == '$' && *(p + 1) == '(' && *(p + 2) == '(') {
         // Copy $(( literally - arithmetic expansion handles this
-        result[out_pos++] = *p++;
-        if (out_pos < MAX_CMDSUB_LENGTH - 1) {
-            result[out_pos++] = *p++;
-        }
-        if (out_pos < MAX_CMDSUB_LENGTH - 1) {
-            result[out_pos++] = *p++;
-        }
+        cmdsub_buf_putc(buf, *p++);
+        cmdsub_buf_putc(buf, *p++);
+        cmdsub_buf_putc(buf, *p++);
         // Copy until matching ))
         int depth = 1;
-        while (*p && depth > 0 && out_pos < MAX_CMDSUB_LENGTH - 1) {
+        while (*p && depth > 0) {
             if (*p == '(' && *(p + 1) == '(') {
                 depth++;
-                result[out_pos++] = *p++;
-                if (out_pos < MAX_CMDSUB_LENGTH - 1) {
-                    result[out_pos++] = *p++;
-                }
+                cmdsub_buf_putc(buf, *p++);
+                cmdsub_buf_putc(buf, *p++);
             } else if (*p == ')' && *(p + 1) == ')') {
                 depth--;
-                result[out_pos++] = *p++;
-                if (out_pos < MAX_CMDSUB_LENGTH - 1) {
-                    result[out_pos++] = *p++;
-                }
+                cmdsub_buf_putc(buf, *p++);
+                cmdsub_buf_putc(buf, *p++);
             } else {
-                result[out_pos++] = *p++;
+                cmdsub_buf_putc(buf, *p++);
             }
         }
         goto handled;
@@ -330,7 +366,6 @@ static bool handle_arith_expr(const char **read_char, char *result, size_t *writ
 
 handled:
     *read_char = p;
-    *write_index = out_pos;
     return true;
 }
 
@@ -338,28 +373,36 @@ handled:
 char *cmdsub_expand(const char *str) {
     if (!str || !has_cmdsub(str)) return NULL;
 
-    char *result = malloc(MAX_CMDSUB_LENGTH);
-    if (!result) return NULL;
+    size_t str_len = strlen(str);
+    size_t initial_cap = str_len * 2 + 256;
+    if (initial_cap < INITIAL_BUF_SIZE) {
+        initial_cap = INITIAL_BUF_SIZE;
+    }
 
-    size_t out_pos = 0;
+    CmdSubBuf buf;
+    buf.data = malloc(initial_cap);
+    if (!buf.data) return NULL;
+    buf.len = 0;
+    buf.cap = initial_cap;
+
     const char *p = str;
     int in_dquote = 0;   // Track double-quote context for backticks
     int in_squote = 0;   // Track single-quote context
 
-    while (*p && out_pos < MAX_CMDSUB_LENGTH - 1) {
+    while (*p) {
         // Track quote state for backticks (which don't get \x02 markers)
         if (*p == '"' && !in_squote) {
             in_dquote = !in_dquote;
-            result[out_pos++] = *p++;
+            cmdsub_buf_putc(&buf, *p++);
             continue;
         }
         if (*p == '\'' && !in_dquote) {
             in_squote = !in_squote;
-            result[out_pos++] = *p++;
+            cmdsub_buf_putc(&buf, *p++);
             continue;
         }
 
-        if (handle_soh_marker(&p, result, &out_pos)) {
+        if (handle_soh_marker(&p, &buf)) {
             continue;
         }
 
@@ -367,16 +410,16 @@ char *cmdsub_expand(const char *str) {
         if (*p == '\\' && *(p + 1)) {
             if (*(p + 1) == '$' || *(p + 1) == '`') {
                 // Escaped $ or ` - preserve the escape for varexpand to handle
-                if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-                    result[out_pos++] = '\\';
-                    result[out_pos++] = *(p + 1);
+                if (cmdsub_buf_ensure(&buf, 2) == 0) {
+                    buf.data[buf.len++] = '\\';
+                    buf.data[buf.len++] = *(p + 1);
                 }
                 p += 2;
                 continue;
             }
-            if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-                result[out_pos++] = *p++;
-                result[out_pos++] = *p++;
+            if (cmdsub_buf_ensure(&buf, 2) == 0) {
+                buf.data[buf.len++] = *p++;
+                buf.data[buf.len++] = *p++;
             } else {
                 break;
             }
@@ -384,7 +427,7 @@ char *cmdsub_expand(const char *str) {
         }
 
         // Skip $(( arithmetic - let arith_expand handle it later
-        if (handle_arith_expr(&p, result, &out_pos)) {
+        if (handle_arith_expr(&p, &buf)) {
             continue;
         }
 
@@ -398,24 +441,22 @@ char *cmdsub_expand(const char *str) {
                 p += 2;  // Skip $(
                 const char *end = find_closing_paren(p);
                 if (!end) {
-                    if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-                        result[out_pos++] = '$';
-                        result[out_pos++] = '(';
+                    if (cmdsub_buf_ensure(&buf, 2) == 0) {
+                        buf.data[buf.len++] = '$';
+                        buf.data[buf.len++] = '(';
                     }
                     continue;
                 }
                 // Process with in_quoted=1 to protect glob chars
-                ssize_t new_pos = process_substitution(p, end - p, result, out_pos, 1);
-                if (new_pos < 0) {
-                    free(result);
+                if (process_substitution(p, end - p, &buf, 1) < 0) {
+                    free(buf.data);
                     return NULL;
                 }
-                out_pos = (size_t)new_pos;
                 p = end + 1;
                 continue;
             }
             // Not command substitution, pass marker through for varexpand
-            result[out_pos++] = '\x02';
+            cmdsub_buf_putc(&buf, '\x02');
             continue;
         }
 
@@ -425,19 +466,17 @@ char *cmdsub_expand(const char *str) {
 
             const char *end = find_closing_paren(p);
             if (!end) {
-                if (out_pos < MAX_CMDSUB_LENGTH - 2) {
-                    result[out_pos++] = '$';
-                    result[out_pos++] = '(';
+                if (cmdsub_buf_ensure(&buf, 2) == 0) {
+                    buf.data[buf.len++] = '$';
+                    buf.data[buf.len++] = '(';
                 }
                 continue;
             }
 
-            ssize_t new_pos = process_substitution(p, end - p, result, out_pos, 0);
-            if (new_pos < 0) {
-                free(result);
+            if (process_substitution(p, end - p, &buf, 0) < 0) {
+                free(buf.data);
                 return NULL;
             }
-            out_pos = (size_t)new_pos;
             p = end + 1;
             continue;
         }
@@ -450,28 +489,29 @@ char *cmdsub_expand(const char *str) {
 
             const char *end = find_closing_backtick(p);
             if (!end) {
-                if (out_pos < MAX_CMDSUB_LENGTH - 1) {
-                    result[out_pos++] = '`';
-                }
+                cmdsub_buf_putc(&buf, '`');
                 continue;
             }
 
-            ssize_t new_pos = process_substitution(p, end - p, result, out_pos, in_dquote);
-            if (new_pos < 0) {
-                free(result);
+            if (process_substitution(p, end - p, &buf, in_dquote) < 0) {
+                free(buf.data);
                 return NULL;
             }
-            out_pos = (size_t)new_pos;
             p = end + 1;
             continue;
         }
 
         // Regular character
-        result[out_pos++] = *p++;
+        cmdsub_buf_putc(&buf, *p++);
     }
 
-    result[out_pos] = '\0';
-    return result;
+    // Null-terminate
+    if (cmdsub_buf_ensure(&buf, 1) < 0) {
+        free(buf.data);
+        return NULL;
+    }
+    buf.data[buf.len] = '\0';
+    return buf.data;
 }
 
 // Expand command substitutions in all arguments
