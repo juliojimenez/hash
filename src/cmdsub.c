@@ -278,7 +278,12 @@ static int process_substitution(const char *cmd_start, size_t cmd_len,
         }
         for (size_t i = 0; i < output_len; i++) {
             char c = output[i];
-            if (in_quoted && needs_quote_protection(c)) {
+            if (c == '$' || c == '`') {
+                // Always protect $ and ` from further expansion
+                // (POSIX: command substitution output is not re-scanned
+                // for variable expansion or nested command substitution)
+                buf->data[buf->len++] = '\x01';
+            } else if (in_quoted && needs_quote_protection(c)) {
                 // Protect special character with \x01 marker
                 buf->data[buf->len++] = '\x01';
             }
