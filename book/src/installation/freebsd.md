@@ -5,18 +5,18 @@
 ### FreeBSD x86_64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v44/hash-shell-v44-freebsd-x86_64
-chmod +x hash-shell-v44-freebsd-x86_64
-sudo mv hash-shell-v44-freebsd-x86_64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v45/hash-shell-v45-freebsd-x86_64
+chmod +x hash-shell-v45-freebsd-x86_64
+sudo mv hash-shell-v45-freebsd-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 ### FreeBSD ARM64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v44/hash-shell-v44-freebsd-aarch64
-chmod +x hash-shell-v44-freebsd-aarch64
-sudo mv hash-shell-v44-freebsd-aarch64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v45/hash-shell-v45-freebsd-aarch64
+chmod +x hash-shell-v45-freebsd-aarch64
+sudo mv hash-shell-v45-freebsd-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 

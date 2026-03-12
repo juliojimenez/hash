@@ -1,7 +1,6 @@
-hash-shell (44-1) unstable; urgency=medium
+hash-shell (45-1) unstable; urgency=medium
 
-  * refactor(lineedit): refactor the lineedit file (by @kshku)
-  * Dependabot updates
-  * docs(readme): Update Demo  
+  * docs(readme): Update Demo
+  * fix(cmdsub): Buffer Truncating cmdsub Output  
 
- -- Julio Jimenez <julio@julioj.com>  Mon, 9 Mar 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Thu, 12 Mar 2026 12:00:00 +0000
