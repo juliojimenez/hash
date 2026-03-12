@@ -96,13 +96,20 @@ static const char *mark_dollars_as_quoted(const char *word) {
 char *varexpand_expand(const char *str, int last_exit_code) {
     if (!str) return NULL;
 
-    char *result = malloc(MAX_EXPANDED_LENGTH);
+    // Allocate proportionally to input size (expansion can grow the string)
+    size_t input_len = strlen(str);
+    size_t result_size = input_len * 2 + 4096;
+    if (result_size < MAX_EXPANDED_LENGTH) {
+        result_size = MAX_EXPANDED_LENGTH;
+    }
+
+    char *result = malloc(result_size);
     if (!result) return NULL;
 
     size_t out_pos = 0;
     const char *p = str;
 
-    while (*p && out_pos < MAX_EXPANDED_LENGTH - 1) {
+    while (*p && out_pos < result_size - 1) {
         if (*p == '\x01' && *(p + 1) == '\\' && *(p + 2) == '\\') {
             // Protected double backslash from single quotes - output both literally
             result[out_pos++] = '\\';
@@ -547,7 +554,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 }
             } else {
                 // Just a $ followed by something else, keep the $
-                if (out_pos < MAX_EXPANDED_LENGTH - 1) {
+                if (out_pos < result_size - 1) {
                     result[out_pos++] = '$';
                 }
                 is_literal_dollar = true;  // Not a variable expansion
@@ -563,7 +570,7 @@ append_value:
                 if (val_len > 0) {
                     if (is_quoted) {
                         // Append with markers to prevent glob expansion and quote interpretation
-                        for (size_t i = 0; i < val_len && out_pos < MAX_EXPANDED_LENGTH - 2; i++) {
+                        for (size_t i = 0; i < val_len && out_pos < result_size - 2; i++) {
                             char c = var_value[i];
                             if (c == '*' || c == '?' || c == '[' || c == ']' || c == '"' || c == '\'' || c == '\\' ||
                                 c == '<' || c == '>' || c == '|' || c == '&' || c == '~') {
@@ -574,23 +581,23 @@ append_value:
                         }
                     } else {
                         // Unquoted - wrap with \x03 markers for IFS splitting
-                        size_t space = MAX_EXPANDED_LENGTH - 1 - out_pos;
+                        size_t space = result_size - 1 - out_pos;
                         // Need space for: marker + value + marker
                         size_t to_copy = (val_len < space - 2) ? val_len : (space > 2 ? space - 2 : 0);
-                        if (to_copy > 0 && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                        if (to_copy > 0 && out_pos < result_size - 2) {
                             result[out_pos++] = '\x03';  // Start marker
                             memcpy(result + out_pos, var_value, to_copy);
                             out_pos += to_copy;
                             result[out_pos++] = '\x03';  // End marker
                         }
                     }
-                } else if (!is_quoted && out_pos < MAX_EXPANDED_LENGTH - 2) {
+                } else if (!is_quoted && out_pos < result_size - 2) {
                     // Empty unquoted expansion - add markers so IFS splitting can remove it
                     // POSIX: empty unquoted expansion produces no field
                     result[out_pos++] = '\x03';
                     result[out_pos++] = '\x03';
                 }
-            } else if (!is_quoted && out_pos < MAX_EXPANDED_LENGTH - 2) {
+            } else if (!is_quoted && out_pos < result_size - 2) {
                 // Unset variable in unquoted context - add empty markers for removal
                 // POSIX: unset variable in unquoted expansion produces no field
                 result[out_pos++] = '\x03';

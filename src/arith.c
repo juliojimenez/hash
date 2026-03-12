@@ -869,13 +869,20 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
 char *arith_expand(const char *str) {
     if (!str || !has_arith(str)) return NULL;
 
-    char *result = malloc(MAX_ARITH_LENGTH);
+    // Allocate proportionally to input size
+    size_t input_len = strlen(str);
+    size_t result_size = input_len + 4096;
+    if (result_size < MAX_ARITH_LENGTH) {
+        result_size = MAX_ARITH_LENGTH;
+    }
+
+    char *result = malloc(result_size);
     if (!result) return NULL;
 
     size_t out_pos = 0;
     const char *p = str;
 
-    while (*p && out_pos < MAX_ARITH_LENGTH - 1) {
+    while (*p && out_pos < result_size - 1) {
         // Check if regular characters Regular character
         if (!(*p == '$' && *(p + 1) == '(' && *(p + 2) == '(')) {
             result[out_pos++] = *p++;
@@ -895,7 +902,7 @@ char *arith_expand(const char *str) {
         const char *end = find_arith_end(p);
         if (!end) {
             // Malformed, copy literally
-            if (out_pos < MAX_ARITH_LENGTH - 3) {
+            if (out_pos < result_size - 3) {
                 result[out_pos++] = '$';
                 result[out_pos++] = '(';
                 result[out_pos++] = '(';
@@ -910,7 +917,7 @@ char *arith_expand(const char *str) {
             // Format result
             char buf[32];
             int n = snprintf(buf, sizeof(buf), "%ld", value);
-            if (n > 0 && out_pos + n < MAX_ARITH_LENGTH) {
+            if (n > 0 && (size_t)n + out_pos < result_size) {
                 memcpy(result + out_pos, buf, n);
                 out_pos += n;
             }
