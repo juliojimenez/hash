@@ -36,7 +36,7 @@ hash-shell --version
 # hash version 46
 
 hash-shell
-# hash version 46
+# hash v46
 # Type 'exit' to quit
 #>
 ```
