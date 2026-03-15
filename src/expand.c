@@ -340,12 +340,12 @@ static char *preprocess_bracket_expr(const char *s) {
             *write++ = *read++;
 
             // Check for negation
-            if (char_in_string(*read, "!^")) {
+            if (*read && char_in_string(*read, "!^")) {
                 *write++ = *read++;
             }
 
             // First char after [ (or [! / [^) can be ] and it's literal
-            if (*read == ']') {
+            if (*read && *read == ']') {
                 *write++ = *read++;
             }
 
