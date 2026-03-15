@@ -4,4 +4,4 @@ hash-shell (46-1) unstable; urgency=medium
   * refactor: extract utility functions (by @kshku)
   * fix(fuzz): Add New Files
 
- -- Julio Jimenez <julio@julioj.com>  Sun, 15 Mar 2026 12:00:00 +0000
+-- Julio Jimenez <julio@julioj.com>  Sun, 15 Mar 2026 12:00:00 +0000
