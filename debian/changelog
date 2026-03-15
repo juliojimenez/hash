@@ -1,6 +1,7 @@
-hash-shell (45-1) unstable; urgency=medium
+hash-shell (46-1) unstable; urgency=medium
 
   * docs(readme): Update Demo
-  * fix(cmdsub): Buffer Truncating cmdsub Output
+  * refactor: extract utility functions (by @kshku)
+  * fix(fuzz): Add New Files
 
- -- Julio Jimenez <julio@julioj.com>  Thu, 12 Mar 2026 12:00:00 +0000
+ -- Julio Jimenez <julio@julioj.com>  Sun, 15 Mar 2026 12:00:00 +0000
