@@ -652,6 +652,7 @@ static bool needs_fnmatch_glob(const char *s) {
                 }
                 p++;
             }
+            if (!*p) break;
         }
     }
     return false;
