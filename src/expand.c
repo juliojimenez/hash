@@ -641,9 +641,9 @@ static bool needs_fnmatch_glob(const char *s) {
             // Found opening bracket, look for [: inside
             p++;
             // Skip negation
-            if (char_in_string(*p, "!^")) p++;
+            if (*p && char_in_string(*p, "!^")) p++;
             // First ] is literal
-            if (*p == ']') p++;
+            if (*p && *p == ']') p++;
 
             // Scan for [:
             while (*p && *p != ']') {
