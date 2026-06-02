@@ -5,6 +5,7 @@
 
 typedef enum {
     TOKEN_TYPE_EOF,
+    TOKEN_TYPE_ERROR,
     TOKEN_TYPE_MAX
 } TokenType;
 
@@ -12,6 +13,8 @@ typedef struct {
     StringView token;
     int line, col;
     TokenType type;
+
+    const char *err_msg;
 } Token;
 
 typedef struct {

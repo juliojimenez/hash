@@ -2,10 +2,11 @@
 
 static char tokenizer_step(Tokenizer *tk);
 static char tokenizer_peek(Tokenizer *tk);
-static Token build_token(Tokenizer *tk);
+static Token build_token(Tokenizer *tk, TokenType type);
+static Token build_error_token(Tokenizer *tk, const char *err_msg);
 
 void tokenizer_create(Tokenizer *tk, const char *src) {
-    *tk = {
+    *tk = (Tokenizer){
         .src = src,
         .cur = src,
         .line = 0,
@@ -22,12 +23,13 @@ void tokenizer_destroy(Tokenizer *tk) {
 Token tokenizer_get_next_token(Tokenizer *tk) {
     tk->token_start = tk->cur;
     tk->line_start = tk->line;
-    tk->col->start = tk->col;
+    tk->col_start = tk->col;
 
     switch (tokenizer_step(tk)) {
         case '\0':
             return build_token(tk, TOKEN_TYPE_EOF);
     }
+    return build_error_token(tk, "unexpected character");
 }
 
 static char tokenizer_step(Tokenizer *tk) {
@@ -46,17 +48,24 @@ static char tokenizer_step(Tokenizer *tk) {
 }
 
 static char tokenizer_peek(Tokenizer *tk) {
-    if (*tk->cur == '\0') {
-        return '\0';
-    }
-    return tk->cur;
+    return *tk->cur;
 }
 
 static Token build_token(Tokenizer *tk, TokenType type) {
     return (Token) {
-        .token = {.str = tk->line_start, .len = tk->cur - tk->line_start},
+        .token = {.str = tk->token_start, .len = tk->cur - tk->token_start},
         .type = type,
         .line = tk->line_start,
         .col = tk->col_start,
+    };
+}
+
+static Token build_error_token(Tokenizer *tk, const char *err_msg) {
+    return (Token) {
+        .token = {.str = tk->token_start, .len = tk->cur - tk->token_start},
+        .type = TOKEN_TYPE_ERROR,
+        .line = tk->line_start,
+        .col = tk->col_start,
+        .err_msg = err_msg,
     };
 }
