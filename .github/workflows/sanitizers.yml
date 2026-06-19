@@ -16,7 +16,7 @@ jobs:
     name: AddressSanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build with ASan
         run: |
@@ -66,7 +66,7 @@ jobs:
     name: UndefinedBehaviorSanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build with UBSan
         run: |
@@ -94,7 +94,7 @@ jobs:
     name: ThreadSanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build with TSan
         run: |
@@ -132,7 +132,7 @@ jobs:
     name: MemorySanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build with MSan
         run: |
@@ -153,7 +153,7 @@ jobs:
     name: Valgrind Memory Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Valgrind
         run: |
@@ -206,7 +206,7 @@ jobs:
     name: Fuzz Testing
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install AFL++
         run: |
@@ -482,7 +482,7 @@ jobs:
     name: ASan + UBSan Combined
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build with ASan + UBSan
         run: |
