@@ -245,7 +245,7 @@ jobs:
           path: artifacts
 
       - name: Upload To Release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           files: artifacts/**/*
           tag_name: ${{ steps.get_version.outputs.version }}
@@ -434,7 +434,7 @@ jobs:
           EOF
 
       - name: Update Release With Installation Instructions
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           body_path: INSTALL.md
           tag_name: ${{ steps.get_version.outputs.version }}
