@@ -54,7 +54,7 @@ static int pending_heredoc_quoted = 0;
 
 static const struct {
     const char *keyword;
-    TokenType type;
+    KeywordType type;
 } keywords[] = {
     { "if",       TOK_IF },
     { "then",     TOK_THEN },
@@ -709,7 +709,7 @@ bool script_is_keyword(const char *word) {
     return false;
 }
 
-TokenType script_get_keyword_type(const char *word) {
+KeywordType script_get_keyword_type(const char *word) {
     if (!word) return TOK_WORD;
 
     for (int i = 0; keywords[i].keyword != NULL; i++) {
@@ -4006,4 +4006,13 @@ void script_set_in_condition(bool in_condition) {
 
 bool script_get_in_condition(void) {
     return in_condition_context;
+}
+
+// Public wrappers so other engines can match case patterns the same way
+char *script_expand_case_word(const char *word) {
+    return expand_case_word(word);
+}
+
+char *script_expand_case_pattern(const char *pattern) {
+    return expand_case_pattern(pattern);
 }

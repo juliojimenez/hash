@@ -19,6 +19,7 @@ typedef struct {
 
     Token lookahead[2];
     int lookahead_count;
+    const char *last_end;   /* End of the most recently consumed token */
 
     ParseStatus status;
     const char *message;
@@ -315,6 +316,7 @@ static Token advance(Parser *p) {
     Token t = *peek(p);
     p->lookahead[0] = p->lookahead[1];
     p->lookahead_count--;
+    p->last_end = t.value.str + t.value.len;
     return t;
 }
 
@@ -445,6 +447,16 @@ static Node *new_node(Parser *p, NodeType type, const Token *at) {
     Node *node = ast_node_new(p->arena, type, at->line, at->col);
     if (!node) {
         fail_oom(p);
+        return NULL;
+    }
+    node->src = at->value.str;
+    return node;
+}
+
+// Close the node's source span at the last consumed token
+static Node *finish(Parser *p, Node *node) {
+    if (node && p->last_end >= node->src) {
+        node->src_len = (size_t)(p->last_end - node->src);
     }
     return node;
 }
@@ -557,7 +569,7 @@ static Node *parse_simple(Parser *p) {
         unexpected(p, peek(p));
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static Node *parse_group(Parser *p, NodeType type) {
@@ -581,7 +593,7 @@ static Node *parse_group(Parser *p, NodeType type) {
     if (!parse_redirect_list(p, node)) {
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static Node *parse_if(Parser *p) {
@@ -620,7 +632,7 @@ static Node *parse_if(Parser *p) {
     if (!expect_word(p, "fi") || !parse_redirect_list(p, node)) {
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static Node *parse_loop(Parser *p, NodeType type) {
@@ -637,7 +649,7 @@ static Node *parse_loop(Parser *p, NodeType type) {
     if (!node->u.loop.body || !expect_word(p, "done") || !parse_redirect_list(p, node)) {
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static Node *parse_for(Parser *p) {
@@ -692,7 +704,7 @@ static Node *parse_for(Parser *p) {
     if (!node->u.for_clause.body || !expect_word(p, "done") || !parse_redirect_list(p, node)) {
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static bool parse_case_patterns(Parser *p, CaseItem *item) {
@@ -775,7 +787,7 @@ static Node *parse_case(Parser *p) {
     if (!expect_word(p, "esac") || !parse_redirect_list(p, node)) {
         return NULL;
     }
-    return node;
+    return finish(p, node);
 }
 
 static Node *parse_function(Parser *p) {
@@ -798,7 +810,7 @@ static Node *parse_function(Parser *p) {
     }
     node->u.function.name = materialize(p, &name);
     node->u.function.body = body;
-    return node->u.function.name ? node : NULL;
+    return node->u.function.name ? finish(p, node) : NULL;
 }
 
 static Node *parse_command(Parser *p) {
@@ -873,7 +885,7 @@ static Node *parse_pipeline(Parser *p) {
             return NULL;
         }
     }
-    return p->status == PARSE_OK ? node : NULL;
+    return p->status == PARSE_OK ? finish(p, node) : NULL;
 }
 
 static Node *parse_and_or(Parser *p) {
@@ -899,7 +911,8 @@ static Node *parse_and_or(Parser *p) {
         node->u.and_or.left = left;
         node->u.and_or.op = op.type;
         node->u.and_or.right = right;
-        left = node;
+        node->src = left->src;
+        left = finish(p, node);
     }
     return p->status == PARSE_OK ? left : NULL;
 }
@@ -940,7 +953,7 @@ static Node *parse_list(Parser *p, bool top_level) {
         }
         skip_newlines(p);
     }
-    return p->status == PARSE_OK ? list : NULL;
+    return p->status == PARSE_OK ? finish(p, list) : NULL;
 }
 
 // A compound list must contain at least one command
@@ -960,12 +973,13 @@ static Node *parse_compound_list(Parser *p) {
 // Entry point
 // ============================================================================
 
-ParseResult parse_program(const char *src, Arena *arena) {
+AstParseResult parse_program(const char *src, Arena *arena) {
     Parser p;
     memset(&p, 0, sizeof(p));
     tokenizer_init(&p.tk, src);
     p.arena = arena;
     p.status = PARSE_OK;
+    p.last_end = src;
 
     Node *root = parse_list(&p, true);
 
@@ -974,7 +988,7 @@ ParseResult parse_program(const char *src, Arena *arena) {
         fail_at(&p, &eof_tok, PARSE_INCOMPLETE, "unterminated quoted string");
     }
 
-    ParseResult result;
+    AstParseResult result;
     memset(&result, 0, sizeof(result));
     result.status = p.status;
     result.root = (p.status == PARSE_OK) ? root : NULL;

@@ -10,6 +10,7 @@ typedef struct {
 typedef struct {
     PipeCommand *commands;
     int count;
+    int capacity;
 } Pipeline;
 
 /**

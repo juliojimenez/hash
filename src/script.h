@@ -59,7 +59,7 @@ typedef enum {
 
     TOK_EOF,
     TOK_ERROR
-} TokenType;
+} KeywordType;
 
 // ============================================================================
 // Script Context - Tracks execution state
@@ -356,7 +356,7 @@ bool script_is_keyword(const char *word);
 /**
  * Get the token type for a word
  */
-TokenType script_get_keyword_type(const char *word);
+KeywordType script_get_keyword_type(const char *word);
 
 // ============================================================================
 // Line Classification
@@ -435,5 +435,17 @@ void script_clear_pending_heredoc(void);
  */
 void script_set_in_condition(bool in_condition);
 bool script_get_in_condition(void);
+
+/**
+ * Expand the word of a case statement (parameters, command substitution,
+ * quote removal; no field splitting or pathname expansion). Caller frees.
+ */
+char *script_expand_case_word(const char *word);
+
+/**
+ * Expand a case pattern: expansions happen, but expanded characters are
+ * treated literally so they do not become pattern operators. Caller frees.
+ */
+char *script_expand_case_pattern(const char *pattern);
 
 #endif // SCRIPT_H

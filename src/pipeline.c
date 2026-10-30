@@ -68,12 +68,21 @@ static Pipeline *pipeline_create(void) {
     }
 
     pipeline->count = 0;
+    pipeline->capacity = INITIAL_PIPE_CAPACITY;
     return pipeline;
 }
 
 // Add a command to pipeline
 static int pipeline_add(Pipeline *pipeline, const char *cmd_line) {
     if (!pipeline || !cmd_line) return -1;
+
+    if (pipeline->count >= pipeline->capacity) {
+        int new_capacity = pipeline->capacity * 2;
+        PipeCommand *grown = realloc(pipeline->commands, (size_t)new_capacity * sizeof(PipeCommand));
+        if (!grown) return -1;
+        pipeline->commands = grown;
+        pipeline->capacity = new_capacity;
+    }
 
     pipeline->commands[pipeline->count].cmd_line = strdup(cmd_line);
     if (!pipeline->commands[pipeline->count].cmd_line) {

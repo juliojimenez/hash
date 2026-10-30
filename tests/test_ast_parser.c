@@ -16,7 +16,7 @@ void tearDown(void) {
 // Parse and render; failures come back as INCOMPLETE or ERROR:line:col: message
 static const char *sx(const char *src) {
     static char failure[256];
-    ParseResult r = parse_program(src, &arena);
+    AstParseResult r = parse_program(src, &arena);
     if (r.status == PARSE_INCOMPLETE) {
         return "INCOMPLETE";
     }
@@ -266,7 +266,7 @@ void test_syntax_errors(void) {
 }
 
 void test_error_position_tracks_lines(void) {
-    ParseResult r = parse_program("echo ok\necho ok\n  done\n", &arena);
+    AstParseResult r = parse_program("echo ok\necho ok\n  done\n", &arena);
     TEST_ASSERT_EQUAL_INT(PARSE_ERROR, r.status);
     TEST_ASSERT_EQUAL_UINT(2, r.line);
     TEST_ASSERT_EQUAL_UINT(2, r.col);
@@ -274,7 +274,7 @@ void test_error_position_tracks_lines(void) {
 }
 
 void test_node_positions(void) {
-    ParseResult r = parse_program("a\n  if b; then c; fi", &arena);
+    AstParseResult r = parse_program("a\n  if b; then c; fi", &arena);
     TEST_ASSERT_EQUAL_INT(PARSE_OK, r.status);
     TEST_ASSERT_EQUAL_INT(NODE_LIST, r.root->type);
     TEST_ASSERT_EQUAL_UINT(2, r.root->u.list.items.count);
@@ -287,7 +287,7 @@ void test_node_positions(void) {
 }
 
 void test_redirect_struct_fields(void) {
-    ParseResult r = parse_program("cat <<-'X' 2>err\n\tbody\n\tX\n", &arena);
+    AstParseResult r = parse_program("cat <<-'X' 2>err\n\tbody\n\tX\n", &arena);
     TEST_ASSERT_EQUAL_INT(PARSE_OK, r.status);
     Node *cmd = r.root->u.list.items.items[0].node->u.pipeline.commands.items[0];
     TEST_ASSERT_EQUAL_UINT(2, cmd->redirs.count);

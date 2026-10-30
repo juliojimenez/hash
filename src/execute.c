@@ -28,6 +28,13 @@
 // Global to store last exit code
 int last_command_exit_code = 0;
 
+// Optional replacement for script_execute_function() (see execute.h)
+static FunctionRunner function_runner = NULL;
+
+void execute_set_function_runner(FunctionRunner runner) {
+    function_runner = runner;
+}
+
 // Debug flag - set to 1 to enable exit code tracing
 #define DEBUG_EXIT_CODE 0
 
@@ -1184,7 +1191,8 @@ int execute(char **args) {
             }
         }
 
-        result = script_execute_function(func, argc, exec_args);
+        result = function_runner ? function_runner(func, argc, exec_args)
+                                 : script_execute_function(func, argc, exec_args);
 
         // Restore file descriptors after function execution
         if (func_saved_fds[0] != -1 || func_saved_fds[1] != -1 || func_saved_fds[2] != -1) {

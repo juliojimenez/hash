@@ -93,6 +93,8 @@ struct Node {
     NodeType type;
     size_t line;
     size_t col;
+    const char *src;    /* Source text of this node (view into the parsed input) */
+    size_t src_len;
     RedirVec redirs;    /* Simple and compound commands */
     union {
         struct { ListItemVec items; } list;
