@@ -41,10 +41,17 @@ typedef struct {
     size_t line, col;
     const char *tok_start;
     size_t tok_line, tok_col;
+    int unterminated;   /* Set when a quote, $( ), ${ } or `...` ran to the end of input */
 } Tokenizer;
 
 void tokenizer_init(Tokenizer *tk, const char *src);
 void tokenizer_destroy(Tokenizer *tk);
 Token tokenizer_next(Tokenizer *tk);
+
+/* Current read position in src (used by the parser to capture heredoc bodies) */
+const char *tokenizer_cursor(const Tokenizer *tk);
+
+/* Move the read position forward to pos, keeping line and column in step */
+void tokenizer_advance_to(Tokenizer *tk, const char *pos);
 
 #endif

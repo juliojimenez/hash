@@ -29,8 +29,35 @@ static char peek(Tokenizer *tk) {
 }
 
 static char peek_next(Tokenizer *tk) {
-    if (*(tk->cur + 1) == '\0') return '\0';
+    if (*tk->cur == '\0' || *(tk->cur + 1) == '\0') return '\0';
     return *(tk->cur + 1);
+}
+
+// Consume the closing character of a quoted or bracketed segment, or record
+// that the input ended before it appeared
+static void close_or_mark(Tokenizer *tk, char closer) {
+    if (*tk->cur == closer) {
+        step(tk);
+    } else if (*tk->cur == '\0') {
+        tk->unterminated = 1;
+    }
+}
+
+// After "$((" has been consumed: skip to the matching "))", counting every
+// parenthesis so inner groups like $((1+(2*3))) are handled
+static void skip_arith_body(Tokenizer *tk) {
+    int depth = 2;
+    while (depth > 0 && *tk->cur) {
+        if (*tk->cur == '(') {
+            depth++;
+        } else if (*tk->cur == ')') {
+            depth--;
+        }
+        step(tk);
+    }
+    if (depth > 0) {
+        tk->unterminated = 1;
+    }
 }
 
 static Token build_token(Tokenizer *tk, TokenType type) {
@@ -63,7 +90,7 @@ static void skip_single_quote(Tokenizer *tk) {
     while (*tk->cur && *tk->cur != '\'') {
         step(tk);
     }
-    if (*tk->cur == '\'') step(tk);
+    close_or_mark(tk, '\'');
 }
 
 static void skip_double_quote(Tokenizer *tk) {
@@ -79,16 +106,7 @@ static void skip_double_quote(Tokenizer *tk) {
             step(tk);
             if (*tk->cur == '(') {
                 step(tk);
-                int depth = 1;
-                while (depth > 0 && *tk->cur) {
-                    if (*tk->cur == '(' && peek_next(tk) == '(') {
-                        depth++; step(tk); step(tk);
-                    } else if (*tk->cur == ')' && peek_next(tk) == ')') {
-                        depth--; step(tk); step(tk);
-                    } else {
-                        step(tk);
-                    }
-                }
+                skip_arith_body(tk);
             } else {
                 int depth = 1;
                 while (depth > 0 && *tk->cur) {
@@ -98,7 +116,7 @@ static void skip_double_quote(Tokenizer *tk) {
                     else if (*tk->cur == ')') depth--;
                     if (depth > 0) step(tk);
                 }
-                if (*tk->cur == ')') step(tk);
+                close_or_mark(tk, ')');
             }
             continue;
         }
@@ -113,7 +131,7 @@ static void skip_double_quote(Tokenizer *tk) {
                     while (*tk->cur && *tk->cur != '\'') {
                         step(tk);
                     }
-                    if (*tk->cur == '\'') step(tk);
+                    close_or_mark(tk, '\'');
                 } else if (*tk->cur == '$' && peek_next(tk) == '(') {
                     step(tk); step(tk);
                     int subdepth = 1;
@@ -122,7 +140,7 @@ static void skip_double_quote(Tokenizer *tk) {
                         else if (*tk->cur == ')') subdepth--;
                         if (subdepth > 0) step(tk);
                     }
-                    if (*tk->cur == ')') step(tk);
+                    close_or_mark(tk, ')');
                 } else if (*tk->cur == '{') {
                     depth++; step(tk);
                 } else if (*tk->cur == '}') {
@@ -131,7 +149,7 @@ static void skip_double_quote(Tokenizer *tk) {
                     step(tk);
                 }
             }
-            if (*tk->cur == '}') step(tk);
+            close_or_mark(tk, '}');
             continue;
         }
         if (*tk->cur == '$' && peek_next(tk) == '$') {
@@ -147,12 +165,12 @@ static void skip_double_quote(Tokenizer *tk) {
                     step(tk);
                 }
             }
-            if (*tk->cur == '`') step(tk);
+            close_or_mark(tk, '`');
             continue;
         }
         step(tk);
     }
-    if (*tk->cur == '"') step(tk);
+    close_or_mark(tk, '"');
 }
 
 static void read_word(Tokenizer *tk) {
@@ -182,16 +200,7 @@ static void read_word(Tokenizer *tk) {
             step(tk);
             if (*tk->cur == '(' && peek_next(tk) == '(') {
                 step(tk); step(tk);
-                int depth = 1;
-                while (depth > 0 && *tk->cur) {
-                    if (*tk->cur == '(' && peek_next(tk) == '(') {
-                        depth++; step(tk); step(tk);
-                    } else if (*tk->cur == ')' && peek_next(tk) == ')') {
-                        depth--; step(tk); step(tk);
-                    } else {
-                        step(tk);
-                    }
-                }
+                skip_arith_body(tk);
             } else if (*tk->cur == '(') {
                 step(tk);
                 int depth = 1;
@@ -202,7 +211,7 @@ static void read_word(Tokenizer *tk) {
                     else if (*tk->cur == ')') depth--;
                     if (depth > 0) step(tk);
                 }
-                if (*tk->cur == ')') step(tk);
+                close_or_mark(tk, ')');
             } else if (*tk->cur == '{') {
                 step(tk);
                 int depth = 1;
@@ -214,7 +223,7 @@ static void read_word(Tokenizer *tk) {
                         while (*tk->cur && *tk->cur != '\'') {
                             step(tk);
                         }
-                        if (*tk->cur == '\'') step(tk);
+                        close_or_mark(tk, '\'');
                     } else if (*tk->cur == '"') {
                         step(tk);
                         while (*tk->cur && *tk->cur != '"') {
@@ -224,21 +233,12 @@ static void read_word(Tokenizer *tk) {
                                 step(tk);
                             }
                         }
-                        if (*tk->cur == '"') step(tk);
+                        close_or_mark(tk, '"');
                     } else if (*tk->cur == '$' && peek_next(tk) == '(') {
                         step(tk); step(tk);
                         if (*tk->cur == '(') {
                             step(tk);
-                            int subdepth = 1;
-                            while (subdepth > 0 && *tk->cur) {
-                                if (*tk->cur == '(' && peek_next(tk) == '(') {
-                                    subdepth++; step(tk); step(tk);
-                                } else if (*tk->cur == ')' && peek_next(tk) == ')') {
-                                    subdepth--; step(tk); step(tk);
-                                } else {
-                                    step(tk);
-                                }
-                            }
+                            skip_arith_body(tk);
                         } else {
                             int subdepth = 1;
                             while (subdepth > 0 && *tk->cur) {
@@ -246,7 +246,7 @@ static void read_word(Tokenizer *tk) {
                                 else if (*tk->cur == ')') subdepth--;
                                 if (subdepth > 0) step(tk);
                             }
-                            if (*tk->cur == ')') step(tk);
+                            close_or_mark(tk, ')');
                         }
                     } else if (*tk->cur == '$' && peek_next(tk) == '{') {
                         step(tk); step(tk); depth++;
@@ -258,7 +258,7 @@ static void read_word(Tokenizer *tk) {
                         step(tk);
                     }
                 }
-                if (*tk->cur == '}') step(tk);
+                close_or_mark(tk, '}');
             } else if (is_name_char(*tk->cur)) {
                 while (*tk->cur && is_name_char(*tk->cur)) {
                     step(tk);
@@ -292,7 +292,7 @@ static void read_word(Tokenizer *tk) {
                     step(tk);
                 }
             }
-            if (*tk->cur == '`') step(tk);
+            close_or_mark(tk, '`');
             continue;
         }
 
@@ -308,10 +308,21 @@ void tokenizer_init(Tokenizer *tk, const char *src) {
     tk->tok_start = NULL;
     tk->tok_line = 0;
     tk->tok_col = 0;
+    tk->unterminated = 0;
 }
 
 void tokenizer_destroy(Tokenizer *tk) {
     (void)tk;
+}
+
+const char *tokenizer_cursor(const Tokenizer *tk) {
+    return tk->cur;
+}
+
+void tokenizer_advance_to(Tokenizer *tk, const char *pos) {
+    while (tk->cur < pos && *tk->cur) {
+        step(tk);
+    }
 }
 
 Token tokenizer_next(Tokenizer *tk) {
