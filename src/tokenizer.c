@@ -108,13 +108,13 @@ static void skip_double_quote(Tokenizer *tk) {
             while (depth > 0 && *tk->cur) {
                 if (*tk->cur == '\\' && peek_next(tk)) {
                     step(tk); step(tk);
-                } else if (*tk->cur == '\'' && *tk->cur != '\'') {
+                } else if (*tk->cur == '\'') {
                     step(tk);
                     while (*tk->cur && *tk->cur != '\'') {
                         step(tk);
                     }
                     if (*tk->cur == '\'') step(tk);
-                } else if (*tk->cur == '\'' && peek_next(tk) == '(') {
+                } else if (*tk->cur == '$' && peek_next(tk) == '(') {
                     step(tk); step(tk);
                     int subdepth = 1;
                     while (subdepth > 0 && *tk->cur) {

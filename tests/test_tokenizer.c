@@ -469,6 +469,34 @@ void test_line_continuation(void) {
     tokenizer_destroy(&tk);
 }
 
+// Inside "${...}" a nested $( ) or a single-quoted segment may contain braces
+// that must not close the parameter expansion early
+void test_quoted_param_expansion_with_nested_cmdsub(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo \"${x:-$(echo '}')}\" tail");
+    Token t;
+
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "echo", 0, 0);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "\"${x:-$(echo '}')}\"", 0, 5);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "tail", 0, 25);
+    t = tokenizer_next(&tk); assert_eof(&t);
+
+    tokenizer_destroy(&tk);
+}
+
+void test_quoted_param_expansion_with_single_quotes(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo \"${x:-'}'}\" tail");
+    Token t;
+
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "echo", 0, 0);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "\"${x:-'}'}\"", 0, 5);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "tail", 0, 17);
+    t = tokenizer_next(&tk); assert_eof(&t);
+
+    tokenizer_destroy(&tk);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -517,6 +545,8 @@ int main(void) {
     RUN_TEST(test_multiple_tokens);
     RUN_TEST(test_redirect_with_fd);
     RUN_TEST(test_line_continuation);
+    RUN_TEST(test_quoted_param_expansion_with_nested_cmdsub);
+    RUN_TEST(test_quoted_param_expansion_with_single_quotes);
 
     return UNITY_END();
 }
