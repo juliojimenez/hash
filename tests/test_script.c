@@ -538,6 +538,58 @@ void test_compound_function_definition_and_call(void) {
     TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
 }
 
+// A for loop inside a branch that is not executing must not read as `exit`
+// (every caller treats 0 from the line processor as an exit request)
+void test_inactive_for_does_not_signal_exit(void) {
+    const char *lines[] = {"if false", "then", "for i in 1 2", "do", "false", "done", "fi"};
+    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// Lines with nothing to run must not read as `exit` either
+void test_nothing_to_run_does_not_signal_exit(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line(";"));
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("# just a comment"));
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("   "));
+}
+
+// A ';' inside a comment is not a command separator
+void test_semicolon_split_respects_comments(void) {
+    script_process_line("false # comment; true");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("true # comment; false");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    // '#' without preceding whitespace, or quoted, is not a comment
+    script_process_line("true; false #tail");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+    script_process_line("echo '# not a comment; still string' >/dev/null; false");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// A compound command right after then/else on one line: its context must open
+// even in a skipped branch, and it must run in an active branch
+void test_compound_after_then_on_one_line(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("if false; then for i in 1 2; do false; done; fi"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    script_process_line("if true; then for i in 1 2; do false; done; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("if false; then true; else for i in 1; do false; done; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
 void test_discard_compound_resets_context(void) {
     script_process_line("while true");
     TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
@@ -642,6 +694,10 @@ int main(void) {
     RUN_TEST(test_compound_multi_line_for_needs_continuation);
     RUN_TEST(test_compound_function_definition_and_call);
     RUN_TEST(test_discard_compound_resets_context);
+    RUN_TEST(test_inactive_for_does_not_signal_exit);
+    RUN_TEST(test_nothing_to_run_does_not_signal_exit);
+    RUN_TEST(test_semicolon_split_respects_comments);
+    RUN_TEST(test_compound_after_then_on_one_line);
 
     return UNITY_END();
 }

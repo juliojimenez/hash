@@ -513,10 +513,51 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
 // Split a line by semicolons, respecting quotes, parens, and braces
 // Returns array of strings (must be freed by caller), NULL-terminated
 // Used to handle single-line compound commands like: while cond; do body; done
+// Where an unquoted comment starts: a '#' at the start of the line or after
+// whitespace, outside quotes, parentheses and braces. Returns the end of the
+// line when there is no comment. Semicolons inside a comment never split.
+static const char *find_comment_start(const char *line) {
+    bool in_single = false;
+    bool in_double = false;
+    int paren_depth = 0;
+    int brace_depth = 0;
+    const char *p = line;
+
+    for (; *p; p++) {
+        if (*p == '\\' && p[1]) {
+            p++;  // Skip escaped char
+            continue;
+        }
+        if (*p == '\'' && !in_double) {
+            in_single = !in_single;
+        } else if (*p == '"' && !in_single) {
+            in_double = !in_double;
+        } else if (!in_single && !in_double) {
+            if (*p == '(' || (*p == '$' && p[1] == '(')) {
+                paren_depth++;
+                if (*p == '$') p++;
+            } else if (*p == ')' && paren_depth > 0) {
+                paren_depth--;
+            } else if (*p == '{') {
+                brace_depth++;
+            } else if (*p == '}' && brace_depth > 0) {
+                brace_depth--;
+            } else if (*p == '#' && paren_depth == 0 && brace_depth == 0 &&
+                       (p == line || isspace((unsigned char)p[-1]))) {
+                return p;
+            }
+        }
+    }
+    return p;
+}
+
 static char **split_by_semicolons(const char *line, int *count) {
     if (!line || !count) return NULL;
 
     *count = 0;
+
+    // Only the part before any comment takes part in splitting
+    const char *end = find_comment_start(line);
 
     // First pass: count semicolons (outside quotes, parens, and braces)
     int num_parts = 1;
@@ -525,7 +566,7 @@ static char **split_by_semicolons(const char *line, int *count) {
     int paren_depth = 0;
     int brace_depth = 0;
 
-    for (const char *p = line; *p; p++) {
+    for (const char *p = line; p < end; p++) {
         if (*p == '\\' && p[1]) {
             p++;  // Skip escaped char
             continue;
@@ -568,12 +609,12 @@ static char **split_by_semicolons(const char *line, int *count) {
     brace_depth = 0;
 
     for (const char *p = line; ; p++) {
-        if (*p == '\\' && p[1]) {
+        bool at_end = (p >= end);
+        if (!at_end && *p == '\\' && p[1]) {
             p++;  // Skip escaped char
             continue;
         }
 
-        bool at_end = (*p == '\0');
         bool at_semi = false;
 
         if (!at_end) {
@@ -1423,7 +1464,7 @@ use_chain_parse:;
     if (!line_copy) return -1;
 
     CommandChain *chain = chain_parse(line_copy);
-    int result = 0;
+    int result = 1;  // Nothing to run (comment, stray separator): keep going
 
     if (chain) {
         result = chain_execute(chain);
@@ -1487,10 +1528,11 @@ static int process_then(const char *line) {
         p += 4;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
-            // There's a command after 'then', execute it
-            if (script_should_execute()) {
-                return execute_simple_line(p);
-            }
+            // Hand the rest of the line to the line processor: it runs a plain
+            // command only when this branch executes, and still opens the
+            // context of a compound command (for/while/case/if) so that its
+            // do/done or fi pair up even inside a skipped branch
+            return script_process_line(p);
         }
     }
     return 1;  // Continue processing
@@ -1559,10 +1601,9 @@ static int process_else(const char *line) {
         p += 4;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
-            // There's a command after 'else', execute it
-            if (script_should_execute()) {
-                return execute_simple_line(p);
-            }
+            // Same as 'then': let the line processor decide what to run and
+            // open any compound-command context
+            return script_process_line(p);
         }
     }
 
@@ -1932,8 +1973,10 @@ static int process_for(const char *line) {
         script_state.context_stack[script_state.context_depth - 2].should_execute;
 
     if (!parent_executing) {
+        // Keep the context so do/done pair up, but run nothing.
+        // 1 = keep going; 0 would be read as an exit request by every caller.
         ctx->should_execute = false;
-        return 0;
+        return 1;
     }
 
     // Parse: for var in word1 word2 ...

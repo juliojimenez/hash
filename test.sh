@@ -139,6 +139,32 @@ run_interactive_test() {
     fi
 }
 
+# Interactive variant that passes when the string is ABSENT from the output
+run_interactive_test_absent() {
+    local test_name="$1"
+    local command="$2"
+    local unexpected="$3"
+
+    echo -n "Testing: $test_name... "
+
+    local output=$(printf "%s\nexit\n" "$command" | \
+        HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+        HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+
+    if echo "$output" | grep -qF "$unexpected"; then
+        echo -e "${RED}FAIL${NC}"
+        echo "  Did not expect to find: $unexpected"
+        echo "  Full output:"
+        echo "$output" | head -20
+        ((FAILED++))
+        return 1
+    else
+        echo -e "${GREEN}PASS${NC}"
+        ((PASSED++))
+        return 0
+    fi
+}
+
 run_file_test() {
     local test_name="$1"
     local command="$2"
@@ -225,6 +251,12 @@ run_interactive_test "case statement" 'case x in x) echo case-x;; esac' "case-x"
 run_interactive_test "function definition and call" 'hi() { echo fn-called; }; hi' "fn-called"
 run_interactive_test "brace group" '{ echo brace-a; echo brace-b; }' "brace-b"
 run_interactive_test "exit code after loop" 'for i in 1; do false; done; echo ec=$?' "ec=1"
+run_interactive_test "loop inside skipped branch keeps shell alive" $'if false\nthen\nfor i in 1 2\ndo\necho skipped\ndone\nfi\necho still-alive' "still-alive"
+run_interactive_test "stray semicolon keeps shell alive" $';\necho still-alive' "still-alive"
+run_interactive_test "one-line loop inside skipped branch" 'if false; then for i in 1 2; do echo skipped; done; fi; echo still-alive' "still-alive"
+run_interactive_test "one-line loop inside taken branch" 'if true; then for i in 1 2; do echo taken$i; done; fi' "taken2"
+run_interactive_test "incomplete eval keeps shell alive" $'eval \'if true\'\necho still-alive' "still-alive"
+run_interactive_test_absent "semicolon inside comment is not a separator" 'echo visible # comment; echo should-not-run' "should-not-run"
 
 cleanup
 

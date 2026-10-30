@@ -1057,6 +1057,10 @@ int shell_eval(char **args) {
         while (script_state.context_depth > saved_context_depth) {
             script_pop_context();
         }
+        // An interactive shell reports the error and keeps going
+        if (is_interactive) {
+            return 1;
+        }
         script_state.exit_requested = true;
         return 0;  // Signal exit
     }
