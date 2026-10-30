@@ -6,7 +6,7 @@
 # stderr or the exit status differ. Used while the AST engine replaces the
 # line-oriented one; delete together with the legacy engine.
 #
-# Usage: tests/engine_diff.sh [path/to/smoosh/tests]   (default: ./smoosh-tests/tests)
+# Usage: bash tests/engine_diff.sh [path/to/smoosh/tests]   (default: ./smoosh-tests/tests)
 
 HASH_BIN="${HASH_BIN:-$(pwd)/hash-shell}"
 SMOOSH="${1:-smoosh-tests/tests}"
@@ -21,8 +21,9 @@ run_both() {  # name, command...   (each engine runs in its own fresh directory)
     local dir_l dir_a out_l err_l ec_l out_a err_a ec_a
     dir_l=$(mktemp -d "$work/legacy.XXXXXX")
     dir_a=$(mktemp -d "$work/ast.XXXXXX")
-    out_l=$(cd "$dir_l" && HASH_ENGINE=legacy "$@" 2>"$work/err_l"); ec_l=$?
-    out_a=$(cd "$dir_a" && HASH_ENGINE=ast "$@" 2>"$work/err_a"); ec_a=$?
+    # stdin closed, as in CI: a test that calls `read` must not wait on ours
+    out_l=$(cd "$dir_l" && HASH_ENGINE=legacy "$@" 2>"$work/err_l" </dev/null); ec_l=$?
+    out_a=$(cd "$dir_a" && HASH_ENGINE=ast "$@" 2>"$work/err_a" </dev/null); ec_a=$?
     # Mask what legitimately differs between the two runs: the directory names
     # (as given and as pwd -P resolves them), process ids and timestamps
     local real_l real_a

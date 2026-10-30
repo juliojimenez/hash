@@ -68,7 +68,7 @@ Run the suites under both and compare them:
 
 ```bash
 ./test.sh && HASH_ENGINE=ast ./test.sh
-tests/engine_diff.sh path/to/smoosh/tests   # stdout, stderr and exit status must match
+bash tests/engine_diff.sh path/to/smoosh/tests   # stdout, stderr and exit status must match
 ```
 
 CI runs the integration tests and the smoosh suite with each engine.
