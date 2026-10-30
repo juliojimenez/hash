@@ -48,7 +48,7 @@ Include:
 3. Never trust user input
 4. Use reentrant functions (`getpwuid_r` not `getpwuid`)
 5. Free all allocated memory
-6. Pass SonarQube analysis
+6. Keep the sanitizer and fuzzing workflows green
 
 ## Security Features
 
