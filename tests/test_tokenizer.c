@@ -497,6 +497,66 @@ void test_quoted_param_expansion_with_single_quotes(void) {
     tokenizer_destroy(&tk);
 }
 
+void test_unterminated_double_quote_is_flagged(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo \"not closed");
+    Token t = tokenizer_next(&tk);
+    assert_token(&t, TOKEN_WORD, "echo", 0, 0);
+    t = tokenizer_next(&tk);
+    TEST_ASSERT_EQUAL_INT(TOKEN_WORD, t.type);
+    TEST_ASSERT_EQUAL_INT(1, tk.unterminated);
+    tokenizer_destroy(&tk);
+}
+
+void test_closed_quotes_are_not_flagged(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo 'a' \"b\" `c` $(d) ${e} $((1))");
+    Token t;
+    do {
+        t = tokenizer_next(&tk);
+    } while (t.type != TOKEN_EOF);
+    TEST_ASSERT_EQUAL_INT(0, tk.unterminated);
+    tokenizer_destroy(&tk);
+}
+
+void test_unterminated_cmdsub_is_flagged(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo $(cat f");
+    Token t;
+    do {
+        t = tokenizer_next(&tk);
+    } while (t.type != TOKEN_EOF);
+    TEST_ASSERT_EQUAL_INT(1, tk.unterminated);
+    tokenizer_destroy(&tk);
+}
+
+void test_arithmetic_with_inner_parens(void) {
+    Tokenizer tk;
+    tokenizer_init(&tk, "echo $((1+(2*3))) x");
+    Token t;
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "echo", 0, 0);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "$((1+(2*3)))", 0, 5);
+    t = tokenizer_next(&tk); assert_token(&t, TOKEN_WORD, "x", 0, 18);
+    t = tokenizer_next(&tk); assert_eof(&t);
+    TEST_ASSERT_EQUAL_INT(0, tk.unterminated);
+    tokenizer_destroy(&tk);
+}
+
+void test_cursor_and_advance(void) {
+    Tokenizer tk;
+    const char *src = "a\nline\nb";
+    tokenizer_init(&tk, src);
+    Token t = tokenizer_next(&tk);
+    assert_token(&t, TOKEN_WORD, "a", 0, 0);
+    t = tokenizer_next(&tk);
+    TEST_ASSERT_EQUAL_INT(TOKEN_NEWLINE, t.type);
+    TEST_ASSERT_EQUAL_PTR(src + 2, tokenizer_cursor(&tk));
+    tokenizer_advance_to(&tk, src + 7);
+    t = tokenizer_next(&tk);
+    assert_token(&t, TOKEN_WORD, "b", 2, 0);
+    tokenizer_destroy(&tk);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -547,6 +607,11 @@ int main(void) {
     RUN_TEST(test_line_continuation);
     RUN_TEST(test_quoted_param_expansion_with_nested_cmdsub);
     RUN_TEST(test_quoted_param_expansion_with_single_quotes);
+    RUN_TEST(test_unterminated_double_quote_is_flagged);
+    RUN_TEST(test_closed_quotes_are_not_flagged);
+    RUN_TEST(test_unterminated_cmdsub_is_flagged);
+    RUN_TEST(test_arithmetic_with_inner_parens);
+    RUN_TEST(test_cursor_and_advance);
 
     return UNITY_END();
 }
