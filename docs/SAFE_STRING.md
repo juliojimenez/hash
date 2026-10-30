@@ -1,6 +1,6 @@
 # Safe String Utilities
 
-Hash shell includes a set of safe string handling functions designed to prevent buffer overflows and satisfy static analysis tools like SonarQube.
+Hash shell includes a set of safe string handling functions designed to prevent buffer overflows and satisfy static analysis tools.
 
 ## Why Safe String Functions?
 
@@ -229,7 +229,7 @@ These functions make static analyzers happy because:
 3. **No undefined behavior** - All edge cases handled
 4. **Clear intent** - Code shows what safety checks are being done
 
-**SonarQube issues resolved:**
+**Static-analysis findings these resolve:**
 - ❌ "Array may overflow"
 - ❌ "String may not be null-terminated"
 - ❌ "Unbounded memory read"

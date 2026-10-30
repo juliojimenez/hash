@@ -188,7 +188,7 @@ buffer[SIZE - 1] = '\0';
 
 ### Static Analysis
 
-All code must pass SonarQube analysis. Common issues to avoid:
+All code must stay clean under the sanitizer, Valgrind and fuzzing workflows (`.github/workflows/sanitizers.yml`). Common issues to avoid:
 - Buffer overflows
 - Unbounded string operations
 - Memory leaks

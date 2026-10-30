@@ -60,7 +60,7 @@ Include the following information in your report:
 3. **Input validation:** Never trust user input; validate and sanitize all external data
 4. **Reentrant functions:** Use thread-safe/reentrant versions of system calls (e.g., `getpwuid_r` instead of `getpwuid`)
 5. **Memory management:** Free all allocated memory and avoid use-after-free bugs
-6. **Static analysis:** All code must pass SonarQube analysis without security warnings
+6. **Static analysis:** All code must compile cleanly with `-Wall -Wextra -Werror` and stay clean under the sanitizer, Valgrind and fuzzing workflows
 
 ## Security Features
 
@@ -85,7 +85,6 @@ As a shell, hash executes arbitrary commands by design. Users should be aware th
 
 The codebase undergoes continuous security analysis through:
 
-- **SonarQube/SonarCloud:** Static code analysis on every push
 - **GitHub Actions:** Security-focused CI checks including unsafe function detection
 - **Compiler warnings:** All code compiles with `-Wall -Wextra -Werror`
 
