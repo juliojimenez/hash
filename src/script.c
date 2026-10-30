@@ -513,10 +513,56 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
 // Split a line by semicolons, respecting quotes, parens, and braces
 // Returns array of strings (must be freed by caller), NULL-terminated
 // Used to handle single-line compound commands like: while cond; do body; done
+// Where an unquoted comment starts: a '#' at the start of the line, after
+// whitespace or right after a separator (;&|), outside quotes, parentheses
+// and braces. Returns the end of the
+// line when there is no comment. Semicolons inside a comment never split.
+static const char *find_comment_start(const char *line) {
+    bool in_single = false;
+    bool in_double = false;
+    int paren_depth = 0;
+    int brace_depth = 0;
+    bool at_word_start = true;  // A '#' here would begin a word
+    const char *p = line;
+
+    for (; *p; p++) {
+        if (*p == '\\' && p[1]) {
+            p++;  // Escaped char: part of the current word
+            at_word_start = false;
+            continue;
+        }
+        if (*p == '\'' && !in_double) {
+            in_single = !in_single;
+        } else if (*p == '"' && !in_single) {
+            in_double = !in_double;
+        } else if (!in_single && !in_double) {
+            if (*p == '(' || (*p == '$' && p[1] == '(')) {
+                paren_depth++;
+                if (*p == '$') p++;
+            } else if (*p == ')' && paren_depth > 0) {
+                paren_depth--;
+            } else if (*p == '{') {
+                brace_depth++;
+            } else if (*p == '}' && brace_depth > 0) {
+                brace_depth--;
+            } else if (*p == '#' && at_word_start && paren_depth == 0 && brace_depth == 0) {
+                return p;
+            }
+        }
+        // Only unescaped, unquoted whitespace or a separator ends a word
+        at_word_start = !in_single && !in_double &&
+                        (isspace((unsigned char)*p) || char_in_string(*p, ";&|"));
+    }
+    return p;
+}
+
 static char **split_by_semicolons(const char *line, int *count) {
     if (!line || !count) return NULL;
 
     *count = 0;
+
+    // Only the part before any comment takes part in splitting
+    const char *end = find_comment_start(line);
 
     // First pass: count semicolons (outside quotes, parens, and braces)
     int num_parts = 1;
@@ -525,7 +571,7 @@ static char **split_by_semicolons(const char *line, int *count) {
     int paren_depth = 0;
     int brace_depth = 0;
 
-    for (const char *p = line; *p; p++) {
+    for (const char *p = line; p < end; p++) {
         if (*p == '\\' && p[1]) {
             p++;  // Skip escaped char
             continue;
@@ -568,12 +614,12 @@ static char **split_by_semicolons(const char *line, int *count) {
     brace_depth = 0;
 
     for (const char *p = line; ; p++) {
-        if (*p == '\\' && p[1]) {
+        bool at_end = (p >= end);
+        if (!at_end && *p == '\\' && p[1]) {
             p++;  // Skip escaped char
             continue;
         }
 
-        bool at_end = (*p == '\0');
         bool at_semi = false;
 
         if (!at_end) {
@@ -739,6 +785,14 @@ void script_reset_for_subshell(void) {
 
     // Reset function call depth for the subshell
     script_state.function_call_depth = 0;
+}
+
+void script_discard_compound(void) {
+    while (script_state.context_depth > 0) {
+        script_pop_context();
+    }
+    break_pending = 0;
+    continue_pending = 0;
 }
 
 // Get/set return pending flag (for return in if/while conditions)
@@ -1415,7 +1469,7 @@ use_chain_parse:;
     if (!line_copy) return -1;
 
     CommandChain *chain = chain_parse(line_copy);
-    int result = 0;
+    int result = 1;  // Nothing to run (comment, stray separator): keep going
 
     if (chain) {
         result = chain_execute(chain);
@@ -1479,10 +1533,11 @@ static int process_then(const char *line) {
         p += 4;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
-            // There's a command after 'then', execute it
-            if (script_should_execute()) {
-                return execute_simple_line(p);
-            }
+            // Hand the rest of the line to the line processor: it runs a plain
+            // command only when this branch executes, and still opens the
+            // context of a compound command (for/while/case/if) so that its
+            // do/done or fi pair up even inside a skipped branch
+            return script_process_line(p);
         }
     }
     return 1;  // Continue processing
@@ -1551,10 +1606,9 @@ static int process_else(const char *line) {
         p += 4;
         while (*p && isspace(*p)) p++;
         if (*p && *p != '#') {
-            // There's a command after 'else', execute it
-            if (script_should_execute()) {
-                return execute_simple_line(p);
-            }
+            // Same as 'then': let the line processor decide what to run and
+            // open any compound-command context
+            return script_process_line(p);
         }
     }
 
@@ -1688,6 +1742,14 @@ static int count_braces(const char *line) {
     return delta;
 }
 
+// Register a completed function definition, unless it sits in a skipped branch
+// (the body is still collected so its braces pair up)
+static void finish_function_definition(const ScriptContext *ctx, const char *body) {
+    if (ctx->define_function) {
+        script_define_function(ctx->func_name, body ? body : "");
+    }
+}
+
 static int process_function(const char *line) {
     char *name = extract_function_name(line);
     if (!name) {
@@ -1713,6 +1775,10 @@ static int process_function(const char *line) {
     ctx->func_body_len = 0;
     ctx->func_body_cap = 0;
     ctx->should_execute = false;  // Don't execute lines inside function definition
+
+    // Only register the function when the enclosing branch executes
+    ctx->define_function = (script_state.context_depth <= 1) ||
+        script_state.context_stack[script_state.context_depth - 2].should_execute;
 
     // Check if line contains opening brace or paren (for subshell function bodies)
     const char *brace = strchr(line, '{');
@@ -1776,7 +1842,7 @@ static int process_function(const char *line) {
             if (body) {
                 memcpy(body, paren, body_len);
                 body[body_len] = '\0';
-                script_define_function(ctx->func_name, body);
+                finish_function_definition(ctx, body);
                 free(body);
             }
             script_pop_context();
@@ -1787,7 +1853,8 @@ static int process_function(const char *line) {
             if (*after_func == ';') after_func++;
             while (*after_func && isspace(*after_func)) after_func++;
             if (*after_func && *after_func != '#') {
-                return execute_simple_line(after_func);
+                // Runs only when the enclosing branch executes
+                return script_process_line(after_func);
             }
             return 1;
         }
@@ -1839,7 +1906,7 @@ static int process_function(const char *line) {
                     while (body_len > 0 && isspace(body[body_len - 1])) {
                         body[--body_len] = '\0';
                     }
-                    script_define_function(ctx->func_name, body);
+                    finish_function_definition(ctx, body);
                     free(body);
                 }
                 script_pop_context();
@@ -1850,7 +1917,8 @@ static int process_function(const char *line) {
                 if (*after_func == ';') after_func++;
                 while (*after_func && isspace(*after_func)) after_func++;
                 if (*after_func && *after_func != '#') {
-                    return execute_simple_line(after_func);
+                    // Runs only when the enclosing branch executes
+                    return script_process_line(after_func);
                 }
                 return 1;  // Continue processing
             } else {
@@ -1899,7 +1967,7 @@ static int process_rbrace(const char *line) {
         ctx->brace_depth--;
         if (ctx->brace_depth <= 0) {
             // Function definition complete
-            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            finish_function_definition(ctx, ctx->func_body);
             return script_pop_context();
         }
         // Still inside nested braces, add line to body
@@ -1924,8 +1992,10 @@ static int process_for(const char *line) {
         script_state.context_stack[script_state.context_depth - 2].should_execute;
 
     if (!parent_executing) {
+        // Keep the context so do/done pair up, but run nothing.
+        // 1 = keep going; 0 would be read as an exit request by every caller.
         ctx->should_execute = false;
-        return 0;
+        return 1;
     }
 
     // Parse: for var in word1 word2 ...
@@ -3480,7 +3550,7 @@ static int process_single_line(const char *line) {
         // If this is the closing brace, don't add it to the body
         if (ctx->brace_depth <= 0) {
             // Function definition complete
-            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            finish_function_definition(ctx, ctx->func_body);
             return script_pop_context();
         }
 
@@ -3839,12 +3909,17 @@ int script_execute_string(const char *script) {
     script_state.in_script = true;
 
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
-    char *saveptr;
-    const char *line = strtok_r(script_copy, "\n", &saveptr);
 
-    while (line && result > 0) {
-        result = script_process_line(line);
-        line = strtok_r(NULL, "\n", &saveptr);
+    // Split on newlines by hand: strtok would collapse consecutive newlines
+    // and drop empty lines, which matter inside heredocs and collected bodies
+    char *cursor = script_copy;
+    while (cursor && result > 0) {
+        char *newline = strchr(cursor, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        result = script_process_line(cursor);
+        cursor = newline ? newline + 1 : NULL;
     }
 
     script_state.in_script = old_in_script;

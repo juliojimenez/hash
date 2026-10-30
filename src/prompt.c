@@ -33,6 +33,16 @@ void prompt_set_fancy_default(void) {
     }
 }
 
+// Continuation prompt shown while a compound command is still open.
+// POSIX PS2; defaults to "> " when PS2 is not set.
+const char *prompt_continuation(void) {
+    const char *ps2 = getenv("PS2");
+    if (ps2) {
+        return ps2;
+    }
+    return "> ";
+}
+
 // Set custom PS1
 void prompt_set_ps1(const char *ps1) {
     if (!ps1) return;

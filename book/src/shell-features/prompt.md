@@ -34,6 +34,25 @@ Or as environment variable:
 export PS1='\w\g \e#>\e '
 ```
 
+## Continuation Prompt (PS2)
+
+When a line does not finish a command, for example `for f in *.txt` on its own, hash shows the continuation prompt and keeps reading until the compound command is complete:
+
+```bash
+#> for f in *.txt
+> do
+>   echo "$f"
+> done
+```
+
+The default is `> `. Set `PS2` to change it:
+
+```bash
+export PS2='... '
+```
+
+Press `Ctrl+C` at the continuation prompt to abandon the unfinished command.
+
 ## Escape Sequences
 
 ### Path Information

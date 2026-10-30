@@ -3,6 +3,7 @@
 #include "../src/history.h"
 #include "../src/hash.h"
 #include "../src/config.h"
+#include "../src/execute.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -498,6 +499,178 @@ void test_nolog_disables_script_history(void) {
     history_test_end();
 }
 
+// ============================================================================
+// Compound Commands Fed One Line at a Time (as the interactive prompt does)
+// ============================================================================
+
+void test_compound_one_liner_for(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2; do false; done"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+void test_compound_one_liner_if(void) {
+    script_process_line("if false; then true; else false; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("if true; then true; else false; fi");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// A partial compound command leaves a context open: the prompt loop relies on
+// context_depth > 0 to show the continuation prompt
+void test_compound_multi_line_for_needs_continuation(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2"));
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+    script_process_line("do");
+    script_process_line("false");
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("done"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+void test_compound_function_definition_and_call(void) {
+    script_process_line("hash_test_fn() { false; }; hash_test_fn");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_NOT_NULL(script_get_function("hash_test_fn"));
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// A for loop inside a branch that is not executing must not read as `exit`
+// (every caller treats 0 from the line processor as an exit request)
+void test_inactive_for_does_not_signal_exit(void) {
+    const char *lines[] = {"if false", "then", "for i in 1 2", "do", "false", "done", "fi"};
+    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// Lines with nothing to run must not read as `exit` either
+void test_nothing_to_run_does_not_signal_exit(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line(";"));
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("# just a comment"));
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("   "));
+}
+
+// A ';' inside a comment is not a command separator
+void test_semicolon_split_respects_comments(void) {
+    script_process_line("false # comment; true");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("true # comment; false");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    // A comment may start right after a separator
+    script_process_line("false;# comment; true");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+    script_process_line("true;# comment; false");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    // An escaped separator does not start a new word, so '#' after it is text
+    script_process_line("true; echo foo\\;#bar >/dev/null; false");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    // '#' without preceding whitespace, or quoted, is not a comment
+    script_process_line("true; false #tail");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+    script_process_line("echo '# not a comment; still string' >/dev/null; false");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// A compound command right after then/else on one line: its context must open
+// even in a skipped branch, and it must run in an active branch
+void test_compound_after_then_on_one_line(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("if false; then for i in 1 2; do false; done; fi"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    script_process_line("if true; then for i in 1 2; do false; done; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("if false; then true; else for i in 1; do false; done; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// A function defined inside a skipped branch must not be registered, while
+// its body is still collected so the braces pair up
+void test_function_not_registered_in_skipped_branch(void) {
+    script_process_line("hash_keep_fn() { true; }");
+    script_process_line("if false; then hash_keep_fn() { false; }; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("hash_keep_fn");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    const char *lines[] = {"if false", "then", "hash_skip_fn() {", "true", "}", "fi"};
+    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_NULL(script_get_function("hash_skip_fn"));
+
+    script_process_line("if true; then hash_take_fn() { false; }; fi");
+    TEST_ASSERT_NOT_NULL(script_get_function("hash_take_fn"));
+}
+
+// A syntax error reports -1 and may leave the context it was in open; the
+// prompt loop relies on -1 to decide to discard that context
+void test_syntax_error_signal_and_discard(void) {
+    TEST_ASSERT_EQUAL_INT(-1, script_process_line("if false; then done; fi"));
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+
+    script_discard_compound();
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// Text after a one-line function definition obeys the enclosing branch
+void test_function_suffix_obeys_branch(void) {
+    // Whatever status an if with no branch taken reports today...
+    script_process_line("if false; then :; fi");
+    int baseline = execute_get_last_exit_code();
+
+    // ...a suffix that leaked out of the skipped branch would flip it
+    const char *line = (baseline == 0)
+        ? "if false; then hash_sfx_fn() { :; } && false; fi"
+        : "if false; then hash_sfx_fn() { :; } && true; fi";
+    script_process_line(line);
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(baseline, execute_get_last_exit_code());
+
+    // In a taken branch the suffix runs
+    script_process_line("if true; then hash_sfx_fn2() { :; } && false; fi");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// script_execute_string must not swallow empty lines (heredocs, bodies)
+void test_execute_string_keeps_blank_lines(void) {
+    script_execute_string("hash_blank_fn() {\ntrue\n\ntrue\n}");
+    ShellFunction *fn = script_get_function("hash_blank_fn");
+    TEST_ASSERT_NOT_NULL(fn);
+    TEST_ASSERT_EQUAL_STRING("true\n\ntrue", fn->body);
+}
+
+void test_discard_compound_resets_context(void) {
+    script_process_line("while true");
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+
+    script_discard_compound();
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+
+    // The engine is usable again afterwards
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -583,6 +756,21 @@ int main(void) {
     RUN_TEST(test_interactive_script_records_history);
     RUN_TEST(test_interactive_script_nested_source_not_recorded);
     RUN_TEST(test_nolog_disables_script_history);
+
+    // Compound commands fed one line at a time
+    RUN_TEST(test_compound_one_liner_for);
+    RUN_TEST(test_compound_one_liner_if);
+    RUN_TEST(test_compound_multi_line_for_needs_continuation);
+    RUN_TEST(test_compound_function_definition_and_call);
+    RUN_TEST(test_discard_compound_resets_context);
+    RUN_TEST(test_inactive_for_does_not_signal_exit);
+    RUN_TEST(test_nothing_to_run_does_not_signal_exit);
+    RUN_TEST(test_semicolon_split_respects_comments);
+    RUN_TEST(test_compound_after_then_on_one_line);
+    RUN_TEST(test_function_not_registered_in_skipped_branch);
+    RUN_TEST(test_syntax_error_signal_and_discard);
+    RUN_TEST(test_function_suffix_obeys_branch);
+    RUN_TEST(test_execute_string_keeps_blank_lines);
 
     return UNITY_END();
 }
