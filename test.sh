@@ -265,6 +265,40 @@ run_interactive_test_absent "command after function in skipped branch does not r
 run_interactive_test "escaped semicolon before # is not a comment" 'echo first; echo foo\;#bar; echo after' "after"
 run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
 
+# The legacy engine does not join continued lines at the prompt (and hangs on
+# them in stdin mode), so this case pins the AST engine
+HASH_ENGINE=ast run_interactive_test "line continuation across prompt lines (ast engine)" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
+
+# exit N at the prompt, and end of input, leave the shell with the last status
+echo -n "Testing: exit status at the prompt... "
+printf 'exit 3\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_exit=$?
+printf 'false\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_eof=$?
+if [[ "$ec_exit" == "3" && "$ec_eof" == "1" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  exit 3 gave $ec_exit (want 3); end of input after false gave $ec_eof (want 1)"; ((FAILED++))
+fi
+
+# A script on standard input shares that input with the commands it runs: a
+# redirection of descriptor 0 must not eat the lines after it, and a command
+# can read what follows it in the script
+echo -n "Testing: piped script keeps running after a stdin redirect... "
+echo one > "$TEST_DIR/stdin_redirect.txt"
+redirect_out=$(printf 'cat < %s\necho after-redirect\nexit 4\n' "$TEST_DIR/stdin_redirect.txt" | run_with_timeout 2 "$HASH_BIN" 2>&1); redirect_ec=$?
+if [[ "$redirect_out" == $'one\nafter-redirect' && "$redirect_ec" == "4" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected: one, after-redirect, exit 4"; echo "  Got (exit $redirect_ec):"; echo "$redirect_out" | head -5; ((FAILED++))
+fi
+
+echo -n "Testing: command reads the rest of the piped script... "
+share_out=$(printf 'cat\nhello from the input\n' | run_with_timeout 2 "$HASH_BIN" 2>&1)
+if [[ "$share_out" == "hello from the input" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected: hello from the input"; echo "  Got:"; echo "$share_out" | head -5; ((FAILED++))
+fi
+
 # Blank lines typed inside an open compound command must survive into the body
 echo -n "Testing: blank line inside loop heredoc is kept... "
 heredoc_lines=$(printf 'for i in 1\ndo\ncat <<EOF\nline1\n\nline3\nEOF\ndone\nexit\n' | \

@@ -236,6 +236,16 @@ void test_incomplete_compounds(void) {
     TEST_ASSERT_EQUAL_STRING("INCOMPLETE", sx("f() {"));
 }
 
+// A line ending in backslash-newline continues on the next one, so input that
+// stops there is incomplete (the prompt and script feeders wait for more)
+void test_incomplete_after_line_continuation(void) {
+    TEST_ASSERT_EQUAL_STRING("INCOMPLETE", sx("printf '%s|' a \\\n"));
+    TEST_ASSERT_EQUAL_STRING("INCOMPLETE", sx("echo ab\\\n"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"printf\" \"'%s|'\" \"a\" \"b\" \"c\"))", sx("printf '%s|' a \\\n  b c\n"));
+    TEST_ASSERT_EQUAL_STRING("(list)", sx("# comment ending in backslash \\\n"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"x\"))", sx("echo x # trailing \\\n"));
+}
+
 void test_incomplete_operators_and_quotes(void) {
     TEST_ASSERT_EQUAL_STRING("INCOMPLETE", sx("a |"));
     TEST_ASSERT_EQUAL_STRING("INCOMPLETE", sx("a &&"));
@@ -333,6 +343,7 @@ int main(void) {
     RUN_TEST(test_escaped_separator_in_word);
 
     RUN_TEST(test_incomplete_compounds);
+    RUN_TEST(test_incomplete_after_line_continuation);
     RUN_TEST(test_incomplete_operators_and_quotes);
 
     RUN_TEST(test_syntax_errors);

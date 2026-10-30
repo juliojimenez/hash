@@ -22,6 +22,8 @@
 #include "shellvar.h"
 #include "config.h"
 #include "history.h"
+#include "engine.h"
+#include "exec.h"
 #include "varexpand.h"
 #include "arith.h"
 #include "cmdsub.h"
@@ -3671,6 +3673,56 @@ static void script_record_input_line(bool record, const char *line) {
     history_add(line);
 }
 
+// AST engine: feed the file line by line so each complete command runs as
+// soon as it is read (and, for `hash-shell -i script`, lands in history)
+static int execute_file_lines_ast(FILE *fp, bool record_history) {
+    ExecFeeder feeder;
+    exec_feeder_init(&feeder);
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t n;
+    bool first = true;
+    int result = 1;
+
+    while ((n = getline(&line, &cap, fp)) != -1) {
+        if (n > 0 && line[n - 1] == '\n') {
+            line[n - 1] = '\0';
+        }
+        if (first) {
+            first = false;
+            if (line[0] == '#' && line[1] == '!') {
+                continue;  // shebang
+            }
+        }
+        script_record_input_line(record_history, line);
+        ExecStatus st = EXEC_OK;
+        FeedResult fed = exec_feed_line(&feeder, line, &st);
+        if (fed == FEED_SYNTAX_ERROR) {
+            result = -1;
+            break;
+        }
+        if (fed == FEED_RAN && st == EXEC_EXIT) {
+            result = 0;
+            break;
+        }
+        if (fed == FEED_RAN && st == EXEC_RETURN) {
+            result = -2;
+            break;
+        }
+    }
+    if (result > 0 && exec_feeder_pending(&feeder)) {
+        if (!script_state.silent_errors) {
+            fprintf(stderr, "%s: %s: syntax error: unexpected end of file\n", HASH_NAME,
+                    script_state.script_path ? script_state.script_path : "script");
+        }
+        last_command_exit_code = 2;
+        result = -1;
+    }
+    exec_feeder_free(&feeder);
+    free(line);
+    return result;
+}
+
 int script_execute_file(const char *filepath, int argc, char **argv) {
     return script_execute_file_ex(filepath, argc, argv, false);
 }
@@ -3747,6 +3799,10 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
 
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
 
+    if (engine_is_ast()) {
+        result = execute_file_lines_ast(fp, record_history);
+    } else {
+
     // Skip shebang line if present
     char *first_line = read_complete_line(fp);
     if (first_line) {
@@ -3802,6 +3858,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         pending_heredoc = NULL;
         pending_heredoc_quoted = 0;
     }
+
+    }  // legacy engine
 
     fclose(fp);
 
@@ -3898,6 +3956,10 @@ static char *preprocess_line_continuations(const char *script) {
 
 int script_execute_string(const char *script) {
     if (!script) return 0;
+
+    if (engine_is_ast()) {
+        return exec_string_status(script);
+    }
 
     // Preprocess to handle backslash-newline continuations
     char *preprocessed = preprocess_line_continuations(script);

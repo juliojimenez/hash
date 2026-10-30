@@ -35,6 +35,9 @@ Julio Jimenez, julio@julioj.com
 #include "color_config.h"
 #include "syntax.h"
 #include "ifs.h"
+#include "engine.h"
+#include "exec.h"
+#include "input.h"
 
 // Shell process group ID
 static pid_t shell_pgid;
@@ -99,12 +102,31 @@ static bool line_is_blank(const char *line) {
     return true;
 }
 
+// Lines of a command that is not complete yet (AST engine)
+static ExecFeeder prompt_feeder;
+
+// Is a compound command still open at the prompt?
+static bool prompt_has_pending_input(void) {
+    if (engine_is_ast()) {
+        return exec_feeder_pending(&prompt_feeder);
+    }
+    return script_state.context_depth > 0;
+}
+
+static void prompt_discard_pending_input(void) {
+    if (engine_is_ast()) {
+        exec_feeder_reset(&prompt_feeder);
+    } else {
+        script_discard_compound();
+    }
+}
+
 // Run one line typed at the prompt. Takes ownership of `line`.
 // Returns 1 to keep the shell running, 0 when exit was requested.
 static int run_prompt_line(char *line, int *last_exit_code) {
     // Ctrl+C at a continuation prompt abandons the unfinished compound command
-    if (lineedit_was_interrupted() && script_state.context_depth > 0) {
-        script_discard_compound();
+    if (lineedit_was_interrupted() && prompt_has_pending_input()) {
+        prompt_discard_pending_input();
         free(line);
         return 1;
     }
@@ -117,7 +139,7 @@ static int run_prompt_line(char *line, int *last_exit_code) {
         line = expanded;
     }
 
-    if (line_is_blank(line) && script_state.context_depth == 0) {
+    if (line_is_blank(line) && !prompt_has_pending_input()) {
         // Nothing to run; an empty line also clears the prompt's error colour.
         // Inside an open compound command the blank line goes to the engine,
         // which keeps it in the body being collected (heredocs need it).
@@ -129,6 +151,15 @@ static int run_prompt_line(char *line, int *last_exit_code) {
     // Record the typed line (unless nolog is set)
     if (!shell_option_nolog()) {
         history_add(line);
+    }
+
+    if (engine_is_ast()) {
+        // Lines accumulate until the parser has a complete program, then it runs
+        ExecStatus st = EXEC_OK;
+        FeedResult fed = exec_feed_line(&prompt_feeder, line, &st);
+        *last_exit_code = execute_get_last_exit_code();
+        free(line);
+        return !(fed == FEED_RAN && st == EXEC_EXIT);
     }
 
     // Execute through the script engine, the same path scripts and -c use,
@@ -152,6 +183,7 @@ static int run_prompt_line(char *line, int *last_exit_code) {
 static void loop(void) {
     int status;
     int last_exit_code = 0;
+    exec_feeder_init(&prompt_feeder);
 
     do {
         // Check for completed background jobs before displaying prompt
@@ -159,13 +191,18 @@ static void loop(void) {
 
         // Inside an unfinished compound command, show the continuation prompt
         const char *prompt_str;
-        if (script_state.context_depth > 0) {
+        if (prompt_has_pending_input()) {
             prompt_str = prompt_continuation();
         } else {
             prompt_str = prompt_generate(last_exit_code);
         }
 
         char *line = read_line(prompt_str);
+        if (!line) {
+            // End of input: leave like `exit`, keeping the last command's status
+            status = 0;
+            continue;
+        }
 
         history_reset_position();
 
@@ -182,6 +219,7 @@ static void print_usage(const char *prog_name) {
     printf("  -l, --login   Run as a login shell\n");
     printf("  -s            Read commands from standard input\n");
     printf("  -u            Treat unset variables as an error\n");
+    printf("  --engine=NAME Command engine: 'legacy' or 'ast' (also HASH_ENGINE)\n");
     printf("  -v, --version Print version information\n");
     printf("  -h, --help    Show this help message\n");
     printf("\n");
@@ -213,6 +251,9 @@ int main(int argc, char *argv[]) {
         is_login_shell_global = true;
     }
 
+    // Engine from the environment first; --engine overrides it below
+    engine_init();
+
     // Parse command line options
     int i = 1;
     while (i < argc) {
@@ -238,6 +279,12 @@ int main(int argc, char *argv[]) {
                 }
                 break;  // Stop option parsing
 
+            } else if (strncmp(argv[i], "--engine=", 9) == 0) {
+                if (!engine_set_by_name(argv[i] + 9)) {
+                    fprintf(stderr, "%s: --engine: expected 'ast' or 'legacy'\n", HASH_NAME);
+                    return 2;
+                }
+                i++;
             } else if (strcmp(argv[i], "-i") == 0) {
                 force_interactive = true;
                 i++;
@@ -420,16 +467,47 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Read and execute from stdin
+        // Read and execute from stdin, never ahead of the command being run:
+        // what follows a command stays available to the command itself
         char line[MAX_LINE];
         script_state.in_script = true;
 
         int result = 1;
+        if (engine_is_ast()) {
+            // Lines accumulate until they form a complete program, then it runs
+            ExecFeeder feeder;
+            exec_feeder_init(&feeder);
+            while (input_read_line(STDIN_FILENO, line, sizeof(line)) > 0) {
+                size_t len = strlen(line);
+                if (len > 0 && line[len - 1] == '\n') {
+                    line[len - 1] = '\0';
+                }
+                ExecStatus st = EXEC_OK;
+                FeedResult fed = exec_feed_line(&feeder, line, &st);
+                if (fed == FEED_SYNTAX_ERROR || (fed == FEED_RAN && st == EXEC_EXIT)) {
+                    result = (fed == FEED_SYNTAX_ERROR) ? -1 : 0;
+                    break;
+                }
+            }
+            if (result > 0 && exec_feeder_pending(&feeder)) {
+                fprintf(stderr, "%s: syntax error: unexpected end of file\n", HASH_NAME);
+                last_command_exit_code = 2;
+                result = -1;
+            }
+            exec_feeder_free(&feeder);
+            if (result < 0) {
+                // POSIX: a syntax error ends a non-interactive shell
+                script_state.in_script = false;
+                trap_execute_exit();
+                script_cleanup();
+                return 2;
+            }
+        } else {
         while (1) {
             // Clear buffer before each read to prevent corruption
             // when lines don't end with newline
             memset(line, 0, sizeof(line));
-            if (!fgets(line, sizeof(line), stdin)) break;
+            if (input_read_line(STDIN_FILENO, line, sizeof(line)) <= 0) break;
             // Remove trailing newline
             size_t len = strlen(line);
             if (len > 0 && line[len - 1] == '\n') {
@@ -442,6 +520,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
         }
+        }  // legacy engine
 
         script_state.in_script = false;
 
@@ -534,5 +613,7 @@ int main(int argc, char *argv[]) {
     lineedit_cleanup();
     script_cleanup();
 
-    return (trap_exit >= 0) ? trap_exit : EXIT_SUCCESS;
+    // POSIX: an interactive shell exits with the status of the last command
+    // (`exit N` sets it; end of input keeps it)
+    return (trap_exit >= 0) ? trap_exit : (execute_get_last_exit_code() & 0xFF);
 }

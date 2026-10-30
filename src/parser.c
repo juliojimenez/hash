@@ -25,11 +25,8 @@ char *read_line(const char *prompt) {
     // Use line editor for interactive input
     char *line = lineedit_read_line(prompt);
 
-    if (!line) {
-        // EOF received (Ctrl+D on empty line)
-        exit(EXIT_SUCCESS);
-    }
-
+    // NULL at end of input (Ctrl+D on an empty line, or a closed pipe): the
+    // prompt loop then leaves like `exit`, so traps run and the status is kept
     return line;
 }
 

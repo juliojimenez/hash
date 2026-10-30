@@ -33,4 +33,34 @@ ExecStatus exec_node(const Node *node);
  */
 ExecStatus exec_string(const char *src, bool *incomplete);
 
+/**
+ * Parse and run src, returning the exit status the way script_execute_string()
+ * does. Input that ends inside a construct is a syntax error (status 2).
+ */
+int exec_string_status(const char *src);
+
+/**
+ * Line feeder: accumulates lines until they form a complete program, then
+ * runs it. Used by the prompt (which shows PS2 while input is pending), the
+ * stdin loop and script files, so a command typed or read across several
+ * lines runs once it is complete, including here-documents.
+ */
+typedef struct {
+    char *text;
+    size_t len;
+    size_t cap;
+} ExecFeeder;
+
+typedef enum {
+    FEED_NEED_MORE,     /* The text so far is incomplete; nothing ran */
+    FEED_RAN,           /* A complete program ran; see the ExecStatus */
+    FEED_SYNTAX_ERROR   /* Reported on stderr, status 2; pending text dropped */
+} FeedResult;
+
+void exec_feeder_init(ExecFeeder *feeder);
+void exec_feeder_free(ExecFeeder *feeder);
+void exec_feeder_reset(ExecFeeder *feeder);
+bool exec_feeder_pending(const ExecFeeder *feeder);
+FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *status);
+
 #endif

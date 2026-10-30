@@ -20,6 +20,7 @@ typedef struct {
     Token lookahead[2];
     int lookahead_count;
     const char *last_end;   /* End of the most recently consumed token */
+    bool after_continuation;/* The last fetched token ended with backslash-newline */
 
     ParseStatus status;
     const char *message;
@@ -282,12 +283,24 @@ static bool add_pending_heredoc(Parser *p, RedirVec *vec, size_t index) {
 // Lookahead
 // ============================================================================
 
+// A word whose raw text ends with backslash-newline continues on the next line
+static bool ends_with_continuation(const Token *t) {
+    return t->type == TOKEN_WORD && t->value.len >= 2 &&
+           t->value.str[t->value.len - 2] == '\\' && t->value.str[t->value.len - 1] == '\n';
+}
+
 static Token fetch(Parser *p) {
     for (;;) {
         Token t = tokenizer_next(&p->tk);
         if (is_continuation_only(&t)) {
+            p->after_continuation = true;
             continue;
         }
+        if (t.type == TOKEN_EOF && p->after_continuation) {
+            // Input ended on a backslash-newline: the command goes on
+            fail_at(p, &t, PARSE_INCOMPLETE, "unexpected end of input after line continuation");
+        }
+        p->after_continuation = ends_with_continuation(&t);
         if ((t.type == TOKEN_NEWLINE || t.type == TOKEN_EOF) && p->heredoc_count > 0) {
             read_pending_heredocs(p);
         }

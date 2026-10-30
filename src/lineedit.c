@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 700
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 #include <locale.h>
 #include "lineedit.h"
 #include "hash.h"
+#include "input.h"
 #include "safe_string.h"
 #include "history.h"
 #include "completion.h"
@@ -1187,22 +1189,19 @@ char *lineedit_read_line(const char *prompt) {
 
     // Enable raw mode first
     if (enable_raw_mode() == -1) {
-        // Fallback to simple getline
-        char *line = NULL;
-        size_t bufsize = 0;
+        // Fallback: one line from the descriptor, without reading ahead
 
         // POSIX: interactive shell prompts go to stderr
         fprintf(stderr, "%s", edit.prompt);
         fflush(stderr);
 
-        ssize_t len = getline(&line, &bufsize, stdin);
-        if (len == -1) {
-            if (feof(stdin)) {
-                exit(EXIT_SUCCESS);
-            } else {
+        size_t len = 0;
+        char *line = input_read_line_alloc(STDIN_FILENO, &len);
+        if (!line) {
+            if (errno != 0) {
                 perror("readline");
-                exit(EXIT_FAILURE);
             }
+            return NULL;    // End of input
         }
 
         // Return the line without its newline, as the editor path does
