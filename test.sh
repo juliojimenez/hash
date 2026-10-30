@@ -111,6 +111,34 @@ run_command_test() {
     fi
 }
 
+# Like run_test, but through the interactive prompt loop (-i), the path a real
+# terminal session takes. HOME and HISTFILE point at the test directory so the
+# run neither loads ~/.hashrc nor touches the real history file.
+run_interactive_test() {
+    local test_name="$1"
+    local command="$2"
+    local expected="$3"
+
+    echo -n "Testing: $test_name... "
+
+    local output=$(printf "%s\nexit\n" "$command" | \
+        HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+        HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+
+    if echo "$output" | grep -qF "$expected"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASSED++))
+        return 0
+    else
+        echo -e "${RED}FAIL${NC}"
+        echo "  Expected to find: $expected"
+        echo "  Full output:"
+        echo "$output" | head -20
+        ((FAILED++))
+        return 1
+    fi
+}
+
 run_file_test() {
     local test_name="$1"
     local command="$2"
@@ -186,6 +214,17 @@ run_command_test "remove alias" "unalias testcmd"
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
+
+echo -e "\n${YELLOW}Interactive Prompt (-i):${NC}"
+run_interactive_test "simple command" 'echo plain-ok' "plain-ok"
+run_interactive_test "one-line for loop" 'for i in 1 2; do echo loop$i; done' "loop2"
+run_interactive_test "one-line if" 'if true; then echo branch-yes; fi' "branch-yes"
+run_interactive_test "multi-line for loop" $'for i in 1 2\ndo\necho multi$i\ndone' "multi2"
+run_interactive_test "while loop" 'n=0; while [ $n -lt 2 ]; do n=$((n+1)); done; echo while$n' "while2"
+run_interactive_test "case statement" 'case x in x) echo case-x;; esac' "case-x"
+run_interactive_test "function definition and call" 'hi() { echo fn-called; }; hi' "fn-called"
+run_interactive_test "brace group" '{ echo brace-a; echo brace-b; }' "brace-b"
+run_interactive_test "exit code after loop" 'for i in 1; do false; done; echo ec=$?' "ec=1"
 
 cleanup
 

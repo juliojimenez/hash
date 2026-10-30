@@ -2,6 +2,8 @@
 
 Hash shell supports POSIX-compatible control structures for flow control.
 
+They work at the interactive prompt as well as in scripts, either on one line (`for i in 1 2; do echo $i; done`) or typed one line at a time, in which case hash shows the continuation prompt `> ` until the command is complete.
+
 ## If/Then/Else
 
 ### Syntax

@@ -741,6 +741,14 @@ void script_reset_for_subshell(void) {
     script_state.function_call_depth = 0;
 }
 
+void script_discard_compound(void) {
+    while (script_state.context_depth > 0) {
+        script_pop_context();
+    }
+    break_pending = 0;
+    continue_pending = 0;
+}
+
 // Get/set return pending flag (for return in if/while conditions)
 bool script_get_return_pending(void) {
     return return_pending;

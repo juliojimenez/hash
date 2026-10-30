@@ -3,6 +3,7 @@
 #include "../src/history.h"
 #include "../src/hash.h"
 #include "../src/config.h"
+#include "../src/execute.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -498,6 +499,57 @@ void test_nolog_disables_script_history(void) {
     history_test_end();
 }
 
+// ============================================================================
+// Compound Commands Fed One Line at a Time (as the interactive prompt does)
+// ============================================================================
+
+void test_compound_one_liner_for(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2; do false; done"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+void test_compound_one_liner_if(void) {
+    script_process_line("if false; then true; else false; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
+    script_process_line("if true; then true; else false; fi");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// A partial compound command leaves a context open: the prompt loop relies on
+// context_depth > 0 to show the continuation prompt
+void test_compound_multi_line_for_needs_continuation(void) {
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2"));
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+    script_process_line("do");
+    script_process_line("false");
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+    TEST_ASSERT_NOT_EQUAL(0, script_process_line("done"));
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+void test_compound_function_definition_and_call(void) {
+    script_process_line("hash_test_fn() { false; }; hash_test_fn");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_NOT_NULL(script_get_function("hash_test_fn"));
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+void test_discard_compound_resets_context(void) {
+    script_process_line("while true");
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+
+    script_discard_compound();
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+
+    // The engine is usable again afterwards
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -583,6 +635,13 @@ int main(void) {
     RUN_TEST(test_interactive_script_records_history);
     RUN_TEST(test_interactive_script_nested_source_not_recorded);
     RUN_TEST(test_nolog_disables_script_history);
+
+    // Compound commands fed one line at a time
+    RUN_TEST(test_compound_one_liner_for);
+    RUN_TEST(test_compound_one_liner_if);
+    RUN_TEST(test_compound_multi_line_for_needs_continuation);
+    RUN_TEST(test_compound_function_definition_and_call);
+    RUN_TEST(test_discard_compound_resets_context);
 
     return UNITY_END();
 }

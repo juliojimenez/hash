@@ -23,6 +23,9 @@ void prompt_set_fancy_default(void);
 // last_exit_code: exit code of previous command
 char *prompt_generate(int last_exit_code);
 
+// Continuation prompt (PS2) shown while a compound command is still open
+const char *prompt_continuation(void);
+
 // Set custom PS1
 void prompt_set_ps1(const char *ps1);
 

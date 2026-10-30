@@ -254,6 +254,13 @@ void script_clear_break_continue(void);
 void script_reset_for_subshell(void);
 
 /**
+ * Drop every open context, e.g. when an unfinished compound command typed
+ * at the prompt is cancelled with Ctrl+C. The engine is ready for new input
+ * afterwards.
+ */
+void script_discard_compound(void);
+
+/**
  * Get/set return pending flag (for return in if/while conditions)
  * When return is called in a condition, this flag signals that
  * the function should return immediately

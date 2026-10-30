@@ -16,6 +16,7 @@ Julio Jimenez, julio@julioj.com
 #include <unistd.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <ctype.h>
 #include "hash.h"
 #include "parser.h"
 #include "execute.h"
@@ -88,66 +89,80 @@ static void init_job_control(void) {
     tcsetpgrp(STDIN_FILENO, shell_pgid);
 }
 
+// True when a typed line is empty or whitespace only
+static bool line_is_blank(const char *line) {
+    while (*line) {
+        if (!isspace((unsigned char)*line)) {
+            return false;
+        }
+        line++;
+    }
+    return true;
+}
+
+// Run one line typed at the prompt. Takes ownership of `line`.
+// Returns 1 to keep the shell running, 0 when exit was requested.
+static int run_prompt_line(char *line, int *last_exit_code) {
+    // Ctrl+C at a continuation prompt abandons the unfinished compound command
+    if (lineedit_was_interrupted() && script_state.context_depth > 0) {
+        script_discard_compound();
+        free(line);
+        return 1;
+    }
+
+    // Expand history references
+    char *expanded = history_expand(line);
+    if (expanded) {
+        printf("%s\n", expanded);
+        free(line);
+        line = expanded;
+    }
+
+    if (line_is_blank(line)) {
+        // Nothing to run; an empty line also clears the prompt's error colour
+        free(line);
+        *last_exit_code = 0;
+        return 1;
+    }
+
+    // Record the typed line (unless nolog is set)
+    if (!shell_option_nolog()) {
+        history_add(line);
+    }
+
+    // Execute through the script engine, the same path scripts and -c use,
+    // so compound commands (if/for/while/case, functions, brace groups) work
+    // at the prompt, on one line or typed one line at a time.
+    // 0 means exit was requested; errors (< 0) keep an interactive shell running.
+    int result = script_process_line(line);
+    *last_exit_code = execute_get_last_exit_code();
+
+    free(line);
+    return result != 0;
+}
+
 static void loop(void) {
-    char *line;
     int status;
     int last_exit_code = 0;
-
-    // Debug flag - matches execute.c
-    #define DEBUG_EXIT_CODE 0
 
     do {
         // Check for completed background jobs before displaying prompt
         jobs_check_completed();
 
-#if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: loop() before prompt_generate, execute_get_last_exit_code()=%d, last_exit_code=%d\n",
-                execute_get_last_exit_code(), last_exit_code);
-#endif
+        // Inside an unfinished compound command, show the continuation prompt
+        const char *prompt_str;
+        if (script_state.context_depth > 0) {
+            prompt_str = prompt_continuation();
+        } else {
+            prompt_str = prompt_generate(last_exit_code);
+        }
 
-        const char *prompt_str = prompt_generate(last_exit_code);
-
-        line = read_line(prompt_str);
+        char *line = read_line(prompt_str);
 
         history_reset_position();
 
-        // Expand history references
-        char *expanded = history_expand(line);
-        if (expanded) {
-            printf("%s\n", expanded);
-            free(line);
-            line = expanded;
-        }
-
-        // Save the original line for history before chain_parse modifies it
-        char *line_for_history = strdup(line);
-
-        CommandChain *chain = chain_parse(line);
-
-        if (chain) {
-            // Add the original (unmodified) line to history (unless nolog is set)
-            if (line_for_history && !shell_option_nolog()) {
-                history_add(line_for_history);
-            }
-
-            // Execute the chain
-            status = chain_execute(chain);
-
-            // Get exit code for next prompt
-            last_exit_code = execute_get_last_exit_code();
-
-            // Free the chain
-            chain_free(chain);
-        } else {
-            // Empty line or parse error
-            status = 1;
-            last_exit_code = 0;
-        }
-
-        // Free allocated memory
-        free(line_for_history);
-        free(line);
-    } while(status);
+        status = run_prompt_line(line, &last_exit_code);
+    } while (status);
 }
 
 static void print_usage(const char *prog_name) {
