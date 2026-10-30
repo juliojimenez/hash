@@ -23,7 +23,6 @@ Julio Jimenez, julio@julioj.com
 #include "colors.h"
 #include "config.h"
 #include "prompt.h"
-#include "chain.h"
 #include "lineedit.h"
 #include "history.h"
 #include "completion.h"
@@ -136,6 +135,13 @@ static int run_prompt_line(char *line, int *last_exit_code) {
     // 0 means exit was requested; errors (< 0) keep an interactive shell running.
     int result = script_process_line(line);
     *last_exit_code = execute_get_last_exit_code();
+
+    // A syntax error (-1) abandons whatever compound command was still open,
+    // as other shells do, instead of leaving the prompt stuck at PS2.
+    // -2/-3/-4 are return/break/continue signals and leave the state alone.
+    if (result == -1) {
+        script_discard_compound();
+    }
 
     free(line);
     return result != 0;

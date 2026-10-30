@@ -566,6 +566,12 @@ void test_semicolon_split_respects_comments(void) {
     script_process_line("true # comment; false");
     TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
 
+    // A comment may start right after a separator
+    script_process_line("false;# comment; true");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+    script_process_line("true;# comment; false");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
     // '#' without preceding whitespace, or quoted, is not a comment
     script_process_line("true; false #tail");
     TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
@@ -588,6 +594,38 @@ void test_compound_after_then_on_one_line(void) {
     script_process_line("if false; then true; else for i in 1; do false; done; fi");
     TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
     TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// A function defined inside a skipped branch must not be registered, while
+// its body is still collected so the braces pair up
+void test_function_not_registered_in_skipped_branch(void) {
+    script_process_line("hash_keep_fn() { true; }");
+    script_process_line("if false; then hash_keep_fn() { false; }; fi");
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("hash_keep_fn");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+
+    const char *lines[] = {"if false", "then", "hash_skip_fn() {", "true", "}", "fi"};
+    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_NULL(script_get_function("hash_skip_fn"));
+
+    script_process_line("if true; then hash_take_fn() { false; }; fi");
+    TEST_ASSERT_NOT_NULL(script_get_function("hash_take_fn"));
+}
+
+// A syntax error reports -1 and may leave the context it was in open; the
+// prompt loop relies on -1 to decide to discard that context
+void test_syntax_error_signal_and_discard(void) {
+    TEST_ASSERT_EQUAL_INT(-1, script_process_line("if false; then done; fi"));
+    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
+
+    script_discard_compound();
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
 }
 
 void test_discard_compound_resets_context(void) {
@@ -698,6 +736,8 @@ int main(void) {
     RUN_TEST(test_nothing_to_run_does_not_signal_exit);
     RUN_TEST(test_semicolon_split_respects_comments);
     RUN_TEST(test_compound_after_then_on_one_line);
+    RUN_TEST(test_function_not_registered_in_skipped_branch);
+    RUN_TEST(test_syntax_error_signal_and_discard);
 
     return UNITY_END();
 }

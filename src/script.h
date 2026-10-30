@@ -105,6 +105,8 @@ typedef struct {
     size_t func_body_len;   // Current length of body
     size_t func_body_cap;   // Capacity of body buffer
     int brace_depth;        // Brace nesting depth
+    bool define_function;   // Register the function when its body closes
+                            // (false when the definition sits in a skipped branch)
 
     // For lexical scoping of break/continue
     int function_call_depth; // Function call depth when this context was created

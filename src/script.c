@@ -513,8 +513,9 @@ static char *heredoc_collect_from_file(FILE *fp, const char *delimiter, int stri
 // Split a line by semicolons, respecting quotes, parens, and braces
 // Returns array of strings (must be freed by caller), NULL-terminated
 // Used to handle single-line compound commands like: while cond; do body; done
-// Where an unquoted comment starts: a '#' at the start of the line or after
-// whitespace, outside quotes, parentheses and braces. Returns the end of the
+// Where an unquoted comment starts: a '#' at the start of the line, after
+// whitespace or right after a separator (;&|), outside quotes, parentheses
+// and braces. Returns the end of the
 // line when there is no comment. Semicolons inside a comment never split.
 static const char *find_comment_start(const char *line) {
     bool in_single = false;
@@ -543,7 +544,8 @@ static const char *find_comment_start(const char *line) {
             } else if (*p == '}' && brace_depth > 0) {
                 brace_depth--;
             } else if (*p == '#' && paren_depth == 0 && brace_depth == 0 &&
-                       (p == line || isspace((unsigned char)p[-1]))) {
+                       (p == line || isspace((unsigned char)p[-1]) ||
+                        char_in_string(p[-1], ";&|"))) {
                 return p;
             }
         }
@@ -1737,6 +1739,14 @@ static int count_braces(const char *line) {
     return delta;
 }
 
+// Register a completed function definition, unless it sits in a skipped branch
+// (the body is still collected so its braces pair up)
+static void finish_function_definition(const ScriptContext *ctx, const char *body) {
+    if (ctx->define_function) {
+        script_define_function(ctx->func_name, body ? body : "");
+    }
+}
+
 static int process_function(const char *line) {
     char *name = extract_function_name(line);
     if (!name) {
@@ -1762,6 +1772,10 @@ static int process_function(const char *line) {
     ctx->func_body_len = 0;
     ctx->func_body_cap = 0;
     ctx->should_execute = false;  // Don't execute lines inside function definition
+
+    // Only register the function when the enclosing branch executes
+    ctx->define_function = (script_state.context_depth <= 1) ||
+        script_state.context_stack[script_state.context_depth - 2].should_execute;
 
     // Check if line contains opening brace or paren (for subshell function bodies)
     const char *brace = strchr(line, '{');
@@ -1825,7 +1839,7 @@ static int process_function(const char *line) {
             if (body) {
                 memcpy(body, paren, body_len);
                 body[body_len] = '\0';
-                script_define_function(ctx->func_name, body);
+                finish_function_definition(ctx, body);
                 free(body);
             }
             script_pop_context();
@@ -1888,7 +1902,7 @@ static int process_function(const char *line) {
                     while (body_len > 0 && isspace(body[body_len - 1])) {
                         body[--body_len] = '\0';
                     }
-                    script_define_function(ctx->func_name, body);
+                    finish_function_definition(ctx, body);
                     free(body);
                 }
                 script_pop_context();
@@ -1948,7 +1962,7 @@ static int process_rbrace(const char *line) {
         ctx->brace_depth--;
         if (ctx->brace_depth <= 0) {
             // Function definition complete
-            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            finish_function_definition(ctx, ctx->func_body);
             return script_pop_context();
         }
         // Still inside nested braces, add line to body
@@ -3531,7 +3545,7 @@ static int process_single_line(const char *line) {
         // If this is the closing brace, don't add it to the body
         if (ctx->brace_depth <= 0) {
             // Function definition complete
-            script_define_function(ctx->func_name, ctx->func_body ? ctx->func_body : "");
+            finish_function_definition(ctx, ctx->func_body);
             return script_pop_context();
         }
 
