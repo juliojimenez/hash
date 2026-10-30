@@ -125,8 +125,8 @@ static void loop(void) {
         CommandChain *chain = chain_parse(line);
 
         if (chain) {
-            // Add the original (unmodified) line to history
-            if (line_for_history) {
+            // Add the original (unmodified) line to history (unless nolog is set)
+            if (line_for_history && !shell_option_nolog()) {
                 history_add(line_for_history);
             }
 
@@ -360,9 +360,11 @@ int main(int argc, char *argv[]) {
     // Non-interactive mode: Execute script file
     // ========================================================================
     if (script_file != NULL) {
-        // If -i flag was used, initialize history for the script
+        // If -i flag was used, initialize history and record the script's
+        // lines into it as they are read (see script_execute_file_ex)
         if (force_interactive) {
             history_init();
+            script_state.record_history = true;
         }
 
         int result = script_execute_file(script_file, script_argc, script_argv);
