@@ -1,5 +1,9 @@
 #include "unity.h"
 #include "../src/script.h"
+#include "../src/history.h"
+#include "../src/hash.h"
+#include "../src/config.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -394,6 +398,106 @@ void test_execute_case_exit_code(void) {
     TEST_ASSERT_EQUAL(1, result);  // false returns 1
 }
 
+// ============================================================================
+// History Recording Tests
+// ============================================================================
+
+#define HIST_TEST_FILE "/tmp/hash_test_script_history_54321"
+#define SCRIPT_TEST_FILE "/tmp/hash_test_script_outer_54321.sh"
+#define SCRIPT_TEST_INNER "/tmp/hash_test_script_inner_54321.sh"
+
+static void history_test_begin(void) {
+    setenv("HISTFILE", HIST_TEST_FILE, 1);
+    setenv("HISTSIZE", "100", 1);
+    setenv("HISTFILESIZE", "200", 1);
+    unsetenv("HISTCONTROL");
+    history_init();
+    is_interactive = true;
+}
+
+static void history_test_end(void) {
+    is_interactive = false;
+    shell_option_set_nolog(false);
+    script_state.record_history = false;
+    history_clear();
+    unlink(HIST_TEST_FILE);
+    unlink(SCRIPT_TEST_FILE);
+    unlink(SCRIPT_TEST_INNER);
+    unsetenv("HISTFILE");
+    unsetenv("HISTSIZE");
+    unsetenv("HISTFILESIZE");
+}
+
+static void write_test_script(const char *path, const char *content) {
+    FILE *fp = fopen(path, "w");
+    TEST_ASSERT_NOT_NULL(fp);
+    fputs(content, fp);
+    fclose(fp);
+}
+
+// Lines handed to the script processor are never recorded by it
+void test_process_line_does_not_record_history(void) {
+    history_test_begin();
+    script_process_line("true");
+    TEST_ASSERT_EQUAL_INT(0, history_count());
+    history_test_end();
+}
+
+// A file executed without the -i script flag (e.g. sourced) records nothing
+void test_sourced_file_does_not_record_history(void) {
+    history_test_begin();
+    write_test_script(SCRIPT_TEST_FILE, "# comment in sourced file\ntrue\ntrue # second\n");
+    script_execute_file(SCRIPT_TEST_FILE, 0, NULL);
+    TEST_ASSERT_EQUAL_INT(0, history_count());
+    history_test_end();
+}
+
+// The same through the '.' builtin, as typed at an interactive prompt
+void test_dot_builtin_does_not_record_history(void) {
+    history_test_begin();
+    write_test_script(SCRIPT_TEST_FILE, "# comment in sourced file\ntrue\ntrue # second\n");
+    script_process_line(". " SCRIPT_TEST_FILE);
+    TEST_ASSERT_EQUAL_INT(0, history_count());
+    history_test_end();
+}
+
+// hash-shell -i script records the script's own lines
+void test_interactive_script_records_history(void) {
+    history_test_begin();
+    script_state.record_history = true;
+    write_test_script(SCRIPT_TEST_FILE, "true\ntrue # second\n");
+    script_execute_file(SCRIPT_TEST_FILE, 0, NULL);
+    TEST_ASSERT_EQUAL_INT(2, history_count());
+    TEST_ASSERT_EQUAL_STRING("true", history_get(0));
+    TEST_ASSERT_EQUAL_STRING("true # second", history_get(1));
+    TEST_ASSERT_TRUE(script_state.record_history);  // restored after the file
+    history_test_end();
+}
+
+// ...but files sourced from that script do not
+void test_interactive_script_nested_source_not_recorded(void) {
+    history_test_begin();
+    script_state.record_history = true;
+    write_test_script(SCRIPT_TEST_INNER, "true\ntrue # inner\n");
+    write_test_script(SCRIPT_TEST_FILE, ". " SCRIPT_TEST_INNER "\ntrue # outer\n");
+    script_execute_file(SCRIPT_TEST_FILE, 0, NULL);
+    TEST_ASSERT_EQUAL_INT(2, history_count());
+    TEST_ASSERT_EQUAL_STRING(". " SCRIPT_TEST_INNER, history_get(0));
+    TEST_ASSERT_EQUAL_STRING("true # outer", history_get(1));
+    history_test_end();
+}
+
+// set -o nolog stops recording
+void test_nolog_disables_script_history(void) {
+    history_test_begin();
+    script_state.record_history = true;
+    shell_option_set_nolog(true);
+    write_test_script(SCRIPT_TEST_FILE, "true\ntrue # second\n");
+    script_execute_file(SCRIPT_TEST_FILE, 0, NULL);
+    TEST_ASSERT_EQUAL_INT(0, history_count());
+    history_test_end();
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -471,6 +575,14 @@ int main(void) {
     RUN_TEST(test_execute_case_wildcard);
     RUN_TEST(test_execute_case_multiple_patterns);
     RUN_TEST(test_execute_case_exit_code);
+
+    // History recording
+    RUN_TEST(test_process_line_does_not_record_history);
+    RUN_TEST(test_sourced_file_does_not_record_history);
+    RUN_TEST(test_dot_builtin_does_not_record_history);
+    RUN_TEST(test_interactive_script_records_history);
+    RUN_TEST(test_interactive_script_nested_source_not_recorded);
+    RUN_TEST(test_nolog_disables_script_history);
 
     return UNITY_END();
 }

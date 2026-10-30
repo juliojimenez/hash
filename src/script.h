@@ -148,6 +148,11 @@ typedef struct {
 
     // Exit tracking
     bool exit_requested;     // True if exit was explicitly called
+
+    // History recording: true only while executing the script the shell was
+    // started on with -i (hash-shell -i script). Sourced files, startup files,
+    // eval and loop/function bodies never record into history.
+    bool record_history;
 } ScriptState;
 
 extern ScriptState script_state;

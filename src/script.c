@@ -91,6 +91,7 @@ void script_init(void) {
     script_state.positional_count = 0;
     script_state.function_call_depth = 0;
     script_state.exit_requested = false;
+    script_state.record_history = false;
 }
 
 void script_cleanup(void) {
@@ -3398,15 +3399,10 @@ static int process_single_line(const char *line);
 int script_process_line(const char *line) {
     if (!line) return 0;
 
-    // If running in interactive mode, add commands to history (unless nolog is set)
-    if (is_interactive && !shell_option_nolog() && line[0] != '\0') {
-        // Skip whitespace-only lines
-        const char *p = line;
-        while (*p && isspace(*p)) p++;
-        if (*p != '\0') {
-            history_add(line);
-        }
-    }
+    // History is recorded by whoever reads the shell's own input: the prompt
+    // loop in main.c, or script_execute_file_ex for `hash-shell -i script`.
+    // Lines reaching this point may come from sourced files, eval, startup
+    // files or loop/function bodies, none of which belong in history.
 
     // Check if we're inside a function body or loop/case body being collected
     // If so, don't split - buffer the full line
@@ -3596,6 +3592,15 @@ static int process_single_line(const char *line) {
 // Script File Execution
 // ============================================================================
 
+// Record a line the shell read as its own input into history.
+// Only the script given on the command line together with -i qualifies.
+static void script_record_input_line(bool record, const char *line) {
+    if (!record || !is_interactive || shell_option_nolog()) {
+        return;
+    }
+    history_add(line);
+}
+
 int script_execute_file(const char *filepath, int argc, char **argv) {
     return script_execute_file_ex(filepath, argc, argv, false);
 }
@@ -3649,6 +3654,11 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     // Save context depth to detect unclosed structures only from THIS file
     int saved_context_depth = script_state.context_depth;
 
+    // Only the script the shell was started on records its lines into history.
+    // Clear the flag so any file it sources does not record.
+    bool record_history = script_state.record_history;
+    script_state.record_history = false;
+
     // Set up script state
     script_state.in_script = true;
     script_state.script_path = filepath;
@@ -3685,6 +3695,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
                 }
             }
             script_state.script_line = 0;  // Will be incremented by process_line
+            script_record_input_line(record_history, first_line);
             result = script_process_line(first_line);
             // Clear pending heredoc after processing
             free(pending_heredoc);
@@ -3712,6 +3723,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
             }
         }
 
+        script_record_input_line(record_history, full_line);
         result = script_process_line(full_line);
         free(full_line);
 
@@ -3739,6 +3751,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.in_script = false;
     script_state.script_path = NULL;
     script_state.silent_errors = old_silent;  // Restore silent flag
+    script_state.record_history = record_history;
 
     // POSIX lexical scoping: restore break/continue state
     // Any break/continue set inside the sourced file stays inside that file
