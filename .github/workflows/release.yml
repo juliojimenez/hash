@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Cross-Compilation Tools
         if: matrix.arch == 'aarch64'
@@ -93,7 +93,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get Version From Tag
         id: get_version
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get Version From Tag
         id: get_version
@@ -168,7 +168,7 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Build on FreeBSD
-        uses: cross-platform-actions/action@v1.0.0
+        uses: cross-platform-actions/action@v1.3.0
         with:
           operating_system: freebsd
           version: '14.2'
@@ -245,7 +245,7 @@ jobs:
           path: artifacts
 
       - name: Upload To Release
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           files: artifacts/**/*
           tag_name: ${{ steps.get_version.outputs.version }}
@@ -264,7 +264,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get Version From Tag
         id: get_version
@@ -434,7 +434,7 @@ jobs:
           EOF
 
       - name: Update Release With Installation Instructions
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b
         with:
           body_path: INSTALL.md
           tag_name: ${{ steps.get_version.outputs.version }}

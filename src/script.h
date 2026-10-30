@@ -105,6 +105,8 @@ typedef struct {
     size_t func_body_len;   // Current length of body
     size_t func_body_cap;   // Capacity of body buffer
     int brace_depth;        // Brace nesting depth
+    bool define_function;   // Register the function when its body closes
+                            // (false when the definition sits in a skipped branch)
 
     // For lexical scoping of break/continue
     int function_call_depth; // Function call depth when this context was created
@@ -148,6 +150,11 @@ typedef struct {
 
     // Exit tracking
     bool exit_requested;     // True if exit was explicitly called
+
+    // History recording: true only while executing the script the shell was
+    // started on with -i (hash-shell -i script). Sourced files, startup files,
+    // eval and loop/function bodies never record into history.
+    bool record_history;
 } ScriptState;
 
 extern ScriptState script_state;
@@ -247,6 +254,13 @@ void script_clear_break_continue(void);
  * within the current execution environment, not parent's loops)
  */
 void script_reset_for_subshell(void);
+
+/**
+ * Drop every open context, e.g. when an unfinished compound command typed
+ * at the prompt is cancelled with Ctrl+C. The engine is ready for new input
+ * afterwards.
+ */
+void script_discard_compound(void);
 
 /**
  * Get/set return pending flag (for return in if/while conditions)

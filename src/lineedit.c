@@ -729,6 +729,13 @@ static char *handle_enter_key(LineEdit *edit) {
     return result;
 }
 
+// Set when the last lineedit_read_line() call was ended by Ctrl+C
+static bool last_read_interrupted = false;
+
+bool lineedit_was_interrupted(void) {
+    return last_read_interrupted;
+}
+
 static char *handle_ctrl_c(LineEdit *edit) {
     ssize_t ret;
     if (search_state.active) {
@@ -743,10 +750,11 @@ static char *handle_ctrl_c(LineEdit *edit) {
 
     disable_raw_mode();
 
-    // Move to beginning and write ^C on a fresh line
-    ret = write(STDOUT_FILENO, "\r\x1b[K^C\n", 8);
+    // Move to beginning and write ^C on a fresh line (7 bytes, no NUL)
+    ret = write(STDOUT_FILENO, "\r\x1b[K^C\n", 7);
     (void)ret;
 
+    last_read_interrupted = true;
     char *empty = malloc(1);
     if (empty) empty[0] = '\0';
     return empty;
@@ -1173,6 +1181,7 @@ char *lineedit_read_line(const char *prompt) {
     edit.len = 0;
     edit.pos = 0;
     edit.prompt = prompt ? prompt : "";
+    last_read_interrupted = false;
 
     refresh_line_reset();
 
@@ -1186,13 +1195,19 @@ char *lineedit_read_line(const char *prompt) {
         fprintf(stderr, "%s", edit.prompt);
         fflush(stderr);
 
-        if (getline(&line, &bufsize, stdin) == -1) {
+        ssize_t len = getline(&line, &bufsize, stdin);
+        if (len == -1) {
             if (feof(stdin)) {
                 exit(EXIT_SUCCESS);
             } else {
                 perror("readline");
                 exit(EXIT_FAILURE);
             }
+        }
+
+        // Return the line without its newline, as the editor path does
+        if (len > 0 && line[len - 1] == '\n') {
+            line[len - 1] = '\0';
         }
 
         return line;

@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout Hash
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Hash Shell
         run: |
@@ -201,7 +201,7 @@ jobs:
 
     steps:
       - name: Checkout Hash
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Hash Shell
         run: |

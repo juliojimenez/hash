@@ -140,9 +140,11 @@ Commands starting with space are NOT saved:
 
 ## What Gets Saved
 
-- Successfully executed commands
-- Commands with errors
+Only the lines hash reads as its own input:
+
+- Commands typed at the prompt, whether they succeed or fail
 - Multi-line commands (&&, ||, ;)
+- Lines of a script run with `hash-shell -i script`
 
 ## What Doesn't Get Saved
 
@@ -150,6 +152,9 @@ Commands starting with space are NOT saved:
 - Whitespace-only lines
 - Duplicate of previous command
 - Commands starting with space
+- Lines of files loaded with `source` or `.`, including `~/.hashrc` and the startup files
+- Commands run through `eval`, or inside loop and function bodies
+- Anything after `set -o nolog`
 
 ## History File
 

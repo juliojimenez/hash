@@ -2,6 +2,7 @@
 #define LINEEDIT_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 /**
  * Initialize line editor
@@ -29,6 +30,12 @@ void lineedit_init(void);
  * @return Newly allocated string (caller must free), or NULL on EOF
  */
 char *lineedit_read_line(const char *prompt);
+
+/**
+ * Whether the last lineedit_read_line() call was ended by Ctrl+C
+ * (it then returned an empty line)
+ */
+bool lineedit_was_interrupted(void);
 
 /**
  * Cleanup line editor

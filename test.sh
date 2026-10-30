@@ -111,6 +111,60 @@ run_command_test() {
     fi
 }
 
+# Like run_test, but through the interactive prompt loop (-i), the path a real
+# terminal session takes. HOME and HISTFILE point at the test directory so the
+# run neither loads ~/.hashrc nor touches the real history file.
+run_interactive_test() {
+    local test_name="$1"
+    local command="$2"
+    local expected="$3"
+
+    echo -n "Testing: $test_name... "
+
+    local output=$(printf "%s\nexit\n" "$command" | \
+        HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+        HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+
+    if echo "$output" | grep -qF "$expected"; then
+        echo -e "${GREEN}PASS${NC}"
+        ((PASSED++))
+        return 0
+    else
+        echo -e "${RED}FAIL${NC}"
+        echo "  Expected to find: $expected"
+        echo "  Full output:"
+        echo "$output" | head -20
+        ((FAILED++))
+        return 1
+    fi
+}
+
+# Interactive variant that passes when the string is ABSENT from the output
+run_interactive_test_absent() {
+    local test_name="$1"
+    local command="$2"
+    local unexpected="$3"
+
+    echo -n "Testing: $test_name... "
+
+    local output=$(printf "%s\nexit\n" "$command" | \
+        HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+        HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+
+    if echo "$output" | grep -qF "$unexpected"; then
+        echo -e "${RED}FAIL${NC}"
+        echo "  Did not expect to find: $unexpected"
+        echo "  Full output:"
+        echo "$output" | head -20
+        ((FAILED++))
+        return 1
+    else
+        echo -e "${GREEN}PASS${NC}"
+        ((PASSED++))
+        return 0
+    fi
+}
+
 run_file_test() {
     local test_name="$1"
     local command="$2"
@@ -186,6 +240,41 @@ run_command_test "remove alias" "unalias testcmd"
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
+
+echo -e "\n${YELLOW}Interactive Prompt (-i):${NC}"
+run_interactive_test "simple command" 'echo plain-ok' "plain-ok"
+run_interactive_test "one-line for loop" 'for i in 1 2; do echo loop$i; done' "loop2"
+run_interactive_test "one-line if" 'if true; then echo branch-yes; fi' "branch-yes"
+run_interactive_test "multi-line for loop" $'for i in 1 2\ndo\necho multi$i\ndone' "multi2"
+run_interactive_test "while loop" 'n=0; while [ $n -lt 2 ]; do n=$((n+1)); done; echo while$n' "while2"
+run_interactive_test "case statement" 'case x in x) echo case-x;; esac' "case-x"
+run_interactive_test "function definition and call" 'hi() { echo fn-called; }; hi' "fn-called"
+run_interactive_test "brace group" '{ echo brace-a; echo brace-b; }' "brace-b"
+run_interactive_test "exit code after loop" 'for i in 1; do false; done; echo ec=$?' "ec=1"
+run_interactive_test "loop inside skipped branch keeps shell alive" $'if false\nthen\nfor i in 1 2\ndo\necho skipped\ndone\nfi\necho still-alive' "still-alive"
+run_interactive_test "stray semicolon keeps shell alive" $';\necho still-alive' "still-alive"
+run_interactive_test "one-line loop inside skipped branch" 'if false; then for i in 1 2; do echo skipped; done; fi; echo still-alive' "still-alive"
+run_interactive_test "one-line loop inside taken branch" 'if true; then for i in 1 2; do echo taken$i; done; fi' "taken2"
+run_interactive_test "incomplete eval keeps shell alive" $'eval \'if true\'\necho still-alive' "still-alive"
+run_interactive_test_absent "semicolon inside comment is not a separator" 'echo visible # comment; echo should-not-run' "should-not-run"
+run_interactive_test_absent "comment right after a semicolon" 'echo visible;# comment; echo should-not-run' "should-not-run"
+run_interactive_test "syntax error inside if does not stick the prompt" $'if false; then done; fi\necho still-alive' "still-alive"
+run_interactive_test_absent "function in skipped branch is not defined" 'f() { echo original; }; if false; then f() { echo replaced; }; fi; f' "replaced"
+run_interactive_test "function in taken branch is defined" 'if true; then g() { echo defined; }; fi; g' "defined"
+run_interactive_test_absent "command after function in skipped branch does not run" 'if false; then f() { :; } && echo leaked; fi; echo after' "leaked"
+run_interactive_test "escaped semicolon before # is not a comment" 'echo first; echo foo\;#bar; echo after' "after"
+run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
+
+# Blank lines typed inside an open compound command must survive into the body
+echo -n "Testing: blank line inside loop heredoc is kept... "
+heredoc_lines=$(printf 'for i in 1\ndo\ncat <<EOF\nline1\n\nline3\nEOF\ndone\nexit\n' | \
+    HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+    HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$heredoc_lines" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected 3 output lines, got $heredoc_lines"; ((FAILED++))
+fi
 
 cleanup
 

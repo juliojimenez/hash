@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Build Dependencies
         run: |
@@ -90,7 +90,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
@@ -303,7 +303,7 @@ jobs:
           find artifacts -name "*.deb" -ls
 
       - name: Upload to Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ steps.get_tag.outputs.tag }}
           files: artifacts/**/*.deb
