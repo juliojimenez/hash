@@ -22,7 +22,7 @@ typedef struct {
     const char *message;/* Arena string, NULL when PARSE_OK */
     size_t line;        /* Position of the offending token (0-based) */
     size_t col;
-} ParseResult;
+} AstParseResult;
 
 /**
  * Parse a complete program. src must be NUL-terminated. Every node and string
@@ -31,6 +31,6 @@ typedef struct {
  * Here-document bodies are captured from the lines that follow the command
  * and stored on the redirection, so the tree is self-contained.
  */
-ParseResult parse_program(const char *src, Arena *arena);
+AstParseResult parse_program(const char *src, Arena *arena);
 
 #endif

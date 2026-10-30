@@ -17,7 +17,7 @@
 #include "utils.h"
 
 // Forward declaration to access positional parameters
-// (We can't include script.h due to TokenType name collision)
+// (We can't include script.h due to ArithTokenType name collision)
 const char *script_get_positional_param(int index);
 
 // External reference to last command exit code (from builtins.c)
@@ -93,11 +93,11 @@ typedef enum {
     TOK_INC,
     TOK_DEC,
     TOK_ERROR
-} TokenType;
+} ArithTokenType;
 
 // Token structure
 typedef struct {
-    TokenType type;
+    ArithTokenType type;
     long value;
     char name[256];
 } Token;
@@ -530,7 +530,7 @@ static long parse_multiplicative(Parser *p) {
     while (!p->error && (p->current.type == TOK_STAR ||
                          p->current.type == TOK_SLASH ||
                          p->current.type == TOK_PERCENT)) {
-        TokenType op = p->current.type;
+        ArithTokenType op = p->current.type;
         next_token(p);
         long right = parse_unary(p);
 
@@ -562,7 +562,7 @@ static long parse_additive(Parser *p) {
 
     while (!p->error && (p->current.type == TOK_PLUS ||
                          p->current.type == TOK_MINUS)) {
-        TokenType op = p->current.type;
+        ArithTokenType op = p->current.type;
         next_token(p);
         long right = parse_multiplicative(p);
 
@@ -584,7 +584,7 @@ static long parse_shift(Parser *p) {
 
     while (!p->error && (p->current.type == TOK_LSHIFT ||
                          p->current.type == TOK_RSHIFT)) {
-        TokenType op = p->current.type;
+        ArithTokenType op = p->current.type;
         next_token(p);
         long right = parse_additive(p);
 
@@ -608,7 +608,7 @@ static long parse_relational(Parser *p) {
                          p->current.type == TOK_GT ||
                          p->current.type == TOK_LE ||
                          p->current.type == TOK_GE)) {
-        TokenType op = p->current.type;
+        ArithTokenType op = p->current.type;
         next_token(p);
         long right = parse_shift(p);
 
@@ -629,7 +629,7 @@ static long parse_equality(Parser *p) {
 
     while (!p->error && (p->current.type == TOK_EQ ||
                          p->current.type == TOK_NE)) {
-        TokenType op = p->current.type;
+        ArithTokenType op = p->current.type;
         next_token(p);
         long right = parse_relational(p);
 
