@@ -368,6 +368,7 @@ int main(int argc, char *argv[]) {
         }
 
         int result = script_execute_file(script_file, script_argc, script_argv);
+        script_state.record_history = false;
 
         // Execute EXIT trap before cleanup
         // POSIX: The exit status of the trap action becomes the exit status of the shell
