@@ -1195,13 +1195,19 @@ char *lineedit_read_line(const char *prompt) {
         fprintf(stderr, "%s", edit.prompt);
         fflush(stderr);
 
-        if (getline(&line, &bufsize, stdin) == -1) {
+        ssize_t len = getline(&line, &bufsize, stdin);
+        if (len == -1) {
             if (feof(stdin)) {
                 exit(EXIT_SUCCESS);
             } else {
                 perror("readline");
                 exit(EXIT_FAILURE);
             }
+        }
+
+        // Return the line without its newline, as the editor path does
+        if (len > 0 && line[len - 1] == '\n') {
+            line[len - 1] = '\0';
         }
 
         return line;

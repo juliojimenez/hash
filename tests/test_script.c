@@ -572,6 +572,10 @@ void test_semicolon_split_respects_comments(void) {
     script_process_line("true;# comment; false");
     TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
 
+    // An escaped separator does not start a new word, so '#' after it is text
+    script_process_line("true; echo foo\\;#bar >/dev/null; false");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+
     // '#' without preceding whitespace, or quoted, is not a comment
     script_process_line("true; false #tail");
     TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
@@ -626,6 +630,33 @@ void test_syntax_error_signal_and_discard(void) {
     TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
     script_process_line("true");
     TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+}
+
+// Text after a one-line function definition obeys the enclosing branch
+void test_function_suffix_obeys_branch(void) {
+    // Whatever status an if with no branch taken reports today...
+    script_process_line("if false; then :; fi");
+    int baseline = execute_get_last_exit_code();
+
+    // ...a suffix that leaked out of the skipped branch would flip it
+    const char *line = (baseline == 0)
+        ? "if false; then hash_sfx_fn() { :; } && false; fi"
+        : "if false; then hash_sfx_fn() { :; } && true; fi";
+    script_process_line(line);
+    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
+    TEST_ASSERT_EQUAL_INT(baseline, execute_get_last_exit_code());
+
+    // In a taken branch the suffix runs
+    script_process_line("if true; then hash_sfx_fn2() { :; } && false; fi");
+    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
+}
+
+// script_execute_string must not swallow empty lines (heredocs, bodies)
+void test_execute_string_keeps_blank_lines(void) {
+    script_execute_string("hash_blank_fn() {\ntrue\n\ntrue\n}");
+    ShellFunction *fn = script_get_function("hash_blank_fn");
+    TEST_ASSERT_NOT_NULL(fn);
+    TEST_ASSERT_EQUAL_STRING("true\n\ntrue", fn->body);
 }
 
 void test_discard_compound_resets_context(void) {
@@ -738,6 +769,8 @@ int main(void) {
     RUN_TEST(test_compound_after_then_on_one_line);
     RUN_TEST(test_function_not_registered_in_skipped_branch);
     RUN_TEST(test_syntax_error_signal_and_discard);
+    RUN_TEST(test_function_suffix_obeys_branch);
+    RUN_TEST(test_execute_string_keeps_blank_lines);
 
     return UNITY_END();
 }

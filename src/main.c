@@ -117,8 +117,10 @@ static int run_prompt_line(char *line, int *last_exit_code) {
         line = expanded;
     }
 
-    if (line_is_blank(line)) {
-        // Nothing to run; an empty line also clears the prompt's error colour
+    if (line_is_blank(line) && script_state.context_depth == 0) {
+        // Nothing to run; an empty line also clears the prompt's error colour.
+        // Inside an open compound command the blank line goes to the engine,
+        // which keeps it in the body being collected (heredocs need it).
         free(line);
         *last_exit_code = 0;
         return 1;

@@ -261,6 +261,20 @@ run_interactive_test_absent "comment right after a semicolon" 'echo visible;# co
 run_interactive_test "syntax error inside if does not stick the prompt" $'if false; then done; fi\necho still-alive' "still-alive"
 run_interactive_test_absent "function in skipped branch is not defined" 'f() { echo original; }; if false; then f() { echo replaced; }; fi; f' "replaced"
 run_interactive_test "function in taken branch is defined" 'if true; then g() { echo defined; }; fi; g' "defined"
+run_interactive_test_absent "command after function in skipped branch does not run" 'if false; then f() { :; } && echo leaked; fi; echo after' "leaked"
+run_interactive_test "escaped semicolon before # is not a comment" 'echo first; echo foo\;#bar; echo after' "after"
+run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
+
+# Blank lines typed inside an open compound command must survive into the body
+echo -n "Testing: blank line inside loop heredoc is kept... "
+heredoc_lines=$(printf 'for i in 1\ndo\ncat <<EOF\nline1\n\nline3\nEOF\ndone\nexit\n' | \
+    HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' \
+    HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$heredoc_lines" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected 3 output lines, got $heredoc_lines"; ((FAILED++))
+fi
 
 cleanup
 

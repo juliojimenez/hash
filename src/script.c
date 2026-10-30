@@ -522,11 +522,13 @@ static const char *find_comment_start(const char *line) {
     bool in_double = false;
     int paren_depth = 0;
     int brace_depth = 0;
+    bool at_word_start = true;  // A '#' here would begin a word
     const char *p = line;
 
     for (; *p; p++) {
         if (*p == '\\' && p[1]) {
-            p++;  // Skip escaped char
+            p++;  // Escaped char: part of the current word
+            at_word_start = false;
             continue;
         }
         if (*p == '\'' && !in_double) {
@@ -543,12 +545,13 @@ static const char *find_comment_start(const char *line) {
                 brace_depth++;
             } else if (*p == '}' && brace_depth > 0) {
                 brace_depth--;
-            } else if (*p == '#' && paren_depth == 0 && brace_depth == 0 &&
-                       (p == line || isspace((unsigned char)p[-1]) ||
-                        char_in_string(p[-1], ";&|"))) {
+            } else if (*p == '#' && at_word_start && paren_depth == 0 && brace_depth == 0) {
                 return p;
             }
         }
+        // Only unescaped, unquoted whitespace or a separator ends a word
+        at_word_start = !in_single && !in_double &&
+                        (isspace((unsigned char)*p) || char_in_string(*p, ";&|"));
     }
     return p;
 }
@@ -1850,7 +1853,8 @@ static int process_function(const char *line) {
             if (*after_func == ';') after_func++;
             while (*after_func && isspace(*after_func)) after_func++;
             if (*after_func && *after_func != '#') {
-                return execute_simple_line(after_func);
+                // Runs only when the enclosing branch executes
+                return script_process_line(after_func);
             }
             return 1;
         }
@@ -1913,7 +1917,8 @@ static int process_function(const char *line) {
                 if (*after_func == ';') after_func++;
                 while (*after_func && isspace(*after_func)) after_func++;
                 if (*after_func && *after_func != '#') {
-                    return execute_simple_line(after_func);
+                    // Runs only when the enclosing branch executes
+                    return script_process_line(after_func);
                 }
                 return 1;  // Continue processing
             } else {
@@ -3904,12 +3909,17 @@ int script_execute_string(const char *script) {
     script_state.in_script = true;
 
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
-    char *saveptr;
-    const char *line = strtok_r(script_copy, "\n", &saveptr);
 
-    while (line && result > 0) {
-        result = script_process_line(line);
-        line = strtok_r(NULL, "\n", &saveptr);
+    // Split on newlines by hand: strtok would collapse consecutive newlines
+    // and drop empty lines, which matter inside heredocs and collected bodies
+    char *cursor = script_copy;
+    while (cursor && result > 0) {
+        char *newline = strchr(cursor, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        result = script_process_line(cursor);
+        cursor = newline ? newline + 1 : NULL;
     }
 
     script_state.in_script = old_in_script;
