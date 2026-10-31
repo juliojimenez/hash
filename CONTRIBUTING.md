@@ -437,7 +437,7 @@ Back to [README](README.md)
 
 ## Cutting a Release
 
-Versions are plain integers (`v46`, `v47`). One command bumps every place the
+Versions are plain integers (`vNN`). One command bumps every place the
 number lives (`src/hash.h`, `DISTVERSION` in `freebsd/Makefile`, the download
 URLs in `README.md` and the book, the man page, `debian/README.md`, the
 supported-versions window in `SECURITY.md`)
