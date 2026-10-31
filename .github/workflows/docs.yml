@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'book/**'
+      - 'scripts/build-site.sh'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -35,16 +36,23 @@ jobs:
         with:
           mdbook-version: 'latest'
 
-      - name: Build Book
-        run: mdbook build book
-
-      - name: Setup Site Structure
+      - name: Install APT Repository Tools
         run: |
-          mkdir -p site
-          cp -r book/output/* site/
-          mkdir -p site/images
-          cp images/hash.png site/images/
-          echo "hash-shell.org" > site/CNAME
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Download the Latest Release's Packages
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The site carries the APT repository too; a docs deploy must not drop it
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir debs
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Site (book and APT repository)
+        run: bash scripts/build-site.sh "${{ steps.release.outputs.version }}" debs
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
