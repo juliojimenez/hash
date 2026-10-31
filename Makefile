@@ -18,7 +18,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_OBJ = $(filter-out $(BUILD_DIR)/main.o, $(OBJ))
 TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SRC))
 
-.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check
+.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check release
 
 all: $(TARGET)
 
@@ -58,6 +58,7 @@ help:
 	@echo " test-setup  - Download and setup Unity test framework"
 	@echo " test        - Run unit tests"
 	@echo " test-clean  - Remove test build artifacts"
+	@echo " release     - Bump every version string: make release VERSION=47"
 	@echo " help        - Show this help message"
 	@echo ""
 	@echo "Directory structure:"
@@ -127,3 +128,8 @@ format-check:
 	@echo "Checking format strings..."
 	@$(CC) -Wall -Wextra -Wformat -Wformat-security -Werror=format-security -std=gnu99 -c examples/format_check.c -I$(SRC_DIR) -o /dev/null
 	@echo "Format string checks passed!"
+
+# Prepare a release: bump every version string and add the Debian changelog
+# entry (see "Cutting a Release" in CONTRIBUTING.md)
+release:
+	@bash scripts/release.sh $(VERSION)

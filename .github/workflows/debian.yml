@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release Tag'
+        description: 'Release tag (vNN)'
         required: true
-        default: 'v46'
 
 # Allow only one concurrent deployment
 concurrency:

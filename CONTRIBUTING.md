@@ -434,3 +434,31 @@ Contributors are recognized in release notes and the project's contributor list.
 ---
 
 Back to [README](README.md)
+
+## Cutting a Release
+
+Versions are plain integers (`v46`, `v47`). One command bumps every place the
+number lives (`src/hash.h`, the download URLs in `README.md` and the book, the
+man page, `debian/README.md`, the supported-versions window in `SECURITY.md`)
+and writes the `debian/changelog` entry from the commits since the last tag:
+
+```bash
+make release VERSION=47        # or: bash scripts/release.sh 47
+git diff                       # review; edit debian/changelog if you like
+git checkout -b release/v47 && git commit -sam "chore(release): v47"
+gh pr create --title "chore(release): v47"
+```
+
+`bash scripts/release.sh 47 --pr` does the last two lines for you. Merge the
+pull request, then tag the merge commit:
+
+```bash
+git fetch origin && git tag v47 origin/main && git push origin v47
+```
+
+The tag push runs `release.yml`: it builds the Linux, macOS and FreeBSD
+binaries, creates the GitHub release with checksums and install notes, and then
+starts the Debian package, Docker image and Homebrew formula workflows for that
+tag. If one of the three fails, rerun it from the Actions tab with the tag as
+its input. Do not create the GitHub release by hand: the workflow creates it
+from the tag.
