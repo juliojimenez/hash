@@ -395,9 +395,11 @@ jobs:
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/ast.c -o build/ast.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/ast_parser.c -o build/ast_parser.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/exec.c -o build/exec.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/engine.c -o build/engine.o
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/input.c -o build/input.o
 
           # Define all object files needed for linking
-          ALL_OBJS="build/parser.o build/tokenizer.o build/arena.o build/ast.o build/ast_parser.o build/exec.o build/safe_string.o build/lineedit.o build/history.o \
+          ALL_OBJS="build/parser.o build/tokenizer.o build/arena.o build/ast.o build/ast_parser.o build/exec.o build/engine.o build/input.o build/safe_string.o build/lineedit.o build/history.o \
             build/completion.o build/config.o build/colors.o build/prompt.o build/builtins.o \
             build/execute.o build/redirect.o build/expand.o build/chain.o build/pipeline.o \
             build/script.o build/jobs.o build/test_builtin.o build/cmdsub.o build/varexpand.o \

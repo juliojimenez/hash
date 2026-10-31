@@ -327,6 +327,123 @@ void test_heredoc_backslash_newline_joins_lines(void) {
     TEST_ASSERT_EQUAL_STRING("ab\n$P.\\'q\n", run("cat <<EOF\na\\\nb\n\\$P.\\\\'q\nEOF\n"));
 }
 
+// ============================================================================
+// Line feeder (prompt, stdin and script files feed one line at a time)
+// ============================================================================
+
+static ExecFeeder feeder;
+
+static FeedResult feed(const char *line, ExecStatus *st) {
+    return exec_feed_line(&feeder, line, st);
+}
+
+void test_feeder_runs_complete_lines_immediately(void) {
+    exec_feeder_init(&feeder);
+    ExecStatus st;
+    const char *out = NULL;
+    fflush(stdout);
+    int saved = fcntl(STDOUT_FILENO, F_DUPFD, 20);
+    int low = open(OUT_FILE, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int fd = fcntl(low, F_DUPFD, 21);
+    close(low);
+    dup2(fd, STDOUT_FILENO);
+
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("echo one", &st));
+    TEST_ASSERT_EQUAL_INT(EXEC_OK, st);
+    TEST_ASSERT_FALSE(exec_feeder_pending(&feeder));
+
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("for i in 1 2", &st));
+    TEST_ASSERT_TRUE(exec_feeder_pending(&feeder));
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("do", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("echo loop$i", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("done", &st));
+    TEST_ASSERT_FALSE(exec_feeder_pending(&feeder));
+
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("cat <<EOF", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("body $((2+3))", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("EOF", &st));
+
+    fflush(stdout);
+    dup2(saved, STDOUT_FILENO);
+    close(saved);
+    lseek(fd, 0, SEEK_SET);
+    ssize_t n = read(fd, captured, sizeof(captured) - 1);
+    captured[n > 0 ? n : 0] = '\0';
+    close(fd);
+    unlink(OUT_FILE);
+    out = captured;
+    TEST_ASSERT_EQUAL_STRING("one\nloop1\nloop2\n\nbody 5\n", out);
+    exec_feeder_free(&feeder);
+}
+
+void test_feeder_keeps_program_text_while_it_runs(void) {
+    exec_feeder_init(&feeder);
+    ExecStatus st;
+    fflush(stdout);
+    int saved = fcntl(STDOUT_FILENO, F_DUPFD, 20);
+    int low = open(OUT_FILE, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int fd = fcntl(low, F_DUPFD, 21);
+    close(low);
+    dup2(fd, STDOUT_FILENO);
+
+    // A background job records its command from the text the program was
+    // parsed from, which must outlive the feeder's buffer
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("sleep 5 & jobs; kill $!", &st));
+    TEST_ASSERT_FALSE(exec_feeder_pending(&feeder));
+
+    fflush(stdout);
+    dup2(saved, STDOUT_FILENO);
+    close(saved);
+    lseek(fd, 0, SEEK_SET);
+    ssize_t n = read(fd, captured, sizeof(captured) - 1);
+    captured[n > 0 ? n : 0] = '\0';
+    close(fd);
+    unlink(OUT_FILE);
+    TEST_ASSERT_NOT_NULL(strstr(captured, "sleep 5 &"));
+    exec_feeder_free(&feeder);
+}
+
+void test_feeder_syntax_error_drops_pending_text(void) {
+    exec_feeder_init(&feeder);
+    ExecStatus st;
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("if true", &st));
+    TEST_ASSERT_EQUAL_INT(FEED_SYNTAX_ERROR, feed("then done", &st));
+    TEST_ASSERT_FALSE(exec_feeder_pending(&feeder));
+    TEST_ASSERT_EQUAL_INT(2, last_command_exit_code);
+    // Usable again afterwards
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("true", &st));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    exec_feeder_free(&feeder);
+}
+
+void test_feeder_reset_discards_pending_text(void) {
+    exec_feeder_init(&feeder);
+    ExecStatus st;
+    TEST_ASSERT_EQUAL_INT(FEED_NEED_MORE, feed("while true", &st));
+    exec_feeder_reset(&feeder);
+    TEST_ASSERT_FALSE(exec_feeder_pending(&feeder));
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("false", &st));
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    exec_feeder_free(&feeder);
+}
+
+void test_feeder_reports_exit(void) {
+    exec_feeder_init(&feeder);
+    ExecStatus st;
+    TEST_ASSERT_EQUAL_INT(FEED_RAN, feed("exit 5", &st));
+    TEST_ASSERT_EQUAL_INT(EXEC_EXIT, st);
+    TEST_ASSERT_EQUAL_INT(5, last_command_exit_code);
+    script_state.exit_requested = false;
+    exec_feeder_free(&feeder);
+}
+
+void test_exec_string_status_legacy_contract(void) {
+    TEST_ASSERT_EQUAL_INT(0, exec_string_status("true"));
+    TEST_ASSERT_EQUAL_INT(3, exec_string_status("(exit 3)"));
+    TEST_ASSERT_EQUAL_INT(2, exec_string_status("for i in 1 2 2>/dev/null"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -368,6 +485,13 @@ int main(void) {
     RUN_TEST(test_exec_redirections_persist);
     RUN_TEST(test_for_readonly_checked_every_iteration);
     RUN_TEST(test_heredoc_backslash_newline_joins_lines);
+
+    RUN_TEST(test_feeder_runs_complete_lines_immediately);
+    RUN_TEST(test_feeder_keeps_program_text_while_it_runs);
+    RUN_TEST(test_feeder_syntax_error_drops_pending_text);
+    RUN_TEST(test_feeder_reset_discards_pending_text);
+    RUN_TEST(test_feeder_reports_exit);
+    RUN_TEST(test_exec_string_status_legacy_contract);
 
     return UNITY_END();
 }

@@ -48,7 +48,9 @@ jobs:
         run: chmod +x test.sh
 
       - name: Run Tests
-        run: ./test.sh
+        run: |
+          ./test.sh
+          HASH_ENGINE=ast ./test.sh
 
       - name: Run Unit Tests
         run: make test
@@ -58,6 +60,7 @@ jobs:
           make clean
           make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g"
           ./test.sh
+          HASH_ENGINE=ast ./test.sh
           make test-clean
           make test
 
@@ -96,7 +99,9 @@ jobs:
         run: chmod +x test.sh
 
       - name: Run Tests
-        run: ./test.sh
+        run: |
+          ./test.sh
+          HASH_ENGINE=ast ./test.sh
 
       - name: Run Unit Tests
         run: make test

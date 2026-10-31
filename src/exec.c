@@ -8,9 +8,6 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#ifdef __GLIBC__
-#include <stdio_ext.h>
-#endif
 
 #include "exec.h"
 #include "arena.h"
@@ -239,18 +236,6 @@ typedef struct {
 // example ${x?msg} on an unset x): fatal for a non-interactive shell
 static bool redirect_expansion_failed = false;
 
-// Builtins such as `read` use the buffered stdin stream. When descriptor 0
-// is pointed somewhere else, the stream must forget what it buffered and
-// any end-of-file it saw, or the next `read` answers from the old source.
-static void reset_stdin_stream(void) {
-#ifdef __GLIBC__
-    __fpurge(stdin);
-#else
-    fpurge(stdin);
-#endif
-    clearerr(stdin);
-}
-
 static void restore_redirs(SavedFd *saved, int count) {
     fflush(stdout);
     fflush(stderr);
@@ -260,9 +245,6 @@ static void restore_redirs(SavedFd *saved, int count) {
             close(saved[i].saved);
         } else {
             close(saved[i].fd);
-        }
-        if (saved[i].fd == STDIN_FILENO) {
-            reset_stdin_stream();
         }
     }
 }
@@ -327,8 +309,11 @@ static int heredoc_fd(const Redirect *r) {
         joined = join_heredoc_continuations(content);
         const char *source = joined ? joined : content;
         char *after_cmdsub = cmdsub_expand(source);
+        char *after_arith = arith_expand(after_cmdsub ? after_cmdsub : source);
         varexpand_clear_error();
-        expanded = varexpand_expand(after_cmdsub ? after_cmdsub : source, last_command_exit_code);
+        expanded = varexpand_expand(after_arith ? after_arith : (after_cmdsub ? after_cmdsub : source),
+                                    last_command_exit_code);
+        free(after_arith);
         free(after_cmdsub);
         if (varexpand_had_error()) {
             redirect_expansion_failed = true;
@@ -412,7 +397,7 @@ static int open_redirect_source(const Redirect *r, bool *close_only) {
             } else if (all_digits(target)) {
                 fd = dup(atoi(target));
                 if (fd < 0) {
-                    fprintf(stderr, "%s: %s: bad file descriptor\n", HASH_NAME, target);
+                    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, target, strerror(EBADF));
                 }
             } else {
                 fprintf(stderr, "%s: %s: ambiguous redirect\n", HASH_NAME, target);
@@ -447,9 +432,6 @@ static bool apply_redirs(const RedirVec *redirs, SavedFd *saved, int *saved_coun
         slot->fd = r->fd;
         slot->saved = fcntl(r->fd, F_DUPFD_CLOEXEC, 10);
         (*saved_count)++;
-        if (r->fd == STDIN_FILENO) {
-            reset_stdin_stream();
-        }
         if (close_only) {
             close(r->fd);
         } else if (src != r->fd) {
@@ -680,7 +662,6 @@ static ExecStatus exec_pipeline(const Node *n) {
             if (pids[i] == 0) {
                 if (i > 0) {
                     dup2(pipes[i - 1][0], STDIN_FILENO);
-                    reset_stdin_stream();
                 }
                 if (i < count - 1) {
                     dup2(pipes[i][1], STDOUT_FILENO);
@@ -1193,8 +1174,12 @@ ExecStatus exec_node(const Node *node) {
     return EXEC_OK;
 }
 
-ExecStatus exec_string(const char *src, bool *incomplete) {
+static void install_hooks(void) {
     execute_set_function_runner(run_function);
+}
+
+ExecStatus exec_string(const char *src, bool *incomplete) {
+    install_hooks();
 
     Arena arena;
     arena_init(&arena, 0);
@@ -1211,4 +1196,99 @@ ExecStatus exec_string(const char *src, bool *incomplete) {
     }
     arena_free(&arena);
     return st;
+}
+
+int exec_string_status(const char *src) {
+    bool old_in_script = script_state.in_script;
+    script_state.in_script = true;
+    bool incomplete = false;
+    (void)exec_string(src, &incomplete);
+    if (incomplete) {
+        fprintf(stderr, "%s: syntax error: unexpected end of file\n", HASH_NAME);
+        last_command_exit_code = 2;
+    }
+    script_state.in_script = old_in_script;
+    return last_command_exit_code;
+}
+
+// ============================================================================
+// Line feeder
+// ============================================================================
+
+void exec_feeder_init(ExecFeeder *feeder) {
+    feeder->text = NULL;
+    feeder->len = 0;
+    feeder->cap = 0;
+}
+
+void exec_feeder_free(ExecFeeder *feeder) {
+    free(feeder->text);
+    exec_feeder_init(feeder);
+}
+
+void exec_feeder_reset(ExecFeeder *feeder) {
+    feeder->len = 0;
+    if (feeder->text) {
+        feeder->text[0] = '\0';
+    }
+}
+
+bool exec_feeder_pending(const ExecFeeder *feeder) {
+    return feeder->len > 0;
+}
+
+static bool feeder_append(ExecFeeder *feeder, const char *line) {
+    size_t n = strlen(line);
+    if (feeder->len + n + 2 > feeder->cap) {
+        size_t new_cap = feeder->cap ? feeder->cap * 2 : 256;
+        while (new_cap < feeder->len + n + 2) {
+            new_cap *= 2;
+        }
+        char *fresh = realloc(feeder->text, new_cap);
+        if (!fresh) {
+            return false;
+        }
+        feeder->text = fresh;
+        feeder->cap = new_cap;
+    }
+    memcpy(feeder->text + feeder->len, line, n);
+    feeder->len += n;
+    feeder->text[feeder->len++] = '\n';
+    feeder->text[feeder->len] = '\0';
+    return true;
+}
+
+FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *status) {
+    *status = EXEC_OK;
+    if (!feeder_append(feeder, line)) {
+        fprintf(stderr, "%s: out of memory\n", HASH_NAME);
+        exec_feeder_reset(feeder);
+        last_command_exit_code = 1;
+        return FEED_SYNTAX_ERROR;
+    }
+    install_hooks();
+
+    Arena arena;
+    arena_init(&arena, 0);
+    AstParseResult parsed = parse_program(feeder->text, &arena);
+    FeedResult result;
+    if (parsed.status == PARSE_INCOMPLETE) {
+        result = FEED_NEED_MORE;
+    } else if (parsed.status == PARSE_ERROR) {
+        fprintf(stderr, "%s: %s\n", HASH_NAME, parsed.message ? parsed.message : "syntax error");
+        last_command_exit_code = 2;
+        exec_feeder_reset(feeder);
+        result = FEED_SYNTAX_ERROR;
+    } else {
+        // The nodes view the text they were parsed from (a background job
+        // records its command from it), so the program keeps the text while
+        // it runs and the feeder starts over with an empty one
+        char *program = feeder->text;
+        exec_feeder_init(feeder);
+        *status = exec_node(parsed.root);
+        free(program);
+        result = FEED_RAN;
+    }
+    arena_free(&arena);
+    return result;
 }

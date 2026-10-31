@@ -9,8 +9,14 @@ on:
 
 jobs:
   smoosh-tests:
-    name: Smoosh POSIX Test Suite
+    name: Smoosh POSIX Test Suite (${{ matrix.engine }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [legacy, ast]
+    env:
+      HASH_ENGINE: ${{ matrix.engine }}
 
     steps:
       - name: Checkout Hash

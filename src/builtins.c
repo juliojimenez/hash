@@ -15,7 +15,10 @@
 #include <limits.h>
 #include <strings.h>
 #include <signal.h>
+#include "engine.h"
+#include "exec.h"
 #include "hash.h"
+#include "input.h"
 #include "builtins.h"
 #include "colors.h"
 #include "config.h"
@@ -854,9 +857,9 @@ int shell_read(char **args) {
         start++;
     }
 
-    // Read a line from stdin
+    // One line from descriptor 0, leaving what follows for the next reader
     char line[4096];
-    if (fgets(line, sizeof(line), stdin) == NULL) {
+    if (input_read_line(STDIN_FILENO, line, sizeof(line)) <= 0) {
         last_command_exit_code = 1;
         return 1;
     }
@@ -1040,6 +1043,33 @@ int shell_eval(char **args) {
     }
 
     // Save context depth before eval to detect incomplete compound commands
+    if (engine_is_ast()) {
+        bool incomplete = false;
+        ExecStatus st = exec_string(cmd, &incomplete);
+        free(cmd);
+        if (incomplete) {
+            fprintf(stderr, "%s: eval: syntax error: unexpected end of file\n", HASH_NAME);
+            last_command_exit_code = 2;
+            if (is_interactive) {
+                return 1;
+            }
+            script_state.exit_requested = true;
+            return 0;
+        }
+        switch (st) {
+            case EXEC_EXIT:
+                return 0;
+            case EXEC_RETURN:
+                return -2;
+            case EXEC_BREAK:
+                return -3;
+            case EXEC_CONTINUE:
+                return -4;
+            default:
+                return 1;
+        }
+    }
+
     int saved_context_depth = script_state.context_depth;
 
     // Execute using script_process_line to properly handle shell keywords
