@@ -171,7 +171,8 @@ jobs:
         uses: cross-platform-actions/action@v1.7.0
         with:
           operating_system: freebsd
-          version: '14.2'
+          # Oldest supported branch: a static binary built here runs on 14.x and 15.x
+          version: '14.5'
           architecture: ${{ matrix.vm_arch }}
           shell: sh
           run: |
