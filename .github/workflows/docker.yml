@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build (e.g., v46)'
+        description: 'Release tag (vNN)'
         required: true
-        default: v46
 
 env:
   REGISTRY: docker.io
