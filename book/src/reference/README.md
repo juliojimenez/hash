@@ -10,6 +10,7 @@ A consolidated reference for hash shell features.
 | `-i` | Force interactive mode |
 | `-l`, `--login` | Run as login shell |
 | `-s` | Read from stdin |
+| `--engine=NAME` | Command engine: `ast` (default) or `legacy` |
 | `-v`, `--version` | Print version |
 | `-h`, `--help` | Show help |
 

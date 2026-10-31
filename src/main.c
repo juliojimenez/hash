@@ -219,7 +219,7 @@ static void print_usage(const char *prog_name) {
     printf("  -l, --login   Run as a login shell\n");
     printf("  -s            Read commands from standard input\n");
     printf("  -u            Treat unset variables as an error\n");
-    printf("  --engine=NAME Command engine: 'legacy' or 'ast' (also HASH_ENGINE)\n");
+    printf("  --engine=NAME Command engine: 'ast' (default) or 'legacy' (also HASH_ENGINE)\n");
     printf("  -v, --version Print version information\n");
     printf("  -h, --help    Show this help message\n");
     printf("\n");

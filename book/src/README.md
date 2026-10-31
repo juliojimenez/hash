@@ -32,6 +32,7 @@ hash-shell
 | `-i` | Force interactive mode |
 | `-l`, `--login` | Run as a login shell |
 | `-s` | Read commands from standard input |
+| `--engine=NAME` | Command engine: `ast` (default) or `legacy`; `HASH_ENGINE` sets the same |
 | `-v`, `--version` | Print version information |
 | `-h`, `--help` | Show help message |
 

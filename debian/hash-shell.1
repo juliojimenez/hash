@@ -31,6 +31,15 @@ instead of reading from standard input or a file.
 .TP
 .B \-s
 Read commands from standard input. Useful when piping commands to the shell.
+.TP
+.BI \-\-engine= name
+Select the command engine:
+.B ast
+(the default) or
+.BR legacy .
+The
+.B HASH_ENGINE
+environment variable sets the same choice; the option takes precedence.
 .SH INVOCATION
 .TP
 .B Interactive shell
