@@ -1,3 +1,11 @@
+hash-shell (48-1) unstable; urgency=medium
+
+  * feat(engine): run the AST engine by default
+    (HASH_ENGINE=legacy or --engine=legacy selects the previous engine)
+  * ci(pages): build the full site from both Pages workflows
+
+ -- Julio Jimenez <julio@julioj.com>  Sat, 31 Oct 2026 07:21:03 +0100
+
 hash-shell (47-1) unstable; urgency=medium
 
   * ci(freebsd): build releases on 14.5, test on 14.5 and 15.1

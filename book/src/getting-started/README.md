@@ -13,7 +13,7 @@ hash-shell
 You'll see:
 
 ```
-hash v47
+hash v48
 Type 'exit' to quit
 
 #>
