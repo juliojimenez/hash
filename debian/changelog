@@ -1,3 +1,18 @@
+hash-shell (47-1) unstable; urgency=medium
+
+  * ci(freebsd): build releases on 14.5, test on 14.5 and 15.1
+  * ci: drop macos-14 from the test matrix
+  * feat: engine switch, line feeder, stdin without read-ahead (parser rewrite step 4)
+  * feat(exec): tree executor over the existing back end (step 3 of the parser rewrite)
+  * feat(parser): AST and recursive-descent parser (step 2 of the parser rewrite)
+  * feat(parser): tokenizer and arena (step 1 of the parser rewrite)
+  * chore(ci): remove SonarQube
+  * fix(interactive): run compound commands typed at the prompt
+  * fix(history): only record lines the shell reads as its own input
+  * docs(readme): Update Demo
+
+ -- Julio Jimenez <julio@julioj.com>  Sat, 31 Oct 2026 02:19:57 +0100
+
 hash-shell (46-1) unstable; urgency=medium
 
   * docs(readme): Update Demo
