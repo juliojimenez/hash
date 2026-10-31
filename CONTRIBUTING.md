@@ -447,8 +447,8 @@ and writes the `debian/changelog` entry from the commits since the last tag:
 ```bash
 make release VERSION=47        # or: bash scripts/release.sh 47
 git diff                       # review; edit debian/changelog if you like
-git checkout -b release/v47 && git commit -sam "chore(release): v47"
-gh pr create --title "chore(release): v47"
+git checkout -b release/v48 && git commit -sam "chore(release): v48"
+gh pr create --title "chore(release): v48"
 ```
 
 `bash scripts/release.sh 47 --pr` does the last two lines for you. Merge the
@@ -456,7 +456,7 @@ pull request, then tag the merge commit (an annotated tag with the version as
 its message, signed when your git config signs tags, like every tag so far):
 
 ```bash
-git fetch origin && git tag -a v47 -m v47 origin/main && git push origin v47
+git fetch origin && git tag -a v48 -m v48 origin/main && git push origin v48
 ```
 
 The tag push runs `release.yml`: it builds the Linux, macOS and FreeBSD
