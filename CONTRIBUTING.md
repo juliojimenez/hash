@@ -438,8 +438,9 @@ Back to [README](README.md)
 ## Cutting a Release
 
 Versions are plain integers (`v46`, `v47`). One command bumps every place the
-number lives (`src/hash.h`, the download URLs in `README.md` and the book, the
-man page, `debian/README.md`, the supported-versions window in `SECURITY.md`)
+number lives (`src/hash.h`, `DISTVERSION` in `freebsd/Makefile`, the download
+URLs in `README.md` and the book, the man page, `debian/README.md`, the
+supported-versions window in `SECURITY.md`)
 and writes the `debian/changelog` entry from the commits since the last tag:
 
 ```bash
