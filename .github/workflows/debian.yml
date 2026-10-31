@@ -73,6 +73,9 @@ jobs:
           name: deb-${{ matrix.distro }}
           path: packages/*.deb
 
+  # GitHub Pages keeps the first deployment of a commit (actions/deploy-pages#383).
+  # docs.yml stands aside while the source version has no release, so this job's
+  # deployment is the first one for the tagged commit and the new packages go live.
   publish-site:
     name: Publish Documentation and APT Repository
     runs-on: ubuntu-latest

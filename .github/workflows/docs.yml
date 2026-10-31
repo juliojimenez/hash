@@ -31,37 +31,65 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # The site carries the APT repository too, so a docs deploy rebuilds it from
+      # the latest release's packages. GitHub Pages keys deployments by commit SHA
+      # and can treat a second deployment of the same commit as already done: it
+      # reports success and the site keeps the first artifact (actions/deploy-pages
+      # #383). The release bump commit is also the commit the release tag points
+      # at, so while the source version has no release yet this workflow stands
+      # aside and debian.yml publishes the site, with the new packages, at the tag.
+      # v48 went out with the v47 packages on the APT repository because this
+      # deploy ran first and the Debian one was swallowed; a manual run of this
+      # workflow put it right.
+      - name: Find the Release to Publish
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(sed -n 's/^#define HASH_VERSION "\([0-9][0-9]*\)".*/\1/p' src/hash.h)
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          released="${tag#v}"
+          if [ -n "$released" ] && [ "$source" -gt "$released" ]; then
+            echo "source is v$source and the latest release is $tag: debian.yml publishes the site at the v$source tag"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "version=$released" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup mdBook
+        if: steps.release.outputs.skip != 'true'
         uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: 'latest'
 
       - name: Install APT Repository Tools
+        if: steps.release.outputs.skip != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y dpkg-dev
 
-      - name: Download the Latest Release's Packages
-        id: release
+      - name: Download the Release's Packages
+        if: steps.release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          # The site carries the APT repository too; a docs deploy must not drop it
-          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
-          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir debs
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+        run: gh release download "${{ steps.release.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir debs
 
       - name: Build Site (book and APT repository)
+        if: steps.release.outputs.skip != 'true'
         run: bash scripts/build-site.sh "${{ steps.release.outputs.version }}" debs
 
       - name: Setup Pages
+        if: steps.release.outputs.skip != 'true'
         uses: actions/configure-pages@v6
 
       - name: Upload Pages Artifact
+        if: steps.release.outputs.skip != 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - name: Deploy to GitHub Pages
+        if: steps.release.outputs.skip != 'true'
         id: deployment
         uses: actions/deploy-pages@v5

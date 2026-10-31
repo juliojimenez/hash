@@ -465,3 +465,11 @@ starts the Debian package, Docker image and Homebrew formula workflows for that
 tag. If one of the three fails, rerun it from the Actions tab with the tag as
 its input. Do not create the GitHub release by hand: the workflow creates it
 from the tag.
+
+The site at hash-shell.org (the book and the APT repository) is published by the
+Debian workflow at the tag. GitHub Pages can treat a second deployment of a commit
+as already done (actions/deploy-pages#383), which is why the Documentation workflow
+does not deploy while the source version has no release yet: the Debian workflow's
+deployment at the tag must be the first one for that commit. If the APT repository
+still shows the previous release after a tag, run the Documentation workflow by
+hand from the Actions tab; it rebuilds the site from the latest release's packages.
