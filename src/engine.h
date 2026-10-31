@@ -8,8 +8,9 @@
  * line-oriented engine in script.c is replaced by the parser and tree
  * executor (tokenizer.c, ast_parser.c, exec.c).
  *
- * Chosen by HASH_ENGINE=ast|legacy in the environment, overridden by the
- * --engine=ast|legacy command-line option.
+ * The AST engine is the default. HASH_ENGINE=ast|legacy in the environment
+ * selects one; the --engine=ast|legacy command-line option overrides it.
+ * The legacy engine stays selectable until it is deleted.
  */
 
 typedef enum {

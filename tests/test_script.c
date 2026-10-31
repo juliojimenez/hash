@@ -4,12 +4,16 @@
 #include "../src/hash.h"
 #include "../src/config.h"
 #include "../src/execute.h"
+#include "../src/engine.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 void setUp(void) {
+    // This file exercises the line engine in script.c directly; the AST
+    // engine is the default, so pin legacy for the dispatching entry points
+    engine_set_by_name("legacy");
     script_init();
 }
 

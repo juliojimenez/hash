@@ -2,7 +2,7 @@
 #include <string.h>
 #include "engine.h"
 
-#define ENGINE_DEFAULT ENGINE_LEGACY
+#define ENGINE_DEFAULT ENGINE_AST
 
 static ShellEngine current_engine = ENGINE_DEFAULT;
 

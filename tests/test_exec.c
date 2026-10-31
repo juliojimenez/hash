@@ -444,6 +444,15 @@ void test_exec_string_status_legacy_contract(void) {
     TEST_ASSERT_EQUAL_INT(2, exec_string_status("for i in 1 2 2>/dev/null"));
 }
 
+// Blank lines inside a function body survive: the body is the brace group's
+// source text, so a heredoc or an empty line in it is kept as written
+void test_function_body_keeps_blank_lines(void) {
+    run("hash_blank_fn() {\ntrue\n\ntrue\n}");
+    ShellFunction *fn = script_get_function("hash_blank_fn");
+    TEST_ASSERT_NOT_NULL(fn);
+    TEST_ASSERT_NOT_NULL(strstr(fn->body, "true\n\ntrue"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -492,6 +501,7 @@ int main(void) {
     RUN_TEST(test_feeder_reset_discards_pending_text);
     RUN_TEST(test_feeder_reports_exit);
     RUN_TEST(test_exec_string_status_legacy_contract);
+    RUN_TEST(test_function_body_keeps_blank_lines);
 
     return UNITY_END();
 }

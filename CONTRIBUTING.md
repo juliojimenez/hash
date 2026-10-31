@@ -63,11 +63,12 @@ make debug
 
 The line-oriented engine in `src/script.c` is being replaced by a tokenizer,
 parser and tree executor (`src/tokenizer.c`, `src/ast_parser.c`, `src/exec.c`).
-Both are built in; `HASH_ENGINE=ast` or `--engine=ast` selects the new one.
-Run the suites under both and compare them:
+Both are built in. The AST engine is the default; `HASH_ENGINE=legacy` or
+`--engine=legacy` selects the line-oriented one. Run the suites under both and
+compare them:
 
 ```bash
-./test.sh && HASH_ENGINE=ast ./test.sh
+./test.sh && HASH_ENGINE=legacy ./test.sh
 bash tests/engine_diff.sh path/to/smoosh/tests   # stdout, stderr and exit status must match
 ```
 
