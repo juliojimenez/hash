@@ -451,10 +451,11 @@ gh pr create --title "chore(release): v47"
 ```
 
 `bash scripts/release.sh 47 --pr` does the last two lines for you. Merge the
-pull request, then tag the merge commit:
+pull request, then tag the merge commit (an annotated tag with the version as
+its message, signed when your git config signs tags, like every tag so far):
 
 ```bash
-git fetch origin && git tag v47 origin/main && git push origin v47
+git fetch origin && git tag -a v47 -m v47 origin/main && git push origin v47
 ```
 
 The tag push runs `release.yml`: it builds the Linux, macOS and FreeBSD
