@@ -105,7 +105,7 @@ Next:
   git checkout -b release/v$new && git commit -sam "chore(release): v$new"
   gh pr create --title "chore(release): v$new"
 After the merge:
-  git fetch origin && git tag v$new origin/main && git push origin v$new
+  git fetch origin && git tag -a v$new -m v$new origin/main && git push origin v$new
 The tag push runs release.yml: binaries, GitHub release, then the Debian, Docker and Homebrew workflows.
 NEXT
 fi
