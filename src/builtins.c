@@ -499,54 +499,13 @@ static bool handle_posix_shell_options(char **args, int *i) {
 
 // Returns true if arg was handled and last_command_exit_code was set.
 static bool handle_hash_shell_options(const char *arg) {
-    // Handle colors option
-    if (strcmp(arg, "colors=on") == 0) {
-        shell_config.use_colors = true;
-        colors_enable();
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "colors=off") == 0) {
-        shell_config.use_colors = false;
-        colors_disable();
-        last_command_exit_code = 0;
-        return true;
+    // name=value options shared with ~/.hashrc (colors, welcome, PS1,
+    // color.<element>, syntax_highlight, autosuggest, danger_highlight)
+    if (config_set_option(arg) != 0) {
+        return false;
     }
-
-    // Handle welcome option
-    if (strcmp(arg, "welcome=on") == 0) {
-        shell_config.show_welcome = true;
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "welcome=off") == 0) {
-        shell_config.show_welcome = false;
-        last_command_exit_code = 0;
-        return true;
-    }
-
-    // Handle PS1 setting
-    if (strncmp(arg, "PS1=", 4) == 0) {
-        const char *ps1_value = arg + 4;
-
-        // Remove quotes if present
-        size_t val_len = strlen(ps1_value);
-        if (val_len >= 2 &&
-            char_in_string(ps1_value[0], "'\"") &&
-            ps1_value[0] == ps1_value[val_len - 1]) {
-            // Make a mutable copy to remove quotes
-            char *temp = strdup(ps1_value);
-            if (temp) {
-                temp[val_len - 1] = '\0';
-                prompt_set_ps1(temp + 1);
-                free(temp);
-            }
-        } else {
-            prompt_set_ps1(ps1_value);
-        }
-        last_command_exit_code = 0;
-        return true;
-    }
-
-    return false;
+    last_command_exit_code = 0;
+    return true;
 }
 
 int shell_set(char **args) {

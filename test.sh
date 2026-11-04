@@ -310,6 +310,18 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected 3 output lines, got $heredoc_lines"; ((FAILED++))
 fi
 
+# ~/.hashrc is a shell script: functions, conditionals and the hash options all
+# take effect at startup, and none of its lines land in the history
+echo -n "Testing: .hashrc functions and conditionals take effect... "
+mkdir -p "$TEST_DIR/rchome"
+printf '%s\n' "alias rc_alias='echo aliased'" 'rc_fn() {' '  echo "fn $1"' '}' 'if true; then' '  RC_IF=yes' 'fi' 'set welcome=off' > "$TEST_DIR/rchome/.hashrc"
+rc_out=$(printf 'rc_fn one\necho "if=$RC_IF"\nrc_alias\nexit\n' | HOME="$PWD/$TEST_DIR/rchome" HISTFILE="$PWD/$TEST_DIR/rchome/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rc_out" | grep -qF "fn one" && echo "$rc_out" | grep -qF "if=yes" && echo "$rc_out" | grep -qF "aliased" && ! grep -qs 'rc_fn() {' "$TEST_DIR/rchome/hash_history"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rc_out" | head -10; echo "  History:"; cat "$TEST_DIR/rchome/hash_history" 2>/dev/null | head -5; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

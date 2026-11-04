@@ -45,22 +45,6 @@ extern Config shell_config;
 void config_init(void);
 
 /**
- * Load config from file
- *
- * @param filepath Path to the file
- *
- * @return Returns -1 on error, 0 otherwise.
- */
-int config_load(const char *filepath);
-
-/**
- * Load default config file (~/.hashrc)
- *
- * @return Returns -1 on error, 0 otherwise.
- */
-int config_load_default(void);
-
-/**
  * Add an alias
  *
  * @param name The alias name
@@ -94,13 +78,13 @@ int config_remove_alias(const char *name);
 void config_list_aliases(void);
 
 /**
- * Process a config line (returns 0 on success)
+ * Apply one hash-specific option given as "name=value" (quotes already removed
+ * by the shell): colors, welcome, PS1, color.<element>, syntax_highlight,
+ * autosuggest, danger_highlight. Used by the set builtin.
  *
- * @param line The line to process
- *
- * @return Returns -1 on error, 0 otherwise.
+ * @return 0 when applied, -1 when the option is not one of ours
  */
-int config_process_line(char *line);
+int config_set_option(const char *assignment);
 
 /**
  * Load config file silently (no error if file doesn't exist)

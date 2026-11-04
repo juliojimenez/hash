@@ -1,14 +1,30 @@
 #include "unity.h"
 #include "../src/config.h"
+#include "../src/color_config.h"
+#include "../src/script.h"
+#include "../src/shellvar.h"
+#include "../src/trap.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#define RC_HOME "/tmp/hash_config_test_home"
+#define RC_FILE RC_HOME "/.hashrc"
 
 void setUp(void) {
+    script_init();
+    shellvar_init();
     config_init();
+    trap_init();
 }
 
 void tearDown(void) {
-    // Clean up
+    script_cleanup();
+    shellvar_cleanup();
+    unlink(RC_FILE);
+    rmdir(RC_HOME);
 }
 
 // Test config initialization
@@ -69,75 +85,6 @@ void test_remove_nonexistent_alias(void) {
     TEST_ASSERT_EQUAL_INT(-1, result);
 }
 
-// Test processing alias line
-void test_process_alias_line(void) {
-    char line[] = "alias ll='ls -lah'";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-
-    const char *value = config_get_alias("ll");
-    TEST_ASSERT_EQUAL_STRING("ls -lah", value);
-}
-
-// Test processing alias with double quotes
-void test_process_alias_double_quotes(void) {
-    char line[] = "alias gs=\"git status\"";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-
-    const char *value = config_get_alias("gs");
-    TEST_ASSERT_EQUAL_STRING("git status", value);
-}
-
-// Test processing comment
-void test_process_comment(void) {
-    char line[] = "# This is a comment";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-    TEST_ASSERT_EQUAL_INT(0, shell_config.alias_count);
-}
-
-// Test processing empty line
-void test_process_empty_line(void) {
-    char line[] = "";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-}
-
-// Test processing whitespace line
-void test_process_whitespace_line(void) {
-    char line[] = "   \t  ";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-}
-
-// Test processing export
-void test_process_export(void) {
-    char line[] = "export TEST_VAR=test_value";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-
-    const char *value = getenv("TEST_VAR");
-    TEST_ASSERT_NOT_NULL(value);
-    TEST_ASSERT_EQUAL_STRING("test_value", value);
-}
-
-// Test processing set colors=on
-void test_process_set_colors_on(void) {
-    char line[] = "set colors=on";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-    TEST_ASSERT_TRUE(shell_config.use_colors);
-}
-
-// Test processing set welcome=off
-void test_process_set_welcome_off(void) {
-    char line[] = "set welcome=off";
-    int result = config_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, result);
-    TEST_ASSERT_FALSE(shell_config.show_welcome);
-}
-
 // Test multiple aliases
 void test_multiple_aliases(void) {
     config_add_alias("ll", "ls -lah");
@@ -160,6 +107,56 @@ void test_config_load_logout_files(void) {
     TEST_ASSERT_TRUE(1);
 }
 
+// set option=value: the hash-specific options, with the quotes already removed by the shell
+void test_set_option_known(void) {
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("welcome=off"));
+    TEST_ASSERT_FALSE(shell_config.show_welcome);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("welcome=on"));
+    TEST_ASSERT_TRUE(shell_config.show_welcome);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("colors=on"));
+    TEST_ASSERT_TRUE(shell_config.use_colors);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("autosuggest=off"));
+    TEST_ASSERT_FALSE(color_config.autosuggestion_enabled);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("autosuggest=on"));
+    TEST_ASSERT_TRUE(color_config.autosuggestion_enabled);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("syntax_highlight=off"));
+    TEST_ASSERT_FALSE(color_config.syntax_highlight_enabled);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("danger_highlight=off"));
+    TEST_ASSERT_FALSE(color_config.danger_highlight_enabled);
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("color.prompt=bold,blue"));
+    TEST_ASSERT_EQUAL_INT(0, config_set_option("PS1=> "));
+}
+
+void test_set_option_unknown(void) {
+    TEST_ASSERT_EQUAL_INT(-1, config_set_option("history=on"));
+    TEST_ASSERT_EQUAL_INT(-1, config_set_option("autosuggest=maybe"));
+    TEST_ASSERT_EQUAL_INT(-1, config_set_option("color.=red"));
+    TEST_ASSERT_EQUAL_INT(-1, config_set_option("color.prompt"));
+    TEST_ASSERT_EQUAL_INT(-1, config_set_option(NULL));
+}
+
+// ~/.hashrc is a shell script: aliases, functions, conditionals and the hash
+// options all take effect when the shell runs it at startup
+void test_hashrc_runs_as_script(void) {
+    mkdir(RC_HOME, 0700);
+    FILE *f = fopen(RC_FILE, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("alias hash_rc_alias='echo aliased'\n"
+          "hash_rc_fn() {\n  echo \"fn $1\"\n}\n"
+          "if true; then\n  set welcome=off\nfi\n", f);
+    fclose(f);
+
+    TEST_ASSERT_EQUAL_INT(0, config_load_silent(RC_FILE));
+    TEST_ASSERT_NOT_NULL(script_get_function("hash_rc_fn"));
+    TEST_ASSERT_EQUAL_STRING("echo aliased", config_get_alias("hash_rc_alias"));
+    TEST_ASSERT_FALSE(shell_config.show_welcome);
+}
+
+// A missing startup file is not an error
+void test_missing_startup_file_is_fine(void) {
+    TEST_ASSERT_EQUAL_INT(0, config_load_silent("/tmp/hash_config_test_missing/.hashrc"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -170,16 +167,12 @@ int main(void) {
     RUN_TEST(test_update_alias);
     RUN_TEST(test_remove_alias);
     RUN_TEST(test_remove_nonexistent_alias);
-    RUN_TEST(test_process_alias_line);
-    RUN_TEST(test_process_alias_double_quotes);
-    RUN_TEST(test_process_comment);
-    RUN_TEST(test_process_empty_line);
-    RUN_TEST(test_process_whitespace_line);
-    RUN_TEST(test_process_export);
-    RUN_TEST(test_process_set_colors_on);
-    RUN_TEST(test_process_set_welcome_off);
     RUN_TEST(test_multiple_aliases);
     RUN_TEST(test_config_load_logout_files);
+    RUN_TEST(test_set_option_known);
+    RUN_TEST(test_set_option_unknown);
+    RUN_TEST(test_hashrc_runs_as_script);
+    RUN_TEST(test_missing_startup_file_is_fine);
 
     return UNITY_END();
 }

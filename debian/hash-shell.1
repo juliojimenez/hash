@@ -521,8 +521,10 @@ to exit a function with a specific exit status.
 .SH FILES
 .TP
 .I ~/.hashrc
-User configuration file. Read and executed on interactive shell startup.
-Contains aliases, environment variable exports, and shell options.
+User configuration file, a shell script read and executed on interactive shell
+startup: aliases, environment variable exports, shell options (see
+.BR set ),
+functions, conditionals and any other command.
 .TP
 .I ~/.hash_history
 Command history file. Stores previously executed commands.
@@ -618,6 +620,10 @@ set PS1='\eW\eg \ee#>\ee '
 # Shell options
 set colors=on
 set welcome=off
+
+# Functions and conditionals work too
+mkcd() { mkdir -p "$1" && cd "$1"; }
+if [ -d "$HOME/bin" ]; then export PATH="$HOME/bin:$PATH"; fi
 .fi
 .SH STARSHIP PROMPT
 .B hash-shell

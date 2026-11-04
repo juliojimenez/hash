@@ -96,23 +96,6 @@ void shell_option_set_nolog(bool value) {
     shell_config.options.nolog = value;
 }
 
-// Trim whitespace from string
-static char *trim_whitespace(char *str) {
-    char *end;
-
-    // Trim leading space
-    while (isspace((unsigned char)*str)) str++;
-
-    if (*str == 0) return str;
-
-    // Trim trailing space
-    end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end)) end--;
-
-    end[1] = '\0';
-    return str;
-}
-
 // Add an alias
 int config_add_alias(const char *name, const char *value) {
     if (!name || !value) return -1;
@@ -184,248 +167,6 @@ void config_list_aliases(void) {
     }
 }
 
-static int handle_alias(char *line) {
-    char *alias_def = line + 6;
-    alias_def = trim_whitespace(alias_def);
-
-    char *equals = strchr(alias_def, '=');
-    if (!equals) {
-        return -1;  // Silently fail for bad format
-    }
-
-    *equals = '\0';
-    const char *name = trim_whitespace(alias_def);
-    char *value = trim_whitespace(equals + 1);
-
-    // Remove quotes if present
-    size_t val_len = strlen(value);
-    if (val_len >= 2 &&
-        char_in_string(value[0], "'\"") &&
-        value[0] == value[val_len - 1]) {
-        value[val_len - 1] = '\0';
-        value++;
-    }
-
-    return config_add_alias(name, value);
-}
-
-static int handle_export(char *line) {
-    char *export_def = line + 7;
-    export_def = trim_whitespace(export_def);
-
-    char *equals = strchr(export_def, '=');
-    if (!equals) {
-        // export without assignment - just mark variable for export
-        // For now, just ignore
-        return 0;
-    }
-
-    *equals = '\0';
-    const char *name = trim_whitespace(export_def);
-    char *value = trim_whitespace(equals + 1);
-
-    // Remove quotes if present
-    size_t val_len = strlen(value);
-    if (val_len >= 2 &&
-        char_in_string(value[0], "'\"") &&
-        value[0] == value[val_len - 1]) {
-        value[val_len - 1] = '\0';
-        value++;
-    }
-
-    // First expand tilde if present (e.g., ~/bin)
-    char *tilde_expanded = NULL;
-    if (value[0] == '~') {
-        tilde_expanded = expand_tilde_path(value);
-        if (tilde_expanded) {
-            value = tilde_expanded;
-        }
-    }
-
-    // Expand command substitutions (e.g., $(tty), `pwd`)
-    char *cmdsub_result = cmdsub_expand(value);
-    if (cmdsub_result) {
-        value = cmdsub_result;
-    }
-
-    // Expand variables in the value (e.g., $HOME, $PATH)
-    char *var_expanded = varexpand_expand(value, 0);
-    if (var_expanded) {
-        // Strip \x03 IFS markers from the expanded value
-        // These markers are used internally for IFS splitting but should not
-        // be stored in environment variables
-        const char *src = var_expanded;
-        char *dst = var_expanded;
-        while (*src) {
-            if (*src != '\x03') {
-                *dst++ = *src;
-            }
-            src++;
-        }
-        *dst = '\0';
-
-        setenv(name, var_expanded, 1);
-        free(var_expanded);
-    } else {
-        setenv(name, value, 1);
-    }
-
-    free(tilde_expanded);  // Safe to free NULL
-    free(cmdsub_result);   // Safe to free NULL
-    return 0;
-
-}
-
-static int handle_set(char *line) {
-    char *set_def = line + 4;
-    set_def = trim_whitespace(set_def);
-
-    if (strcmp(set_def, "colors=on") == 0) {
-        shell_config.use_colors = true;
-        colors_enable();
-        return 0;
-    } else if (strcmp(set_def, "colors=off") == 0) {
-        shell_config.use_colors = false;
-        colors_disable();
-        return 0;
-    } else if (strcmp(set_def, "welcome=on") == 0) {
-        shell_config.show_welcome = true;
-        return 0;
-    } else if (strcmp(set_def, "welcome=off") == 0) {
-        shell_config.show_welcome = false;
-        return 0;
-    }
-
-    // Handle PS1 setting
-    if (strncmp(set_def, "PS1=", 4) == 0) {
-        char *ps1_value = set_def + 4;
-
-        // Remove quotes if present
-        size_t val_len = strlen(ps1_value);
-        if (val_len >= 2 &&
-            char_in_string(ps1_value[0], "'\"") &&
-            ps1_value[0] == ps1_value[val_len - 1]) {
-            ps1_value[val_len - 1] = '\0';
-            ps1_value++;
-        }
-
-        prompt_set_ps1(ps1_value);
-        return 0;
-    }
-
-    // Handle "set color.<element>=<value>" (e.g., set color.prompt=bold,blue)
-    if (strncmp(set_def, "color.", 6) == 0) {
-        const char *element_start = set_def + 6;
-        char *equals = strchr(element_start, '=');
-        if (equals) {
-            *equals = '\0';
-            char *value = equals + 1;
-
-            // Remove quotes if present
-            size_t val_len = strlen(value);
-            if (val_len >= 2 &&
-                char_in_string(value[0], "'\"") &&
-                value[0] == value[val_len - 1]) {
-                value[val_len - 1] = '\0';
-                value++;
-            }
-
-            return color_config_set(element_start, value);
-        }
-    }
-
-    // Handle feature toggles
-    if (strcmp(set_def, "syntax_highlight=on") == 0) {
-        color_config.syntax_highlight_enabled = true;
-        return 0;
-    } else if (strcmp(set_def, "syntax_highlight=off") == 0) {
-        color_config.syntax_highlight_enabled = false;
-        return 0;
-    } else if (strcmp(set_def, "autosuggest=on") == 0) {
-        color_config.autosuggestion_enabled = true;
-        return 0;
-    } else if (strcmp(set_def, "autosuggest=off") == 0) {
-        color_config.autosuggestion_enabled = false;
-        return 0;
-    } else if (strcmp(set_def, "danger_highlight=on") == 0) {
-        color_config.danger_highlight_enabled = true;
-        return 0;
-    } else if (strcmp(set_def, "danger_highlight=off") == 0) {
-        color_config.danger_highlight_enabled = false;
-        return 0;
-    }
-
-    return -1;  // Unknown option
-
-}
-
-// Process a single config line (for simple .hashrc format)
-// This handles hash-specific directives: alias, export, set
-int config_process_line(char *line) {
-    if (!line) return -1;
-
-    // Trim whitespace
-    line = trim_whitespace(line);
-
-    // Skip empty lines and comments
-    if (char_in_string(line[0], "\0#")) {
-        return 0;
-    }
-
-    // Handle "alias name='value'" or "alias name=value"
-    if (strncmp(line, "alias ", 6) == 0) {
-        return handle_alias(line);
-    }
-
-    // Handle "export VAR=value"
-    if (strncmp(line, "export ", 7) == 0) {
-        return handle_export(line);
-    }
-
-    // Handle "set option=value"
-    if (strncmp(line, "set ", 4) == 0) {
-        return handle_set(line);
-    }
-
-    // Unknown directive - return error but don't print warning
-    // (Warnings are printed by caller if needed)
-    return -1;
-}
-
-// Load config from file (simple hash-specific format)
-int config_load(const char *filepath) {
-    FILE *fp = fopen(filepath, "r");
-    if (!fp) {
-        return -1;
-    }
-
-    char line[MAX_CONFIG_LINE];
-    int errors = 0;
-
-    while (fgets(line, sizeof(line), fp)) {
-        // Ensure null termination
-        line[MAX_CONFIG_LINE - 1] = '\0';
-
-        // Remove newline characters
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') {
-            line[len - 1] = '\0';
-            len--;
-        }
-        if (len > 0 && line[len - 1] == '\r') {
-            line[len - 1] = '\0';
-        }
-
-        int result = config_process_line(line);
-        if (result != 0) {
-            errors++;
-        }
-    }
-
-    fclose(fp);
-    return errors > 0 ? -1 : 0;
-}
-
 // Get home directory helper
 static const char *get_home_dir(void) {
     const char *home = getenv("HOME");
@@ -445,24 +186,76 @@ static const char *get_home_dir(void) {
     return NULL;
 }
 
-// Load default config file (~/.hashrc)
-int config_load_default(void) {
-    const char *home = get_home_dir();
-    if (!home) return -1;
+// Load config file silently (no error if doesn't exist)
+// Apply one hash-specific option, "name=value" with the quotes already removed
+// by the shell: colors, welcome, PS1, color.<element>, syntax_highlight,
+// autosuggest and danger_highlight. The set builtin hands every argument that
+// carries '=' to this function, so the same lines work in ~/.hashrc, in a
+// script and at the prompt. Returns 0 when the option was applied and -1 when
+// it is not one of ours.
+int config_set_option(const char *assignment) {
+    if (!assignment) return -1;
 
-    char config_path[1024];
-    snprintf(config_path, sizeof(config_path), "%s/.hashrc", home);
-
-    if (access(config_path, F_OK) != 0) {
-        return 0;  // Not an error if doesn't exist
+    if (strcmp(assignment, "colors=on") == 0) {
+        shell_config.use_colors = true;
+        colors_enable();
+        return 0;
+    }
+    if (strcmp(assignment, "colors=off") == 0) {
+        shell_config.use_colors = false;
+        colors_disable();
+        return 0;
+    }
+    if (strcmp(assignment, "welcome=on") == 0) {
+        shell_config.show_welcome = true;
+        return 0;
+    }
+    if (strcmp(assignment, "welcome=off") == 0) {
+        shell_config.show_welcome = false;
+        return 0;
+    }
+    if (strncmp(assignment, "PS1=", 4) == 0) {
+        prompt_set_ps1(assignment + 4);
+        return 0;
     }
 
-    return config_load(config_path);
+    // set color.<element>=<value>, e.g. color.prompt=bold,blue
+    if (strncmp(assignment, "color.", 6) == 0) {
+        const char *element = assignment + 6;
+        const char *equals = strchr(element, '=');
+        if (!equals) return -1;
+        size_t len = (size_t)(equals - element);
+        char name[64];
+        if (len == 0 || len >= sizeof(name)) return -1;
+        memcpy(name, element, len);
+        name[len] = '\0';
+        return color_config_set(name, equals + 1);
+    }
+
+    // Feature toggles: name=on|off
+    static const struct { const char *name; bool *flag; } toggles[] = {
+        {"syntax_highlight", &color_config.syntax_highlight_enabled},
+        {"autosuggest", &color_config.autosuggestion_enabled},
+        {"danger_highlight", &color_config.danger_highlight_enabled},
+    };
+    for (size_t i = 0; i < sizeof(toggles) / sizeof(toggles[0]); i++) {
+        size_t n = strlen(toggles[i].name);
+        if (strncmp(assignment, toggles[i].name, n) == 0 && assignment[n] == '=') {
+            const char *value = assignment + n + 1;
+            if (strcmp(value, "on") == 0) { *toggles[i].flag = true; return 0; }
+            if (strcmp(value, "off") == 0) { *toggles[i].flag = false; return 0; }
+            return -1;
+        }
+    }
+
+    return -1;  // Unknown option
 }
 
-// Load config file silently (no error if doesn't exist)
-// For .hashrc files, use config_load which handles hash-specific directives
-// For profile/login files, use script_execute_file_ex
+// Run a startup file through the shell. ~/.hashrc is the user's own file and a
+// shell script like any other (aliases, exports, set options, functions,
+// conditionals, source, ...), so its errors are shown. The profile, login and
+// logout files run with hash's own error messages suppressed, because they may
+// carry syntax from other shells. A missing or unreadable file is not an error.
 int config_load_silent(const char *filepath) {
     if (access(filepath, F_OK) != 0) {
         return 0;  // File doesn't exist - not an error
@@ -471,24 +264,11 @@ int config_load_silent(const char *filepath) {
         return 0;  // Not readable - silently skip
     }
 
-    // Check if this is a .hashrc file - use config_load for hash-specific directives
     const char *basename = strrchr(filepath, '/');
     basename = basename ? basename + 1 : filepath;
+    bool quiet = strcmp(basename, ".hashrc") != 0;
 
-    if (strcmp(basename, ".hashrc") == 0) {
-        // Use config_load which handles hash-specific directives (alias, set, export)
-        // Set silent_errors to suppress errors from command substitutions in exports
-        // (e.g., export GPG_TTY=$(tty) shouldn't print errors if tty fails)
-        bool old_silent = script_state.silent_errors;
-        script_state.silent_errors = true;
-        int result = config_load(filepath);
-        script_state.silent_errors = old_silent;
-        return result;
-    }
-
-    // For other files (profile, login, etc.), use script execution
-    // with silent errors for system files that may contain unsupported syntax
-    return script_execute_file_ex(filepath, 0, NULL, true);
+    return script_execute_file_ex(filepath, 0, NULL, quiet);
 }
 
 // Load startup files based on shell type
