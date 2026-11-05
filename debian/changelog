@@ -1,3 +1,14 @@
+hash-shell (49-1) unstable; urgency=medium
+
+  * refactor: remove the legacy line engine (parser rewrite step 5)
+    (HASH_ENGINE and --engine are gone; also fixes $?, $$ and $# inside
+    $(( )), which evaluated to 0)
+  * fix(config): run ~/.hashrc through the shell
+  * docs(security): support only the latest release, fix forward
+  * ci(pages): let the Debian workflow make the first Pages deployment of a release
+
+ -- Julio Jimenez <julio@julioj.com>  Wed, 04 Nov 2026 21:35:35 -0500
+
 hash-shell (48-1) unstable; urgency=medium
 
   * feat(engine): run the AST engine by default

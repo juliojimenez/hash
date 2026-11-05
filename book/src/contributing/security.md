@@ -9,7 +9,7 @@ latest release.
 
 | Version | Supported |
 |---------|-----------|
-| v48 (latest) | Yes |
+| v49 (latest) | Yes |
 | Earlier releases | No |
 
 ## Reporting Vulnerabilities
