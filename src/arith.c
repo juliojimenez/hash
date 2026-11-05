@@ -15,30 +15,10 @@
 #include "jobs.h"
 #include "config.h"
 #include "utils.h"
-
-// Forward declaration to access positional parameters
-// (We can't include script.h due to ArithTokenType name collision)
-const char *script_get_positional_param(int index);
+#include "script.h"      // positional parameters: script_state and script_get_positional_param()
 
 // External reference to last command exit code (from builtins.c)
 extern int last_command_exit_code;
-
-// External reference to script_state for positional_count
-typedef struct {
-    void *context_stack;
-    int context_depth;
-    void *functions;
-    int function_count;
-    bool in_script;
-    const char *script_path;
-    int script_line;
-    bool silent_errors;
-    char **positional_params;
-    int positional_count;
-    int function_call_depth;
-    bool exit_requested;
-} ScriptStateArith;
-extern ScriptStateArith script_state;
 
 #define MAX_ARITH_LENGTH 8192
 
@@ -155,8 +135,8 @@ static long get_variable(const char *name) {
                 return (long)last_command_exit_code;
             case '!':  // $! - last background PID
                 return (long)jobs_get_last_bg_pid();
-            case '#':  // $# - number of positional params
-                return (long)script_state.positional_count;
+            case '#':  // $# - number of positional params ($0 is not one)
+                return script_state.positional_count > 0 ? (long)script_state.positional_count - 1 : 0;
             case '-':  // $- - current options (return 0 for arithmetic)
                 return 0;
             case '0':  // $0 - script/shell name
@@ -235,13 +215,12 @@ static void get_variable_token(Parser *p) {
 
     p->current.type = TOK_VAR;
 
-    // Handle special variables
+    // Special parameters: $$ $? $! $# $@ $* $- $0 (two characters)
     if (c == '$' && is_special_variable(nc)) {
-        // Handle special variables
         p->current.name[0] = nc;
         p->current.name[1] = '\0';
         p->current.value = get_variable(p->current.name);
-        p->pos++;
+        p->pos += 2;
         return;
     }
 

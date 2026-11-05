@@ -373,8 +373,6 @@ jobs:
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/execute.c -o build/execute.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/redirect.c -o build/redirect.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/expand.c -o build/expand.o
-          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/chain.c -o build/chain.o
-          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/pipeline.c -o build/pipeline.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/script.c -o build/script.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/jobs.c -o build/jobs.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/test_builtin.c -o build/test_builtin.o
@@ -395,13 +393,12 @@ jobs:
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/ast.c -o build/ast.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/ast_parser.c -o build/ast_parser.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/exec.c -o build/exec.o
-          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/engine.c -o build/engine.o
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -c src/input.c -o build/input.o
 
           # Define all object files needed for linking
-          ALL_OBJS="build/parser.o build/tokenizer.o build/arena.o build/ast.o build/ast_parser.o build/exec.o build/engine.o build/input.o build/safe_string.o build/lineedit.o build/history.o \
+          ALL_OBJS="build/parser.o build/tokenizer.o build/arena.o build/ast.o build/ast_parser.o build/exec.o build/input.o build/safe_string.o build/lineedit.o build/history.o \
             build/completion.o build/config.o build/colors.o build/prompt.o build/builtins.o \
-            build/execute.o build/redirect.o build/expand.o build/chain.o build/pipeline.o \
+            build/execute.o build/redirect.o build/expand.o \
             build/script.o build/jobs.o build/test_builtin.o build/cmdsub.o build/varexpand.o \
             build/update.o build/arith.o build/shellvar.o build/trap.o build/ifs.o build/syslimits.o \
             build/color_config.o build/syntax.o build/autosuggest.o build/danger.o \

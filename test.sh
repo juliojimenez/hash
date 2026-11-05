@@ -265,9 +265,7 @@ run_interactive_test_absent "command after function in skipped branch does not r
 run_interactive_test "escaped semicolon before # is not a comment" 'echo first; echo foo\;#bar; echo after' "after"
 run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
 
-# The legacy engine does not join continued lines at the prompt (and hangs on
-# them in stdin mode), so this case pins the AST engine
-HASH_ENGINE=ast run_interactive_test "line continuation across prompt lines (ast engine)" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
+run_interactive_test "line continuation across prompt lines" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
 
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "
@@ -343,6 +341,11 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected exit 5 and no output; got exit $src_ec: $src_out"; ((FAILED++))
 fi
 
+# Special parameters inside $(( )): $# excludes $0, $? is the last status, and the
+# count is right however deep the loop nesting
+run_test "special parameters inside arithmetic" 'set -- a b; false; echo "q=$(( $? )) n=$(( $# )) b=$(( ${#} ))"' "q=1 n=2 b=2"
+run_test "arithmetic \$# inside nested loops" 'set -- a b; for i in 1; do for j in 1; do for k in 1; do for l in 1; do for m in 1; do for n in 1; do for o in 1; do for p in 1; do for q in 1; do for r in 1; do echo "deep=$(( $# ))"; done; done; done; done; done; done; done; done; done; done' "deep=2"
+
 # The shell removes the quotes around an alias value; quotes inside it stay
 run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"; greet' "hello world"
 
@@ -406,13 +409,11 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected exit 0 with no prompt; got exit $lo_ec: $lo_out"; ((FAILED++))
 fi
 
-# exit inside a condition in .hashrc still ends the shell with its status.
-# The legacy engine's condition evaluator drops the exit (it goes away with the
-# engine in #313), so this case pins the default engine.
+# exit inside a condition in .hashrc still ends the shell with its status
 echo -n "Testing: exit inside an if condition in .hashrc ends the shell... "
 mkdir -p "$TEST_DIR/rcifexit"
 printf 'if exit 7; then\n:\nfi\necho after\n' > "$TEST_DIR/rcifexit/.hashrc"
-ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 HASH_ENGINE=ast run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
+ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
 if [[ "$ife_ec" == "7" ]] && ! echo "$ife_out" | grep -qE "alive|after"; then
     echo -e "${GREEN}PASS${NC}"; ((PASSED++))
 else

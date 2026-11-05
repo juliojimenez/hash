@@ -1,6 +1,9 @@
 #include "unity.h"
 #include "../src/arith.h"
 #include "../src/shellvar.h"
+#include "../src/script.h"
+#include "../src/execute.h"
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,6 +18,40 @@ void setUp(void) {
 
 void tearDown(void) {
     shellvar_cleanup();
+}
+
+// Special parameters inside arithmetic: $# excludes $0 and reads the real
+// script state even with loop contexts on the stack; $? and $$ work too
+void test_arith_special_parameters(void) {
+    long result = -1;
+    script_init();
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$#", &result));
+    TEST_ASSERT_EQUAL_INT(0, result);
+
+    char *args[] = {"a", "b"};
+    script_set_positional_params(2, args);
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$#", &result));
+    TEST_ASSERT_EQUAL_INT(2, result);
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("${#}", &result));
+    TEST_ASSERT_EQUAL_INT(2, result);
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$# + $1", &result));
+    TEST_ASSERT_EQUAL_INT(2, result);  // $1 is "a", not a number
+
+    for (int i = 0; i < 10; i++) {
+        script_push_context(CTX_FOR);
+    }
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$#", &result));
+    TEST_ASSERT_EQUAL_INT(2, result);
+
+    last_command_exit_code = 3;
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$?", &result));
+    TEST_ASSERT_EQUAL_INT(3, result);
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$$ == $$", &result));
+    TEST_ASSERT_EQUAL_INT(1, result);
+    TEST_ASSERT_EQUAL_INT(0, arith_evaluate("$$", &result));
+    TEST_ASSERT_EQUAL_INT((long)getpid(), result);
+    last_command_exit_code = 0;
+    script_cleanup();
 }
 
 // Test basic addition
@@ -272,6 +309,7 @@ void test_arith_n_minus_1(void) {
 int main(void) {
     UNITY_BEGIN();
 
+    RUN_TEST(test_arith_special_parameters);
     RUN_TEST(test_arith_add);
     RUN_TEST(test_arith_subtract);
     RUN_TEST(test_arith_multiply);

@@ -59,20 +59,14 @@ make debug
 ./hash-shell
 ```
 
-### Two command engines (transitional)
+### Command engine
 
-The line-oriented engine in `src/script.c` is being replaced by a tokenizer,
-parser and tree executor (`src/tokenizer.c`, `src/ast_parser.c`, `src/exec.c`).
-Both are built in. The AST engine is the default; `HASH_ENGINE=legacy` or
-`--engine=legacy` selects the line-oriented one. Run the suites under both and
-compare them:
-
-```bash
-./test.sh && HASH_ENGINE=legacy ./test.sh
-bash tests/engine_diff.sh path/to/smoosh/tests   # stdout, stderr and exit status must match
-```
-
-CI runs the integration tests and the smoosh suite with each engine.
+Input is tokenized (`src/tokenizer.c`), parsed into a syntax tree
+(`src/ast_parser.c`, `src/ast.c`) and executed by walking the tree
+(`src/exec.c`), which hands each simple command to `src/execute.c`.
+`src/script.c` keeps the function table, the positional parameters and the loop
+context stack that `break` and `continue` use. The smoosh suite in CI is the
+POSIX parity gate.
 
 ### Running Tests
 

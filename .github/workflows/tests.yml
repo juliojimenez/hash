@@ -50,7 +50,6 @@ jobs:
       - name: Run Tests
         run: |
           ./test.sh
-          HASH_ENGINE=legacy ./test.sh
 
       - name: Run Unit Tests
         run: make test
@@ -60,7 +59,6 @@ jobs:
           make clean
           make CC=${{ matrix.cc }} CFLAGS="-Wall -Wextra -O0 -std=gnu99 -g"
           ./test.sh
-          HASH_ENGINE=legacy ./test.sh
           make test-clean
           make test
 
@@ -101,7 +99,6 @@ jobs:
       - name: Run Tests
         run: |
           ./test.sh
-          HASH_ENGINE=legacy ./test.sh
 
       - name: Run Unit Tests
         run: make test

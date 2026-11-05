@@ -1,6 +1,7 @@
 #ifndef EXEC_H
 #define EXEC_H
 
+#include "script.h"
 #include <stdbool.h>
 #include "ast.h"
 
@@ -38,6 +39,13 @@ ExecStatus exec_string(const char *src, bool *incomplete);
  * does. Input that ends inside a construct is a syntax error (status 2).
  */
 int exec_string_status(const char *src);
+
+/**
+ * Run a shell function: the body is parsed and executed with argv as the
+ * positional parameters. Called by execute() for a command that names a
+ * function. Returns execute()'s convention (1 continue, 0 exit).
+ */
+int exec_run_function(const ShellFunction *func, int argc, char **argv);
 
 /**
  * Line feeder: accumulates lines until they form a complete program, then

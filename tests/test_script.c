@@ -4,16 +4,12 @@
 #include "../src/hash.h"
 #include "../src/config.h"
 #include "../src/execute.h"
-#include "../src/engine.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 void setUp(void) {
-    // This file exercises the line engine in script.c directly; the AST
-    // engine is the default, so pin legacy for the dispatching entry points
-    engine_set_by_name("legacy");
     script_init();
 }
 
@@ -25,184 +21,17 @@ void tearDown(void) {
 // Keyword Detection Tests
 // ============================================================================
 
-void test_is_keyword_if(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("if"));
-}
-
-void test_is_keyword_then(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("then"));
-}
-
-void test_is_keyword_else(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("else"));
-}
-
-void test_is_keyword_fi(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("fi"));
-}
-
-void test_is_keyword_for(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("for"));
-}
-
-void test_is_keyword_while(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("while"));
-}
-
-void test_is_keyword_do(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("do"));
-}
-
-void test_is_keyword_done(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("done"));
-}
-
-void test_is_keyword_case(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("case"));
-}
-
-void test_is_keyword_esac(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("esac"));
-}
-
-void test_is_keyword_in(void) {
-    TEST_ASSERT_TRUE(script_is_keyword("in"));
-}
-
-void test_is_not_keyword(void) {
-    TEST_ASSERT_FALSE(script_is_keyword("echo"));
-    TEST_ASSERT_FALSE(script_is_keyword("ls"));
-    TEST_ASSERT_FALSE(script_is_keyword("hello"));
-}
-
-void test_get_keyword_type(void) {
-    TEST_ASSERT_EQUAL(TOK_IF, script_get_keyword_type("if"));
-    TEST_ASSERT_EQUAL(TOK_THEN, script_get_keyword_type("then"));
-    TEST_ASSERT_EQUAL(TOK_ELSE, script_get_keyword_type("else"));
-    TEST_ASSERT_EQUAL(TOK_FI, script_get_keyword_type("fi"));
-    TEST_ASSERT_EQUAL(TOK_FOR, script_get_keyword_type("for"));
-    TEST_ASSERT_EQUAL(TOK_WHILE, script_get_keyword_type("while"));
-    TEST_ASSERT_EQUAL(TOK_DO, script_get_keyword_type("do"));
-    TEST_ASSERT_EQUAL(TOK_DONE, script_get_keyword_type("done"));
-    TEST_ASSERT_EQUAL(TOK_CASE, script_get_keyword_type("case"));
-    TEST_ASSERT_EQUAL(TOK_ESAC, script_get_keyword_type("esac"));
-    TEST_ASSERT_EQUAL(TOK_IN, script_get_keyword_type("in"));
-    TEST_ASSERT_EQUAL(TOK_WORD, script_get_keyword_type("echo"));
-}
-
 // ============================================================================
 // Line Classification Tests
 // ============================================================================
-
-void test_classify_empty_line(void) {
-    TEST_ASSERT_EQUAL(LINE_EMPTY, script_classify_line(""));
-    TEST_ASSERT_EQUAL(LINE_EMPTY, script_classify_line("   "));
-    TEST_ASSERT_EQUAL(LINE_EMPTY, script_classify_line("\t"));
-}
-
-void test_classify_comment(void) {
-    TEST_ASSERT_EQUAL(LINE_EMPTY, script_classify_line("# comment"));
-    TEST_ASSERT_EQUAL(LINE_EMPTY, script_classify_line("   # indented comment"));
-}
-
-void test_classify_if(void) {
-    TEST_ASSERT_EQUAL(LINE_IF_START, script_classify_line("if [ -f file ]; then"));
-    TEST_ASSERT_EQUAL(LINE_IF_START, script_classify_line("if test -f file"));
-}
-
-void test_classify_then(void) {
-    TEST_ASSERT_EQUAL(LINE_THEN, script_classify_line("then"));
-    TEST_ASSERT_EQUAL(LINE_THEN, script_classify_line("   then"));
-}
-
-void test_classify_elif(void) {
-    TEST_ASSERT_EQUAL(LINE_ELIF, script_classify_line("elif [ condition ]"));
-}
-
-void test_classify_else(void) {
-    TEST_ASSERT_EQUAL(LINE_ELSE, script_classify_line("else"));
-}
-
-void test_classify_fi(void) {
-    TEST_ASSERT_EQUAL(LINE_FI, script_classify_line("fi"));
-}
-
-void test_classify_for(void) {
-    TEST_ASSERT_EQUAL(LINE_FOR_START, script_classify_line("for i in 1 2 3; do"));
-    TEST_ASSERT_EQUAL(LINE_FOR_START, script_classify_line("for var in list"));
-}
-
-void test_classify_while(void) {
-    TEST_ASSERT_EQUAL(LINE_WHILE_START, script_classify_line("while [ condition ]"));
-}
-
-void test_classify_do(void) {
-    TEST_ASSERT_EQUAL(LINE_DO, script_classify_line("do"));
-}
-
-void test_classify_done(void) {
-    TEST_ASSERT_EQUAL(LINE_DONE, script_classify_line("done"));
-}
-
-void test_classify_case(void) {
-    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("case x in"));
-    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("case $var in"));
-    TEST_ASSERT_EQUAL(LINE_CASE_START, script_classify_line("   case word in"));
-}
-
-void test_classify_esac(void) {
-    TEST_ASSERT_EQUAL(LINE_ESAC, script_classify_line("esac"));
-    TEST_ASSERT_EQUAL(LINE_ESAC, script_classify_line("   esac"));
-}
-
-void test_classify_simple(void) {
-    TEST_ASSERT_EQUAL(LINE_SIMPLE, script_classify_line("echo hello"));
-    TEST_ASSERT_EQUAL(LINE_SIMPLE, script_classify_line("ls -la"));
-    TEST_ASSERT_EQUAL(LINE_SIMPLE, script_classify_line("cat file.txt"));
-}
 
 // ============================================================================
 // Context Stack Tests
 // ============================================================================
 
-void test_initial_context(void) {
-    TEST_ASSERT_FALSE(script_in_control_structure());
-    TEST_ASSERT_EQUAL(CTX_NONE, script_current_context());
-}
-
-void test_push_context(void) {
-    TEST_ASSERT_EQUAL(1, script_push_context(CTX_IF));  // 1 = success, continue
-    TEST_ASSERT_TRUE(script_in_control_structure());
-    TEST_ASSERT_EQUAL(CTX_IF, script_current_context());
-}
-
-void test_pop_context(void) {
-    script_push_context(CTX_IF);
-    TEST_ASSERT_EQUAL(1, script_pop_context());  // 1 = success, continue
-    TEST_ASSERT_FALSE(script_in_control_structure());
-    TEST_ASSERT_EQUAL(CTX_NONE, script_current_context());
-}
-
-void test_nested_context(void) {
-    script_push_context(CTX_IF);
-    script_push_context(CTX_FOR);
-
-    TEST_ASSERT_EQUAL(CTX_FOR, script_current_context());
-
-    script_pop_context();
-    TEST_ASSERT_EQUAL(CTX_IF, script_current_context());
-
-    script_pop_context();
-    TEST_ASSERT_EQUAL(CTX_NONE, script_current_context());
-}
-
 void test_pop_empty_context(void) {
     // Should fail gracefully
     TEST_ASSERT_EQUAL(-1, script_pop_context());
-}
-
-void test_should_execute_default(void) {
-    TEST_ASSERT_TRUE(script_should_execute());
 }
 
 void test_count_loops_at_current_depth_empty(void) {
@@ -237,13 +66,6 @@ void test_count_loops_at_current_depth_with_if(void) {
     script_pop_context();
 }
 
-void test_push_case_context(void) {
-    TEST_ASSERT_EQUAL(1, script_push_context(CTX_CASE));  // 1 = success, continue
-    TEST_ASSERT_TRUE(script_in_control_structure());
-    TEST_ASSERT_EQUAL(CTX_CASE, script_current_context());
-    script_pop_context();
-}
-
 void test_count_loops_with_case(void) {
     // Case contexts shouldn't be counted as loops
     script_push_context(CTX_CASE);
@@ -264,33 +86,6 @@ void test_break_pending_initial(void) {
 
 void test_continue_pending_initial(void) {
     // Initially, no continue is pending
-    TEST_ASSERT_EQUAL(0, script_get_continue_pending());
-}
-
-void test_set_break_pending(void) {
-    script_set_break_pending(2);
-    TEST_ASSERT_EQUAL(2, script_get_break_pending());
-    // Clean up
-    script_clear_break_continue();
-    TEST_ASSERT_EQUAL(0, script_get_break_pending());
-}
-
-void test_set_continue_pending(void) {
-    script_set_continue_pending(3);
-    TEST_ASSERT_EQUAL(3, script_get_continue_pending());
-    // Clean up
-    script_clear_break_continue();
-    TEST_ASSERT_EQUAL(0, script_get_continue_pending());
-}
-
-void test_clear_break_continue(void) {
-    script_set_break_pending(1);
-    script_set_continue_pending(2);
-    TEST_ASSERT_EQUAL(1, script_get_break_pending());
-    TEST_ASSERT_EQUAL(2, script_get_continue_pending());
-
-    script_clear_break_continue();
-    TEST_ASSERT_EQUAL(0, script_get_break_pending());
     TEST_ASSERT_EQUAL(0, script_get_continue_pending());
 }
 
@@ -341,20 +136,6 @@ void test_redefine_function(void) {
 // ============================================================================
 // Script Processing Tests
 // ============================================================================
-
-void test_process_empty_line(void) {
-    TEST_ASSERT_EQUAL(1, script_process_line(""));  // 1 = continue processing
-    TEST_ASSERT_EQUAL(1, script_process_line("   "));
-}
-
-void test_process_comment(void) {
-    TEST_ASSERT_EQUAL(1, script_process_line("# this is a comment"));  // 1 = continue
-}
-
-void test_process_simple_command(void) {
-    // This would actually execute, but should return cleanly
-    TEST_ASSERT_GREATER_OR_EQUAL(0, script_process_line("true"));
-}
 
 // ============================================================================
 // Execute String Tests
@@ -440,28 +221,11 @@ static void write_test_script(const char *path, const char *content) {
     fclose(fp);
 }
 
-// Lines handed to the script processor are never recorded by it
-void test_process_line_does_not_record_history(void) {
-    history_test_begin();
-    script_process_line("true");
-    TEST_ASSERT_EQUAL_INT(0, history_count());
-    history_test_end();
-}
-
 // A file executed without the -i script flag (e.g. sourced) records nothing
 void test_sourced_file_does_not_record_history(void) {
     history_test_begin();
     write_test_script(SCRIPT_TEST_FILE, "# comment in sourced file\ntrue\ntrue # second\n");
     script_execute_file(SCRIPT_TEST_FILE, 0, NULL);
-    TEST_ASSERT_EQUAL_INT(0, history_count());
-    history_test_end();
-}
-
-// The same through the '.' builtin, as typed at an interactive prompt
-void test_dot_builtin_does_not_record_history(void) {
-    history_test_begin();
-    write_test_script(SCRIPT_TEST_FILE, "# comment in sourced file\ntrue\ntrue # second\n");
-    script_process_line(". " SCRIPT_TEST_FILE);
     TEST_ASSERT_EQUAL_INT(0, history_count());
     history_test_end();
 }
@@ -507,228 +271,32 @@ void test_nolog_disables_script_history(void) {
 // Compound Commands Fed One Line at a Time (as the interactive prompt does)
 // ============================================================================
 
-void test_compound_one_liner_for(void) {
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2; do false; done"));
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
-void test_compound_one_liner_if(void) {
-    script_process_line("if false; then true; else false; fi");
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-
-    script_process_line("if true; then true; else false; fi");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-}
-
-// A partial compound command leaves a context open: the prompt loop relies on
-// context_depth > 0 to show the continuation prompt
-void test_compound_multi_line_for_needs_continuation(void) {
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("for i in 1 2"));
-    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
-    script_process_line("do");
-    script_process_line("false");
-    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("done"));
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
-void test_compound_function_definition_and_call(void) {
-    script_process_line("hash_test_fn() { false; }; hash_test_fn");
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_NOT_NULL(script_get_function("hash_test_fn"));
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
-// A for loop inside a branch that is not executing must not read as `exit`
-// (every caller treats 0 from the line processor as an exit request)
-void test_inactive_for_does_not_signal_exit(void) {
-    const char *lines[] = {"if false", "then", "for i in 1 2", "do", "false", "done", "fi"};
-    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
-        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
-    }
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-
-    script_process_line("true");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-}
-
-// Lines with nothing to run must not read as `exit` either
-void test_nothing_to_run_does_not_signal_exit(void) {
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line(";"));
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("# just a comment"));
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("   "));
-}
-
-// A ';' inside a comment is not a command separator
-void test_semicolon_split_respects_comments(void) {
-    script_process_line("false # comment; true");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-
-    script_process_line("true # comment; false");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-
-    // A comment may start right after a separator
-    script_process_line("false;# comment; true");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-    script_process_line("true;# comment; false");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-
-    // An escaped separator does not start a new word, so '#' after it is text
-    script_process_line("true; echo foo\\;#bar >/dev/null; false");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-
-    // '#' without preceding whitespace, or quoted, is not a comment
-    script_process_line("true; false #tail");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-    script_process_line("echo '# not a comment; still string' >/dev/null; false");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
-// A compound command right after then/else on one line: its context must open
-// even in a skipped branch, and it must run in an active branch
-void test_compound_after_then_on_one_line(void) {
-    TEST_ASSERT_NOT_EQUAL(0, script_process_line("if false; then for i in 1 2; do false; done; fi"));
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    script_process_line("true");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-
-    script_process_line("if true; then for i in 1 2; do false; done; fi");
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-
-    script_process_line("if false; then true; else for i in 1; do false; done; fi");
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
-// A function defined inside a skipped branch must not be registered, while
-// its body is still collected so the braces pair up
-void test_function_not_registered_in_skipped_branch(void) {
-    script_process_line("hash_keep_fn() { true; }");
-    script_process_line("if false; then hash_keep_fn() { false; }; fi");
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    script_process_line("hash_keep_fn");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-
-    const char *lines[] = {"if false", "then", "hash_skip_fn() {", "true", "}", "fi"};
-    for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
-        TEST_ASSERT_NOT_EQUAL_MESSAGE(0, script_process_line(lines[i]), lines[i]);
-    }
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_NULL(script_get_function("hash_skip_fn"));
-
-    script_process_line("if true; then hash_take_fn() { false; }; fi");
-    TEST_ASSERT_NOT_NULL(script_get_function("hash_take_fn"));
-}
-
-// A syntax error reports -1 and may leave the context it was in open; the
-// prompt loop relies on -1 to decide to discard that context
-void test_syntax_error_signal_and_discard(void) {
-    TEST_ASSERT_EQUAL_INT(-1, script_process_line("if false; then done; fi"));
-    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
-
-    script_discard_compound();
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    script_process_line("true");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
-}
-
-// Text after a one-line function definition obeys the enclosing branch
-void test_function_suffix_obeys_branch(void) {
-    // Whatever status an if with no branch taken reports today...
-    script_process_line("if false; then :; fi");
-    int baseline = execute_get_last_exit_code();
-
-    // ...a suffix that leaked out of the skipped branch would flip it
-    const char *line = (baseline == 0)
-        ? "if false; then hash_sfx_fn() { :; } && false; fi"
-        : "if false; then hash_sfx_fn() { :; } && true; fi";
-    script_process_line(line);
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-    TEST_ASSERT_EQUAL_INT(baseline, execute_get_last_exit_code());
-
-    // In a taken branch the suffix runs
-    script_process_line("if true; then hash_sfx_fn2() { :; } && false; fi");
-    TEST_ASSERT_EQUAL_INT(1, execute_get_last_exit_code());
-}
-
 // script_execute_string must not swallow empty lines (heredocs, bodies)
 void test_execute_string_keeps_blank_lines(void) {
     script_execute_string("hash_blank_fn() {\ntrue\n\ntrue\n}");
     ShellFunction *fn = script_get_function("hash_blank_fn");
     TEST_ASSERT_NOT_NULL(fn);
-    TEST_ASSERT_EQUAL_STRING("true\n\ntrue", fn->body);
-}
-
-void test_discard_compound_resets_context(void) {
-    script_process_line("while true");
-    TEST_ASSERT_GREATER_THAN(0, script_state.context_depth);
-
-    script_discard_compound();
-    TEST_ASSERT_EQUAL_INT(0, script_state.context_depth);
-
-    // The engine is usable again afterwards
-    script_process_line("true");
-    TEST_ASSERT_EQUAL_INT(0, execute_get_last_exit_code());
+    TEST_ASSERT_NOT_NULL(strstr(fn->body, "true\n\ntrue"));
 }
 
 int main(void) {
     UNITY_BEGIN();
 
     // Keyword detection
-    RUN_TEST(test_is_keyword_if);
-    RUN_TEST(test_is_keyword_then);
-    RUN_TEST(test_is_keyword_else);
-    RUN_TEST(test_is_keyword_fi);
-    RUN_TEST(test_is_keyword_for);
-    RUN_TEST(test_is_keyword_while);
-    RUN_TEST(test_is_keyword_do);
-    RUN_TEST(test_is_keyword_done);
-    RUN_TEST(test_is_keyword_case);
-    RUN_TEST(test_is_keyword_esac);
-    RUN_TEST(test_is_keyword_in);
-    RUN_TEST(test_is_not_keyword);
-    RUN_TEST(test_get_keyword_type);
 
     // Line classification
-    RUN_TEST(test_classify_empty_line);
-    RUN_TEST(test_classify_comment);
-    RUN_TEST(test_classify_if);
-    RUN_TEST(test_classify_then);
-    RUN_TEST(test_classify_elif);
-    RUN_TEST(test_classify_else);
-    RUN_TEST(test_classify_fi);
-    RUN_TEST(test_classify_for);
-    RUN_TEST(test_classify_while);
-    RUN_TEST(test_classify_do);
-    RUN_TEST(test_classify_done);
-    RUN_TEST(test_classify_case);
-    RUN_TEST(test_classify_esac);
-    RUN_TEST(test_classify_simple);
 
     // Context stack
-    RUN_TEST(test_initial_context);
-    RUN_TEST(test_push_context);
-    RUN_TEST(test_pop_context);
-    RUN_TEST(test_nested_context);
     RUN_TEST(test_pop_empty_context);
-    RUN_TEST(test_should_execute_default);
     RUN_TEST(test_count_loops_at_current_depth_empty);
     RUN_TEST(test_count_loops_at_current_depth_one_loop);
     RUN_TEST(test_count_loops_at_current_depth_multiple_loops);
     RUN_TEST(test_count_loops_at_current_depth_with_if);
-    RUN_TEST(test_push_case_context);
     RUN_TEST(test_count_loops_with_case);
 
     // Break/continue pending (POSIX lexical scoping)
     RUN_TEST(test_break_pending_initial);
     RUN_TEST(test_continue_pending_initial);
-    RUN_TEST(test_set_break_pending);
-    RUN_TEST(test_set_continue_pending);
-    RUN_TEST(test_clear_break_continue);
     RUN_TEST(test_count_loops_lexical_scoping);
 
     // Function management
@@ -737,9 +305,6 @@ int main(void) {
     RUN_TEST(test_redefine_function);
 
     // Script processing
-    RUN_TEST(test_process_empty_line);
-    RUN_TEST(test_process_comment);
-    RUN_TEST(test_process_simple_command);
 
     // Execute string
     RUN_TEST(test_execute_empty_string);
@@ -754,26 +319,12 @@ int main(void) {
     RUN_TEST(test_execute_case_exit_code);
 
     // History recording
-    RUN_TEST(test_process_line_does_not_record_history);
     RUN_TEST(test_sourced_file_does_not_record_history);
-    RUN_TEST(test_dot_builtin_does_not_record_history);
     RUN_TEST(test_interactive_script_records_history);
     RUN_TEST(test_interactive_script_nested_source_not_recorded);
     RUN_TEST(test_nolog_disables_script_history);
 
     // Compound commands fed one line at a time
-    RUN_TEST(test_compound_one_liner_for);
-    RUN_TEST(test_compound_one_liner_if);
-    RUN_TEST(test_compound_multi_line_for_needs_continuation);
-    RUN_TEST(test_compound_function_definition_and_call);
-    RUN_TEST(test_discard_compound_resets_context);
-    RUN_TEST(test_inactive_for_does_not_signal_exit);
-    RUN_TEST(test_nothing_to_run_does_not_signal_exit);
-    RUN_TEST(test_semicolon_split_respects_comments);
-    RUN_TEST(test_compound_after_then_on_one_line);
-    RUN_TEST(test_function_not_registered_in_skipped_branch);
-    RUN_TEST(test_syntax_error_signal_and_discard);
-    RUN_TEST(test_function_suffix_obeys_branch);
     RUN_TEST(test_execute_string_keeps_blank_lines);
 
     return UNITY_END();

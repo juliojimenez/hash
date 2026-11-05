@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include "hash.h"
 #include "execute.h"
+#include "exec.h"
 #include "builtins.h"
 #include "config.h"
 #include "parser.h"
@@ -28,13 +29,6 @@
 // Global to store last exit code
 int last_command_exit_code = 0;
 
-// Optional replacement for script_execute_function() (see execute.h)
-static FunctionRunner function_runner = NULL;
-
-void execute_set_function_runner(FunctionRunner runner) {
-    function_runner = runner;
-}
-
 // Debug flag - set to 1 to enable exit code tracing
 #define DEBUG_EXIT_CODE 0
 
@@ -48,47 +42,6 @@ static int launch(char **args, const char *cmd_string) {
     // Parse redirections
     RedirInfo *redir = redirect_parse(args);
 
-    // Set heredoc content if pending
-    const char *heredoc = script_get_pending_heredoc();
-    char *expanded_heredoc = NULL;
-    if (heredoc && redir) {
-        int heredoc_quoted = script_get_pending_heredoc_quoted();
-        if (!heredoc_quoted) {
-            // Expand heredoc content BEFORE fork so we can handle errors
-            varexpand_clear_error();
-            // Apply command substitution expansion
-            char *cmdsub_result = cmdsub_expand(heredoc);
-            const char *content = cmdsub_result ? cmdsub_result : heredoc;
-            // Apply variable expansion
-            char *var_result = varexpand_expand(content, last_command_exit_code);
-            if (cmdsub_result) free(cmdsub_result);
-
-            if (varexpand_had_error()) {
-                // Expansion error (like ${x?z}) - exit non-interactive shell
-                free(var_result);
-                redirect_free(redir);
-                last_command_exit_code = 1;
-                return is_interactive ? 1 : 0;
-            }
-            expanded_heredoc = var_result;
-            // Strip \x03 IFS markers from heredoc content (heredocs don't undergo IFS splitting)
-            if (expanded_heredoc) {
-                const char *read = expanded_heredoc;
-                char *write = expanded_heredoc;
-                while (*read) {
-                    if (*read != '\x03') {
-                        *write++ = *read;
-                    }
-                    read++;
-                }
-                *write = '\0';
-            }
-            redirect_set_heredoc_content(redir, expanded_heredoc ? expanded_heredoc : heredoc, 1);
-        } else {
-            redirect_set_heredoc_content(redir, heredoc, heredoc_quoted);
-        }
-    }
-
     // Use cleaned args (or original if no redirections)
     char **exec_args = redir ? redir->args : args;
 
@@ -98,7 +51,6 @@ static int launch(char **args, const char *cmd_string) {
     // Check if arguments would exceed system ARG_MAX limit
     if (syslimits_check_exec_args(exec_args) != 0) {
         fprintf(stderr, "%s: argument list too long\n", HASH_NAME);
-        free(expanded_heredoc);
         redirect_free(redir);
         last_command_exit_code = 126;
         return 1;
@@ -122,7 +74,6 @@ static int launch(char **args, const char *cmd_string) {
 
         // Apply redirections
         if (redir && redirect_apply(redir) != 0) {
-            free(expanded_heredoc);
             redirect_free(redir);
             free(cmd_path);
             last_command_exit_code = 1;
@@ -131,7 +82,6 @@ static int launch(char **args, const char *cmd_string) {
 
         // Execute command (replaces this process)
         if (!exec_args || !exec_args[0]) {
-            free(expanded_heredoc);
             redirect_free(redir);
             free(cmd_path);
             last_command_exit_code = 127;
@@ -142,7 +92,6 @@ static int launch(char **args, const char *cmd_string) {
         if (!script_state.silent_errors) {
             perror(HASH_NAME);
         }
-        free(expanded_heredoc);
         redirect_free(redir);
         free(cmd_path);
         last_command_exit_code = 127;
@@ -260,7 +209,6 @@ static int launch(char **args, const char *cmd_string) {
 
     // Clean up
     free(cmd_path);
-    free(expanded_heredoc);
     redirect_free(redir);
 
     return 1;
@@ -1015,12 +963,6 @@ int execute(char **args) {
     // Check for redirections
     RedirInfo *redir = redirect_parse(exec_input);
 
-    // Set heredoc content if pending
-    const char *heredoc = script_get_pending_heredoc();
-    if (heredoc && redir) {
-        redirect_set_heredoc_content(redir, heredoc, script_get_pending_heredoc_quoted());
-    }
-
     char **exec_args = redir ? redir->args : exec_input;
 
     // Check if this is a builtin first (without executing it)
@@ -1063,8 +1005,6 @@ int execute(char **args) {
     if (is_builtin_cmd && redir && redir->count > 0 && !is_special_builtin) {
         pid_t pid = fork();
         if (pid == 0) {
-            // Clear pending heredoc to prevent recursive expansion in child
-            script_clear_pending_heredoc();
             // Child process - apply redirections and run builtin
             if (redirect_apply(redir) != 0) {
                 _exit(EXIT_FAILURE);
@@ -1191,8 +1131,7 @@ int execute(char **args) {
             }
         }
 
-        result = function_runner ? function_runner(func, argc, exec_args)
-                                 : script_execute_function(func, argc, exec_args);
+        result = exec_run_function(func, argc, exec_args);
 
         // Restore file descriptors after function execution
         if (func_saved_fds[0] != -1 || func_saved_fds[1] != -1 || func_saved_fds[2] != -1) {

@@ -438,7 +438,7 @@ void test_feeder_reports_exit(void) {
     exec_feeder_free(&feeder);
 }
 
-void test_exec_string_status_legacy_contract(void) {
+void test_exec_string_status_contract(void) {
     TEST_ASSERT_EQUAL_INT(0, exec_string_status("true"));
     TEST_ASSERT_EQUAL_INT(3, exec_string_status("(exit 3)"));
     TEST_ASSERT_EQUAL_INT(2, exec_string_status("for i in 1 2 2>/dev/null"));
@@ -500,7 +500,7 @@ int main(void) {
     RUN_TEST(test_feeder_syntax_error_drops_pending_text);
     RUN_TEST(test_feeder_reset_discards_pending_text);
     RUN_TEST(test_feeder_reports_exit);
-    RUN_TEST(test_exec_string_status_legacy_contract);
+    RUN_TEST(test_exec_string_status_contract);
     RUN_TEST(test_function_body_keeps_blank_lines);
 
     return UNITY_END();
