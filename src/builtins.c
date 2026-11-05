@@ -631,6 +631,7 @@ int shell_logout(char **args) {
             logout_attempted = 0;
             fprintf(stdout, "Bye :)\n");
             last_command_exit_code = 0;
+            script_state.exit_requested = true;
             return 0;
         }
         logout_attempted = 1;
@@ -643,6 +644,9 @@ int shell_logout(char **args) {
         fprintf(stdout, "Bye :)\n");
     }
     last_command_exit_code = 0;
+    // Same shutdown flag as exit, so a logout in a startup file ends the
+    // shell before the prompt and a logout in a sourced file ends the shell
+    script_state.exit_requested = true;
     return 0;
 }
 

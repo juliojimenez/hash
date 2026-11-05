@@ -395,6 +395,28 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcn_out" | head -5; ((FAILED++))
 fi
 
+# logout in a login shell's .hashrc ends the shell before the prompt
+echo -n "Testing: logout in .hashrc of a login shell skips the prompt... "
+mkdir -p "$TEST_DIR/rclogout"
+printf 'logout\necho rc-after\n' > "$TEST_DIR/rclogout/.hashrc"
+lo_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogout" HISTFILE="$PWD/$TEST_DIR/rclogout/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i 2>&1); lo_ec=$?
+if [[ "$lo_ec" == "0" ]] && ! echo "$lo_out" | grep -qE "alive|rc-after"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 0 with no prompt; got exit $lo_ec: $lo_out"; ((FAILED++))
+fi
+
+# exit inside a condition in .hashrc still ends the shell with its status
+echo -n "Testing: exit inside an if condition in .hashrc ends the shell... "
+mkdir -p "$TEST_DIR/rcifexit"
+printf 'if exit 7; then\n:\nfi\necho after\n' > "$TEST_DIR/rcifexit/.hashrc"
+ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
+if [[ "$ife_ec" == "7" ]] && ! echo "$ife_out" | grep -qE "alive|after"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 7 and no output; got exit $ife_ec: $ife_out"; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"
