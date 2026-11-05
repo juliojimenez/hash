@@ -15,7 +15,6 @@
 #include <limits.h>
 #include <strings.h>
 #include <signal.h>
-#include "engine.h"
 #include "exec.h"
 #include "hash.h"
 #include "input.h"
@@ -28,7 +27,6 @@
 #include "jobs.h"
 #include "test_builtin.h"
 #include "script.h"
-#include "chain.h"
 #include "parser.h"
 #include "safe_string.h"
 #include "update.h"
@@ -1042,74 +1040,32 @@ int shell_eval(char **args) {
         strcat(cmd, args[i]);
     }
 
-    // Save context depth before eval to detect incomplete compound commands
-    if (engine_is_ast()) {
-        bool incomplete = false;
-        ExecStatus st = exec_string(cmd, &incomplete);
-        free(cmd);
-        if (incomplete) {
-            fprintf(stderr, "%s: eval: syntax error: unexpected end of file\n", HASH_NAME);
-            last_command_exit_code = 2;
-            if (is_interactive) {
-                return 1;
-            }
-            script_state.exit_requested = true;
-            return 0;
-        }
-        switch (st) {
-            case EXEC_EXIT:
-                return 0;
-            case EXEC_RETURN:
-                return -2;
-            case EXEC_BREAK:
-                return -3;
-            case EXEC_CONTINUE:
-                return -4;
-            default:
-                return 1;
-        }
-    }
-
-    int saved_context_depth = script_state.context_depth;
-
-    // Execute using script_process_line to properly handle shell keywords
-    int result = script_process_line(cmd);
-
+    bool incomplete = false;
+    ExecStatus st = exec_string(cmd, &incomplete);
     free(cmd);
-
-    // Check for incomplete compound command (syntax error)
-    // If context depth increased, eval introduced an incomplete structure like "if" without "then"
-    if (script_state.context_depth > saved_context_depth) {
+    if (incomplete) {
         fprintf(stderr, "%s: eval: syntax error: unexpected end of file\n", HASH_NAME);
         last_command_exit_code = 2;
-        // POSIX: In non-interactive shell, syntax error causes exit
-        // Clear the incomplete contexts introduced by eval
-        while (script_state.context_depth > saved_context_depth) {
-            script_pop_context();
-        }
-        // An interactive shell reports the error and keeps going
+        // An interactive shell reports the error and keeps going;
+        // POSIX: a syntax error ends a non-interactive shell
         if (is_interactive) {
             return 1;
         }
         script_state.exit_requested = true;
-        return 0;  // Signal exit
+        return 0;
     }
-
-    // POSIX: Check for pending break/continue to propagate from eval
-    if (script_get_break_pending() > 0) {
-        return -3;  // Propagate break signal
+    switch (st) {
+        case EXEC_EXIT:
+            return 0;
+        case EXEC_RETURN:
+            return -2;
+        case EXEC_BREAK:
+            return -3;
+        case EXEC_CONTINUE:
+            return -4;
+        default:
+            return 1;
     }
-    if (script_get_continue_pending() > 0) {
-        return -4;  // Propagate continue signal
-    }
-
-    // Handle exit request from eval
-    if (result == 0) {
-        return 0;  // Exit was called
-    }
-
-    // Exit code already set by script_process_line
-    return 1;
 }
 
 // ============================================================================

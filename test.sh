@@ -265,9 +265,7 @@ run_interactive_test_absent "command after function in skipped branch does not r
 run_interactive_test "escaped semicolon before # is not a comment" 'echo first; echo foo\;#bar; echo after' "after"
 run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
 
-# The legacy engine does not join continued lines at the prompt (and hangs on
-# them in stdin mode), so this case pins the AST engine
-HASH_ENGINE=ast run_interactive_test "line continuation across prompt lines (ast engine)" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
+run_interactive_test "line continuation across prompt lines" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
 
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "

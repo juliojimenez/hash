@@ -5,14 +5,15 @@
 #include <stddef.h>
 
 // ============================================================================
-// POSIX SHELL SCRIPTING SUPPORT
+// SHELL SCRIPT STATE
 // ============================================================================
 //
-// This module implements POSIX-compatible shell scripting features:
-// - Control structures: if/then/elif/else/fi, for/do/done, while/do/done, case/esac
-// - Test expressions: [ ] and test builtin
-// - Functions
-// - Script file execution
+// Shared state behind the tree executor (exec.c):
+// - Shell functions: the table, definition and lookup
+// - Positional parameters ($1, $2, ...)
+// - The loop context stack and the break/continue/return signals
+// - Entry points that run a file or a string (scripts, -c, eval, source)
+// - Case word and pattern expansion helpers
 //
 // ============================================================================
 
@@ -21,45 +22,6 @@
 #define MAX_FUNC_BODY 8192       // Maximum function body size
 #define MAX_FUNCTIONS 256        // Maximum number of defined functions
 #define MAX_SCRIPT_LINE 4096     // Maximum line length in scripts
-
-// ============================================================================
-// Token Types for Script Parsing
-// ============================================================================
-
-typedef enum {
-    TOK_WORD,           // Regular word/command
-    TOK_NEWLINE,        // Newline (command separator)
-    TOK_SEMI,           // ;
-    TOK_AND,            // &&
-    TOK_OR,             // ||
-    TOK_PIPE,           // |
-    TOK_AMP,            // & (background)
-    TOK_LPAREN,         // (
-    TOK_RPAREN,         // )
-    TOK_LBRACE,         // {
-    TOK_RBRACE,         // }
-
-    // Control structure keywords
-    TOK_IF,
-    TOK_THEN,
-    TOK_ELIF,
-    TOK_ELSE,
-    TOK_FI,
-    TOK_FOR,
-    TOK_WHILE,
-    TOK_UNTIL,
-    TOK_DO,
-    TOK_DONE,
-    TOK_CASE,
-    TOK_ESAC,
-    TOK_IN,
-
-    // Other keywords
-    TOK_FUNCTION,       // function keyword (bash extension)
-
-    TOK_EOF,
-    TOK_ERROR
-} KeywordType;
 
 // ============================================================================
 // Script Context - Tracks execution state
@@ -79,37 +41,8 @@ typedef enum {
 
 typedef struct {
     ContextType type;
-    bool condition_met;     // For if/elif - was a condition already true?
-    bool should_execute;    // Should commands in this block execute?
-
-    // For loops
-    char *loop_var;         // Variable name for for loops
-    char **loop_values;     // Values to iterate over
-    int loop_index;         // Current index in loop
-    int loop_count;         // Total number of values
-    long loop_body_start;   // File position of loop body start
-    char *loop_body;        // Buffered loop body for replay
-    size_t loop_body_len;   // Current length of loop body
-    size_t loop_body_cap;   // Capacity of loop body buffer
-    bool collecting_body;   // Are we currently collecting loop body?
-    int body_nesting_depth; // Nesting depth of nested loops during collection
-    char *loop_condition;   // Condition for while/until loops
-
-    // For case
-    char *case_word;        // Word being matched in case statement
-    bool case_matched;      // Has a pattern matched?
-
-    // For function definitions
-    char *func_name;        // Function name being defined
-    char *func_body;        // Function body being collected
-    size_t func_body_len;   // Current length of body
-    size_t func_body_cap;   // Capacity of body buffer
-    int brace_depth;        // Brace nesting depth
-    bool define_function;   // Register the function when its body closes
-                            // (false when the definition sits in a skipped branch)
-
-    // For lexical scoping of break/continue
     int function_call_depth; // Function call depth when this context was created
+                             // (break/continue are lexically scoped to it)
 } ScriptContext;
 
 // ============================================================================
@@ -206,23 +139,9 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
  */
 int script_execute_string(const char *script);
 
-/**
- * Process a single line of script
- * This handles control structures and can buffer incomplete statements
- *
- * @param line Line to process
- * @return 0 to continue, negative on error, positive for exit
- */
-int script_process_line(const char *line);
-
 // ============================================================================
 // Control Structure Helpers
 // ============================================================================
-
-/**
- * Check if we're currently inside a control structure
- */
-bool script_in_control_structure(void);
 
 /**
  * Count loops in the context stack (for POSIX dynamic scoping)
@@ -245,36 +164,12 @@ int script_get_continue_pending(void);
 void script_set_continue_pending(int levels);
 
 /**
- * Clear break/continue pending state (call when fully handled)
- */
-void script_clear_break_continue(void);
-
-/**
  * Reset script state for subshell (POSIX: break/continue only affect loops
  * within the current execution environment, not parent's loops)
  */
 void script_reset_for_subshell(void);
 
-/**
- * Drop every open context, e.g. when an unfinished compound command typed
- * at the prompt is cancelled with Ctrl+C. The engine is ready for new input
- * afterwards.
- */
-void script_discard_compound(void);
-
-/**
- * Get/set return pending flag (for return in if/while conditions)
- * When return is called in a condition, this flag signals that
- * the function should return immediately
- */
-bool script_get_return_pending(void);
 void script_set_return_pending(bool pending);
-
-/**
- * Check if commands should currently execute
- * (Based on if/else conditions, etc.)
- */
-bool script_should_execute(void);
 
 /**
  * Push a new context onto the stack
@@ -285,11 +180,6 @@ int script_push_context(ContextType type);
  * Pop context from the stack
  */
 int script_pop_context(void);
-
-/**
- * Get current context type
- */
-ContextType script_current_context(void);
 
 // ============================================================================
 // Function Management
@@ -312,51 +202,13 @@ int script_define_function(const char *name, const char *body);
  */
 ShellFunction *script_get_function(const char *name);
 
-/**
- * Execute a function
- *
- * @param func Function to execute
- * @param argc Number of arguments
- * @param argv Arguments ($1, $2, ...)
- * @return Exit code of function
- */
-int script_execute_function(const ShellFunction *func, int argc, char **argv);
-
 // ============================================================================
 // Test/Condition Evaluation
 // ============================================================================
 
-/**
- * Evaluate a test expression (for [ ] or test builtin)
- *
- * @param args Arguments to test (excluding [ and ])
- * @param argc Number of arguments
- * @return 0 if true, 1 if false, 2 on error
- */
-int script_eval_test(char **args, int argc);
-
-/**
- * Evaluate a condition for if/while/until
- * Runs the command and returns based on exit code
- *
- * @param condition Command to execute
- * @return true if exit code is 0
- */
-bool script_eval_condition(const char *condition);
-
 // ============================================================================
 // Keyword Detection
 // ============================================================================
-
-/**
- * Check if a word is a shell keyword
- */
-bool script_is_keyword(const char *word);
-
-/**
- * Get the token type for a word
- */
-KeywordType script_get_keyword_type(const char *word);
 
 // ============================================================================
 // Line Classification
@@ -386,11 +238,6 @@ typedef enum {
 } LineType;
 
 /**
- * Classify a line to determine how to handle it
- */
-LineType script_classify_line(const char *line);
-
-/**
  * Get a positional parameter value
  *
  * @param index Parameter index (0 for $0, 1 for $1, etc.)
@@ -406,28 +253,6 @@ const char *script_get_positional_param(int index);
  * @param argv Array of parameter values (note: these are copied, not owned)
  */
 void script_set_positional_params(int argc, char **argv);
-
-/**
- * Get the pending heredoc content
- * Used during command execution to pass heredoc content to stdin
- *
- * @return Heredoc content string, or NULL if none pending
- */
-const char *script_get_pending_heredoc(void);
-
-/**
- * Get whether the pending heredoc delimiter was quoted
- * If quoted, no expansion should happen on the heredoc content
- *
- * @return 1 if delimiter was quoted, 0 otherwise
- */
-int script_get_pending_heredoc_quoted(void);
-
-/**
- * Clear the pending heredoc content
- * Used when forking for command substitution to prevent recursive expansion
- */
-void script_clear_pending_heredoc(void);
 
 /**
  * Track whether we're in a condition context (if/while/until condition)

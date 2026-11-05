@@ -1074,7 +1074,7 @@ static ExecStatus exec_function_def(const Node *n) {
 // Function calls (installed into execute() as the function runner)
 // ============================================================================
 
-static int run_function(const ShellFunction *func, int argc, char **argv) {
+int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     if (!func || !func->body) {
         return 1;
     }
@@ -1174,12 +1174,7 @@ ExecStatus exec_node(const Node *node) {
     return EXEC_OK;
 }
 
-static void install_hooks(void) {
-    execute_set_function_runner(run_function);
-}
-
 ExecStatus exec_string(const char *src, bool *incomplete) {
-    install_hooks();
 
     Arena arena;
     arena_init(&arena, 0);
@@ -1266,7 +1261,6 @@ FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *stat
         last_command_exit_code = 1;
         return FEED_SYNTAX_ERROR;
     }
-    install_hooks();
 
     Arena arena;
     arena_init(&arena, 0);
