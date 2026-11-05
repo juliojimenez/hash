@@ -95,6 +95,7 @@ else
 
 Next:
   git diff                                   # review; edit debian/changelog if you like
+  make demo                                  # re-record demo.gif with the bumped binary (needs vhs)
   git checkout -b release/v$new && git commit -sam "chore(release): v$new"
   gh pr create --title "chore(release): v$new"
 After the merge:

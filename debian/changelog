@@ -1,3 +1,9 @@
+hash-shell (50-1) unstable; urgency=medium
+
+  * fix(trap): run the EXIT trap under -c and keep the exit status through it
+
+ -- Julio Jimenez <julio@julioj.com>  Thu, 05 Nov 2026 04:00:50 -0500
+
 hash-shell (49-1) unstable; urgency=medium
 
   * refactor: remove the legacy line engine (parser rewrite step 5)

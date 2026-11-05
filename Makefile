@@ -18,7 +18,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_OBJ = $(filter-out $(BUILD_DIR)/main.o, $(OBJ))
 TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SRC))
 
-.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check release
+.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check release demo
 
 all: $(TARGET)
 
@@ -133,3 +133,9 @@ format-check:
 # entry (see "Cutting a Release" in CONTRIBUTING.md)
 release:
 	@bash scripts/release.sh $(VERSION)
+
+# Re-record the README demo with the binary built in this tree, so the banner
+# shows this tree's version (needs vhs: brew install vhs). Run it from the
+# directory you want in the prompt, after `make release`.
+demo: $(TARGET)
+	@PATH="$(CURDIR):$$PATH" vhs demo.tape
