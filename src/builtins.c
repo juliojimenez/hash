@@ -1404,9 +1404,17 @@ int shell_exec(char **args) {
                 fflush(stdout);
                 fflush(stderr);
                 execvp(args[i], args + i);
-                // If we get here, exec failed
-                fprintf(stderr, "%s: %s: %s\n", HASH_NAME, args[i], strerror(errno));
-                last_command_exit_code = 127;
+                // If we get here, exec failed: 127 when the command was not
+                // found, 126 when it exists but cannot run (POSIX). A
+                // non-interactive shell exits; an interactive one reports it
+                int err = errno;
+                fprintf(stderr, "%s: exec: %s: %s\n", HASH_NAME, args[i],
+                        (err == ENOENT && strchr(args[i], '/') == NULL) ? "not found" : strerror(err));
+                last_command_exit_code = (err == ENOENT) ? 127 : 126;
+                if (is_interactive) {
+                    return 1;
+                }
+                script_state.exit_requested = true;
                 return 0;  // Exit shell on exec failure
             }
         }
