@@ -1,3 +1,16 @@
+hash-shell (51-1) unstable; urgency=medium
+
+  * feat(set): the POSIX set options: -a allexport, -C noclobber (and >|),
+    -f noglob, -n noexec, -v verbose, -x xtrace, set -o / set +o and $-
+  * feat(builtins): local
+  * feat(builtins): getopts and shift
+  * fix(exec): a command that cannot run is named and exits 127 or 126
+  * fix(exec): syntax errors name their source and line and exit 2; $LINENO
+  * test(interactive): drive the shell in a pty from CI
+  * ci(fuzz): fuzz the tokenizer and the AST parser
+
+ -- Julio Jimenez <julio@julioj.com>  Thu, 05 Nov 2026 12:41:10 -0500
+
 hash-shell (50-1) unstable; urgency=medium
 
   * fix(trap): run the EXIT trap under -c and keep the exit status through it
