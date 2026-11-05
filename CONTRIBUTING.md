@@ -197,7 +197,15 @@ buffer[SIZE - 1] = '\0';
 
 ### Static Analysis
 
-All code must stay clean under the sanitizer, Valgrind and fuzzing workflows (`.github/workflows/sanitizers.yml`). Common issues to avoid:
+All code must stay clean under the sanitizer, Valgrind and fuzzing workflows (`.github/workflows/sanitizers.yml`). The fuzz job runs AFL++ against the tokenizer and the AST parser (`fuzz/fuzz_tokenizer.c`, `fuzz/fuzz_ast_parser.c`, seeds in `fuzz/seeds/`) as well as the older word parser, variable expansion and string helpers. The two parser harnesses also build without AFL and then parse each file named on the command line, which is how to check a corpus locally:
+
+```bash
+make CC=clang CFLAGS="-Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -std=gnu99"
+clang -std=gnu99 -fsanitize=address,undefined -Isrc fuzz/fuzz_ast_parser.c $(ls build/*.o | grep -v main.o) -o fuzz/sweep_ast_parser
+./fuzz/sweep_ast_parser fuzz/seeds/* examples/*.sh path/to/more/scripts
+```
+
+Common issues to avoid:
 - Buffer overflows
 - Unbounded string operations
 - Memory leaks
