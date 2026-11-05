@@ -164,7 +164,12 @@ int shell_cd(char **args) {
 }
 
 int shell_exit(char **args) {
-    int exit_code = 0;
+    // POSIX: exit without an operand exits with the last command's status;
+    // inside the EXIT trap, with the status the shell was already exiting with
+    int exit_code = trap_running_exit_status();
+    if (exit_code < 0) {
+        exit_code = last_command_exit_code;
+    }
 
     // Check for exit code argument
     if (args[1] != NULL) {

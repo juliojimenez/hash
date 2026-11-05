@@ -93,10 +93,9 @@ static void child_process(const char *cmd, const int pipefd[2]) {
     // Use hash's own script execution to preserve function definitions
     int result = script_execute_string(cmd);
     fflush(stdout);  // Ensure output is flushed before exit
-    // POSIX: The exit status of the trap action becomes the exit status
-    int trap_exit = trap_execute_exit();  // Run EXIT trap before exiting subshell
+    result = trap_exit_status(result);  // EXIT trap runs before the subshell ends
     fflush(stdout);  // Flush any trap output
-    _exit((trap_exit >= 0) ? trap_exit : result);
+    _exit(result & 0xFF);
 }
 
 static char *get_child_output(pid_t pid, const int pipefd[2]) {

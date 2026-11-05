@@ -28,9 +28,19 @@ int trap_set(const char *action, const char *signal_name);
 // Returns NULL if no trap set, or the command string
 const char *trap_get(int signum);
 
-// Execute EXIT trap (called when shell exits)
-// Returns the exit status of the trap handler, or -1 if no trap was set
-int trap_execute_exit(void);
+/**
+ * Run the EXIT trap, if one is set, and return the status the shell (or
+ * subshell) exits with. `status` is the status it was exiting with: the trap
+ * action sees it as $? and it stays the exit status unless the action itself
+ * calls exit with an operand (POSIX). A bare `exit` inside the trap keeps it.
+ */
+int trap_exit_status(int status);
+
+/**
+ * While the EXIT trap runs: the status the shell is exiting with. -1 otherwise.
+ * The exit builtin uses it so that a bare `exit` inside the trap keeps it.
+ */
+int trap_running_exit_status(void);
 
 // Reset traps for subshell (POSIX: traps are not inherited by subshells)
 void trap_reset_for_subshell(void);

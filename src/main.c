@@ -382,8 +382,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Execute the command string
-        int result = script_execute_string(command_string);
+        // Execute the command string, then the EXIT trap
+        int result = trap_exit_status(script_execute_string(command_string));
 
         script_cleanup();
         return result;
@@ -403,11 +403,11 @@ int main(int argc, char *argv[]) {
         int result = script_execute_file(script_file, script_argc, script_argv);
         script_state.record_history = false;
 
-        // Execute EXIT trap before cleanup
-        // POSIX: The exit status of the trap action becomes the exit status of the shell
-        int trap_exit = trap_execute_exit();
+        // The EXIT trap sees the script's status as $? and keeps it unless it
+        // calls exit with an operand itself
+        result = trap_exit_status(result);
         script_cleanup();
-        return (trap_exit >= 0) ? trap_exit : result;
+        return result;
     }
 
     // ========================================================================
@@ -460,18 +460,18 @@ int main(int argc, char *argv[]) {
         if (result < 0) {
             // POSIX: a syntax error ends a non-interactive shell
             script_state.in_script = false;
-            trap_execute_exit();
+            int status = trap_exit_status(2);
             script_cleanup();
-            return 2;
+            return status;
         }
 
         script_state.in_script = false;
 
-        // Execute EXIT trap before cleanup
-        // POSIX: The exit status of the trap action becomes the exit status of the shell
-        int trap_exit = trap_execute_exit();
+        // The EXIT trap sees the last status as $? and keeps it unless it calls
+        // exit with an operand itself
+        int status = trap_exit_status(execute_get_last_exit_code());
         script_cleanup();
-        return (trap_exit >= 0) ? trap_exit : execute_get_last_exit_code();
+        return status;
     }
 
     // ========================================================================
@@ -553,9 +553,9 @@ int main(int argc, char *argv[]) {
         script_state.exit_requested = was_exit_requested || script_state.exit_requested;
     }
 
-    // Execute EXIT trap
-    // POSIX: The exit status of the trap action becomes the exit status of the shell
-    int trap_exit = trap_execute_exit();
+    // The EXIT trap sees the shell's exit status as $? and keeps it unless it
+    // calls exit with an operand itself
+    exit_status = trap_exit_status(execute_get_last_exit_code());
 
     // Cleanup
     lineedit_cleanup();
@@ -563,5 +563,5 @@ int main(int argc, char *argv[]) {
 
     // POSIX: an interactive shell exits with the status of the last command
     // (`exit N` sets it; end of input keeps it)
-    return (trap_exit >= 0) ? trap_exit : (execute_get_last_exit_code() & 0xFF);
+    return exit_status & 0xFF;
 }
