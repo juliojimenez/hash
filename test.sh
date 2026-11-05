@@ -357,6 +357,44 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcr_out" | head -5; ((FAILED++))
 fi
 
+# source inside an EXIT trap does not cut the trap short
+echo -n "Testing: source inside an EXIT trap runs the rest of the trap... "
+printf 'true\n' > "$TEST_DIR/true.sh"
+printf "trap 'source %s; echo finished' EXIT\nexit 3\n" "$TEST_DIR/true.sh" > "$TEST_DIR/trap_source.sh"
+trap_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/trap_source.sh" 2>&1)
+if echo "$trap_out" | grep -qF "finished"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected 'finished'; got: $trap_out"; ((FAILED++))
+fi
+
+# A login shell keeps the requested exit status across its logout file, unless
+# the logout file exits itself
+echo -n "Testing: logout file keeps the exit status unless it exits... "
+mkdir -p "$TEST_DIR/rclogin"
+printf 'exit 7\n' > "$TEST_DIR/rclogin/.hashrc"
+printf 'true\n' > "$TEST_DIR/rclogin/.hash_logout"
+printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogin" HISTFILE="$PWD/$TEST_DIR/rclogin/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i >/dev/null 2>&1; lo_keep=$?
+printf 'exit 3\n' > "$TEST_DIR/rclogin/.hash_logout"
+printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogin" HISTFILE="$PWD/$TEST_DIR/rclogin/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i >/dev/null 2>&1; lo_exit=$?
+if [[ "$lo_keep" == "7" && "$lo_exit" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  logout 'true' gave $lo_keep (want 7); logout 'exit 3' gave $lo_exit (want 3)"; ((FAILED++))
+fi
+
+# A file sourced from .hashrc does not end .hashrc: a return after it still works
+echo -n "Testing: return after a nested source in .hashrc... "
+mkdir -p "$TEST_DIR/rcnested"
+printf 'S=1\n' > "$TEST_DIR/rcnested/settings.sh"
+printf 'source %s\nreturn\necho not-reached\n' "$TEST_DIR/rcnested/settings.sh" > "$TEST_DIR/rcnested/.hashrc"
+rcn_out=$(printf 'echo "s=$S"\nexit\n' | HOME="$PWD/$TEST_DIR/rcnested" HISTFILE="$PWD/$TEST_DIR/rcnested/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rcn_out" | grep -qF "s=1" && ! echo "$rcn_out" | grep -qF "not-reached" && ! echo "$rcn_out" | grep -qF "can only"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcn_out" | head -5; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

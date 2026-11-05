@@ -318,6 +318,10 @@ int shell_source(char **args) {
     // If we're already in silent mode (e.g., sourcing system files),
     // continue in silent mode for nested sources
     // Note: break/continue have lexical scope - they don't propagate from sourced files
+    // The caller's exit flag may already be set (an EXIT trap runs with it on),
+    // so only an exit requested by this file counts as one
+    bool old_exit_requested = script_state.exit_requested;
+    script_state.exit_requested = false;
     int result = script_execute_file_ex(filepath, 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
@@ -325,6 +329,7 @@ int shell_source(char **args) {
     if (script_state.exit_requested) {
         return 0;
     }
+    script_state.exit_requested = old_exit_requested;
     return 1;
 }
 

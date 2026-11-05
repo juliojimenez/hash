@@ -604,9 +604,18 @@ int main(int argc, char *argv[]) {
         loop();
     }
 
-    // Run logout scripts for login shells
+    // The status the shell exits with: what `exit N` set, or the last command's.
+    // Ordinary commands in the logout files must not change it; an explicit exit
+    // in a logout file replaces it.
+    int exit_status = execute_get_last_exit_code();
     if (is_login_shell_global) {
+        bool was_exit_requested = script_state.exit_requested;
+        script_state.exit_requested = false;
         config_load_logout_files();
+        if (!script_state.exit_requested) {
+            last_command_exit_code = exit_status;
+        }
+        script_state.exit_requested = was_exit_requested || script_state.exit_requested;
     }
 
     // Execute EXIT trap

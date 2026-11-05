@@ -168,6 +168,25 @@ void test_hashrc_exit_requests_shell_exit(void) {
     TEST_ASSERT_FALSE(shell_config.show_welcome);
 }
 
+// A nested source does not end the outer file: a return after it still works
+void test_hashrc_return_after_nested_source(void) {
+    mkdir(RC_HOME, 0700);
+    FILE *f = fopen(RC_HOME "/settings", "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("set welcome=off\n", f);
+    fclose(f);
+    f = fopen(RC_FILE, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("source " RC_HOME "/settings\nreturn\nset welcome=on\n", f);
+    fclose(f);
+
+    config_load_silent(RC_FILE);
+    TEST_ASSERT_FALSE(shell_config.show_welcome);
+    TEST_ASSERT_FALSE(script_state.exit_requested);
+    TEST_ASSERT_FALSE(script_state.in_script);
+    unlink(RC_HOME "/settings");
+}
+
 // A missing startup file is not an error
 void test_missing_startup_file_is_fine(void) {
     TEST_ASSERT_EQUAL_INT(0, config_load_silent("/tmp/hash_config_test_missing/.hashrc"));
@@ -189,6 +208,7 @@ int main(void) {
     RUN_TEST(test_set_option_unknown);
     RUN_TEST(test_hashrc_runs_as_script);
     RUN_TEST(test_hashrc_exit_requests_shell_exit);
+    RUN_TEST(test_hashrc_return_after_nested_source);
     RUN_TEST(test_missing_startup_file_is_fine);
 
     return UNITY_END();

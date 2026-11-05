@@ -3784,6 +3784,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.record_history = false;
 
     // Set up script state
+    bool old_in_script = script_state.in_script;
+    const char *old_script_path = script_state.script_path;
     script_state.in_script = true;
     script_state.script_path = filepath;
     script_state.script_line = 0;
@@ -3878,8 +3880,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     }
 
     // Cleanup
-    script_state.in_script = false;
-    script_state.script_path = NULL;
+    script_state.in_script = old_in_script;      // a nested source must not end the caller's script
+    script_state.script_path = old_script_path;
     script_state.silent_errors = old_silent;  // Restore silent flag
     script_state.record_history = record_history;
 
