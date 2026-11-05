@@ -60,7 +60,10 @@ tests/unity
 build
 examples/color_demo
 fuzz/fuzz_*
+!fuzz/*.c
+fuzz/sweep_*
 fuzz/output
+fuzz/corpus*
 fuzz/*.o
 .claude
 .vscode

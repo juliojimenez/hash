@@ -357,6 +357,12 @@ jobs:
           echo "   " > fuzz/corpus/whitespace
           printf '%1000s' | tr ' ' 'a' > fuzz/corpus/long_input
 
+          # Whole programs for the tokenizer and AST parser harnesses: the
+          # tracked seeds cover every construct the parser knows, the examples
+          # are real scripts
+          mkdir -p fuzz/corpus-program
+          cp fuzz/seeds/* examples/*.sh fuzz/corpus-program/
+
       - name: Build fuzz targets
         run: |
           # Create build directory
@@ -413,6 +419,11 @@ jobs:
           # varexpand has dependencies on jobs, script, shellvar, etc.
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_varexpand fuzz/fuzz_varexpand.c $ALL_OBJS
 
+          # The tokenizer and the AST parser read every line of input; their
+          # harnesses are tracked sources under fuzz/ (see the file comments)
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_ast_parser fuzz/fuzz_ast_parser.c $ALL_OBJS
+          afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_tokenizer fuzz/fuzz_tokenizer.c $ALL_OBJS
+
           # safe_string is standalone
           afl-clang-fast -Wall -Wextra -O2 -g -std=gnu99 -o fuzz/fuzz_safe_string fuzz/fuzz_safe_string.c \
             build/safe_string.o
@@ -428,12 +439,14 @@ jobs:
           timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/parser -V 120 -- ./fuzz/fuzz_parser || true
           timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/varexpand -V 120 -- ./fuzz/fuzz_varexpand || true
           timeout 120 afl-fuzz -i fuzz/corpus -o fuzz/output/safe_string -V 120 -- ./fuzz/fuzz_safe_string || true
+          timeout 120 afl-fuzz -i fuzz/corpus-program -o fuzz/output/ast_parser -V 120 -- ./fuzz/fuzz_ast_parser || true
+          timeout 120 afl-fuzz -i fuzz/corpus-program -o fuzz/output/tokenizer -V 120 -- ./fuzz/fuzz_tokenizer || true
 
       - name: Check for crashes
         run: |
           echo "=== Fuzzing Results ==="
           has_crashes=false
-          for target in parser varexpand safe_string; do
+          for target in parser varexpand safe_string ast_parser tokenizer; do
             if [ -d "fuzz/output/$target/default/crashes" ]; then
               crash_count=$(ls -1 fuzz/output/$target/default/crashes 2>/dev/null | grep -v README.txt | wc -l)
               if [ "$crash_count" -gt 0 ]; then
@@ -463,7 +476,7 @@ jobs:
         run: |
           # Copy crash files with sanitized names (replace commas/colons with underscores)
           mkdir -p fuzz/crashes-sanitized
-          for target in parser varexpand safe_string; do
+          for target in parser varexpand safe_string ast_parser tokenizer; do
             if [ -d "fuzz/output/$target/default/crashes" ]; then
               mkdir -p "fuzz/crashes-sanitized/$target"
               for file in fuzz/output/$target/default/crashes/*; do
@@ -538,3 +551,16 @@ jobs:
         run: |
           make test-clean
           make test CC=clang CFLAGS="-Wall -Wextra -O1 -g -std=gnu99 -fsanitize=address,undefined -fno-omit-frame-pointer"
+
+      - name: Sweep the parser corpus with ASan + UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          # The fuzz harnesses built plain parse each file once: every seed and
+          # example must go through the tokenizer and the parser without a report
+          OBJS=$(ls build/*.o | grep -v '/main\.o$')
+          clang -std=gnu99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc fuzz/fuzz_ast_parser.c $OBJS -o fuzz/sweep_ast_parser
+          clang -std=gnu99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc fuzz/fuzz_tokenizer.c $OBJS -o fuzz/sweep_tokenizer
+          ./fuzz/sweep_ast_parser fuzz/seeds/* examples/*.sh
+          ./fuzz/sweep_tokenizer fuzz/seeds/* examples/*.sh
