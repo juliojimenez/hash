@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,11 +40,121 @@ static ShellVar *find_var(const char *name) {
     return NULL;
 }
 
+// ----------------------------------------------------------------------------
+// Local variable scopes
+// ----------------------------------------------------------------------------
+
+typedef struct SavedVar {
+    char *name;
+    char *value;            // NULL when the variable had no value
+    int attrs;
+    bool existed;
+    struct SavedVar *next;
+} SavedVar;
+
+typedef struct Scope {
+    SavedVar *saved;
+    struct Scope *parent;
+} Scope;
+
+static Scope *scope_top = NULL;
+
+// Take a variable out of the table regardless of attributes
+static void unlink_var(const char *name) {
+    unsigned int h = hash_name(name);
+    ShellVar *prev = NULL;
+    for (ShellVar *v = var_table[h]; v; prev = v, v = v->next) {
+        if (strcmp(v->name, name) == 0) {
+            if (prev) {
+                prev->next = v->next;
+            } else {
+                var_table[h] = v->next;
+            }
+            free(v->name);
+            free(v->value);
+            free(v);
+            return;
+        }
+    }
+}
+
+void shellvar_scope_push(void) {
+    Scope *s = calloc(1, sizeof(Scope));
+    if (!s) return;
+    s->parent = scope_top;
+    scope_top = s;
+}
+
+void shellvar_scope_pop(void) {
+    Scope *s = scope_top;
+    if (!s) return;
+    scope_top = s->parent;
+    for (SavedVar *sv = s->saved; sv;) {
+        SavedVar *next = sv->next;
+        if (sv->existed) {
+            ShellVar *v = find_var(sv->name);
+            if (!v) {
+                v = malloc(sizeof(ShellVar));
+                if (v) {
+                    v->name = strdup(sv->name);
+                    v->value = NULL;
+                    unsigned int h = hash_name(sv->name);
+                    v->next = var_table[h];
+                    var_table[h] = v;
+                }
+            }
+            if (v) {
+                free(v->value);
+                v->value = sv->value;  // ownership moves back to the table
+                sv->value = NULL;
+                v->attrs = sv->attrs;
+                if ((v->attrs & VAR_ATTR_EXPORT) && v->value) {
+                    setenv(v->name, v->value, 1);
+                } else {
+                    unsetenv(v->name);
+                }
+            }
+        } else {
+            unlink_var(sv->name);
+            unsetenv(sv->name);
+        }
+        free(sv->name);
+        free(sv->value);
+        free(sv);
+        sv = next;
+    }
+    free(s);
+}
+
+int shellvar_local(const char *name) {
+    if (!scope_top) return -2;
+    if (!name) return -1;
+    ShellVar *v = find_var(name);
+    if (v && (v->attrs & VAR_ATTR_READONLY)) return -1;
+    for (SavedVar *sv = scope_top->saved; sv; sv = sv->next) {
+        if (strcmp(sv->name, name) == 0) {
+            return 0;  // already recorded in this frame
+        }
+    }
+    SavedVar *sv = malloc(sizeof(SavedVar));
+    if (!sv) return -1;
+    sv->name = strdup(name);
+    sv->existed = (v != NULL);
+    sv->value = (v && v->value) ? strdup(v->value) : NULL;
+    sv->attrs = v ? v->attrs : 0;
+    sv->next = scope_top->saved;
+    scope_top->saved = sv;
+    return 0;
+}
+
 void shellvar_init(void) {
     memset(var_table, 0, sizeof(var_table));
 }
 
 void shellvar_cleanup(void) {
+    while (scope_top) {
+        shellvar_scope_pop();
+    }
     for (int i = 0; i < SHELLVAR_HASH_SIZE; i++) {
         ShellVar *v = var_table[i];
         while (v) {

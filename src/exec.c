@@ -1148,6 +1148,7 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     script_state.in_script = true;      // `return` is allowed here
     exec_directly_in_child = false;     // The body has more than one command to run
     script_state.function_call_depth++;
+    shellvar_scope_push();              // `local` records into this frame
 
     Arena arena;
     arena_init(&arena, 0);
@@ -1161,6 +1162,7 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
         last_command_exit_code = 2;
     }
     arena_free(&arena);
+    shellvar_scope_pop();               // locals go back to what they were
     exec_line_base = old_line_base;
     exec_lineno = old_lineno;
 

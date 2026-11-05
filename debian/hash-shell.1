@@ -390,6 +390,12 @@ when the options are exhausted.
 Drop the first n positional parameters (default 1). Fails without changing them
 when n is larger than $#.
 .TP
+.BI local " name[=value] ..."
+Make variables local to the running function: the previous value, attributes
+and environment entry come back when the function returns. A name without a
+value is unset inside the function. Functions called from the function see its
+locals. Fails outside a function and on a readonly name.
+.TP
 .B exit
 Exit the shell. If there are running background jobs, warns before exiting.
 .TP

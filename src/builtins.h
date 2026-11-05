@@ -28,6 +28,7 @@ typedef enum {
     BUILTIN_FUNC_READ,
     BUILTIN_FUNC_GETOPTS,
     BUILTIN_FUNC_SHIFT,
+    BUILTIN_FUNC_LOCAL,
     BUILTIN_FUNC_RETURN,
     BUILTIN_FUNC_BREAK,
     BUILTIN_FUNC_CONTINUE,
@@ -255,6 +256,13 @@ int shell_getopts(char **args);
  * than $# is an error and leaves the parameters alone (status 1).
  */
 int shell_shift(char **args);
+
+/**
+ * local name[=value]...: make variables local to the running function. The
+ * previous value comes back when the function returns; a name without a value
+ * is unset inside the function. Fails outside a function or on a readonly name.
+ */
+int shell_local(char **args);
 
 /**
  * Built-in command: return - return from function or sourced script

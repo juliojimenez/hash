@@ -368,6 +368,19 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  got [$sh_out]"; ((FAILED++))
 fi
 
+# local: function variables, checked against bash's output for the same script
+run_test "local shadows a global and restores it" 'x=global; f() { local x=inner; echo "in=$x"; }; f; echo "out=$x"' "out=global"
+run_test "local without a value is unset in the function" 'x=g; f() { local x; echo "in=${x-unset}"; }; f; echo "out=$x"' "in=unset"
+run_test "local is seen by called functions" 'g() { echo "g sees $v"; }; f() { local v=f; g; }; v=top; f; echo "after=$v"' "g sees f"
+run_test "local restores an exported variable in the environment" 'export E=1; f() { local E=2; echo "env=$(printenv E)"; }; f; echo "after=$(printenv E)"' "after=1"
+echo -n "Testing: local outside a function and on a readonly name fail... "
+lo_out=$(run_with_timeout 2 "$HASH_BIN" -c 'local z=1; echo "st=$?"; readonly r=1; f() { local r=2; echo "st=$? r=$r"; }; f' 2>&1 | tr '\n' '|')
+if [[ "$lo_out" == "hash: local: can only be used in a function|st=1|hash: local: r: readonly variable|st=1 r=1|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$lo_out]"; ((FAILED++))
+fi
+
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "
 printf 'exit 3\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_exit=$?

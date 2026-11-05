@@ -69,6 +69,7 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
     [BUILTIN_FUNC_READ]             = (Builtin){"read",         &shell_read},
     [BUILTIN_FUNC_GETOPTS]          = (Builtin){"getopts",      &shell_getopts},
     [BUILTIN_FUNC_SHIFT]            = (Builtin){"shift",        &shell_shift},
+    [BUILTIN_FUNC_LOCAL]            = (Builtin){"local",        &shell_local},
     [BUILTIN_FUNC_RETURN]           = (Builtin){"return",       &shell_return},
     [BUILTIN_FUNC_BREAK]            = (Builtin){"break",        &shell_break},
     [BUILTIN_FUNC_CONTINUE]         = (Builtin){"continue",     &shell_continue_cmd},
@@ -1696,6 +1697,56 @@ int shell_shift(char **args) {
         script_state.positional_count -= (int)n;
     }
     last_command_exit_code = 0;
+    return 1;
+}
+
+// ============================================================================
+// local
+// ============================================================================
+
+static bool valid_variable_name(const char *name, size_t len) {
+    if (len == 0 || !(isalpha((unsigned char)name[0]) || name[0] == '_')) {
+        return false;
+    }
+    for (size_t i = 1; i < len; i++) {
+        if (!(isalnum((unsigned char)name[i]) || name[i] == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int shell_local(char **args) {
+    if (script_state.function_call_depth == 0) {
+        fprintf(stderr, "%s: local: can only be used in a function\n", HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    }
+    int status = 0;
+    for (int i = 1; args[i]; i++) {
+        const char *arg = args[i];
+        const char *eq = strchr(arg, '=');
+        size_t len = eq ? (size_t)(eq - arg) : strlen(arg);
+        char name[256];
+        if (!valid_variable_name(arg, len) || len >= sizeof(name)) {
+            fprintf(stderr, "%s: local: `%s': not a valid identifier\n", HASH_NAME, arg);
+            status = 1;
+            continue;
+        }
+        memcpy(name, arg, len);
+        name[len] = '\0';
+        if (shellvar_local(name) != 0) {
+            fprintf(stderr, "%s: local: %s: readonly variable\n", HASH_NAME, name);
+            status = 1;
+            continue;
+        }
+        if (eq) {
+            shellvar_set(name, eq + 1);
+        } else {
+            shellvar_unset(name);  // declared, no value yet
+        }
+    }
+    last_command_exit_code = status;
     return 1;
 }
 

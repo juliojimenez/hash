@@ -132,6 +132,32 @@ if is_even 4; then
 fi
 ```
 
+### Local Variables
+
+`local` keeps a function's variables out of the caller's way. The previous
+value comes back when the function returns, an exported variable stays exported
+while it is shadowed, and a name given without a value is unset inside the
+function:
+
+```bash
+count=0
+bump() {
+    local count=10
+    count=$((count + 1))
+    echo "inside: $count"
+}
+bump
+echo "outside: $count"
+```
+
+```
+inside: 11
+outside: 0
+```
+
+Scoping is dynamic, as in dash and bash: a function called from `bump` sees
+its `count`. `local` outside a function is an error.
+
 ## Variables
 
 ### Assignment
