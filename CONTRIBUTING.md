@@ -435,7 +435,7 @@ Back to [README](README.md)
 Versions are plain integers (`vNN`). One command bumps every place the
 number lives (`src/hash.h`, `DISTVERSION` in `freebsd/Makefile`, the download
 URLs in `README.md` and the book, the man page, `debian/README.md`, the
-supported-versions window in `SECURITY.md`)
+supported release in `SECURITY.md`)
 and writes the `debian/changelog` entry from the commits since the last tag:
 
 ```bash

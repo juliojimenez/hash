@@ -2,16 +2,15 @@
 
 ## Supported Versions
 
-The last 5 major versions receive security updates:
+hash is developed fix-forward. Only the latest release is supported, and a
+security fix ships as a new release that includes it; earlier releases are not
+patched and nothing is backported. To receive security updates, upgrade to the
+latest release.
 
 | Version | Supported |
 |---------|-----------|
-| v34.x | Yes |
-| v33.x | Yes |
-| v32.x | Yes |
-| v31.x | Yes |
-| v30.x | Yes |
-| < v30 | No |
+| v48 (latest) | Yes |
+| Earlier releases | No |
 
 ## Reporting Vulnerabilities
 
@@ -36,7 +35,7 @@ Include:
 
 ### For Users
 
-1. Keep hash updated
+1. Keep hash updated: earlier releases do not receive fixes
 2. Review .hashrc from untrusted sources
 3. Set proper permissions on config files (600)
 4. Use leading space for sensitive commands

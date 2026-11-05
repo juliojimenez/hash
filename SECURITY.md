@@ -2,16 +2,15 @@
 
 ## Supported Versions
 
-The **last 5 major versions** of hash are supported with security updates:
+hash is developed fix-forward. Only the latest release is supported, and a
+security fix ships as a new release that includes it; earlier releases are not
+patched and nothing is backported. To receive security updates, upgrade to the
+latest release.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| v48.x   | :white_check_mark: |
-| v47.x   | :white_check_mark: |
-| v46.x   | :white_check_mark: |
-| v45.x   | :white_check_mark: |
-| v44.x   | :white_check_mark: |
-| < v44   | :x:                |
+| Version          | Supported          |
+| ---------------- | ------------------ |
+| v48 (latest)     | :white_check_mark: |
+| Earlier releases | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -44,11 +43,14 @@ Include the following information in your report:
 - We will coordinate with you on the disclosure timeline
 - You will be credited in the security advisory (unless you prefer to remain anonymous)
 
+The maintainer's procedure for shipping a security fix is in
+[docs/SECURITY_RELEASES.md](docs/SECURITY_RELEASES.md).
+
 ## Security Best Practices
 
 ### For Users
 
-1. **Keep hash updated:** Always run the latest supported version
+1. **Keep hash updated:** Always run the latest release; earlier releases do not receive fixes
 2. **Review your .hashrc:** Be cautious with aliases and scripts from untrusted sources
 3. **File permissions:** Ensure `~/.hashrc` and `~/.hash_history` have appropriate permissions (600 recommended)
 4. **Sensitive commands:** Use a leading space to prevent sensitive commands from being saved to history (when `HISTCONTROL=ignorespace` is set)
