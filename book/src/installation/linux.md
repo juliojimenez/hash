@@ -25,29 +25,29 @@ hash-shell
 ### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~noble_amd64.deb
-sudo dpkg -i hash-shell_51-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.noble_amd64.deb
+sudo dpkg -i hash-shell_51-1.noble_amd64.deb
 ```
 
 ### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_51-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.jammy_amd64.deb
+sudo dpkg -i hash-shell_51-1.jammy_amd64.deb
 ```
 
 ### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_51-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.bookworm_amd64.deb
+sudo dpkg -i hash-shell_51-1.bookworm_amd64.deb
 ```
 
 ### Debian Trixie
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~trixie_amd64.deb
-sudo dpkg -i hash-shell_51-1~trixie_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.trixie_amd64.deb
+sudo dpkg -i hash-shell_51-1.trixie_amd64.deb
 ```
 
 ## APT Repository (Recommended)

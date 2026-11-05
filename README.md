@@ -67,15 +67,15 @@ sudo mv hash-shell-v51-darwin-arm64 /usr/local/bin/hash-shell
 #### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~noble_amd64.deb
-sudo dpkg -i hash-shell_51-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.noble_amd64.deb
+sudo dpkg -i hash-shell_51-1.noble_amd64.deb
 ```
 
 #### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_51-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.jammy_amd64.deb
+sudo dpkg -i hash-shell_51-1.jammy_amd64.deb
 ```
 
 ---
@@ -83,15 +83,15 @@ sudo dpkg -i hash-shell_51-1~jammy_amd64.deb
 #### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_51-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.bookworm_amd64.deb
+sudo dpkg -i hash-shell_51-1.bookworm_amd64.deb
 ```
 
 #### Debian Trixie
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1~trixie_amd64.deb
-sudo dpkg -i hash-shell_51-1~trixie_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v51/hash-shell_51-1.trixie_amd64.deb
+sudo dpkg -i hash-shell_51-1.trixie_amd64.deb
 ```
 
 ---
@@ -124,7 +124,7 @@ sudo apt update
 sudo apt install hash-shell
 ```
 
-Upgrade with `sudo apt upgrade hash-shell`. See [APT Installation Guide](./docs/APT_INSTALL.md) for more options.
+Upgrade with `sudo apt upgrade hash-shell`. See the [APT installation page](https://hash-shell.org/installation/apt.html) for more options.
 
 > **URL Change Notice:** The APT repository has moved from `juliojimenez.github.io/hash/` to `hash-shell.org/apt/`. If you previously configured the old URL, update your sources list:
 > ```bash
