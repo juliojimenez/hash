@@ -43,6 +43,9 @@ Include the following information in your report:
 - We will coordinate with you on the disclosure timeline
 - You will be credited in the security advisory (unless you prefer to remain anonymous)
 
+The maintainer's procedure for shipping a security fix is in
+[docs/SECURITY_RELEASES.md](docs/SECURITY_RELEASES.md).
+
 ## Security Best Practices
 
 ### For Users
