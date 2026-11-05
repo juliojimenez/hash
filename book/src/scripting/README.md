@@ -64,6 +64,36 @@ Run:
 # Arg count: 2
 ```
 
+### Parsing Options
+
+`getopts` reads the options a script was given one at a time; `shift` then
+drops them so `$1` is the first operand:
+
+```bash
+#!/usr/local/bin/hash-shell
+verbose=0
+while getopts "vo:" opt; do
+    case $opt in
+        v) verbose=1 ;;
+        o) output=$OPTARG ;;
+        ?) echo "usage: $0 [-v] [-o file] args" >&2; exit 2 ;;
+    esac
+done
+shift $((OPTIND - 1))
+echo "verbose=$verbose output=$output args=$*"
+```
+
+```
+$ ./script.sh -v -o out.txt a b
+verbose=1 output=out.txt args=a b
+```
+
+A letter followed by `:` in the option string takes an argument, attached
+(`-oout.txt`) or as the next word. Options can be clustered (`-vo out.txt`),
+and `--` ends them. An unknown option or a missing argument sets `opt` to `?`
+and prints a message; start the option string with `:` to get `?` or `:` in
+`opt` and the offending letter in `OPTARG` instead, with no message.
+
 ### Special Variables
 
 | Variable | Description |

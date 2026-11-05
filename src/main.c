@@ -334,6 +334,9 @@ int main(int argc, char *argv[]) {
     // This overrides any IFS inherited from the environment
     shellvar_set("IFS", DEFAULT_IFS);
 
+    // POSIX: OPTIND is 1 at shell invocation, for getopts
+    shellvar_set("OPTIND", "1");
+
     // Set PPID (parent process ID) - POSIX special variable, readonly
     {
         char ppid_str[32];
