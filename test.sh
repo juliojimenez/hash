@@ -212,7 +212,7 @@ run_command_test "cd to home (no args)" "cd"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
-run_test "invalid command" "this_command_does_not_exist_12345" "No such file or directory"
+run_test "invalid command" "this_command_does_not_exist_12345" "hash: this_command_does_not_exist_12345: command not found"
 
 echo -e "\n${YELLOW}Edge Cases:${NC}"
 run_command_test "empty command" ""
@@ -385,6 +385,45 @@ if [[ "$bare_ec" == "1" && "$bare0_ec" == "0" ]]; then
     echo -e "${GREEN}PASS${NC}"; ((PASSED++))
 else
     echo -e "${RED}FAIL${NC}"; echo "  false; exit gave $bare_ec (want 1); true; exit gave $bare0_ec (want 0)"; ((FAILED++))
+fi
+
+# A command that cannot be started names itself in the message and exits with
+# the POSIX status: 127 when not found, 126 when it exists but cannot run
+echo -n "Testing: command not found exits 127 with the name... "
+nf_out=$(run_with_timeout 2 "$HASH_BIN" -c 'nosuchcmd_xyz_12345' 2>&1); nf_ec=$?
+np_out=$(run_with_timeout 2 "$HASH_BIN" -c '/nonexistent/dir/prog' 2>&1); np_ec=$?
+if [[ "$nf_out" == "hash: nosuchcmd_xyz_12345: command not found" && "$nf_ec" == "127" && "$np_out" == "hash: /nonexistent/dir/prog: No such file or directory" && "$np_ec" == "127" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$nf_out] ec=$nf_ec and [$np_out] ec=$np_ec"; ((FAILED++))
+fi
+
+echo -n "Testing: a file that cannot run exits 126... "
+printf 'echo hi\n' > "$TEST_DIR/noexec.sh"; chmod 644 "$TEST_DIR/noexec.sh"
+ne_out=$(run_with_timeout 2 "$HASH_BIN" -c "$TEST_DIR/noexec.sh" 2>&1); ne_ec=$?
+dir_out=$(run_with_timeout 2 "$HASH_BIN" -c "./$TEST_DIR" 2>&1); dir_ec=$?
+if [[ "$ne_out" == "hash: $TEST_DIR/noexec.sh: Permission denied" && "$ne_ec" == "126" && "$dir_out" == "hash: ./$TEST_DIR: is a directory" && "$dir_ec" == "126" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$ne_out] ec=$ne_ec and [$dir_out] ec=$dir_ec"; ((FAILED++))
+fi
+
+echo -n "Testing: 127 reaches set -e, || and command substitution... "
+e_out=$(run_with_timeout 2 "$HASH_BIN" -c 'set -e; nosuchcmd_xyz_12345; echo after' 2>/dev/null); e_ec=$?
+f_out=$(run_with_timeout 2 "$HASH_BIN" -c 'nosuchcmd_xyz_12345 || echo "fallback=$?"' 2>/dev/null)
+s_out=$(run_with_timeout 2 "$HASH_BIN" -c 'v=$(nosuchcmd_xyz_12345 2>/dev/null); echo "st=$?"' 2>/dev/null)
+if [[ -z "$e_out" && "$e_ec" == "127" && "$f_out" == "fallback=127" && "$s_out" == "st=127" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  set -e: [$e_out] ec=$e_ec; ||: [$f_out]; cmdsub: [$s_out]"; ((FAILED++))
+fi
+
+echo -n "Testing: exec of a missing command exits 127 and ends the shell... "
+x_out=$(run_with_timeout 2 "$HASH_BIN" -c 'exec nosuchcmd_xyz_12345; echo after' 2>&1); x_ec=$?
+if [[ "$x_out" == "hash: exec: nosuchcmd_xyz_12345: not found" && "$x_ec" == "127" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$x_out] ec=$x_ec"; ((FAILED++))
 fi
 
 # The shell removes the quotes around an alias value; quotes inside it stay

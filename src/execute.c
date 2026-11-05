@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <termios.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <ctype.h>
 #include "hash.h"
 #include "execute.h"
@@ -31,6 +32,30 @@ int last_command_exit_code = 0;
 
 // Debug flag - set to 1 to enable exit code tracing
 #define DEBUG_EXIT_CODE 0
+
+// A command that could not be started. The status follows POSIX: 127 when the
+// command was not found, 126 when it exists but cannot run (not executable, a
+// directory, a bad format). The message names the command; startup files that
+// run with silent_errors stay quiet.
+static int exec_failure_status(int err) {
+    return err == ENOENT ? 127 : 126;
+}
+
+static void exec_failure_message(const char *cmd, int err) {
+    if (script_state.silent_errors) {
+        return;
+    }
+    if (err == ENOENT && strchr(cmd, '/') == NULL) {
+        fprintf(stderr, "%s: %s: command not found\n", HASH_NAME, cmd);
+        return;
+    }
+    struct stat st;
+    if (err == EACCES && stat(cmd, &st) == 0 && S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "%s: %s: is a directory\n", HASH_NAME, cmd);
+        return;
+    }
+    fprintf(stderr, "%s: %s: %s\n", HASH_NAME, cmd, strerror(err));
+}
 
 // Launch an external program
 static int launch(char **args, const char *cmd_string) {
@@ -89,12 +114,11 @@ static int launch(char **args, const char *cmd_string) {
         }
         execvp(exec_args[0], exec_args);
         // If we get here, execvp failed
-        if (!script_state.silent_errors) {
-            perror(HASH_NAME);
-        }
+        int err = errno;
+        exec_failure_message(exec_args[0], err);
         redirect_free(redir);
         free(cmd_path);
-        last_command_exit_code = 127;
+        last_command_exit_code = exec_failure_status(err);
         return 1;  // Return instead of _exit since we might want to continue
     }
 
@@ -123,14 +147,13 @@ static int launch(char **args, const char *cmd_string) {
         if (!exec_args || !exec_args[0]) {
             _exit(EXIT_FAILURE);
         }
-        if (execvp(exec_args[0], exec_args) == -1) {
-            if (!script_state.silent_errors) {
-                perror(HASH_NAME);
-            }
-        }
+        execvp(exec_args[0], exec_args);
+        // If we get here, execvp failed
+        int err = errno;
+        exec_failure_message(exec_args[0], err);
         // Use _exit() instead of exit() to avoid flushing parent's stdio buffers
         // This prevents file position corruption when reading scripts
-        _exit(EXIT_FAILURE);
+        _exit(exec_failure_status(err));
     } else if (pid < 0) {
         // Fork error
         if (!script_state.silent_errors) {
