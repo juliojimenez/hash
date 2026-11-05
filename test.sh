@@ -310,6 +310,115 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected 3 output lines, got $heredoc_lines"; ((FAILED++))
 fi
 
+# ~/.hashrc is a shell script: functions, conditionals and the hash options all
+# take effect at startup, and none of its lines land in the history
+echo -n "Testing: .hashrc functions and conditionals take effect... "
+mkdir -p "$TEST_DIR/rchome"
+printf '%s\n' "alias rc_alias='echo aliased'" 'rc_fn() {' '  echo "fn $1"' '}' 'if true; then' '  RC_IF=yes' 'fi' 'set welcome=off' > "$TEST_DIR/rchome/.hashrc"
+rc_out=$(printf 'rc_fn one\necho "if=$RC_IF"\nrc_alias\nexit\n' | HOME="$PWD/$TEST_DIR/rchome" HISTFILE="$PWD/$TEST_DIR/rchome/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rc_out" | grep -qF "fn one" && echo "$rc_out" | grep -qF "if=yes" && echo "$rc_out" | grep -qF "aliased" && ! grep -qs 'rc_fn() {' "$TEST_DIR/rchome/hash_history"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rc_out" | head -10; echo "  History:"; cat "$TEST_DIR/rchome/hash_history" 2>/dev/null | head -5; ((FAILED++))
+fi
+
+# exit in .hashrc ends the shell before the prompt, with that status
+echo -n "Testing: exit in .hashrc ends the shell with its status... "
+mkdir -p "$TEST_DIR/rcexit"
+printf 'exit 7\n' > "$TEST_DIR/rcexit/.hashrc"
+rcx_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcexit" HISTFILE="$PWD/$TEST_DIR/rcexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1); rcx_ec=$?
+if [[ "$rcx_ec" == "7" ]] && ! echo "$rcx_out" | grep -qF "alive"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 7 and no prompt; got exit $rcx_ec:"; echo "$rcx_out" | head -5; ((FAILED++))
+fi
+
+# exit in a sourced file exits the shell
+echo -n "Testing: exit in a sourced file exits the shell... "
+printf 'exit 5\necho after-exit\n' > "$TEST_DIR/exit5.sh"
+src_out=$(run_with_timeout 2 "$HASH_BIN" -c "source $TEST_DIR/exit5.sh; echo after-source" 2>&1); src_ec=$?
+if [[ "$src_ec" == "5" && -z "$src_out" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 5 and no output; got exit $src_ec: $src_out"; ((FAILED++))
+fi
+
+# The shell removes the quotes around an alias value; quotes inside it stay
+run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"; greet' "hello world"
+
+# return in .hashrc ends the file, and only the file
+echo -n "Testing: return in .hashrc ends only the file... "
+mkdir -p "$TEST_DIR/rcreturn"
+printf 'RC=1\nreturn\nRC=2\n' > "$TEST_DIR/rcreturn/.hashrc"
+rcr_out=$(printf 'echo "rc=$RC"\nif true; then echo if-ran; fi\nexit\n' | HOME="$PWD/$TEST_DIR/rcreturn" HISTFILE="$PWD/$TEST_DIR/rcreturn/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rcr_out" | grep -qF "rc=1" && echo "$rcr_out" | grep -qF "if-ran"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcr_out" | head -5; ((FAILED++))
+fi
+
+# source inside an EXIT trap does not cut the trap short
+echo -n "Testing: source inside an EXIT trap runs the rest of the trap... "
+printf 'true\n' > "$TEST_DIR/true.sh"
+printf "trap 'source %s; echo finished' EXIT\nexit 3\n" "$TEST_DIR/true.sh" > "$TEST_DIR/trap_source.sh"
+trap_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/trap_source.sh" 2>&1)
+if echo "$trap_out" | grep -qF "finished"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected 'finished'; got: $trap_out"; ((FAILED++))
+fi
+
+# A login shell keeps the requested exit status across its logout file, unless
+# the logout file exits itself
+echo -n "Testing: logout file keeps the exit status unless it exits... "
+mkdir -p "$TEST_DIR/rclogin"
+printf 'exit 7\n' > "$TEST_DIR/rclogin/.hashrc"
+printf 'true\n' > "$TEST_DIR/rclogin/.hash_logout"
+printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogin" HISTFILE="$PWD/$TEST_DIR/rclogin/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i >/dev/null 2>&1; lo_keep=$?
+printf 'exit 3\n' > "$TEST_DIR/rclogin/.hash_logout"
+printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogin" HISTFILE="$PWD/$TEST_DIR/rclogin/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i >/dev/null 2>&1; lo_exit=$?
+if [[ "$lo_keep" == "7" && "$lo_exit" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  logout 'true' gave $lo_keep (want 7); logout 'exit 3' gave $lo_exit (want 3)"; ((FAILED++))
+fi
+
+# A file sourced from .hashrc does not end .hashrc: a return after it still works
+echo -n "Testing: return after a nested source in .hashrc... "
+mkdir -p "$TEST_DIR/rcnested"
+printf 'S=1\n' > "$TEST_DIR/rcnested/settings.sh"
+printf 'source %s\nreturn\necho not-reached\n' "$TEST_DIR/rcnested/settings.sh" > "$TEST_DIR/rcnested/.hashrc"
+rcn_out=$(printf 'echo "s=$S"\nexit\n' | HOME="$PWD/$TEST_DIR/rcnested" HISTFILE="$PWD/$TEST_DIR/rcnested/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rcn_out" | grep -qF "s=1" && ! echo "$rcn_out" | grep -qF "not-reached" && ! echo "$rcn_out" | grep -qF "can only"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcn_out" | head -5; ((FAILED++))
+fi
+
+# logout in a login shell's .hashrc ends the shell before the prompt
+echo -n "Testing: logout in .hashrc of a login shell skips the prompt... "
+mkdir -p "$TEST_DIR/rclogout"
+printf 'logout\necho rc-after\n' > "$TEST_DIR/rclogout/.hashrc"
+lo_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rclogout" HISTFILE="$PWD/$TEST_DIR/rclogout/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -l -i 2>&1); lo_ec=$?
+if [[ "$lo_ec" == "0" ]] && ! echo "$lo_out" | grep -qE "alive|rc-after"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 0 with no prompt; got exit $lo_ec: $lo_out"; ((FAILED++))
+fi
+
+# exit inside a condition in .hashrc still ends the shell with its status.
+# The legacy engine's condition evaluator drops the exit (it goes away with the
+# engine in #313), so this case pins the default engine.
+echo -n "Testing: exit inside an if condition in .hashrc ends the shell... "
+mkdir -p "$TEST_DIR/rcifexit"
+printf 'if exit 7; then\n:\nfi\necho after\n' > "$TEST_DIR/rcifexit/.hashrc"
+ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 HASH_ENGINE=ast run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
+if [[ "$ife_ec" == "7" ]] && ! echo "$ife_out" | grep -qE "alive|after"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 7 and no output; got exit $ife_ec: $ife_out"; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

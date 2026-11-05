@@ -219,13 +219,9 @@ int shell_alias(char **args) {
     if (equals) {
         *equals = '\0';
         const char *name = args[1];
-        char *value = equals + 1;
-
-        if (char_in_string(value[0], "'\"") &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
-            value++;
-        }
+        // The shell has already removed the quotes around the value; any
+        // quote characters left in it belong to the alias text
+        const char *value = equals + 1;
 
         if (config_add_alias(name, value) == 0) {
             last_command_exit_code = 0;
@@ -322,9 +318,18 @@ int shell_source(char **args) {
     // If we're already in silent mode (e.g., sourcing system files),
     // continue in silent mode for nested sources
     // Note: break/continue have lexical scope - they don't propagate from sourced files
+    // The caller's exit flag may already be set (an EXIT trap runs with it on),
+    // so only an exit requested by this file counts as one
+    bool old_exit_requested = script_state.exit_requested;
+    script_state.exit_requested = false;
     int result = script_execute_file_ex(filepath, 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
+    // POSIX: an exit in the sourced file exits the shell
+    if (script_state.exit_requested) {
+        return 0;
+    }
+    script_state.exit_requested = old_exit_requested;
     return 1;
 }
 
@@ -499,54 +504,13 @@ static bool handle_posix_shell_options(char **args, int *i) {
 
 // Returns true if arg was handled and last_command_exit_code was set.
 static bool handle_hash_shell_options(const char *arg) {
-    // Handle colors option
-    if (strcmp(arg, "colors=on") == 0) {
-        shell_config.use_colors = true;
-        colors_enable();
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "colors=off") == 0) {
-        shell_config.use_colors = false;
-        colors_disable();
-        last_command_exit_code = 0;
-        return true;
+    // name=value options shared with ~/.hashrc (colors, welcome, PS1,
+    // color.<element>, syntax_highlight, autosuggest, danger_highlight)
+    if (config_set_option(arg) != 0) {
+        return false;
     }
-
-    // Handle welcome option
-    if (strcmp(arg, "welcome=on") == 0) {
-        shell_config.show_welcome = true;
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "welcome=off") == 0) {
-        shell_config.show_welcome = false;
-        last_command_exit_code = 0;
-        return true;
-    }
-
-    // Handle PS1 setting
-    if (strncmp(arg, "PS1=", 4) == 0) {
-        const char *ps1_value = arg + 4;
-
-        // Remove quotes if present
-        size_t val_len = strlen(ps1_value);
-        if (val_len >= 2 &&
-            char_in_string(ps1_value[0], "'\"") &&
-            ps1_value[0] == ps1_value[val_len - 1]) {
-            // Make a mutable copy to remove quotes
-            char *temp = strdup(ps1_value);
-            if (temp) {
-                temp[val_len - 1] = '\0';
-                prompt_set_ps1(temp + 1);
-                free(temp);
-            }
-        } else {
-            prompt_set_ps1(ps1_value);
-        }
-        last_command_exit_code = 0;
-        return true;
-    }
-
-    return false;
+    last_command_exit_code = 0;
+    return true;
 }
 
 int shell_set(char **args) {
@@ -667,6 +631,7 @@ int shell_logout(char **args) {
             logout_attempted = 0;
             fprintf(stdout, "Bye :)\n");
             last_command_exit_code = 0;
+            script_state.exit_requested = true;
             return 0;
         }
         logout_attempted = 1;
@@ -679,6 +644,9 @@ int shell_logout(char **args) {
         fprintf(stdout, "Bye :)\n");
     }
     last_command_exit_code = 0;
+    // Same shutdown flag as exit, so a logout in a startup file ends the
+    // shell before the prompt and a logout in a sourced file ends the shell
+    script_state.exit_requested = true;
     return 0;
 }
 

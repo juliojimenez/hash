@@ -3763,12 +3763,14 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         script_state.silent_errors = true;
     }
 
-    // POSIX lexical scoping: save and reset break/continue state for sourced files
-    // break/continue inside a sourced file should NOT affect the caller's loops
+    // POSIX lexical scoping: save and reset break/continue/return state for
+    // sourced files; none of them may leak into the caller
     int old_break_pending = break_pending;
     int old_continue_pending = continue_pending;
+    bool old_return_pending = return_pending;
     break_pending = 0;
     continue_pending = 0;
+    return_pending = false;
 
     // Increment function call depth so break/continue only see loops in this file
     script_state.function_call_depth++;
@@ -3782,6 +3784,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.record_history = false;
 
     // Set up script state
+    bool old_in_script = script_state.in_script;
+    const char *old_script_path = script_state.script_path;
     script_state.in_script = true;
     script_state.script_path = filepath;
     script_state.script_line = 0;
@@ -3876,8 +3880,8 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     }
 
     // Cleanup
-    script_state.in_script = false;
-    script_state.script_path = NULL;
+    script_state.in_script = old_in_script;      // a nested source must not end the caller's script
+    script_state.script_path = old_script_path;
     script_state.silent_errors = old_silent;  // Restore silent flag
     script_state.record_history = record_history;
 
@@ -3886,6 +3890,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     script_state.function_call_depth--;
     break_pending = old_break_pending;
     continue_pending = old_continue_pending;
+    return_pending = old_return_pending;
 
     // For return (-2), use the last exit code
     // For other errors (< 0), return 1

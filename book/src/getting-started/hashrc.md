@@ -36,6 +36,29 @@ Reload after editing:
 source ~/.hashrc
 ```
 
+## It Is a Shell Script
+
+`.hashrc` runs through the shell like any other script, so anything you can type
+at the prompt works in it: functions, `if` and `case`, `source` for files you
+share with other shells, command substitution in exports.
+
+```bash
+# Functions
+mkcd() { mkdir -p "$1" && cd "$1"; }
+
+# Conditionals
+if [ -d "$HOME/bin" ]; then
+    export PATH="$HOME/bin:$PATH"
+fi
+
+# Shared settings
+[ -f ~/.aliases ] && source ~/.aliases
+```
+
+Errors in the file are reported when the shell starts, so a typo shows up right
+away instead of being skipped. A `return` ends the file and the shell carries on;
+an `exit` ends the shell before the prompt, with that status.
+
 ## Aliases
 
 Define command shortcuts:
@@ -124,6 +147,10 @@ set option=value
 | `colors` | `on`/`off` | Enable colored output |
 | `welcome` | `on`/`off` | Show welcome message |
 | `PS1` | format | Custom prompt |
+| `color.<element>` | style | Color of one element, e.g. `color.prompt=bold,blue` |
+| `syntax_highlight` | `on`/`off` | Highlight the command line as you type |
+| `autosuggest` | `on`/`off` | Suggest completions from history |
+| `danger_highlight` | `on`/`off` | Highlight dangerous commands |
 
 ```bash
 set colors=on
@@ -219,16 +246,13 @@ alias ll=ls -lah
 alias ll='ls -lah'
 ```
 
-### Variable Not Set
+### Variable Not Visible to Programs
 
-Use `export`:
+`MY_VAR=value` sets a shell variable. Programs you run only see it after `export`:
 
 ```bash
-# Wrong
-MY_VAR=value
-
-# Correct
-export MY_VAR=value
+MY_VAR=value         # shell variable only
+export MY_VAR=value  # also in the environment
 ```
 
 ### Config Not Loading
