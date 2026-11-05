@@ -38,7 +38,7 @@ jobs:
       # #383). The release bump commit is also the commit the release tag points
       # at, so while the source version has no release yet this workflow stands
       # aside and debian.yml publishes the site, with the new packages, at the tag.
-      # v49 went out with the v47 packages on the APT repository because this
+      # v50 went out with the v47 packages on the APT repository because this
       # deploy ran first and the Debian one was swallowed; a manual run of this
       # workflow put it right.
       - name: Find the Release to Publish

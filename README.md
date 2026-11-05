@@ -17,18 +17,18 @@ Demo made with [vhs](https://github.com/charmbracelet/vhs).
 #### Linux x86_64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell-v49-linux-x86_64
-chmod +x hash-shell-v49-linux-x86_64
-sudo mv hash-shell-v49-linux-x86_64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell-v50-linux-x86_64
+chmod +x hash-shell-v50-linux-x86_64
+sudo mv hash-shell-v50-linux-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### Linux ARM64
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell-v49-linux-aarch64
-chmod +x hash-shell-v49-linux-aarch64
-sudo mv hash-shell-v49-linux-aarch64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell-v50-linux-aarch64
+chmod +x hash-shell-v50-linux-aarch64
+sudo mv hash-shell-v50-linux-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
@@ -37,18 +37,18 @@ hash-shell
 #### FreeBSD x86_64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v49/hash-shell-v49-freebsd-x86_64
-chmod +x hash-shell-v49-freebsd-x86_64
-sudo mv hash-shell-v49-freebsd-x86_64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v50/hash-shell-v50-freebsd-x86_64
+chmod +x hash-shell-v50-freebsd-x86_64
+sudo mv hash-shell-v50-freebsd-x86_64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
 #### FreeBSD ARM64
 
 ```bash
-fetch https://github.com/juliojimenez/hash/releases/download/v49/hash-shell-v49-freebsd-aarch64
-chmod +x hash-shell-v49-freebsd-aarch64
-sudo mv hash-shell-v49-freebsd-aarch64 /usr/local/bin/hash-shell
+fetch https://github.com/juliojimenez/hash/releases/download/v50/hash-shell-v50-freebsd-aarch64
+chmod +x hash-shell-v50-freebsd-aarch64
+sudo mv hash-shell-v50-freebsd-aarch64 /usr/local/bin/hash-shell
 hash-shell
 ```
 
@@ -57,9 +57,9 @@ hash-shell
 #### macOS (Apple Silicon)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell-v49-darwin-arm64
-chmod +x hash-shell-v49-darwin-arm64
-sudo mv hash-shell-v49-darwin-arm64 /usr/local/bin/hash-shell
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell-v50-darwin-arm64
+chmod +x hash-shell-v50-darwin-arm64
+sudo mv hash-shell-v50-darwin-arm64 /usr/local/bin/hash-shell
 ```
 
 ---
@@ -67,15 +67,15 @@ sudo mv hash-shell-v49-darwin-arm64 /usr/local/bin/hash-shell
 #### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell_49-1~noble_amd64.deb
-sudo dpkg -i hash-shell_49-1~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell_50-1~noble_amd64.deb
+sudo dpkg -i hash-shell_50-1~noble_amd64.deb
 ```
 
 #### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell_49-1~jammy_amd64.deb
-sudo dpkg -i hash-shell_49-1~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell_50-1~jammy_amd64.deb
+sudo dpkg -i hash-shell_50-1~jammy_amd64.deb
 ```
 
 ---
@@ -83,15 +83,15 @@ sudo dpkg -i hash-shell_49-1~jammy_amd64.deb
 #### Debian Bookworm
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell_49-1~bookworm_amd64.deb
-sudo dpkg -i hash-shell_49-1~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell_50-1~bookworm_amd64.deb
+sudo dpkg -i hash-shell_50-1~bookworm_amd64.deb
 ```
 
 #### Debian Trixie
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/download/v49/hash-shell_49-1~trixie_amd64.deb
-sudo dpkg -i hash-shell_49-1~trixie_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/download/v50/hash-shell_50-1~trixie_amd64.deb
+sudo dpkg -i hash-shell_50-1~trixie_amd64.deb
 ```
 
 ---

@@ -439,18 +439,22 @@ supported release in `SECURITY.md`)
 and writes the `debian/changelog` entry from the commits since the last tag:
 
 ```bash
-make release VERSION=47        # or: bash scripts/release.sh 47
+make release VERSION=NN        # or: bash scripts/release.sh NN
 git diff                       # review; edit debian/changelog if you like
-git checkout -b release/v49 && git commit -sam "chore(release): v49"
-gh pr create --title "chore(release): v49"
+make demo                      # re-record demo.gif so its banner shows vNN (needs vhs)
+git checkout -b release/vNN && git commit -sam "chore(release): vNN"
+gh pr create --title "chore(release): vNN"
 ```
 
-`bash scripts/release.sh 47 --pr` does the last two lines for you. Merge the
+The demo is a GIF, so the version bump cannot reach it: `make demo` runs
+`demo.tape` with the binary built in this tree first on `PATH`, from the
+directory shown in the prompt (your clone). `bash scripts/release.sh NN --pr`
+does the branch, commit and pull request for you. Merge the
 pull request, then tag the merge commit (an annotated tag with the version as
 its message, signed when your git config signs tags, like every tag so far):
 
 ```bash
-git fetch origin && git tag -a v49 -m v49 origin/main && git push origin v49
+git fetch origin && git tag -a vNN -m vNN origin/main && git push origin vNN
 ```
 
 The tag push runs `release.yml`: it builds the Linux, macOS and FreeBSD
