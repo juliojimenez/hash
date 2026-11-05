@@ -94,6 +94,7 @@ static bool is_redirect_op(TokenType type) {
         case TOKEN_LESSAND:
         case TOKEN_GREATAND:
         case TOKEN_LESSGREAT:
+        case TOKEN_CLOBBER:
             return true;
         default:
             return false;

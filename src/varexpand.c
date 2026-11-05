@@ -172,6 +172,11 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                     var_value = "";
                 }
                 p++;
+            } else if (*p == '-') {
+                // $- - the option letters in effect
+                shell_options_flags(var_name, sizeof(var_name));
+                var_value = var_name;
+                p++;
             } else if (*p == '#') {
                 // $# - number of positional parameters (excluding $0)
                 int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;

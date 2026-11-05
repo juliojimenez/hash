@@ -381,6 +381,64 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  got [$lo_out]"; ((FAILED++))
 fi
 
+# set options, checked against bash's output for the same commands
+echo -n "Testing: set -x traces commands after expansion... "
+xt=$(run_with_timeout 2 "$HASH_BIN" -c 'set -x; echo hi; x=1; echo "$x two"; set +x; echo quiet' 2>&1 | tr '\n' '|')
+if [[ "$xt" == "+ echo hi|hi|+ x=1|+ echo '1 two'|1 two|+ set +x|quiet|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$xt]"; ((FAILED++))
+fi
+
+echo -n "Testing: set -C refuses to clobber, >| overrides, devices are fine... "
+rm -f "$TEST_DIR/ncf.txt"
+nc=$(run_with_timeout 2 "$HASH_BIN" -c "set -C; echo a > $TEST_DIR/ncf.txt; echo b > $TEST_DIR/ncf.txt; echo \"st=\$?\"; cat $TEST_DIR/ncf.txt; echo c >| $TEST_DIR/ncf.txt; cat $TEST_DIR/ncf.txt; echo d >> $TEST_DIR/ncf.txt; echo e > /dev/null; echo \"null=\$?\"" 2>&1 | tr '\n' '|')
+if [[ "$nc" == "hash: $TEST_DIR/ncf.txt: cannot overwrite existing file|st=1|a|c|null=0|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$nc]"; ((FAILED++))
+fi
+
+echo -n "Testing: set -n and -n on the command line parse without running... "
+nx1=$(printf 'echo before\nset -n\necho after\n' | run_with_timeout 2 "$HASH_BIN" 2>&1 | tr '\n' '|')
+printf 'echo not-run\n' > "$TEST_DIR/noexec.sh"
+nx2=$(run_with_timeout 2 "$HASH_BIN" -n "$TEST_DIR/noexec.sh" 2>&1); nx2_ec=$?
+if [[ "$nx1" == "before|" && -z "$nx2" && "$nx2_ec" == "0" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  stdin: [$nx1]; -n script: [$nx2] ec=$nx2_ec"; ((FAILED++))
+fi
+
+echo -n "Testing: set -v echoes input, -a exports, -f stops globbing... "
+vb=$(printf 'set -v\necho hi\n' | run_with_timeout 2 "$HASH_BIN" 2>&1 | tr '\n' '|')
+ae=$(run_with_timeout 2 "$HASH_BIN" -c 'set -a; FOO=bar; printenv FOO' 2>&1)
+ng=$(cd "$TEST_DIR" && run_with_timeout 2 "../$HASH_BIN" -c 'set -f; echo *; set +f; echo * | grep -c "\*"' 2>&1 | tr '\n' '|')
+if [[ "$vb" == "echo hi|hi|" && "$ae" == "bar" && "$ng" == "*|0|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  -v: [$vb]; -a: [$ae]; -f: [$ng]"; ((FAILED++))
+fi
+
+echo -n "Testing: set -o lists, set +o prints commands, bad options exit 2... "
+lo=$(run_with_timeout 2 "$HASH_BIN" -c 'set -ex; set -o | grep -c -E "^(errexit|xtrace)[[:space:]]+on$"; set +o | grep -c -E "^set -o (errexit|xtrace)$"; set +o | grep -c "^set +o noclobber$"' 2>/dev/null | tr '\n' '|')
+run_with_timeout 2 "$HASH_BIN" -c 'set -z' >/dev/null 2>&1; bad_letter=$?
+run_with_timeout 2 "$HASH_BIN" -c 'set -o bogus' >/dev/null 2>&1; bad_name=$?
+if [[ "$lo" == "2|2|1|" && "$bad_letter" == "2" && "$bad_name" == "2" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  listing: [$lo]; set -z: $bad_letter; set -o bogus: $bad_name"; ((FAILED++))
+fi
+
+run_test "\$- shows the options in effect" 'set -ex; echo "flags=$-"' "flags=ex"
+echo -n "Testing: -ex on the command line sets the options... "
+cl=$(run_with_timeout 2 "$HASH_BIN" -ex -c 'echo "$-"' 2>/dev/null)
+if [[ "$cl" == "ex" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$cl]"; ((FAILED++))
+fi
+run_test "set -h and set -b are accepted" 'set -h; set -b; echo "st=$?"' "st=0"
+
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "
 printf 'exit 3\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_exit=$?

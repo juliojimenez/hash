@@ -187,6 +187,36 @@ void test_hashrc_return_after_nested_source(void) {
     unlink(RC_HOME "/settings");
 }
 
+// The set options: by letter, by name, and the $- summary
+void test_set_options_by_letter_and_name(void) {
+    shell_options_init();
+    TEST_ASSERT_TRUE(shell_option_apply_letter('x', true));
+    TEST_ASSERT_TRUE(shell_option_xtrace());
+    TEST_ASSERT_TRUE(shell_option_apply_letter('x', false));
+    TEST_ASSERT_FALSE(shell_option_xtrace());
+    TEST_ASSERT_TRUE(shell_option_apply_name("noclobber", true));
+    TEST_ASSERT_TRUE(shell_option_noclobber());
+    TEST_ASSERT_TRUE(shell_option_apply_letter('C', false));
+    TEST_ASSERT_FALSE(shell_option_noclobber());
+    TEST_ASSERT_TRUE(shell_option_apply_letter('h', true));   // accepted, nothing to do
+    TEST_ASSERT_FALSE(shell_option_apply_letter('z', true));
+    TEST_ASSERT_FALSE(shell_option_apply_name("vi", true));
+    TEST_ASSERT_FALSE(shell_option_apply_name(NULL, true));
+}
+
+void test_set_options_flags_string(void) {
+    shell_options_init();
+    char buf[32];
+    shell_options_flags(buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+    shell_option_apply_letter('e', true);
+    shell_option_apply_letter('x', true);
+    shell_option_apply_name("noglob", true);
+    shell_options_flags(buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("efx", buf);  // table order, like bash's letter order
+    shell_options_init();
+}
+
 // A missing startup file is not an error
 void test_missing_startup_file_is_fine(void) {
     TEST_ASSERT_EQUAL_INT(0, config_load_silent("/tmp/hash_config_test_missing/.hashrc"));
@@ -209,6 +239,8 @@ int main(void) {
     RUN_TEST(test_hashrc_runs_as_script);
     RUN_TEST(test_hashrc_exit_requests_shell_exit);
     RUN_TEST(test_hashrc_return_after_nested_source);
+    RUN_TEST(test_set_options_by_letter_and_name);
+    RUN_TEST(test_set_options_flags_string);
     RUN_TEST(test_missing_startup_file_is_fine);
 
     return UNITY_END();

@@ -99,6 +99,7 @@ const char *ast_redirect_op_name(TokenType op) {
         case TOKEN_LESSAND:   return "<&";
         case TOKEN_GREATAND:  return ">&";
         case TOKEN_LESSGREAT: return "<>";
+        case TOKEN_CLOBBER:   return ">|";
         default:              return "?";
     }
 }

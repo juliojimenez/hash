@@ -435,78 +435,6 @@ static void handle_positional_arguments(char **args) {
 
 // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
 // Returns true if arg was handled and last_command_exit_code was set.
-static bool handle_posix_shell_options(char **args, int *i) {
-    const char *arg = args[*i];
-    if (strcmp(arg, "-u") == 0) {
-        shell_option_set_nounset(true);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "+u") == 0) {
-        shell_option_set_nounset(false);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "-e") == 0) {
-        shell_option_set_errexit(true);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "+e") == 0) {
-        shell_option_set_errexit(false);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "-m") == 0) {
-        shell_option_set_monitor(true);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "+m") == 0) {
-        shell_option_set_monitor(false);
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "-o") == 0 && args[(*i) + 1] != NULL) {
-        // Handle -o option_name
-        const char *opt = args[++(*i)];
-        if (strcmp(opt, "nounset") == 0) {
-            shell_option_set_nounset(true);
-        } else if (strcmp(opt, "errexit") == 0) {
-            shell_option_set_errexit(true);
-        } else if (strcmp(opt, "monitor") == 0) {
-            shell_option_set_monitor(true);
-        } else if (strcmp(opt, "nonlexicalctrl") == 0) {
-            shell_option_set_nonlexicalctrl(true);
-        } else if (strcmp(opt, "nolog") == 0) {
-            shell_option_set_nolog(true);
-        } else {
-            // POSIX: unknown option is an error
-            color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
-            last_command_exit_code = 1;
-            return true;
-        }
-        last_command_exit_code = 0;
-        return true;
-    } else if (strcmp(arg, "+o") == 0 && args[(*i) + 1] != NULL) {
-        // Handle +o option_name (disable option)
-        const char *opt = args[++(*i)];
-        if (strcmp(opt, "nounset") == 0) {
-            shell_option_set_nounset(false);
-        } else if (strcmp(opt, "errexit") == 0) {
-            shell_option_set_errexit(false);
-        } else if (strcmp(opt, "monitor") == 0) {
-            shell_option_set_monitor(false);
-        } else if (strcmp(opt, "nonlexicalctrl") == 0) {
-            shell_option_set_nonlexicalctrl(false);
-        } else if (strcmp(opt, "nolog") == 0) {
-            shell_option_set_nolog(false);
-        } else {
-            // POSIX: unknown option is an error
-            color_error("%s: set: %s: invalid option name", HASH_NAME, opt);
-            last_command_exit_code = 1;
-            return true;
-        }
-        last_command_exit_code = 0;
-        return true;
-    }
-
-    return false;
-}
 
 // Returns true if arg was handled and last_command_exit_code was set.
 static bool handle_hash_shell_options(const char *arg) {
@@ -548,11 +476,29 @@ int shell_set(char **args) {
             return 1;
         }
 
-        // Handle POSIX shell options: -u, +u, -m, +m, -o option, +o option, etc.
-        if (handle_posix_shell_options(args, &i)) {
-            // On error it sets last_command_exit code to 1
-            if (last_command_exit_code == 1) {
-                return 1;
+        // POSIX options: -x, +x, clusters such as -ex, -o name, +o name, and
+        // the listings `set -o` (table) and `set +o` (commands)
+        if ((arg[0] == '-' || arg[0] == '+') && arg[1] != '\0') {
+            bool on = (arg[0] == '-');
+            if (strcmp(arg + 1, "o") == 0) {
+                if (!args[i + 1]) {
+                    shell_options_print(!on);
+                    continue;
+                }
+                const char *name = args[++i];
+                if (!shell_option_apply_name(name, on)) {
+                    fprintf(stderr, "%s: set: %s: invalid option name\n", HASH_NAME, name);
+                    last_command_exit_code = 2;
+                    return 1;
+                }
+                continue;
+            }
+            for (const char *p = arg + 1; *p; p++) {
+                if (!shell_option_apply_letter(*p, on)) {
+                    fprintf(stderr, "%s: set: %c%c: invalid option\n", HASH_NAME, arg[0], *p);
+                    last_command_exit_code = 2;
+                    return 1;
+                }
             }
             continue;
         }

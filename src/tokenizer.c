@@ -410,6 +410,10 @@ Token tokenizer_next(Tokenizer *tk) {
                 step(tk);
                 return build_token(tk, TOKEN_GREATAND);
             }
+            if (peek(tk) == '|') {
+                step(tk);
+                return build_token(tk, TOKEN_CLOBBER);
+            }
             return build_token(tk, TOKEN_GREAT);
 
         default:

@@ -71,6 +71,8 @@ A consolidated reference for hash shell features.
 | `$#` | Number of arguments |
 | `$@` | All arguments (separate) |
 | `$*` | All arguments (single) |
+| `$-` | Option letters in effect |
+| `$LINENO` | Current line number |
 
 ## Test Operators
 
@@ -142,6 +144,32 @@ A consolidated reference for hash shell features.
 | `HOME` | Home directory |
 | `EDITOR` | Default editor |
 
+## Shell Options
+
+Set with `set -x`, clear with `set +x`; cluster letters (`set -ex`) or use the
+name (`set -o xtrace`). `set -o` alone lists them, `set +o` prints them as
+commands, and `$-` holds the letters in effect.
+
+| Letter | Name | Effect |
+|--------|------|--------|
+| `-a` | `allexport` | Every assignment is exported |
+| `-b` | `notify` | Accepted; background job status is reported at the prompt |
+| `-C` | `noclobber` | `>` does not overwrite an existing file (`>|` does) |
+| `-e` | `errexit` | Exit when a command fails |
+| `-f` | `noglob` | No pathname expansion |
+| `-h` | | Accepted; commands are remembered as they run |
+| `-m` | `monitor` | Job control |
+| `-n` | `noexec` | Read and parse commands without running them (not at the prompt) |
+| `-u` | `nounset` | Expanding an unset variable is an error |
+| `-v` | `verbose` | Print input lines as they are read |
+| `-x` | `xtrace` | Print each command, after expansion, before it runs (`PS4` is the prefix) |
+| | `nolog` | Keep commands out of the history |
+| | `nonlexicalctrl` | `break` and `continue` reach loops in calling functions |
+
+hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element>`,
+`syntax_highlight`, `autosuggest`, `danger_highlight`) are listed on the
+[configuration page](../getting-started/hashrc.md).
+
 ## Built-in Commands
 
 | Command | Description |
@@ -152,6 +180,20 @@ A consolidated reference for hash shell features.
 | `pwd` | Print working directory |
 | `echo` | Print arguments |
 | `export` | Set environment variable |
+| `set` | Shell options and positional parameters |
+| `unset` | Remove a variable or function |
+| `readonly` | Make a variable read-only |
+| `local` | Variables local to a function |
+| `read` | Read a line into variables |
+| `getopts` | Parse options in a script |
+| `shift` | Drop positional parameters |
+| `eval` | Run arguments as a command |
+| `exec` | Replace the shell, or redirect it |
+| `return` | Return from a function or sourced file |
+| `break`, `continue` | Leave or continue a loop |
+| `trap` | Run commands on signals and at exit |
+| `type`, `command` | Describe or run a command |
+| `wait` | Wait for background jobs |
 | `source` | Execute file in current shell |
 | `exit` | Exit shell |
 | `logout` | Exit login shell |
