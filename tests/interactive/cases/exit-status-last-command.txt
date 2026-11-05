@@ -1,0 +1,4 @@
+# `exit` with no operand keeps the last command's status
+send false
+send exit
+status 1

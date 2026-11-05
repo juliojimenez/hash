@@ -79,6 +79,9 @@ make test
 
 # Run integration tests
 ./test.sh
+
+# Run the interactive tests (drives the shell in a pty)
+python3 tests/interactive/run.py
 ```
 
 ### Cleaning Up
@@ -115,6 +118,7 @@ hash/
 │   └── safe_string.c/h     # Safe string utilities
 ├── tests/                  # Unit tests
 │   ├── test_*.c            # Test files
+│   ├── interactive/        # Interactive tests: run.py drives a pty, cases/ holds the sessions
 │   ├── setup_unity.sh      # Unity framework setup
 │   └── unity/              # Unity test framework (auto-downloaded)
 ├── docs/                   # Documentation
@@ -282,11 +286,38 @@ run_command_test "description" "command"
 run_file_test "description" "command" "output_file" "expected_content"
 ```
 
+### Interactive Tests
+
+`tests/interactive/run.py` drives the shell in a pseudo-terminal, the way a user types at it. The line editor, PS2, Ctrl-C, Ctrl-R, the startup files and the history file are all exercised, which piping into `hash-shell -i` cannot do. Each case is a text file in `tests/interactive/cases/`:
+
+```
+# Ctrl-C at the continuation prompt abandons the unfinished compound command
+send if true; then
+expect ...
+send echo DIS''CARDED
+raw \x03
+expect ^C
+send echo AF''TER
+expect AFTER
+absent DISCARDED
+send exit
+status 0
+```
+
+`send` types a line at the prompt, `raw` sends keystrokes (`\x03` is Ctrl-C, `\r` is Enter), `expect` waits for output, `absent` checks that something never appeared, and `status` is the shell's exit status. `rc`, `write`, `env` and `login` set the session up before the shell starts; `file` checks files under the session's HOME afterwards. The shell echoes what is typed, so a check that a command did not run types something whose output differs from its spelling: `echo DIS''CARDED` prints `DISCARDED` only if it ran. `python3 tests/interactive/run.py --help` describes every directive.
+
+```bash
+python3 tests/interactive/run.py            # every case
+python3 tests/interactive/run.py ctrl-c -v  # cases whose name contains ctrl-c, with their transcripts
+python3 tests/interactive/run.py --keep     # keep each case's HOME directory for a look
+```
+
 ### Test Coverage
 
 When adding new features:
 - Write unit tests for all public functions
 - Write integration tests for user-facing functionality
+- Add an interactive case for anything a user sees or types at the prompt
 - Test edge cases (NULL inputs, empty strings, boundary conditions)
 - Test error handling paths
 

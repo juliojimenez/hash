@@ -1,0 +1,7 @@
+# `logout` in a shell that is not a login shell complains and keeps the session
+send logout
+expect not login shell
+send echo ST''ILL
+expect STILL
+send exit
+status 0

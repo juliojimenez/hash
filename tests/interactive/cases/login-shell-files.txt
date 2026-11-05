@@ -1,0 +1,9 @@
+# A login shell runs ~/.hash_profile first, ~/.hashrc after it, and ~/.hash_logout on exit
+write .hash_profile echo PROFILE-RAN
+write .hashrc echo RC-RAN
+write .hash_logout echo LOGOUT-RAN
+login
+expect PROFILE-RAN\nRC-RAN
+send exit
+expect LOGOUT-RAN
+status 0

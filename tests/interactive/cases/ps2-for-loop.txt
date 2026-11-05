@@ -1,0 +1,10 @@
+# A for loop typed line by line shows PS2 and runs when `done` closes it (#286)
+send for i in 1 2; do
+expect ...
+send echo item $i
+expect ...
+absent item 1
+send done
+expect item 1\nitem 2\n
+send exit
+status 0
