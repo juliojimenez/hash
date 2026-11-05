@@ -309,20 +309,26 @@ jobs:
 
           **Ubuntu 24.04 (Noble):**
           ```bash
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb
-          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1.noble_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1.noble_amd64.deb
           ```
 
           **Ubuntu 22.04 (Jammy):**
           ```bash
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb
-          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1.jammy_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1.jammy_amd64.deb
           ```
 
           **Debian Bookworm:**
           ```bash
-          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
-          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1.bookworm_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1.bookworm_amd64.deb
+          ```
+
+          **Debian Trixie:**
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/hash-shell_${{ steps.version_num.outputs.version_num }}-1.trixie_amd64.deb
+          sudo dpkg -i hash-shell_${{ steps.version_num.outputs.version_num }}-1.trixie_amd64.deb
           ```
           
           ---
@@ -395,9 +401,10 @@ jobs:
 
           ### Debian Packages
           
-          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~noble_amd64.deb` - Ubuntu 24.04 (Noble)
-          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~jammy_amd64.deb` - Ubuntu 22.04 (Jammy)
-          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1~bookworm_amd64.deb` - Debian Bookworm
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1.noble_amd64.deb` - Ubuntu 24.04 (Noble)
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1.jammy_amd64.deb` - Ubuntu 22.04 (Jammy)
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1.bookworm_amd64.deb` - Debian Bookworm
+          - `hash-shell_${{ steps.version_num.outputs.version_num }}-1.trixie_amd64.deb` - Debian Trixie
 
           ---
           
