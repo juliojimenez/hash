@@ -36,6 +36,84 @@ void config_init(void) {
 }
 
 // Initialize shell options to defaults
+// The set options: letter (0 when there is none), -o name, and the flag
+typedef struct {
+    char letter;
+    const char *name;
+    bool *flag;
+} ShellOptionDef;
+
+static const ShellOptionDef shell_option_defs[] = {
+    {'a', "allexport", &shell_config.options.allexport},
+    {'b', "notify", &shell_config.options.notify},
+    {'C', "noclobber", &shell_config.options.noclobber},
+    {'e', "errexit", &shell_config.options.errexit},
+    {'f', "noglob", &shell_config.options.noglob},
+    {'m', "monitor", &shell_config.options.monitor},
+    {'n', "noexec", &shell_config.options.noexec},
+    {'u', "nounset", &shell_config.options.nounset},
+    {'v', "verbose", &shell_config.options.verbose},
+    {'x', "xtrace", &shell_config.options.xtrace},
+    {0, "nolog", &shell_config.options.nolog},
+    {0, "nonlexicalctrl", &shell_config.options.nonlexicalctrl},
+};
+#define SHELL_OPTION_COUNT (sizeof(shell_option_defs) / sizeof(shell_option_defs[0]))
+
+bool shell_option_apply_letter(char letter, bool on) {
+    if (letter == 'h') {
+        return true;  // -h: commands are remembered as they run already
+    }
+    for (size_t i = 0; i < SHELL_OPTION_COUNT; i++) {
+        if (shell_option_defs[i].letter == letter) {
+            *shell_option_defs[i].flag = on;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool shell_option_apply_name(const char *name, bool on) {
+    if (!name) return false;
+    for (size_t i = 0; i < SHELL_OPTION_COUNT; i++) {
+        if (strcmp(shell_option_defs[i].name, name) == 0) {
+            *shell_option_defs[i].flag = on;
+            return true;
+        }
+    }
+    return false;
+}
+
+void shell_options_print(bool as_commands) {
+    for (size_t i = 0; i < SHELL_OPTION_COUNT; i++) {
+        const ShellOptionDef *d = &shell_option_defs[i];
+        if (as_commands) {
+            printf("set %co %s\n", *d->flag ? '-' : '+', d->name);
+        } else {
+            printf("%-15s\t%s\n", d->name, *d->flag ? "on" : "off");
+        }
+    }
+}
+
+void shell_options_flags(char *buf, size_t size) {
+    size_t n = 0;
+    for (size_t i = 0; i < SHELL_OPTION_COUNT && n + 1 < size; i++) {
+        if (shell_option_defs[i].letter && *shell_option_defs[i].flag) {
+            buf[n++] = shell_option_defs[i].letter;
+        }
+    }
+    if (is_interactive && n + 1 < size) {
+        buf[n++] = 'i';
+    }
+    buf[n] = '\0';
+}
+
+bool shell_option_xtrace(void) { return shell_config.options.xtrace; }
+bool shell_option_verbose(void) { return shell_config.options.verbose; }
+bool shell_option_noclobber(void) { return shell_config.options.noclobber; }
+bool shell_option_allexport(void) { return shell_config.options.allexport; }
+bool shell_option_noglob(void) { return shell_config.options.noglob; }
+bool shell_option_noexec(void) { return shell_config.options.noexec; }
+
 void shell_options_init(void) {
     shell_config.options.nounset = false;
     shell_config.options.errexit = false;
@@ -44,6 +122,9 @@ void shell_options_init(void) {
     shell_config.options.noclobber = false;
     shell_config.options.allexport = false;
     shell_config.options.monitor = false;
+    shell_config.options.noglob = false;
+    shell_config.options.noexec = false;
+    shell_config.options.notify = false;
 }
 
 // Get the nounset option value

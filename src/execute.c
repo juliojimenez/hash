@@ -57,6 +57,38 @@ static void exec_failure_message(const char *cmd, int err) {
     fprintf(stderr, "%s: %s: %s\n", HASH_NAME, cmd, strerror(err));
 }
 
+// set -x: the command as it is about to run, after expansion, on one line of
+// standard error; a word with spaces or special characters is single-quoted
+static void xtrace_print(char **words) {
+    const char *ps4 = shellvar_get("PS4");
+    fputs(ps4 ? ps4 : "+ ", stderr);
+    for (int i = 0; words[i]; i++) {
+        char *w = strdup(words[i]);
+        if (!w) {
+            continue;
+        }
+        strip_quote_markers(w);
+        if (i > 0) {
+            fputc(' ', stderr);
+        }
+        if (*w == '\0' || strpbrk(w, " \t\n'\"\\$`|&;<>()*?[]#~")) {
+            fputc('\'', stderr);
+            for (const char *c = w; *c; c++) {
+                if (*c == '\'') {
+                    fputs("'\\''", stderr);
+                } else {
+                    fputc(*c, stderr);
+                }
+            }
+            fputc('\'', stderr);
+        } else {
+            fputs(w, stderr);
+        }
+        free(w);
+    }
+    fputc('\n', stderr);
+}
+
 // Launch an external program
 static int launch(char **args, const char *cmd_string) {
     if (!args || !args[0]) return 1;
@@ -782,7 +814,7 @@ int execute(char **args) {
         }
     }
 
-    if (has_globs) {
+    if (has_globs && !shell_option_noglob()) {  // set -f leaves the pattern as a word
         // Create a copy of args pointers for expand_glob
         glob_args = malloc((arg_count + 1) * sizeof(char *));
         if (glob_args) {
@@ -806,6 +838,9 @@ int execute(char **args) {
 
     // Use expanded args if glob expansion happened, otherwise use IFS-split args (or original)
     char **exec_input = glob_expanded ? glob_args : glob_input;
+    if (shell_option_xtrace()) {
+        xtrace_print(exec_input);
+    }
 
     // Note: Don't strip quote markers here - they're needed for redirect parsing in launch()
     // Markers will be stripped in launch() after redirections are parsed

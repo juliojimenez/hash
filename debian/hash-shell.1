@@ -408,8 +408,13 @@ Bring job to foreground.
 .BI bg " [%job]"
 Resume job in background.
 .TP
-.BI set " option=value"
-Set shell options. Available options:
+.BI set " [-abCefhmnuvx] [+abCefhmnuvx] [-o option] [+o option] [--] [arg ...]"
+With a letter or an option name, set (-) or clear (+) a POSIX shell option:
+-a allexport, -b notify, -C noclobber, -e errexit, -f noglob, -h, -m monitor,
+-n noexec, -u nounset, -v verbose, -x xtrace. Letters may be clustered (-ex).
+"set -o" alone lists the options and their state, "set +o" prints them as
+commands that recreate the state. With -- or operands, set the positional
+parameters. The letters in effect are in $-. hash's own options use name=value:
 .RS
 .TP
 .B colors=on|off

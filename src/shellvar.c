@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "shellvar.h"
+#include "config.h"
 #include "hash.h"
 #include "utils.h"
 
@@ -207,6 +208,13 @@ int shellvar_set(const char *name, const char *value) {
         var_table[h] = v;
     }
 
+    // set -a: every assignment is exported
+    if (shell_option_allexport() && !(v->attrs & VAR_ATTR_EXPORT)) {
+        v->attrs |= VAR_ATTR_EXPORT;
+        if (v->value) {
+            setenv(name, v->value, 1);
+        }
+    }
     return 0;
 }
 

@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <fnmatch.h>
 #include <signal.h>
@@ -424,6 +425,24 @@ static int open_redirect_source(const Redirect *r, bool *close_only) {
             fd = open(target, O_RDONLY);
             break;
         case TOKEN_GREAT:
+            if (shell_option_noclobber()) {
+                // set -C: an existing regular file is not truncated; >| overrides
+                fd = open(target, O_WRONLY | O_CREAT | O_EXCL, 0644);
+                if (fd < 0 && errno == EEXIST) {
+                    struct stat st;
+                    if (stat(target, &st) == 0 && !S_ISREG(st.st_mode)) {
+                        fd = open(target, O_WRONLY, 0644);  // a device or a fifo is fine
+                    } else {
+                        fprintf(stderr, "%s: %s: cannot overwrite existing file\n", HASH_NAME, target);
+                        free(target);
+                        return -1;
+                    }
+                }
+            } else {
+                fd = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            }
+            break;
+        case TOKEN_CLOBBER:
             fd = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             break;
         case TOKEN_DGREAT:
@@ -1243,7 +1262,9 @@ ExecStatus exec_string(const char *src, bool *incomplete) {
         *incomplete = (parsed.status == PARSE_INCOMPLETE);
     }
     if (parsed.status == PARSE_OK) {
-        st = exec_node(parsed.root);
+        if (!(shell_option_noexec() && !is_interactive)) {
+            st = exec_node(parsed.root);
+        }
     } else if (parsed.status == PARSE_ERROR || !incomplete) {
         exec_report_syntax_error(parsed.message, 1 + parsed.line);
         last_command_exit_code = 2;
@@ -1338,6 +1359,9 @@ static bool feeder_append(ExecFeeder *feeder, const char *line) {
 
 FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *status) {
     *status = EXEC_OK;
+    if (shell_option_verbose()) {
+        fprintf(stderr, "%s\n", line);  // set -v: input as it is read
+    }
     if (!feeder_append(feeder, line)) {
         fprintf(stderr, "%s: out of memory\n", HASH_NAME);
         exec_feeder_reset(feeder);
@@ -1367,7 +1391,11 @@ FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *stat
         feeder->cap = 0;
         feeder->first_line = feeder->next_line;
         exec_line_base = base;
-        *status = exec_node(parsed.root);
+        if (shell_option_noexec() && !is_interactive) {
+            *status = EXEC_OK;  // set -n: read and parse only
+        } else {
+            *status = exec_node(parsed.root);
+        }
         free(program);
         result = FEED_RAN;
     }

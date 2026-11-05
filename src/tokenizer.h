@@ -22,6 +22,7 @@ typedef enum {
     TOKEN_LESSAND,
     TOKEN_GREATAND,
     TOKEN_LESSGREAT,
+    TOKEN_CLOBBER,      /* >| */
     TOKEN_LPAREN,
     TOKEN_RPAREN,
     TOKEN_EOF,

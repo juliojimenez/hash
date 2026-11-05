@@ -25,6 +25,9 @@ typedef struct {
     bool monitor;      // -m: Enable job control (monitor mode)
     bool nonlexicalctrl; // Enable dynamic scoping for break/continue across functions
     bool nolog;        // Disable command history logging
+    bool noglob;       // -f: No pathname expansion
+    bool noexec;       // -n: Read and parse commands but do not run them (not interactive)
+    bool notify;       // -b: accepted; background job status is reported at the prompt
 } ShellOptions;
 
 // Configuration structure
@@ -176,6 +179,27 @@ void shell_option_set_nonlexicalctrl(bool value);
  * @return Value of nolog option
  */
 bool shell_option_nolog(void);
+
+bool shell_option_xtrace(void);
+bool shell_option_verbose(void);
+bool shell_option_noclobber(void);
+bool shell_option_allexport(void);
+bool shell_option_noglob(void);
+bool shell_option_noexec(void);
+
+/**
+ * The POSIX set options by letter (-a -b -C -e -f -h -m -n -u -v -x) and by
+ * -o name, plus hash's own nolog and nonlexicalctrl. Return false for an
+ * option the shell does not have.
+ */
+bool shell_option_apply_letter(char letter, bool on);
+bool shell_option_apply_name(const char *name, bool on);
+
+/** `set -o`: one "name<TAB>on|off" line per option; `set +o`: "set -o name" / "set +o name" lines. */
+void shell_options_print(bool as_commands);
+
+/** $-: the letters of the options in effect, plus i for an interactive shell. */
+void shell_options_flags(char *buf, size_t size);
 
 /**
  * Set the nolog option value
