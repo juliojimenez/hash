@@ -57,4 +57,20 @@ void shellvar_sync_from_env(void);
 // List all shell variables (for `set` with no arguments)
 void shellvar_list_all(void);
 
+/**
+ * Local variable scopes, one frame per function call. shellvar_local() records
+ * a variable's state before the function changes it; shellvar_scope_pop() puts
+ * every recorded variable back (value, attributes, environment) or removes one
+ * that did not exist. Scoping is dynamic, as in dash and bash: functions called
+ * from the function see its locals.
+ */
+void shellvar_scope_push(void);
+void shellvar_scope_pop(void);
+
+/**
+ * Record name in the current scope so the frame's pop restores it.
+ * Returns 0, -1 when the variable is readonly, -2 when no scope is open.
+ */
+int shellvar_local(const char *name);
+
 #endif // SHELLVAR_H

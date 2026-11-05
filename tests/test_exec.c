@@ -461,6 +461,30 @@ void test_lineno_counts_lines_of_the_text(void) {
     TEST_ASSERT_EQUAL_STRING("5\n", run("true\ntrue\ntrue\nf() {\n  echo $LINENO\n}\nf"));
 }
 
+// local: a function's variables go back to what they were when it returns
+void test_local_shadows_and_restores(void) {
+    TEST_ASSERT_EQUAL_STRING("inner\nglobal\n", run("x=global; f() { local x=inner; echo $x; }; f; echo $x"));
+    TEST_ASSERT_EQUAL_STRING("unset\n", run("f() { local y=1; }; f; echo \"${y-unset}\""));
+    TEST_ASSERT_EQUAL_STRING("in=unset\nout=g\n", run("x=g; f() { local x; echo \"in=${x-unset}\"; }; f; echo \"out=$x\""));
+    TEST_ASSERT_EQUAL_STRING("in=unset\nout=g\n", run("x=g; f() { local x=l; unset x; echo \"in=${x-unset}\"; }; f; echo \"out=$x\""));
+}
+
+void test_local_is_dynamically_scoped_and_survives_return(void) {
+    TEST_ASSERT_EQUAL_STRING("g sees f\nafter=top\n", run("g() { echo \"g sees $v\"; }; f() { local v=f; g; }; v=top; f; echo \"after=$v\""));
+    TEST_ASSERT_EQUAL_STRING("st=3 v=0\n", run("f() { local v=1; return 3; }; v=0; f; echo \"st=$? v=$v\""));
+    TEST_ASSERT_EQUAL_STRING("a=b=c\n", run("f() { local a=b=c; echo \"a=$a\"; }; f"));
+}
+
+void test_local_keeps_export_and_restores_environment(void) {
+    TEST_ASSERT_EQUAL_STRING("E=2 env=2\nafter=1 env=1\n",
+        run("export E=1; f() { local E=2; echo \"E=$E env=$(printenv E)\"; }; f; echo \"after=$E env=$(printenv E)\""));
+}
+
+void test_local_errors(void) {
+    TEST_ASSERT_EQUAL_STRING("st=1\n", run("local z=1 2>/dev/null; echo \"st=$?\""));
+    TEST_ASSERT_EQUAL_STRING("st=1 r=1\n", run("readonly r=1; f() { local r=2 2>/dev/null; echo \"st=$? r=$r\"; }; f"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -511,6 +535,10 @@ int main(void) {
     RUN_TEST(test_exec_string_status_contract);
     RUN_TEST(test_function_body_keeps_blank_lines);
     RUN_TEST(test_lineno_counts_lines_of_the_text);
+    RUN_TEST(test_local_shadows_and_restores);
+    RUN_TEST(test_local_is_dynamically_scoped_and_survives_return);
+    RUN_TEST(test_local_keeps_export_and_restores_environment);
+    RUN_TEST(test_local_errors);
 
     return UNITY_END();
 }
