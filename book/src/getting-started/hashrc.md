@@ -56,7 +56,8 @@ fi
 ```
 
 Errors in the file are reported when the shell starts, so a typo shows up right
-away instead of being skipped.
+away instead of being skipped. A `return` ends the file and the shell carries on;
+an `exit` ends the shell before the prompt, with that status.
 
 ## Aliases
 

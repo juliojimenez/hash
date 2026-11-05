@@ -580,25 +580,29 @@ int main(int argc, char *argv[]) {
     // Load color configuration from environment (after startup files)
     color_config_load_env();
 
-    // Only show welcome message when stdin is a real tty
-    // This ensures POSIX compliance when stdin is redirected (e.g., heredoc with -i)
-    if (shell_config.show_welcome && isatty(STDIN_FILENO)) {
-        color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
-        printf(" v%s", HASH_VERSION);
-        if (is_login_shell_global) {
-            printf(" (login)");
+    // An exit in a startup file ends the shell before the prompt, with that
+    // status; the logout files and the EXIT trap still run below
+    if (!script_state.exit_requested) {
+        // Only show welcome message when stdin is a real tty
+        // This ensures POSIX compliance when stdin is redirected (e.g., heredoc with -i)
+        if (shell_config.show_welcome && isatty(STDIN_FILENO)) {
+            color_print(COLOR_BOLD COLOR_CYAN, "%s", HASH_NAME);
+            printf(" v%s", HASH_VERSION);
+            if (is_login_shell_global) {
+                printf(" (login)");
+            }
+            printf("\n");
+            printf("Type ");
+            color_print(COLOR_YELLOW, "'exit'");
+            printf(" to quit\n\n");
         }
-        printf("\n");
-        printf("Type ");
-        color_print(COLOR_YELLOW, "'exit'");
-        printf(" to quit\n\n");
+
+        // Check for updates (if enabled and interval has passed)
+        update_startup_check();
+
+        // Run Command Loop
+        loop();
     }
-
-    // Check for updates (if enabled and interval has passed)
-    update_startup_check();
-
-    // Run Command Loop
-    loop();
 
     // Run logout scripts for login shells
     if (is_login_shell_global) {

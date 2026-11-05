@@ -322,6 +322,41 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rc_out" | head -10; echo "  History:"; cat "$TEST_DIR/rchome/hash_history" 2>/dev/null | head -5; ((FAILED++))
 fi
 
+# exit in .hashrc ends the shell before the prompt, with that status
+echo -n "Testing: exit in .hashrc ends the shell with its status... "
+mkdir -p "$TEST_DIR/rcexit"
+printf 'exit 7\n' > "$TEST_DIR/rcexit/.hashrc"
+rcx_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcexit" HISTFILE="$PWD/$TEST_DIR/rcexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1); rcx_ec=$?
+if [[ "$rcx_ec" == "7" ]] && ! echo "$rcx_out" | grep -qF "alive"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 7 and no prompt; got exit $rcx_ec:"; echo "$rcx_out" | head -5; ((FAILED++))
+fi
+
+# exit in a sourced file exits the shell
+echo -n "Testing: exit in a sourced file exits the shell... "
+printf 'exit 5\necho after-exit\n' > "$TEST_DIR/exit5.sh"
+src_out=$(run_with_timeout 2 "$HASH_BIN" -c "source $TEST_DIR/exit5.sh; echo after-source" 2>&1); src_ec=$?
+if [[ "$src_ec" == "5" && -z "$src_out" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Expected exit 5 and no output; got exit $src_ec: $src_out"; ((FAILED++))
+fi
+
+# The shell removes the quotes around an alias value; quotes inside it stay
+run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"; greet' "hello world"
+
+# return in .hashrc ends the file, and only the file
+echo -n "Testing: return in .hashrc ends only the file... "
+mkdir -p "$TEST_DIR/rcreturn"
+printf 'RC=1\nreturn\nRC=2\n' > "$TEST_DIR/rcreturn/.hashrc"
+rcr_out=$(printf 'echo "rc=$RC"\nif true; then echo if-ran; fi\nexit\n' | HOME="$PWD/$TEST_DIR/rcreturn" HISTFILE="$PWD/$TEST_DIR/rcreturn/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if echo "$rcr_out" | grep -qF "rc=1" && echo "$rcr_out" | grep -qF "if-ran"; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  Output:"; echo "$rcr_out" | head -5; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

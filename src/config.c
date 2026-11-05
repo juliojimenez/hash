@@ -296,6 +296,7 @@ void config_load_startup_files(bool is_login_shell) {
             if (access(path, F_OK) == 0) {
                 config_load_silent(path);
                 profile_loaded = true;
+                if (script_state.exit_requested) return;  // exit in the profile
             }
 
             // Try ~/.hash_login if no profile yet
@@ -303,6 +304,7 @@ void config_load_startup_files(bool is_login_shell) {
                 snprintf(path, sizeof(path), "%s/.hash_login", home);
                 if (access(path, F_OK) == 0) {
                     config_load_silent(path);
+                    if (script_state.exit_requested) return;  // exit in the login file
                 }
             }
 

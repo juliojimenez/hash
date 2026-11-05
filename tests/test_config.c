@@ -1,5 +1,6 @@
 #include "unity.h"
 #include "../src/config.h"
+#include "../src/execute.h"
 #include "../src/color_config.h"
 #include "../src/script.h"
 #include "../src/shellvar.h"
@@ -152,6 +153,21 @@ void test_hashrc_runs_as_script(void) {
     TEST_ASSERT_FALSE(shell_config.show_welcome);
 }
 
+// An exit in a startup file stops the file and asks the shell to exit with
+// that status; the lines after it do not run
+void test_hashrc_exit_requests_shell_exit(void) {
+    mkdir(RC_HOME, 0700);
+    FILE *f = fopen(RC_FILE, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("set welcome=off\nexit 3\nset welcome=on\n", f);
+    fclose(f);
+
+    config_load_silent(RC_FILE);
+    TEST_ASSERT_TRUE(script_state.exit_requested);
+    TEST_ASSERT_EQUAL_INT(3, last_command_exit_code);
+    TEST_ASSERT_FALSE(shell_config.show_welcome);
+}
+
 // A missing startup file is not an error
 void test_missing_startup_file_is_fine(void) {
     TEST_ASSERT_EQUAL_INT(0, config_load_silent("/tmp/hash_config_test_missing/.hashrc"));
@@ -172,6 +188,7 @@ int main(void) {
     RUN_TEST(test_set_option_known);
     RUN_TEST(test_set_option_unknown);
     RUN_TEST(test_hashrc_runs_as_script);
+    RUN_TEST(test_hashrc_exit_requests_shell_exit);
     RUN_TEST(test_missing_startup_file_is_fine);
 
     return UNITY_END();

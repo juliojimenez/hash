@@ -219,13 +219,9 @@ int shell_alias(char **args) {
     if (equals) {
         *equals = '\0';
         const char *name = args[1];
-        char *value = equals + 1;
-
-        if (char_in_string(value[0], "'\"") &&
-            value[0] == value[strlen(value) - 1]) {
-            value[strlen(value) - 1] = '\0';
-            value++;
-        }
+        // The shell has already removed the quotes around the value; any
+        // quote characters left in it belong to the alias text
+        const char *value = equals + 1;
 
         if (config_add_alias(name, value) == 0) {
             last_command_exit_code = 0;
@@ -325,6 +321,10 @@ int shell_source(char **args) {
     int result = script_execute_file_ex(filepath, 0, NULL, script_state.silent_errors);
     last_command_exit_code = result;
 
+    // POSIX: an exit in the sourced file exits the shell
+    if (script_state.exit_requested) {
+        return 0;
+    }
     return 1;
 }
 
