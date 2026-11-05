@@ -69,7 +69,11 @@ jobs:
 
           # Tests to skip (platform-specific issues, known failures)
           # Format: space-separated list of test names (without .test extension)
-          SKIP_TESTS=""
+          # builtin.trap.subshell.false.exit expects the shell to exit with the
+          # EXIT trap action's status (1) at end of input. POSIX says $? after a
+          # trap action is the value it had before the action, and bash, dash,
+          # zsh and ksh all exit 0 there; hash follows them (see #314).
+          SKIP_TESTS="builtin.trap.subshell.false.exit"
 
           # Function to check if test should be skipped
           should_skip() {

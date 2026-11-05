@@ -7,6 +7,7 @@
 #include "hash.h"
 #include "script.h"
 #include "config.h"
+#include "execute.h"
 
 // Trap storage
 static char *traps[MAX_TRAPS];
@@ -15,6 +16,8 @@ static char *traps[MAX_TRAPS];
 // the trap commands as they were when the subshell was entered)
 static char *inherited_traps[MAX_TRAPS];
 static int in_subshell = 0;
+// Status the shell is exiting with while the EXIT trap runs, -1 otherwise
+static int exit_trap_status = -1;
 
 // Signal name to number mapping
 static const struct {
@@ -171,17 +174,37 @@ const char *trap_get(int signum) {
     return traps[signum];
 }
 
-int trap_execute_exit(void) {
-    if (traps[0]) {
-        return script_execute_string(traps[0]);
+int trap_running_exit_status(void) {
+    return exit_trap_status;
+}
+
+int trap_exit_status(int status) {
+    if (!traps[0]) {
+        return status;
     }
-    return -1;  // No trap set
+
+    // The trap action runs with $? = status; an exit it requests itself is
+    // told apart from the exit that brought us here
+    bool was_requested = script_state.exit_requested;
+    script_state.exit_requested = false;
+    last_command_exit_code = status;
+    exit_trap_status = status;
+
+    script_execute_string(traps[0]);
+
+    exit_trap_status = -1;
+    int final_status = script_state.exit_requested ? last_command_exit_code : status;
+    script_state.exit_requested = was_requested || script_state.exit_requested;
+    return final_status;
 }
 
 // Reset traps for subshell - POSIX says traps are not inherited for execution,
 // but trap with no operands should show what traps were when subshell was entered
 void trap_reset_for_subshell(void) {
     in_subshell = 1;
+    // A subshell started inside an EXIT trap action is a new environment: a
+    // bare exit in it uses the subshell's own last status, not the trap's
+    exit_trap_status = -1;
     for (int i = 0; i < MAX_TRAPS; i++) {
         // Save current trap for display purposes (if not already in nested subshell)
         if (traps[i] && !inherited_traps[i]) {

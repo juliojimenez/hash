@@ -236,7 +236,7 @@ run_command_test "create alias" "alias testcmd='echo test works'"
 run_test "use alias" "alias testcmd='echo aliasworks' && testcmd" "aliasworks"
 run_test "alias with args" "alias ll='ls -la' && ll ." "total"
 run_command_test "list aliases" "alias"
-run_command_test "remove alias" "unalias testcmd"
+run_command_test "remove alias" "alias testcmd='echo hi'; unalias testcmd"
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
@@ -345,6 +345,47 @@ fi
 # count is right however deep the loop nesting
 run_test "special parameters inside arithmetic" 'set -- a b; false; echo "q=$(( $? )) n=$(( $# )) b=$(( ${#} ))"' "q=1 n=2 b=2"
 run_test "arithmetic \$# inside nested loops" 'set -- a b; for i in 1; do for j in 1; do for k in 1; do for l in 1; do for m in 1; do for n in 1; do for o in 1; do for p in 1; do for q in 1; do for r in 1; do echo "deep=$(( $# ))"; done; done; done; done; done; done; done; done; done; done' "deep=2"
+
+# EXIT trap: runs under -c too, sees the exit status as $?, and keeps it unless
+# the trap itself calls exit with an operand; a bare exit uses $?
+echo -n "Testing: EXIT trap under -c keeps the exit status... "
+trap_c_out=$(run_with_timeout 2 "$HASH_BIN" -c "trap 'echo bye' EXIT; exit 3" 2>&1); trap_c_ec=$?
+trap_c2_out=$(run_with_timeout 2 "$HASH_BIN" -c "trap 'echo st=\$?; exit' EXIT; exit 4" 2>&1); trap_c2_ec=$?
+if [[ "$trap_c_out" == "bye" && "$trap_c_ec" == "3" && "$trap_c2_out" == "st=4" && "$trap_c2_ec" == "4" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$trap_c_out] ec=$trap_c_ec (want bye, 3) and [$trap_c2_out] ec=$trap_c2_ec (want st=4, 4)"; ((FAILED++))
+fi
+
+echo -n "Testing: exit with an operand inside the EXIT trap replaces the status... "
+run_with_timeout 2 "$HASH_BIN" -c "trap 'exit 5' EXIT; exit 3" >/dev/null 2>&1; trap_rep_ec=$?
+run_with_timeout 2 "$HASH_BIN" -c "trap 'false' EXIT; exit 3" >/dev/null 2>&1; trap_keep_ec=$?
+if [[ "$trap_rep_ec" == "5" && "$trap_keep_ec" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  exit 5 in trap gave $trap_rep_ec (want 5); false in trap gave $trap_keep_ec (want 3)"; ((FAILED++))
+fi
+
+echo -n "Testing: EXIT trap in a script and on stdin keeps the last status... "
+printf "trap 'echo bye' EXIT\nfalse\n" > "$TEST_DIR/trap_false.sh"
+trap_f_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/trap_false.sh" 2>&1); trap_f_ec=$?
+trap_s_out=$(printf "trap 'echo bye' EXIT\nexit 3\n" | run_with_timeout 2 "$HASH_BIN" 2>&1); trap_s_ec=$?
+if [[ "$trap_f_out" == "bye" && "$trap_f_ec" == "1" && "$trap_s_out" == "bye" && "$trap_s_ec" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  script: [$trap_f_out] ec=$trap_f_ec (want bye, 1); stdin: [$trap_s_out] ec=$trap_s_ec (want bye, 3)"; ((FAILED++))
+fi
+
+run_test "EXIT trap in a subshell keeps the subshell status" "(trap 'echo sub' EXIT; exit 6); echo \"s=\$?\"" "s=6"
+
+echo -n "Testing: bare exit uses the last status... "
+run_with_timeout 2 "$HASH_BIN" -c 'false; exit' >/dev/null 2>&1; bare_ec=$?
+run_with_timeout 2 "$HASH_BIN" -c 'true; exit' >/dev/null 2>&1; bare0_ec=$?
+if [[ "$bare_ec" == "1" && "$bare0_ec" == "0" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  false; exit gave $bare_ec (want 1); true; exit gave $bare0_ec (want 0)"; ((FAILED++))
+fi
 
 # The shell removes the quotes around an alias value; quotes inside it stay
 run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"; greet' "hello world"

@@ -724,10 +724,10 @@ static ExecStatus exec_subshell(const Node *n) {
             _exit(1);
         }
         (void)exec_node(n->u.group.body);
-        int trap_exit = trap_execute_exit();
+        int status = trap_exit_status(last_command_exit_code);
         fflush(stdout);
         fflush(stderr);
-        _exit(((trap_exit >= 0) ? trap_exit : last_command_exit_code) & 0xFF);
+        _exit(status & 0xFF);
     }
     last_command_exit_code = wait_for_pid(pid);
     return EXEC_OK;
@@ -790,10 +790,10 @@ static ExecStatus exec_background(const Node *n) {
                 _exit(1);
             }
             (void)exec_node(inner->u.group.body);
-            int trap_exit = trap_execute_exit();
+            int status = trap_exit_status(last_command_exit_code);
             fflush(stdout);
             fflush(stderr);
-            _exit(((trap_exit >= 0) ? trap_exit : last_command_exit_code) & 0xFF);
+            _exit(status & 0xFF);
         }
         run_in_child_and_exit(n, false);
     }

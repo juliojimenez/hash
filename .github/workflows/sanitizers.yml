@@ -191,7 +191,10 @@ jobs:
 
       - name: Run Valgrind - History
         run: |
-          echo -e "echo first\necho second\nhistory\n!!\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
+          # History expansion (!!) happens only at the interactive prompt; piped
+          # in, "!!" is a literal command that fails and a bare exit would carry
+          # its status
+          echo -e "echo first\necho second\nhistory\nexit" | valgrind --suppressions=.valgrind-suppressions --leak-check=full --error-exitcode=1 ./hash-shell
 
       - name: Run Valgrind - Background Jobs
         run: |
