@@ -46,6 +46,17 @@ testing
 12345
 ```
 
+### $LINENO - Current Line
+
+The line of the current command: within the script, the `-c` string or the
+`eval` text being run, and from the definition line inside a function body.
+Syntax errors report the same line.
+
+```bash
+#> echo $LINENO
+1
+```
+
 ### $0 - Shell Name
 
 ```bash

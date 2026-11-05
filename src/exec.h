@@ -57,6 +57,8 @@ typedef struct {
     char *text;
     size_t len;
     size_t cap;
+    size_t first_line;  /* input line (1-based) where the pending text starts */
+    size_t next_line;   /* input line the next fed line will have */
 } ExecFeeder;
 
 typedef enum {
@@ -70,5 +72,26 @@ void exec_feeder_free(ExecFeeder *feeder);
 void exec_feeder_reset(ExecFeeder *feeder);
 bool exec_feeder_pending(const ExecFeeder *feeder);
 FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *status);
+
+/** Account for an input line that is not fed (the shebang line). */
+void exec_feeder_skip_line(ExecFeeder *feeder);
+
+/**
+ * Where the text being run comes from, for messages: a script path, "-c",
+ * "eval"; NULL while reading standard input or the prompt.
+ */
+void exec_set_source(const char *name);
+const char *exec_source(void);
+
+/** $LINENO: the input line of the command being run, and the same as text. */
+size_t exec_current_line(void);
+const char *exec_lineno_string(void);
+
+/**
+ * Print a syntax error for the current source: "hash: FILE: line N: message",
+ * "hash: -c: line N: message", "hash: line N: message" on standard input, and
+ * just "hash: message" at the prompt. Quiet while silent_errors is set.
+ */
+void exec_report_syntax_error(const char *message, size_t line);
 
 #endif

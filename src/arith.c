@@ -17,6 +17,10 @@
 #include "utils.h"
 #include "script.h"      // positional parameters: script_state and script_get_positional_param()
 
+// $LINENO comes from the executor. exec.h is not included here: its tokenizer
+// types (Token, TokenType) clash with the arithmetic tokenizer's own.
+size_t exec_current_line(void);
+
 // External reference to last command exit code (from builtins.c)
 extern int last_command_exit_code;
 
@@ -182,6 +186,10 @@ static long get_variable(const char *name) {
         // Check for unset positional parameter with -u
         check_arith_unset_error(name);
         return 0;
+    }
+
+    if (strcmp(name, "LINENO") == 0) {
+        return (long)exec_current_line();
     }
 
     // Regular shell variable (checks shell vars first, then environment)

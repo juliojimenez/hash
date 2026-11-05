@@ -170,6 +170,7 @@ int script_define_function(const char *name, const char *body) {
             free(script_state.functions[i].body);
             script_state.functions[i].body = strdup(body);
             script_state.functions[i].body_len = strlen(body);
+            script_state.functions[i].def_line = 0;
             // POSIX: function definition sets exit code to 0
             last_command_exit_code = 0;
             return 0;
@@ -185,6 +186,7 @@ int script_define_function(const char *name, const char *body) {
     safe_strcpy(func->name, name, MAX_FUNC_NAME);
     func->body = strdup(body);
     func->body_len = strlen(body);
+    func->def_line = 0;
 
     if (!func->body) return -1;
 
@@ -603,6 +605,7 @@ static int execute_file_lines_ast(FILE *fp, bool record_history) {
         if (first) {
             first = false;
             if (line[0] == '#' && line[1] == '!') {
+                exec_feeder_skip_line(&feeder);
                 continue;  // shebang
             }
         }
@@ -623,10 +626,7 @@ static int execute_file_lines_ast(FILE *fp, bool record_history) {
         }
     }
     if (result > 0 && exec_feeder_pending(&feeder)) {
-        if (!script_state.silent_errors) {
-            fprintf(stderr, "%s: %s: syntax error: unexpected end of file\n", HASH_NAME,
-                    script_state.script_path ? script_state.script_path : "script");
-        }
+        exec_report_syntax_error("syntax error: unexpected end of file", feeder.next_line - 1);
         last_command_exit_code = 2;
         result = -1;
     }
@@ -715,7 +715,11 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
 
     int result = 1;  // 1 = continue, 0 = exit called, < 0 = error
 
+    // Messages from this file name it; the caller's source comes back after
+    const char *old_source = exec_source();
+    exec_set_source(filepath);
     result = execute_file_lines_ast(fp, record_history);
+    exec_set_source(old_source);
 
     fclose(fp);
 
@@ -746,6 +750,10 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
 
     // For return (-2), use the last exit code
     // For other errors (< 0), return 1
+    // A syntax error is 2 (POSIX); return (-2) and exit carry the last status
+    if (result == -1) {
+        return 2;
+    }
     return (result < 0 && result != -2) ? 1 : execute_get_last_exit_code();
 }
 

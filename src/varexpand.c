@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <fnmatch.h>
+#include "exec.h"
 #include "varexpand.h"
 #include "safe_string.h"
 #include "hash.h"
@@ -322,6 +323,8 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         if (is_positional) {
                             int param_num = atoi(var_name);
                             val = get_positional_param(param_num);
+                        } else if (strcmp(var_name, "LINENO") == 0) {
+                            val = exec_lineno_string();
                         } else {
                             val = shellvar_get(var_name);
                         }
@@ -546,7 +549,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                 var_name[name_len] = '\0';
 
                 if (name_len > 0) {
-                    var_value = shellvar_get(var_name);
+                    var_value = (strcmp(var_name, "LINENO") == 0) ? exec_lineno_string() : shellvar_get(var_name);
                     // Check for unset variable with -u option
                     if (var_value == NULL) {
                         check_unset_error(var_name);

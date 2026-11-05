@@ -453,6 +453,14 @@ void test_function_body_keeps_blank_lines(void) {
     TEST_ASSERT_NOT_NULL(strstr(fn->body, "true\n\ntrue"));
 }
 
+// $LINENO is the line of the command within the text being run
+void test_lineno_counts_lines_of_the_text(void) {
+    TEST_ASSERT_EQUAL_STRING("1 1\n", run("echo $LINENO $((LINENO))"));
+    TEST_ASSERT_EQUAL_STRING("1\n2\n", run("echo $LINENO\necho $LINENO"));
+    TEST_ASSERT_EQUAL_STRING("2\n", run("f() {\n  echo $LINENO\n}\nf"));  // defined on line 1, echo on line 2
+    TEST_ASSERT_EQUAL_STRING("5\n", run("true\ntrue\ntrue\nf() {\n  echo $LINENO\n}\nf"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -502,6 +510,7 @@ int main(void) {
     RUN_TEST(test_feeder_reports_exit);
     RUN_TEST(test_exec_string_status_contract);
     RUN_TEST(test_function_body_keeps_blank_lines);
+    RUN_TEST(test_lineno_counts_lines_of_the_text);
 
     return UNITY_END();
 }

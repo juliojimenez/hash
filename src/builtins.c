@@ -1013,11 +1013,23 @@ int shell_eval(char **args) {
         strcat(cmd, args[i]);
     }
 
+    // Messages from the text name eval as their source
+    const char *old_source = exec_source();
+    exec_set_source("eval");
     bool incomplete = false;
     ExecStatus st = exec_string(cmd, &incomplete);
+    size_t cmd_lines = 1;
+    for (const char *p = cmd; *p; p++) {
+        if (*p == '\n' && p[1] != '\0') {
+            cmd_lines++;
+        }
+    }
     free(cmd);
     if (incomplete) {
-        fprintf(stderr, "%s: eval: syntax error: unexpected end of file\n", HASH_NAME);
+        exec_report_syntax_error("syntax error: unexpected end of file", cmd_lines);
+    }
+    exec_set_source(old_source);
+    if (incomplete) {
         last_command_exit_code = 2;
         // An interactive shell reports the error and keeps going;
         // POSIX: a syntax error ends a non-interactive shell
