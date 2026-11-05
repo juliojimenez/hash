@@ -1,0 +1,6 @@
+# `exit N` in ~/.hashrc ends the shell before the first prompt with that status (#312)
+rc echo RC''-RAN
+rc exit 7
+expect RC-RAN
+absent hash>
+status 7

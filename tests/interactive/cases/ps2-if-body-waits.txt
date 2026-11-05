@@ -1,0 +1,12 @@
+# The body of an `if` does not run before `fi` (#287)
+send if true; then
+expect ...
+send echo BO''DY
+expect ...
+absent BODY
+send fi
+expect BODY
+send echo AF''TER
+expect AFTER
+send exit
+status 0

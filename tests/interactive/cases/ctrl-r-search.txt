@@ -1,0 +1,11 @@
+# Ctrl-R finds an earlier line by a fragment and Enter runs it
+send echo NEE''DLE-ONE
+expect NEEDLE-ONE
+send echo other
+expect other
+raw \x12
+raw DLE-ONE
+raw \r
+expect NEEDLE-ONE
+send exit
+status 0

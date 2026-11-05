@@ -18,7 +18,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/test_*.c)
 TEST_OBJ = $(filter-out $(BUILD_DIR)/main.o, $(OBJ))
 TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SRC))
 
-.PHONY: all clean install uninstall debug help test test-setup test-clean color-demo format-check release demo
+.PHONY: all clean install uninstall debug help test test-setup test-clean test-interactive color-demo format-check release demo
 
 all: $(TARGET)
 
@@ -58,6 +58,7 @@ help:
 	@echo " test-setup  - Download and setup Unity test framework"
 	@echo " test        - Run unit tests"
 	@echo " test-clean  - Remove test build artifacts"
+	@echo " test-interactive - Drive the shell in a pty through tests/interactive/cases"
 	@echo " release     - Bump every version string: make release VERSION=47"
 	@echo " help        - Show this help message"
 	@echo ""
@@ -110,6 +111,10 @@ test: test-setup $(TEST_BINS)
 	if [ $$failed -gt 0 ]; then \
 		exit 1; \
 	fi
+
+# Drive the shell in a pseudo-terminal: tests/interactive/run.py and its cases
+test-interactive: $(TARGET)
+	python3 $(TEST_DIR)/interactive/run.py --shell ./$(TARGET)
 
 # Clean test artifacts
 test-clean:

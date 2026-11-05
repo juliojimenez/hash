@@ -1,0 +1,15 @@
+# A heredoc typed at the prompt collects its body under PS2 and expands it
+send cat <<EOF
+expect ...
+send one $((1 + 1))
+expect ...
+send EOF
+expect one 2
+send cat <<'Q'
+send $HOME is kept
+send Q
+expect $HOME is kept
+send echo DO''NE
+expect DONE
+send exit
+status 0

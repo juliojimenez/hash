@@ -1,0 +1,4 @@
+# Ctrl-D on an empty line ends the shell like exit, keeping the last status
+send false
+raw \x04
+status 1

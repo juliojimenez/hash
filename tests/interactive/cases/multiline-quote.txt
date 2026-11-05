@@ -1,0 +1,6 @@
+# An open double quote continues the line in the editor; Enter inside it inserts a newline
+send echo "LINE-A
+raw LINE-B"\r
+expect LINE-A\nLINE-B\n
+send exit
+status 0

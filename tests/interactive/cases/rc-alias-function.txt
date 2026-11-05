@@ -1,0 +1,10 @@
+# Aliases and functions defined in ~/.hashrc are usable at the prompt (#305)
+rc set welcome=off
+rc alias ll='echo LL-ALIAS'
+rc greet() { echo "hello $1"; }
+send ll
+expect LL-ALIAS
+send greet world
+expect hello world
+send exit
+status 0

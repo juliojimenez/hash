@@ -1,0 +1,7 @@
+# A file sourced at the prompt defines functions for the rest of the session
+send printf 'sf() { echo FROM-SOURCED; }\n' > s.sh
+send . ./s.sh
+send sf
+expect FROM-SOURCED
+send exit
+status 0

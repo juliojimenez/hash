@@ -1,0 +1,12 @@
+# Ctrl-C at the continuation prompt abandons the unfinished compound command
+send if true; then
+expect ...
+send echo DIS''CARDED
+expect ...
+raw \x03
+expect ^C
+send echo AF''TER
+expect AFTER
+absent DISCARDED
+send exit
+status 0

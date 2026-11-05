@@ -69,3 +69,6 @@ fuzz/*.o
 .vscode
 .DS_Store
 CLAUDE.local.md
+
+# Python bytecode from tests/interactive/run.py
+__pycache__/

@@ -1,0 +1,8 @@
+# Up recalls the previous line and Enter runs it again
+send echo UP''-ONE
+expect UP-ONE
+raw \x1b[A
+raw \r
+expect UP-ONE
+send exit
+status 0

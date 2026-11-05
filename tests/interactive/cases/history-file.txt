@@ -1,0 +1,12 @@
+# Typed commands reach the history file as typed; a leading space keeps a line out (HISTCONTROL default)
+send echo FIRST''-CMD
+expect FIRST-CMD
+send echo SECOND''-CMD
+expect SECOND-CMD
+send  echo SPA''CED
+expect SPACED
+send exit
+status 0
+file .hash_history has echo FIRST''-CMD\necho SECOND''-CMD\n
+file .hash_history lacks SPACED
+file .hash_history has exit

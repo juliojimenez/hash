@@ -1,0 +1,6 @@
+rc set welcome=off
+send echo RE''ADY
+expect READY
+absent Type 'exit' to quit
+send exit
+status 0

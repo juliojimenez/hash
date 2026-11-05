@@ -1,0 +1,9 @@
+# Ctrl-C on a half-typed line throws the line away and gives a fresh prompt
+raw echo NOT''RUN
+raw \x03
+expect ^C
+send echo AF''TER
+expect AFTER
+absent NOTRUN
+send exit
+status 0
