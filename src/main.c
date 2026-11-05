@@ -383,6 +383,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Execute the command string, then the EXIT trap
+        exec_set_source("-c");
         int result = trap_exit_status(script_execute_string(command_string));
 
         script_cleanup();

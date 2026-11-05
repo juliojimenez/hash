@@ -29,6 +29,48 @@
 #define EXEC_MAX_REDIRS 32
 
 // ============================================================================
+// Source location: where the running text came from, for messages and $LINENO
+// ============================================================================
+
+static const char *exec_source_name = NULL;  // script path, "-c", "eval"; NULL for stdin and the prompt
+static size_t exec_line_base = 1;            // input line (1-based) of line 0 of the parsed text
+static size_t exec_lineno = 0;               // $LINENO: line of the command being run
+
+void exec_set_source(const char *name) {
+    exec_source_name = name;
+}
+
+const char *exec_source(void) {
+    return exec_source_name;
+}
+
+size_t exec_current_line(void) {
+    return exec_lineno;
+}
+
+const char *exec_lineno_string(void) {
+    static char buf[24];
+    snprintf(buf, sizeof(buf), "%zu", exec_lineno);
+    return buf;
+}
+
+void exec_report_syntax_error(const char *message, size_t line) {
+    if (script_state.silent_errors) {
+        return;
+    }
+    if (!message) {
+        message = "syntax error";
+    }
+    if (exec_source_name) {
+        fprintf(stderr, "%s: %s: line %zu: %s\n", HASH_NAME, exec_source_name, line, message);
+    } else if (is_interactive && !script_state.in_script) {
+        fprintf(stderr, "%s: %s\n", HASH_NAME, message);  // at the prompt a line number means nothing
+    } else {
+        fprintf(stderr, "%s: line %zu: %s\n", HASH_NAME, line, message);
+    }
+}
+
+// ============================================================================
 // Status mapping
 // ============================================================================
 
@@ -518,6 +560,7 @@ static void forget_saved_redirs(SavedFd *saved, int count) {
 }
 
 static ExecStatus exec_simple(const Node *n) {
+    exec_lineno = exec_line_base + n->line;  // $LINENO for this command
     const WordVec *assignments = &n->u.simple.assignments;
     const WordVec *words = &n->u.simple.words;
     bool permanent = is_bare_exec(words);
@@ -1066,6 +1109,11 @@ static ExecStatus exec_function_def(const Node *n) {
     text[body->src_len] = '\0';
     script_define_function(n->u.function.name, text);
     free(text);
+    // The body text starts at the opening brace; its lines count from there
+    ShellFunction *fn = script_get_function(n->u.function.name);
+    if (fn) {
+        fn->def_line = exec_line_base + body->line;
+    }
     last_command_exit_code = 0;
     return EXEC_OK;
 }
@@ -1086,6 +1134,9 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     bool dynamic_scoping = shell_option_nonlexicalctrl();
     int old_break = script_get_break_pending();
     int old_continue = script_get_continue_pending();
+    size_t old_line_base = exec_line_base;
+    size_t old_lineno = exec_lineno;
+    exec_line_base = func->def_line ? func->def_line : 1;  // $LINENO counts from the definition
     if (!dynamic_scoping) {
         script_set_break_pending(0);
         script_set_continue_pending(0);
@@ -1110,6 +1161,8 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
         last_command_exit_code = 2;
     }
     arena_free(&arena);
+    exec_line_base = old_line_base;
+    exec_lineno = old_lineno;
 
     script_state.function_call_depth--;
     exec_directly_in_child = old_direct;
@@ -1175,9 +1228,13 @@ ExecStatus exec_node(const Node *node) {
 }
 
 ExecStatus exec_string(const char *src, bool *incomplete) {
-
     Arena arena;
     arena_init(&arena, 0);
+    // The text is its own input unit: lines count from 1, and the caller's
+    // position comes back afterwards
+    size_t old_line_base = exec_line_base;
+    size_t old_lineno = exec_lineno;
+    exec_line_base = 1;
     AstParseResult parsed = parse_program(src, &arena);
     ExecStatus st = EXEC_OK;
     if (incomplete) {
@@ -1186,11 +1243,24 @@ ExecStatus exec_string(const char *src, bool *incomplete) {
     if (parsed.status == PARSE_OK) {
         st = exec_node(parsed.root);
     } else if (parsed.status == PARSE_ERROR || !incomplete) {
-        fprintf(stderr, "%s: %s\n", HASH_NAME, parsed.message ? parsed.message : "syntax error");
+        exec_report_syntax_error(parsed.message, 1 + parsed.line);
         last_command_exit_code = 2;
     }
     arena_free(&arena);
+    exec_line_base = old_line_base;
+    exec_lineno = old_lineno;
     return st;
+}
+
+// Lines in a text, for the "unexpected end of file" location
+static size_t count_lines(const char *src) {
+    size_t lines = 1;
+    for (const char *p = src; *p; p++) {
+        if (*p == '\n' && p[1] != '\0') {
+            lines++;
+        }
+    }
+    return lines;
 }
 
 int exec_string_status(const char *src) {
@@ -1199,7 +1269,7 @@ int exec_string_status(const char *src) {
     bool incomplete = false;
     (void)exec_string(src, &incomplete);
     if (incomplete) {
-        fprintf(stderr, "%s: syntax error: unexpected end of file\n", HASH_NAME);
+        exec_report_syntax_error("syntax error: unexpected end of file", count_lines(src));
         last_command_exit_code = 2;
     }
     script_state.in_script = old_in_script;
@@ -1214,6 +1284,15 @@ void exec_feeder_init(ExecFeeder *feeder) {
     feeder->text = NULL;
     feeder->len = 0;
     feeder->cap = 0;
+    feeder->first_line = 1;
+    feeder->next_line = 1;
+}
+
+void exec_feeder_skip_line(ExecFeeder *feeder) {
+    feeder->next_line++;
+    if (feeder->len == 0) {
+        feeder->first_line = feeder->next_line;
+    }
 }
 
 void exec_feeder_free(ExecFeeder *feeder) {
@@ -1226,6 +1305,7 @@ void exec_feeder_reset(ExecFeeder *feeder) {
     if (feeder->text) {
         feeder->text[0] = '\0';
     }
+    feeder->first_line = feeder->next_line;  // the next text starts at the next input line
 }
 
 bool exec_feeder_pending(const ExecFeeder *feeder) {
@@ -1250,6 +1330,7 @@ static bool feeder_append(ExecFeeder *feeder, const char *line) {
     feeder->len += n;
     feeder->text[feeder->len++] = '\n';
     feeder->text[feeder->len] = '\0';
+    feeder->next_line++;
     return true;
 }
 
@@ -1269,16 +1350,21 @@ FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *stat
     if (parsed.status == PARSE_INCOMPLETE) {
         result = FEED_NEED_MORE;
     } else if (parsed.status == PARSE_ERROR) {
-        fprintf(stderr, "%s: %s\n", HASH_NAME, parsed.message ? parsed.message : "syntax error");
+        exec_report_syntax_error(parsed.message, feeder->first_line + parsed.line);
         last_command_exit_code = 2;
         exec_feeder_reset(feeder);
         result = FEED_SYNTAX_ERROR;
     } else {
         // The nodes view the text they were parsed from (a background job
         // records its command from it), so the program keeps the text while
-        // it runs and the feeder starts over with an empty one
+        // it runs and the feeder starts over with an empty one, counting on
         char *program = feeder->text;
-        exec_feeder_init(feeder);
+        size_t base = feeder->first_line;
+        feeder->text = NULL;
+        feeder->len = 0;
+        feeder->cap = 0;
+        feeder->first_line = feeder->next_line;
+        exec_line_base = base;
         *status = exec_node(parsed.root);
         free(program);
         result = FEED_RAN;

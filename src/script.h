@@ -53,6 +53,7 @@ typedef struct {
     char name[MAX_FUNC_NAME];
     char *body;             // Function body (commands)
     size_t body_len;
+    size_t def_line;        // Input line of the definition, for $LINENO in the body (0 = unknown)
 } ShellFunction;
 
 // ============================================================================

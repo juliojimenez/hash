@@ -267,6 +267,59 @@ run_interactive_test "escaped semicolon is literal" 'echo foo\;#bar' "foo;#bar"
 
 run_interactive_test "line continuation across prompt lines" $'printf \'%s|\' a \\\n  b c; echo' "a|b|c|"
 
+# Syntax errors name their source and line and exit 2: a script stops, eval and
+# source report and let the caller go on. $LINENO is the current line.
+echo -n "Testing: syntax error in a script names file and line, exits 2... "
+printf 'echo one\nfi\necho three\n' > "$TEST_DIR/synerr.sh"
+se_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/synerr.sh" 2>&1); se_ec=$?
+se_want=$(printf "one\nhash: %s: line 2: syntax error near unexpected token \`fi'" "$TEST_DIR/synerr.sh")
+if [[ "$se_out" == "$se_want" && "$se_ec" == "2" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got ec=$se_ec:"; echo "$se_out" | head -3; ((FAILED++))
+fi
+
+echo -n "Testing: syntax error under -c and on stdin names the line... "
+c_out=$(run_with_timeout 2 "$HASH_BIN" -c 'echo a; fi' 2>&1); c_ec=$?
+s_out=$(printf 'echo x\nfi\n' | run_with_timeout 2 "$HASH_BIN" 2>&1); s_ec=$?
+c_want=$(printf "hash: -c: line 1: syntax error near unexpected token \`fi'")
+s_want=$(printf "x\nhash: line 2: syntax error near unexpected token \`fi'")
+if [[ "$c_out" == "$c_want" && "$c_ec" == "2" && "$s_out" == "$s_want" && "$s_ec" == "2" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  -c: [$c_out] ec=$c_ec; stdin: [$s_out] ec=$s_ec"; ((FAILED++))
+fi
+
+echo -n "Testing: eval and source report the error and the caller goes on... "
+printf 'fi\n' > "$TEST_DIR/bad.sh"
+ev_out=$(run_with_timeout 2 "$HASH_BIN" -c 'eval "fi"; echo "after=$?"' 2>&1)
+so_out=$(run_with_timeout 2 "$HASH_BIN" -c "source $TEST_DIR/bad.sh; echo \"after=\$?\"" 2>&1)
+ev_want=$(printf "hash: eval: line 1: syntax error near unexpected token \`fi'\nafter=2")
+so_want=$(printf "hash: %s: line 1: syntax error near unexpected token \`fi'\nafter=2" "$TEST_DIR/bad.sh")
+if [[ "$ev_out" == "$ev_want" && "$so_out" == "$so_want" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  eval: [$ev_out]"; echo "  source: [$so_out]"; ((FAILED++))
+fi
+
+echo -n "Testing: unexpected end of file names the last line... "
+printf 'if true; then\necho x\n' > "$TEST_DIR/eof.sh"
+eof_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/eof.sh" 2>&1); eof_ec=$?
+if [[ "$eof_out" == "hash: $TEST_DIR/eof.sh: line 2: syntax error: unexpected end of file" && "$eof_ec" == "2" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$eof_out] ec=$eof_ec"; ((FAILED++))
+fi
+
+echo -n "Testing: \$LINENO in a script, a function and eval... "
+printf 'echo "l1=$LINENO"\n\necho "l3=$LINENO $((LINENO))"\nf() {\n  echo "f=$LINENO"\n}\nf\neval '"'"'echo "e=$LINENO"'"'"'\necho "l9=$LINENO"\n' > "$TEST_DIR/lineno.sh"
+ln_out=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/lineno.sh" 2>&1)
+if [[ "$ln_out" == $'l1=1\nl3=3 3\nf=5\ne=1\nl9=9' ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got:"; echo "$ln_out"; ((FAILED++))
+fi
+
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "
 printf 'exit 3\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_exit=$?
