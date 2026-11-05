@@ -26,6 +26,8 @@ typedef enum {
     BUILTIN_FUNC_COLON,
     BUILTIN_FUNC_ECHO,
     BUILTIN_FUNC_READ,
+    BUILTIN_FUNC_GETOPTS,
+    BUILTIN_FUNC_SHIFT,
     BUILTIN_FUNC_RETURN,
     BUILTIN_FUNC_BREAK,
     BUILTIN_FUNC_CONTINUE,
@@ -239,6 +241,20 @@ int shell_echo(char **args);
  * @return
  */
 int shell_read(char **args);
+
+/**
+ * getopts optstring name [arg...]: parse one option per call into name,
+ * with OPTIND and OPTARG as POSIX describes. Parses the operands given, or
+ * the positional parameters when there are none. Status 0 while options
+ * remain, 1 at the end of the options, 2 on a usage error.
+ */
+int shell_getopts(char **args);
+
+/**
+ * shift [n]: drop the first n positional parameters (default 1). An n larger
+ * than $# is an error and leaves the parameters alone (status 1).
+ */
+int shell_shift(char **args);
 
 /**
  * Built-in command: return - return from function or sourced script

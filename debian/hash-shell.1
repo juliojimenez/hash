@@ -378,6 +378,18 @@ export the variable.
 .BI source " file"
 Read and execute commands from file in the current shell environment.
 .TP
+.BI getopts " optstring name [arg ...]"
+Parse one option per call into the variable
+.IR name ,
+following POSIX: OPTIND is the index of the next argument, OPTARG holds an
+option's argument, a leading colon in optstring selects silent error reporting.
+Parses the positional parameters unless arguments are given. Returns non-zero
+when the options are exhausted.
+.TP
+.BI shift " [n]"
+Drop the first n positional parameters (default 1). Fails without changing them
+when n is larger than $#.
+.TP
 .B exit
 Exit the shell. If there are running background jobs, warns before exiting.
 .TP

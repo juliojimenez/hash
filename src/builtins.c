@@ -67,6 +67,8 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
     [BUILTIN_FUNC_COLON]            = (Builtin){":",            &shell_colon},
     [BUILTIN_FUNC_ECHO]             = (Builtin){"echo",         &shell_echo},
     [BUILTIN_FUNC_READ]             = (Builtin){"read",         &shell_read},
+    [BUILTIN_FUNC_GETOPTS]          = (Builtin){"getopts",      &shell_getopts},
+    [BUILTIN_FUNC_SHIFT]            = (Builtin){"shift",        &shell_shift},
     [BUILTIN_FUNC_RETURN]           = (Builtin){"return",       &shell_return},
     [BUILTIN_FUNC_BREAK]            = (Builtin){"break",        &shell_break},
     [BUILTIN_FUNC_CONTINUE]         = (Builtin){"continue",     &shell_continue_cmd},
@@ -1507,6 +1509,193 @@ int shell_type(char **args) {
     }
 
     last_command_exit_code = all_found ? 0 : 1;
+    return 1;
+}
+
+// ============================================================================
+// getopts
+// ============================================================================
+
+// Position inside an option cluster such as -ab: the character to look at
+// next in the argument OPTIND points to. It only means something while OPTIND
+// is still the value we left it at; a script that assigns OPTIND (OPTIND=1 to
+// parse again) starts a fresh argument.
+static int getopts_cluster_pos = 0;
+static long getopts_cluster_optind = -1;
+
+static void getopts_set_optind(long optind) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%ld", optind);
+    shellvar_set("OPTIND", buf);
+    getopts_cluster_optind = optind;
+}
+
+static void getopts_report(const char *what, char opt) {
+    const char *who = script_get_positional_param(0);
+    if (!who || !*who) {
+        who = HASH_NAME;
+    }
+    fprintf(stderr, "%s: %s -- %c\n", who, what, opt);
+}
+
+int shell_getopts(char **args) {
+    if (!args[1] || !args[2]) {
+        fprintf(stderr, "%s: getopts: usage: getopts optstring name [arg ...]\n", HASH_NAME);
+        last_command_exit_code = 2;
+        return 1;
+    }
+    const char *optstring = args[1];
+    const char *name = args[2];
+    bool silent = (optstring[0] == ':');
+    if (silent) {
+        optstring++;
+    }
+
+    // What to parse, indexed from 1 like the positional parameters
+    char **argv;
+    int argc;
+    if (args[3]) {
+        argv = &args[2];
+        argc = 0;
+        while (argv[argc + 1]) {
+            argc++;
+        }
+    } else {
+        argv = script_state.positional_params;
+        argc = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
+    }
+
+    const char *optind_str = shellvar_get("OPTIND");
+    long optind = optind_str ? strtol(optind_str, NULL, 10) : 1;
+    if (optind < 1) {
+        optind = 1;
+    }
+    if (optind != getopts_cluster_optind) {
+        getopts_cluster_pos = 0;  // the script moved OPTIND: start that argument afresh
+    }
+
+    // End of the options: no more arguments, an operand, or "--"
+    if (optind > argc || !argv) {
+        shellvar_set(name, "?");
+        getopts_set_optind(optind);
+        last_command_exit_code = 1;
+        return 1;
+    }
+    const char *arg = argv[optind];
+    if (getopts_cluster_pos == 0) {
+        if (arg[0] != '-' || arg[1] == '\0') {
+            shellvar_set(name, "?");
+            getopts_set_optind(optind);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        if (strcmp(arg, "--") == 0) {
+            shellvar_set(name, "?");
+            getopts_set_optind(optind + 1);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        getopts_cluster_pos = 1;
+    }
+
+    char opt = arg[getopts_cluster_pos];
+    const char *spec = (opt == ':') ? NULL : strchr(optstring, opt);
+    getopts_cluster_pos++;
+    bool more_in_cluster = (arg[getopts_cluster_pos] != '\0');
+    char optbuf[2] = {opt, '\0'};
+
+    if (!spec) {
+        // Not an option we know
+        shellvar_set(name, "?");
+        if (silent) {
+            shellvar_set("OPTARG", optbuf);
+        } else {
+            shellvar_unset("OPTARG");
+            getopts_report("illegal option", opt);
+        }
+        if (!more_in_cluster) {
+            optind++;
+            getopts_cluster_pos = 0;
+        }
+        getopts_set_optind(optind);
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    if (spec[1] == ':') {
+        // The option takes an argument: the rest of this word, or the next one
+        if (more_in_cluster) {
+            shellvar_set("OPTARG", arg + getopts_cluster_pos);
+            optind++;
+        } else if (optind + 1 <= argc) {
+            shellvar_set("OPTARG", argv[optind + 1]);
+            optind += 2;
+        } else {
+            optind++;
+            getopts_cluster_pos = 0;
+            if (silent) {
+                shellvar_set(name, ":");
+                shellvar_set("OPTARG", optbuf);
+            } else {
+                shellvar_set(name, "?");
+                shellvar_unset("OPTARG");
+                getopts_report("option requires an argument", opt);
+            }
+            getopts_set_optind(optind);
+            last_command_exit_code = 0;
+            return 1;
+        }
+        getopts_cluster_pos = 0;
+        shellvar_set(name, optbuf);
+        getopts_set_optind(optind);
+        last_command_exit_code = 0;
+        return 1;
+    }
+
+    // A flag: no argument, OPTARG unset
+    shellvar_set(name, optbuf);
+    shellvar_unset("OPTARG");
+    if (!more_in_cluster) {
+        optind++;
+        getopts_cluster_pos = 0;
+    }
+    getopts_set_optind(optind);
+    last_command_exit_code = 0;
+    return 1;
+}
+
+// ============================================================================
+// shift
+// ============================================================================
+
+int shell_shift(char **args) {
+    long n = 1;
+    if (args[1]) {
+        char *end;
+        n = strtol(args[1], &end, 10);
+        if (*args[1] == '\0' || *end != '\0' || n < 0) {
+            fprintf(stderr, "%s: shift: %s: numeric argument required\n", HASH_NAME, args[1]);
+            last_command_exit_code = 1;
+            return 1;
+        }
+    }
+    int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
+    if (n > count) {
+        fprintf(stderr, "%s: shift: shift count out of range\n", HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    }
+    if (n > 0) {
+        // $0 stays; $1..$n go and the rest move down
+        for (long i = 1; i <= n; i++) {
+            free(script_state.positional_params[i]);
+        }
+        for (long i = 1; i + n < script_state.positional_count; i++) {
+            script_state.positional_params[i] = script_state.positional_params[i + n];
+        }
+        script_state.positional_count -= (int)n;
+    }
+    last_command_exit_code = 0;
     return 1;
 }
 

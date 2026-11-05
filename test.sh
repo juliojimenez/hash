@@ -320,6 +320,54 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  got:"; echo "$ln_out"; ((FAILED++))
 fi
 
+# getopts: the POSIX option parser, checked against bash's output for the same
+# script and arguments
+cat > "$TEST_DIR/getopts.sh" <<'GETOPTS'
+while getopts "ab:" opt; do
+  case $opt in
+    a) echo "A" ;;
+    b) echo "B=$OPTARG" ;;
+    ?) echo "bad opt=$opt OPTARG=${OPTARG-unset}" ;;
+  esac
+done
+echo "OPTIND=$OPTIND"
+shift $((OPTIND-1))
+echo "rest=$*"
+GETOPTS
+sed 's/"ab:"/":ab:"/' "$TEST_DIR/getopts.sh" > "$TEST_DIR/getopts_silent.sh"
+echo -n "Testing: getopts walks flags, arguments, clusters and -- ... "
+g1=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" -a -b val x y 2>&1 | tr '\n' '|')
+g2=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" -ab val -- -z 2>&1 | tr '\n' '|')
+g3=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" -abval x 2>&1 | tr '\n' '|')
+g4=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" x -a 2>&1 | tr '\n' '|')
+if [[ "$g1" == "A|B=val|OPTIND=4|rest=x y|" && "$g2" == "A|B=val|OPTIND=4|rest=-z|" && "$g3" == "A|B=val|OPTIND=2|rest=x|" && "$g4" == "OPTIND=1|rest=x -a|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  g1=[$g1]"; echo "  g2=[$g2]"; echo "  g3=[$g3]"; echo "  g4=[$g4]"; ((FAILED++))
+fi
+
+echo -n "Testing: getopts reports unknown options and missing arguments... "
+g5=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" -a -z x 2>&1 | tr '\n' '|')
+g6=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts.sh" -b 2>&1 | tr '\n' '|')
+g7=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts_silent.sh" -z x 2>&1 | tr '\n' '|')
+g8=$(run_with_timeout 2 "$HASH_BIN" "$TEST_DIR/getopts_silent.sh" -a -b 2>&1 | tr '\n' '|')
+if [[ "$g5" == "A|$TEST_DIR/getopts.sh: illegal option -- z|bad opt=? OPTARG=unset|OPTIND=3|rest=x|" && "$g6" == "$TEST_DIR/getopts.sh: option requires an argument -- b|bad opt=? OPTARG=unset|OPTIND=2|rest=|" && "$g7" == "bad opt=? OPTARG=z|OPTIND=2|rest=x|" && "$g8" == "A|bad opt=: OPTARG=b|OPTIND=3|rest=|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  g5=[$g5]"; echo "  g6=[$g6]"; echo "  g7=[$g7]"; echo "  g8=[$g8]"; ((FAILED++))
+fi
+
+run_test "getopts parses again after OPTIND=1" 'getopts "a" o -a; OPTIND=1; getopts "a" o -a; echo "o=$o OPTIND=$OPTIND"' "o=a OPTIND=2"
+run_test "OPTIND starts at 1" 'echo "OPTIND=$OPTIND"' "OPTIND=1"
+run_test "shift drops positional parameters" 'set -- a b c; shift; echo "$# $1"; shift 2; echo "$#"' "2 b"
+echo -n "Testing: shift past the end fails and keeps the parameters... "
+sh_out=$(run_with_timeout 2 "$HASH_BIN" -c 'set -- a b; shift 3; echo "st=$? n=$# first=$1"' 2>&1 | tr '\n' '|')
+if [[ "$sh_out" == "hash: shift: shift count out of range|st=1 n=2 first=a|" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got [$sh_out]"; ((FAILED++))
+fi
+
 # exit N at the prompt, and end of input, leave the shell with the last status
 echo -n "Testing: exit status at the prompt... "
 printf 'exit 3\n' | HOME="$PWD/$TEST_DIR" HISTFILE="$PWD/$TEST_DIR/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i >/dev/null 2>&1; ec_exit=$?
