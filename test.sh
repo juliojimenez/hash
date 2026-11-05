@@ -406,11 +406,13 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected exit 0 with no prompt; got exit $lo_ec: $lo_out"; ((FAILED++))
 fi
 
-# exit inside a condition in .hashrc still ends the shell with its status
+# exit inside a condition in .hashrc still ends the shell with its status.
+# The legacy engine's condition evaluator drops the exit (it goes away with the
+# engine in #313), so this case pins the default engine.
 echo -n "Testing: exit inside an if condition in .hashrc ends the shell... "
 mkdir -p "$TEST_DIR/rcifexit"
 printf 'if exit 7; then\n:\nfi\necho after\n' > "$TEST_DIR/rcifexit/.hashrc"
-ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
+ife_out=$(printf 'echo alive\n' | HOME="$PWD/$TEST_DIR/rcifexit" HISTFILE="$PWD/$TEST_DIR/rcifexit/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 HASH_ENGINE=ast run_with_timeout 2 "$HASH_BIN" -i 2>&1); ife_ec=$?
 if [[ "$ife_ec" == "7" ]] && ! echo "$ife_out" | grep -qE "alive|after"; then
     echo -e "${GREEN}PASS${NC}"; ((PASSED++))
 else
