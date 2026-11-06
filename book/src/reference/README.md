@@ -185,6 +185,7 @@ hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element
 | `unset` | Remove a variable or function |
 | `readonly` | Make a variable read-only |
 | `local` | Variables local to a function |
+| `complete` | Programmable completion: `-W words`, `-F function`, `-a -b -c -d -f -u -v`, `-o default`, `-p`, `-r` |
 | `read` | Read a line into variables |
 | `getopts` | Parse options in a script |
 | `shift` | Drop positional parameters |

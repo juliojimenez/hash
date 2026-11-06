@@ -16,6 +16,7 @@
 #include <strings.h>
 #include <signal.h>
 #include "exec.h"
+#include "completion.h"
 #include "hash.h"
 #include "input.h"
 #include "builtins.h"
@@ -70,6 +71,7 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
     [BUILTIN_FUNC_GETOPTS]          = (Builtin){"getopts",      &shell_getopts},
     [BUILTIN_FUNC_SHIFT]            = (Builtin){"shift",        &shell_shift},
     [BUILTIN_FUNC_LOCAL]            = (Builtin){"local",        &shell_local},
+    [BUILTIN_FUNC_COMPLETE]         = (Builtin){"complete",     &shell_complete},
     [BUILTIN_FUNC_RETURN]           = (Builtin){"return",       &shell_return},
     [BUILTIN_FUNC_BREAK]            = (Builtin){"break",        &shell_break},
     [BUILTIN_FUNC_CONTINUE]         = (Builtin){"continue",     &shell_continue_cmd},
@@ -2336,4 +2338,115 @@ bool is_builtin(const char *cmd) {
     }
 
     return false;
+}
+
+// ============================================================================
+// complete: programmable completion
+// ============================================================================
+
+static void complete_usage(void) {
+    fprintf(stderr, "%s: complete: usage: complete [-abcdfuv] [-o default|dirnames] [-W wordlist] [-F function] name...\n"
+                    "                           complete -p [name...]   complete -r [name...]\n", HASH_NAME);
+}
+
+int shell_complete(char **args) {
+    bool print = false;
+    bool remove = false;
+    bool fallback_default = false;
+    bool fallback_dirs = false;
+    const char *wordlist = NULL;
+    const char *function = NULL;
+    unsigned actions = 0;
+    bool any_spec_option = false;
+    int i = 1;
+
+    for (; args[i] && args[i][0] == '-' && args[i][1] != '\0'; i++) {
+        const char *opt = args[i];
+        if (strcmp(opt, "--") == 0) {
+            i++;
+            break;
+        }
+        if (strcmp(opt, "-W") == 0 || strcmp(opt, "-F") == 0 || strcmp(opt, "-o") == 0) {
+            const char *value = args[i + 1];
+            if (!value) {
+                fprintf(stderr, "%s: complete: %s: option requires an argument\n", HASH_NAME, opt);
+                last_command_exit_code = 2;
+                return 1;
+            }
+            i++;
+            any_spec_option = true;
+            if (opt[1] == 'W') {
+                wordlist = value;
+            } else if (opt[1] == 'F') {
+                function = value;
+            } else if (strcmp(value, "default") == 0) {
+                fallback_default = true;
+            } else if (strcmp(value, "dirnames") == 0) {
+                fallback_dirs = true;
+            } else {
+                fprintf(stderr, "%s: complete: -o %s: invalid option name\n", HASH_NAME, value);
+                last_command_exit_code = 2;
+                return 1;
+            }
+            continue;
+        }
+        for (const char *p = opt + 1; *p; p++) {
+            switch (*p) {
+                case 'p': print = true; break;
+                case 'r': remove = true; break;
+                case 'a': actions |= COMP_ACTION_ALIASES; any_spec_option = true; break;
+                case 'b': actions |= COMP_ACTION_BUILTINS; any_spec_option = true; break;
+                case 'c': actions |= COMP_ACTION_COMMANDS; any_spec_option = true; break;
+                case 'd': actions |= COMP_ACTION_DIRS; any_spec_option = true; break;
+                case 'f': actions |= COMP_ACTION_FILES; any_spec_option = true; break;
+                case 'u': actions |= COMP_ACTION_USERS; any_spec_option = true; break;
+                case 'v': actions |= COMP_ACTION_VARIABLES; any_spec_option = true; break;
+                default:
+                    fprintf(stderr, "%s: complete: -%c: invalid option\n", HASH_NAME, *p);
+                    complete_usage();
+                    last_command_exit_code = 2;
+                    return 1;
+            }
+        }
+    }
+
+    int status = 0;
+    if (remove) {
+        if (!args[i]) {
+            completion_spec_remove_all();
+        }
+        for (; args[i]; i++) {
+            if (!completion_spec_remove(args[i])) {
+                fprintf(stderr, "%s: complete: %s: no completion specification\n", HASH_NAME, args[i]);
+                status = 1;
+            }
+        }
+    } else if (print || !any_spec_option) {
+        if (!args[i]) {
+            for (const CompSpec *s = completion_spec_first(); s; s = s->next) {
+                completion_spec_print(stdout, s);
+            }
+        }
+        for (; args[i]; i++) {
+            const CompSpec *s = completion_spec_find(args[i]);
+            if (s) {
+                completion_spec_print(stdout, s);
+            } else {
+                fprintf(stderr, "%s: complete: %s: no completion specification\n", HASH_NAME, args[i]);
+                status = 1;
+            }
+        }
+    } else if (!args[i]) {
+        complete_usage();
+        status = 2;
+    } else {
+        for (; args[i]; i++) {
+            if (completion_spec_define(args[i], wordlist, function, actions, fallback_default, fallback_dirs) != 0) {
+                fprintf(stderr, "%s: complete: %s: could not record the specification\n", HASH_NAME, args[i]);
+                status = 1;
+            }
+        }
+    }
+    last_command_exit_code = status;
+    return 1;
 }

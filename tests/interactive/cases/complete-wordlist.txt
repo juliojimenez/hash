@@ -1,0 +1,17 @@
+# complete -W and complete -F supply candidates for a command (#329)
+send hashtool() { echo "$@"; }
+send complete -W "alpha beta" hashtool
+raw hashtool al\t
+raw \r
+expect hashtool alpha 
+expect \nalpha\n
+send _hc() { echo gamma; echo delta; }
+send complete -F _hc hashtool
+raw hashtool ga\t
+raw \r
+expect hashtool gamma 
+expect \ngamma\n
+send complete -p hashtool
+expect complete -F _hc hashtool
+send exit
+status 0

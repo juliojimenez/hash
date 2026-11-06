@@ -726,6 +726,13 @@ else
     echo -e "${RED}FAIL${NC}"; echo "$oh" | head -6; ((FAILED++))
 fi
 
+# complete: programmable completion specs are recorded, printed back in a form
+# that can be typed again, and removed
+run_test "complete -W records and prints a spec" "complete -d -W 'alpha beta' hctool; complete -p hctool" "complete -d -W 'alpha beta' hctool"
+run_test "complete -F records a function spec" "complete -F _hc -o default hcother; complete hcother" "complete -o default -F _hc hcother"
+run_test "complete -r removes a spec" "complete -W x hcgone; complete -r hcgone; complete -p hcgone; echo \"status=\$?\"" "status=1"
+run_test "complete rejects an unknown option" "complete -Z x; echo \"status=\$?\"" "status=2"
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

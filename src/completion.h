@@ -1,7 +1,9 @@
 #ifndef COMPLETION_H
 #define COMPLETION_H
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #define MAX_COMPLETIONS 256
 #define MAX_COMPLETION_LENGTH 1024
@@ -13,10 +15,39 @@ typedef struct {
     char *common_prefix; // Common prefix of all matches
 } CompletionResult;
 
+/* Actions a `complete` spec can ask for, combinable */
+#define COMP_ACTION_FILES      0x01  /* -f */
+#define COMP_ACTION_DIRS       0x02  /* -d */
+#define COMP_ACTION_COMMANDS   0x04  /* -c */
+#define COMP_ACTION_VARIABLES  0x08  /* -v */
+#define COMP_ACTION_ALIASES    0x10  /* -a */
+#define COMP_ACTION_BUILTINS   0x20  /* -b */
+#define COMP_ACTION_USERS      0x40  /* -u */
+
+/* What `complete` recorded for one command */
+typedef struct CompSpec {
+    char *command;
+    char *wordlist;        /* -W: candidates separated by blanks, filtered by the word */
+    char *function;        /* -F: a shell function; its stdout lines that start with the word are the candidates */
+    unsigned actions;      /* COMP_ACTION_* */
+    bool fallback_default; /* -o default: files when nothing else matched */
+    bool fallback_dirs;    /* -o dirnames: directories when nothing else matched */
+    struct CompSpec *next;
+} CompSpec;
+
 /**
  * Initialize completion system
  */
 void completion_init(void);
+
+/* Programmable completion: define, remove, look up and print specs */
+int completion_spec_define(const char *command, const char *wordlist, const char *function,
+                           unsigned actions, bool fallback_default, bool fallback_dirs);
+bool completion_spec_remove(const char *command);
+void completion_spec_remove_all(void);
+const CompSpec *completion_spec_find(const char *command);
+const CompSpec *completion_spec_first(void);
+void completion_spec_print(FILE *out, const CompSpec *spec);
 
 /**
  * Generate completions for the current input

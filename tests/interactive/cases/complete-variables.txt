@@ -1,0 +1,7 @@
+# Tab after $ completes variable names (#329)
+send export HASHCOMP_PTY_VALUE=42
+raw echo $HASHCOMP_PTY_V\t
+raw \r
+expect 42\n
+send exit
+status 0
