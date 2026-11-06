@@ -1,17 +1,31 @@
 #include "unity.h"
 #include "../src/completion.h"
 #include "../src/config.h"
+#include "../src/shellvar.h"
+#include "../src/exec.h"
+#include "../src/script.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
+static char saved_cwd[1024];
+
 void setUp(void) {
     config_init();
     completion_init();
+    script_init();
+    shellvar_init();
+    if (!getcwd(saved_cwd, sizeof(saved_cwd))) {
+        saved_cwd[0] = '\0';
+    }
 }
 
 void tearDown(void) {
+    if (saved_cwd[0]) {
+        chdir(saved_cwd);  // a failed assertion may have left us in the test tree
+    }
 }
 
 // Test completion generation returns results
@@ -153,6 +167,155 @@ void test_completion_free_null(void) {
     TEST_ASSERT_TRUE(1);
 }
 
+// ============================================================================
+// Context-aware completion (#329)
+// ============================================================================
+
+#define COMP_TEST_DIR "/tmp/hash_completion_ctx_test"
+
+static int has_match(const CompletionResult *r, const char *text) {
+    for (int i = 0; r && i < r->count; i++) {
+        if (strcmp(r->matches[i], text) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void make_test_tree(void) {
+    system("rm -rf " COMP_TEST_DIR " && mkdir -p " COMP_TEST_DIR "/adir && touch " COMP_TEST_DIR "/afile");
+    FILE *f = fopen(COMP_TEST_DIR "/Makefile", "w");
+    if (f) {
+        fputs("VAR := 1\n.PHONY: build clean\nbuild: src/main.c\n\tcc -o out $<\nclean check:\n\trm -f out\n%.o: %.c\n\tcc -c $<\n", f);
+        fclose(f);
+    }
+}
+
+void test_completion_variables_after_dollar(void) {
+    setenv("HASHCOMP_TEST_VAR", "1", 1);
+    CompletionResult *r = completion_generate("echo $HASHCOMP_TE", 17);
+    TEST_ASSERT_NOT_NULL(r);
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("$HASHCOMP_TEST_VAR", r->matches[0]);
+    completion_free_result(r);
+    r = completion_generate("echo ${HASHCOMP_TE", 18);
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("${HASHCOMP_TEST_VAR}", r->matches[0]);
+    completion_free_result(r);
+    // A shell variable that is not exported is offered too
+    shellvar_set("hashcomp_local_only", "x");
+    r = completion_generate("echo $hashcomp_loc", 18);
+    TEST_ASSERT_TRUE(has_match(r, "$hashcomp_local_only"));
+    completion_free_result(r);
+    shellvar_unset("hashcomp_local_only");
+    unsetenv("HASHCOMP_TEST_VAR");
+}
+
+void test_completion_cd_directories_only(void) {
+    make_test_tree();
+    char cwd[1024];
+    TEST_ASSERT_NOT_NULL(getcwd(cwd, sizeof(cwd)));
+    TEST_ASSERT_EQUAL_INT(0, chdir(COMP_TEST_DIR));
+    CompletionResult *r = completion_generate("cd a", 4);
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("adir/", r->matches[0]);
+    completion_free_result(r);
+    r = completion_generate("ls a", 4);  // other commands keep files
+    TEST_ASSERT_EQUAL_INT(2, r->count);
+    completion_free_result(r);
+    r = completion_generate("ls; cd a", 8);  // the command after a separator counts
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("adir/", r->matches[0]);
+    completion_free_result(r);
+    chdir(cwd);
+}
+
+void test_completion_name_spaces(void) {
+    config_add_alias("hashcomp_myalias", "ls");
+    CompletionResult *r = completion_generate("unalias hashcomp_my", 19);
+    TEST_ASSERT_TRUE(has_match(r, "hashcomp_myalias"));
+    completion_free_result(r);
+    setenv("HASHCOMP_EXPORTED", "1", 1);
+    r = completion_generate("export HASHCOMP_EX", 18);
+    TEST_ASSERT_TRUE(has_match(r, "HASHCOMP_EXPORTED"));   // bare names after export
+    completion_free_result(r);
+    r = completion_generate("unset HASHCOMP_EX", 17);
+    TEST_ASSERT_TRUE(has_match(r, "HASHCOMP_EXPORTED"));
+    completion_free_result(r);
+    unsetenv("HASHCOMP_EXPORTED");
+    r = completion_generate("sudo ec", 7);                   // the operand of sudo is a command
+    TEST_ASSERT_TRUE(has_match(r, "echo"));
+    completion_free_result(r);
+    r = completion_generate("~roo", 4);                      // ~user
+    TEST_ASSERT_TRUE(has_match(r, "~root/"));
+    completion_free_result(r);
+}
+
+void test_completion_wordlist_spec(void) {
+    TEST_ASSERT_EQUAL_INT(0, completion_spec_define("hashcomp_tool", "alpha alps beta", NULL, 0, false, false));
+    CompletionResult *r = completion_generate("hashcomp_tool al", 16);
+    TEST_ASSERT_EQUAL_INT(2, r->count);
+    TEST_ASSERT_EQUAL_STRING("alpha", r->matches[0]);       // sorted
+    TEST_ASSERT_EQUAL_STRING("alps", r->matches[1]);
+    TEST_ASSERT_EQUAL_STRING("alp", r->common_prefix);
+    completion_free_result(r);
+    r = completion_generate("hashcomp_tool zz", 16);
+    TEST_ASSERT_EQUAL_INT(0, r->count);                     // no -o default: nothing
+    completion_free_result(r);
+    const CompSpec *spec = completion_spec_find("hashcomp_tool");
+    TEST_ASSERT_NOT_NULL(spec);
+    TEST_ASSERT_EQUAL_STRING("alpha alps beta", spec->wordlist);
+    TEST_ASSERT_TRUE(completion_spec_remove("hashcomp_tool"));
+    TEST_ASSERT_FALSE(completion_spec_remove("hashcomp_tool"));
+    TEST_ASSERT_NULL(completion_spec_find("hashcomp_tool"));
+}
+
+void test_completion_make_targets(void) {
+    make_test_tree();
+    char cwd[1024];
+    TEST_ASSERT_NOT_NULL(getcwd(cwd, sizeof(cwd)));
+    TEST_ASSERT_EQUAL_INT(0, chdir(COMP_TEST_DIR));
+    CompletionResult *r = completion_generate("make ", 5);
+    TEST_ASSERT_EQUAL_INT(3, r->count);                     // build, check, clean: not VAR, .PHONY or %.o
+    TEST_ASSERT_EQUAL_STRING("build", r->matches[0]);
+    TEST_ASSERT_EQUAL_STRING("check", r->matches[1]);
+    TEST_ASSERT_EQUAL_STRING("clean", r->matches[2]);
+    completion_free_result(r);
+    r = completion_generate("make cl", 7);
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("clean", r->matches[0]);
+    completion_free_result(r);
+    chdir(cwd);
+}
+
+void test_completion_git_subcommands(void) {
+    CompletionResult *r = completion_generate("git che", 7);
+    TEST_ASSERT_EQUAL_INT(2, r->count);
+    TEST_ASSERT_EQUAL_STRING("checkout", r->matches[0]);
+    TEST_ASSERT_EQUAL_STRING("cherry-pick", r->matches[1]);
+    completion_free_result(r);
+    r = completion_generate("git --no-pager sta", 18);      // options before the subcommand
+    TEST_ASSERT_TRUE(has_match(r, "stash"));
+    TEST_ASSERT_TRUE(has_match(r, "status"));
+    completion_free_result(r);
+}
+
+void test_completion_function_spec(void) {
+    bool incomplete = false;
+    exec_string("hashcomp_fn() { echo \"$1:$2:$3\" >/dev/null; echo gamma; echo delta; echo gap; }", &incomplete);
+    TEST_ASSERT_EQUAL_INT(0, completion_spec_define("hashcomp_cmd", NULL, "hashcomp_fn", 0, false, false));
+    CompletionResult *r = completion_generate("hashcomp_cmd ga", 15);
+    TEST_ASSERT_EQUAL_INT(2, r->count);                     // gamma and gap start with ga, delta does not
+    TEST_ASSERT_EQUAL_STRING("gamma", r->matches[0]);
+    TEST_ASSERT_EQUAL_STRING("gap", r->matches[1]);
+    completion_free_result(r);
+    r = completion_generate("hashcomp_cmd d", 14);
+    TEST_ASSERT_EQUAL_INT(1, r->count);
+    TEST_ASSERT_EQUAL_STRING("delta", r->matches[0]);
+    completion_free_result(r);
+    completion_spec_remove("hashcomp_cmd");
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -168,5 +331,12 @@ int main(void) {
     RUN_TEST(test_completion_null_input);
     RUN_TEST(test_completion_free_null);
 
+    RUN_TEST(test_completion_variables_after_dollar);
+    RUN_TEST(test_completion_cd_directories_only);
+    RUN_TEST(test_completion_name_spaces);
+    RUN_TEST(test_completion_wordlist_spec);
+    RUN_TEST(test_completion_make_targets);
+    RUN_TEST(test_completion_git_subcommands);
+    RUN_TEST(test_completion_function_spec);
     return UNITY_END();
 }

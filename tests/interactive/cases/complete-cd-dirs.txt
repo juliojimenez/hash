@@ -1,0 +1,13 @@
+# After cd, Tab offers directories only, and a bare name stays bare (no ./)
+send mkdir -p adir bdir; touch afile
+raw cd a\t
+raw \r
+raw pwd\r
+expect /adir\n
+send cd ..
+raw ls af\t
+raw \r
+expect ls afile 
+expect \nafile\n
+send exit
+status 0

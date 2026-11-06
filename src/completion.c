@@ -1,10 +1,12 @@
-#define _POSIX_C_SOURCE 200809L
-
+#define _XOPEN_SOURCE 700
+#define _DARWIN_C_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <dirent.h>
+#include <pwd.h>
 #include <sys/stat.h>
 #include <ctype.h>
 #include <limits.h>
@@ -12,8 +14,14 @@
 #include "safe_string.h"
 #include "config.h"
 #include "builtins.h"
+#include "exec.h"
+#include "execute.h"
 #include "expand.h"
+#include "script.h"
+#include "shellvar.h"
 #include "utils.h"
+
+extern char **environ;
 
 // Initialize completion
 void completion_init(void) {
@@ -49,6 +57,16 @@ static int add_match(CompletionResult *result, const char *match) {
 
     result->count++;
     return 0;
+}
+
+// Add a match unless the same text is already there
+static int add_unique(CompletionResult *result, const char *match) {
+    for (int i = 0; i < result->count; i++) {
+        if (strcmp(result->matches[i], match) == 0) {
+            return 0;
+        }
+    }
+    return add_match(result, match);
 }
 
 // Find common prefix of all matches
@@ -220,7 +238,8 @@ static void build_full_match(const struct dirent *entry, char *full_match,
     }
 }
 
-static void build_check_path(const struct dirent *entry, const char *dir_path, char *full_match, size_t name_len) {
+// Appends / to full_match and returns true when the entry is a directory
+static bool build_check_path(const struct dirent *entry, const char *dir_path, char *full_match, size_t name_len) {
     char check_path[PATH_MAX];
 
     if (strcmp(dir_path, ".") == 0) {
@@ -243,13 +262,15 @@ static void build_check_path(const struct dirent *entry, const char *dir_path, c
     struct stat st;
     if (stat(check_path, &st) == 0 && S_ISDIR(st.st_mode)) {
         safe_strcat(full_match, "/", MAX_COMPLETION_LENGTH);
+        return true;
     }
+    return false;
 }
 
-// Returns false if couldn't open the directory
+// Entries of dir_path that start with filename_prefix (directories only when dirs_only)
 static void handle_directory(CompletionResult *result, const char *dir_path,
         const char *filename_prefix, size_t prefix_len, const char *tilde_part,
-        bool has_tilde) {
+        bool has_tilde, bool dirs_only, bool bare_names) {
     // Open directory
     DIR *dp = opendir(dir_path);
     if (!dp) {
@@ -281,8 +302,15 @@ static void handle_directory(CompletionResult *result, const char *dir_path,
             build_full_match(entry, full_match, dir_path, tilde_part,
                     has_tilde);
 
-            // Build check path for stat
-            build_check_path(entry, dir_path, full_match, name_len);
+            // Build check path for stat; directories get a trailing slash
+            bool is_dir = build_check_path(entry, dir_path, full_match, name_len);
+            if (dirs_only && !is_dir) {
+                continue;
+            }
+            if (bare_names && strncmp(full_match, "./", 2) == 0) {
+                // The word had no directory part, so the match has none either
+                memmove(full_match, full_match + 2, strlen(full_match + 2) + 1);
+            }
 
             add_match(result, full_match);
         }
@@ -291,8 +319,8 @@ static void handle_directory(CompletionResult *result, const char *dir_path,
     closedir(dp);
 }
 
-// Complete files and directories
-static void complete_files(CompletionResult *result, const char *prefix) {
+// Complete files and directories (only directories when dirs_only)
+static void complete_files(CompletionResult *result, const char *prefix, bool dirs_only) {
     // Handle tilde expansion
     char *expanded_prefix = NULL;
     const char *working_prefix = prefix;
@@ -352,10 +380,743 @@ static void complete_files(CompletionResult *result, const char *prefix) {
 
     size_t prefix_len = strlen(filename_prefix);
 
+    bool bare_names = !has_tilde && strchr(prefix, '/') == NULL;
     handle_directory(result, dir_path, filename_prefix, prefix_len, tilde_part,
-            has_tilde);
+            has_tilde, dirs_only, bare_names);
 
     free(expanded_prefix);
+}
+
+// ============================================================================
+// Programmable completion: what the `complete` builtin records
+// ============================================================================
+
+static CompSpec *specs = NULL;
+
+static CompSpec *spec_lookup(const char *command) {
+    for (CompSpec *s = specs; s; s = s->next) {
+        if (strcmp(s->command, command) == 0) {
+            return s;
+        }
+    }
+    return NULL;
+}
+
+const CompSpec *completion_spec_find(const char *command) {
+    return command ? spec_lookup(command) : NULL;
+}
+
+const CompSpec *completion_spec_first(void) {
+    return specs;
+}
+
+static char *dup_or_null(const char *text) {
+    return (text && *text) ? strdup(text) : NULL;
+}
+
+int completion_spec_define(const char *command, const char *wordlist, const char *function,
+                           unsigned actions, bool fallback_default, bool fallback_dirs) {
+    if (!command || !*command) {
+        return -1;
+    }
+    CompSpec *spec = spec_lookup(command);
+    if (!spec) {
+        spec = calloc(1, sizeof(*spec));
+        if (!spec) {
+            return -1;
+        }
+        spec->command = strdup(command);
+        if (!spec->command) {
+            free(spec);
+            return -1;
+        }
+        // Keep definition order, so `complete` lists them as they were given
+        CompSpec **tail = &specs;
+        while (*tail) {
+            tail = &(*tail)->next;
+        }
+        *tail = spec;
+    }
+    free(spec->wordlist);
+    free(spec->function);
+    spec->wordlist = dup_or_null(wordlist);
+    spec->function = dup_or_null(function);
+    spec->actions = actions;
+    spec->fallback_default = fallback_default;
+    spec->fallback_dirs = fallback_dirs;
+    return 0;
+}
+
+static void spec_free(CompSpec *spec) {
+    free(spec->command);
+    free(spec->wordlist);
+    free(spec->function);
+    free(spec);
+}
+
+bool completion_spec_remove(const char *command) {
+    for (CompSpec **link = &specs; *link; link = &(*link)->next) {
+        if (strcmp((*link)->command, command) == 0) {
+            CompSpec *gone = *link;
+            *link = gone->next;
+            spec_free(gone);
+            return true;
+        }
+    }
+    return false;
+}
+
+void completion_spec_remove_all(void) {
+    while (specs) {
+        CompSpec *gone = specs;
+        specs = gone->next;
+        spec_free(gone);
+    }
+}
+
+// Print a word inside single quotes, the way it can be typed back
+static void print_single_quoted(FILE *out, const char *text) {
+    fputc('\'', out);
+    for (const char *p = text; *p; p++) {
+        if (*p == '\'') {
+            fputs("'\\''", out);
+        } else {
+            fputc(*p, out);
+        }
+    }
+    fputc('\'', out);
+}
+
+void completion_spec_print(FILE *out, const CompSpec *spec) {
+    if (!spec) {
+        return;
+    }
+    fputs("complete", out);
+    static const struct { unsigned bit; char letter; } letters[] = {
+        {COMP_ACTION_ALIASES, 'a'}, {COMP_ACTION_BUILTINS, 'b'}, {COMP_ACTION_COMMANDS, 'c'},
+        {COMP_ACTION_DIRS, 'd'}, {COMP_ACTION_FILES, 'f'}, {COMP_ACTION_USERS, 'u'},
+        {COMP_ACTION_VARIABLES, 'v'},
+    };
+    for (size_t i = 0; i < sizeof(letters) / sizeof(letters[0]); i++) {
+        if (spec->actions & letters[i].bit) {
+            fprintf(out, " -%c", letters[i].letter);
+        }
+    }
+    if (spec->fallback_default) {
+        fputs(" -o default", out);
+    }
+    if (spec->fallback_dirs) {
+        fputs(" -o dirnames", out);
+    }
+    if (spec->wordlist) {
+        fputs(" -W ", out);
+        print_single_quoted(out, spec->wordlist);
+    }
+    if (spec->function) {
+        fprintf(out, " -F %s", spec->function);
+    }
+    fprintf(out, " %s\n", spec->command);
+}
+
+// ============================================================================
+// Where the cursor is: the word, the command it belongs to, its position
+// ============================================================================
+
+typedef struct {
+    const char *line;
+    size_t pos;
+    size_t word_start;
+    char word[MAX_COMPLETION_LENGTH];     // the text being completed
+    char command[MAX_COMPLETION_LENGTH];  // first word of the current simple command
+    char prev[MAX_COMPLETION_LENGTH];     // the word before the one being completed
+    int word_index;                       // 0 when the word is the command itself
+    int option_args;                      // earlier arguments that start with '-'
+} CompContext;
+
+// Does the character at i start a new simple command? ; | & and newline do;
+// ( and { do when they stand on their own, so ${X} and $(...) do not count.
+static bool separator_at(const char *line, size_t i) {
+    char c = line[i];
+    if (c == ';' || c == '|' || c == '&' || c == '\n') {
+        return true;
+    }
+    if (c == '(' || c == '{') {
+        bool after_dollar = (i > 0 && line[i - 1] == '$');
+        bool at_start = (i == 0) || isspace((unsigned char)line[i - 1]) || line[i - 1] == '(';
+        return at_start && !after_dollar;
+    }
+    return false;
+}
+
+static bool looks_like_assignment(const char *token) {
+    for (size_t k = 0; token[k]; k++) {
+        if (token[k] == '=') {
+            return k > 0;
+        }
+        if (!isalnum((unsigned char)token[k]) && token[k] != '_') {
+            return false;
+        }
+    }
+    return false;
+}
+
+static void analyze_context(const char *line, size_t pos, CompContext *ctx) {
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->line = line;
+    ctx->pos = pos;
+
+    size_t word_start = pos;
+    while (word_start > 0 && !isspace((unsigned char)line[word_start - 1])) {
+        word_start--;
+    }
+    ctx->word_start = word_start;
+    size_t word_len = pos - word_start;
+    if (word_len >= sizeof(ctx->word)) {
+        word_len = sizeof(ctx->word) - 1;
+    }
+    memcpy(ctx->word, line + word_start, word_len);
+    ctx->word[word_len] = '\0';
+
+    // The current simple command starts after the last separator
+    size_t cmd_start = 0;
+    for (size_t i = word_start; i > 0; i--) {
+        if (separator_at(line, i - 1)) {
+            cmd_start = i;
+            break;
+        }
+    }
+
+    // Walk its words up to the one being completed
+    size_t i = cmd_start;
+    bool have_command = false;
+    while (i < word_start) {
+        while (i < word_start && isspace((unsigned char)line[i])) {
+            i++;
+        }
+        if (i >= word_start) {
+            break;
+        }
+        size_t start = i;
+        while (i < word_start && !isspace((unsigned char)line[i])) {
+            i++;
+        }
+        size_t len = i - start;
+        if (len >= MAX_COMPLETION_LENGTH) {
+            len = MAX_COMPLETION_LENGTH - 1;
+        }
+        char token[MAX_COMPLETION_LENGTH];
+        memcpy(token, line + start, len);
+        token[len] = '\0';
+        if (!have_command) {
+            // Leading assignments and ! are not the command
+            if (looks_like_assignment(token) || strcmp(token, "!") == 0) {
+                continue;
+            }
+            safe_strcpy(ctx->command, token, sizeof(ctx->command));
+            safe_strcpy(ctx->prev, token, sizeof(ctx->prev));
+            have_command = true;
+            ctx->word_index = 1;
+            continue;
+        }
+        ctx->word_index++;
+        if (token[0] == '-') {
+            ctx->option_args++;
+        }
+        safe_strcpy(ctx->prev, token, sizeof(ctx->prev));
+    }
+    if (!have_command) {
+        ctx->word_index = 0;  // the word being completed is the command
+    }
+}
+
+// ============================================================================
+// Completers
+// ============================================================================
+
+typedef struct {
+    CompletionResult *result;
+    const char *prefix;
+    size_t prefix_len;
+    const char *lead;   // text before the name in the match ($, ${ or nothing)
+    const char *trail;  // text after it (} or nothing)
+} NameCollector;
+
+static void collect_name(NameCollector *nc, const char *name) {
+    if (!name || strncmp(name, nc->prefix, nc->prefix_len) != 0) {
+        return;
+    }
+    char match[MAX_COMPLETION_LENGTH];
+    snprintf(match, sizeof(match), "%s%s%s", nc->lead, name, nc->trail);
+    add_unique(nc->result, match);
+}
+
+static void collect_shellvar(const char *name, const char *value, int attrs, void *ctx) {
+    (void)value;
+    (void)attrs;
+    collect_name((NameCollector *)ctx, name);
+}
+
+// Variable names from the shell table and the environment, wrapped in lead/trail
+static void add_variable_names(CompletionResult *result, const char *prefix, const char *lead, const char *trail) {
+    NameCollector nc = { result, prefix, strlen(prefix), lead, trail };
+    shellvar_foreach(collect_shellvar, &nc);
+    for (char **e = environ; e && *e; e++) {
+        const char *eq = strchr(*e, '=');
+        if (!eq || eq == *e) {
+            continue;
+        }
+        char name[MAX_COMPLETION_LENGTH];
+        size_t len = (size_t)(eq - *e);
+        if (len >= sizeof(name)) {
+            continue;
+        }
+        memcpy(name, *e, len);
+        name[len] = '\0';
+        collect_name(&nc, name);
+    }
+}
+
+// $NAME and ${NAME}: the word starts with $
+static void complete_variables(CompletionResult *result, const char *word) {
+    if (word[1] == '{') {
+        add_variable_names(result, word + 2, "${", "}");
+    } else {
+        add_variable_names(result, word + 1, "$", "");
+    }
+}
+
+static void add_function_names(CompletionResult *result, const char *prefix) {
+    size_t len = strlen(prefix);
+    for (int i = 0; i < script_state.function_count; i++) {
+        const char *name = script_state.functions[i].name;
+        if (name && strncmp(name, prefix, len) == 0) {
+            add_unique(result, name);
+        }
+    }
+}
+
+// ~user: login names, each as ~name/
+static void complete_users(CompletionResult *result, const char *word) {
+    const char *prefix = word + 1;
+    size_t len = strlen(prefix);
+    setpwent();
+    struct passwd *pw;
+    while ((pw = getpwent()) != NULL && result->count < MAX_COMPLETIONS) {
+        if (pw->pw_name && strncmp(pw->pw_name, prefix, len) == 0) {
+            char match[MAX_COMPLETION_LENGTH];
+            snprintf(match, sizeof(match), "~%s/", pw->pw_name);
+            add_unique(result, match);
+        }
+    }
+    endpwent();
+}
+
+// Lines printed by a command, each a candidate when it starts with the prefix
+static void add_lines_from_command(CompletionResult *result, const char *command, const char *prefix) {
+    FILE *fp = popen(command, "r");
+    if (!fp) {
+        return;
+    }
+    char line[MAX_COMPLETION_LENGTH];
+    size_t len = strlen(prefix);
+    while (fgets(line, sizeof(line), fp) && result->count < MAX_COMPLETIONS) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (line[0] && strncmp(line, prefix, len) == 0) {
+            add_unique(result, line);
+        }
+    }
+    pclose(fp);
+}
+
+// The words of a `complete -W` list that start with the prefix
+static void add_words(CompletionResult *result, const char *words, const char *prefix) {
+    size_t len = strlen(prefix);
+    const char *p = words;
+    while (*p) {
+        while (*p && isspace((unsigned char)*p)) {
+            p++;
+        }
+        const char *start = p;
+        while (*p && !isspace((unsigned char)*p)) {
+            p++;
+        }
+        size_t n = (size_t)(p - start);
+        if (n > 0 && n < MAX_COMPLETION_LENGTH) {
+            char word[MAX_COMPLETION_LENGTH];
+            memcpy(word, start, n);
+            word[n] = '\0';
+            if (strncmp(word, prefix, len) == 0) {
+                add_unique(result, word);
+            }
+        }
+    }
+}
+
+// Run a `complete -F` function with stdout captured: each line that starts
+// with the word being completed is a candidate, so a function may print its
+// whole vocabulary or filter it itself. $1 is the command, $2 the word being
+// completed, $3 the word before it; COMP_LINE, COMP_POINT and COMP_CWORD
+// describe the line.
+static void add_from_function(CompletionResult *result, const char *name, const CompContext *ctx) {
+    ShellFunction *func = script_get_function(name);
+    if (!func) {
+        return;
+    }
+    char path[] = "/tmp/hash-complete-XXXXXX";
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        return;
+    }
+    unlink(path);
+    fflush(stdout);
+    int saved_out = fcntl(STDOUT_FILENO, F_DUPFD, 20);
+    if (saved_out < 0) {
+        close(fd);
+        return;
+    }
+    dup2(fd, STDOUT_FILENO);
+
+    int saved_status = last_command_exit_code;
+    char number[32];
+    shellvar_set("COMP_LINE", ctx->line);
+    snprintf(number, sizeof(number), "%zu", ctx->pos);
+    shellvar_set("COMP_POINT", number);
+    snprintf(number, sizeof(number), "%d", ctx->word_index);
+    shellvar_set("COMP_CWORD", number);
+
+    char *argv[5];
+    argv[0] = func->name;
+    argv[1] = (char *)ctx->command;
+    argv[2] = (char *)ctx->word;
+    argv[3] = (char *)ctx->prev;
+    argv[4] = NULL;
+    exec_run_function(func, 4, argv);
+
+    shellvar_unset("COMP_LINE");
+    shellvar_unset("COMP_POINT");
+    shellvar_unset("COMP_CWORD");
+    last_command_exit_code = saved_status;
+
+    fflush(stdout);
+    dup2(saved_out, STDOUT_FILENO);
+    close(saved_out);
+
+    lseek(fd, 0, SEEK_SET);
+    FILE *fp = fdopen(fd, "r");
+    if (!fp) {
+        close(fd);
+        return;
+    }
+    char line[MAX_COMPLETION_LENGTH];
+    size_t word_len = strlen(ctx->word);
+    while (fgets(line, sizeof(line), fp) && result->count < MAX_COMPLETIONS) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (line[0] && strncmp(line, ctx->word, word_len) == 0) {
+            add_unique(result, line);
+        }
+    }
+    fclose(fp);
+}
+
+static void complete_from_spec(CompletionResult *result, const CompSpec *spec, const CompContext *ctx) {
+    const char *word = ctx->word;
+    if (spec->actions & COMP_ACTION_ALIASES) {
+        add_aliases(result, word, strlen(word));
+    }
+    if (spec->actions & COMP_ACTION_BUILTINS) {
+        add_builtin_commands(result, word, strlen(word));
+    }
+    if (spec->actions & COMP_ACTION_COMMANDS) {
+        complete_commands(result, word);
+    }
+    if (spec->actions & COMP_ACTION_VARIABLES) {
+        add_variable_names(result, word, "", "");
+    }
+    if (spec->actions & COMP_ACTION_USERS) {
+        char tilde[MAX_COMPLETION_LENGTH];
+        snprintf(tilde, sizeof(tilde), "~%s", word);
+        complete_users(result, tilde);
+    }
+    if (spec->actions & COMP_ACTION_DIRS) {
+        complete_files(result, word, true);
+    }
+    if (spec->actions & COMP_ACTION_FILES) {
+        complete_files(result, word, false);
+    }
+    if (spec->wordlist) {
+        add_words(result, spec->wordlist, word);
+    }
+    if (spec->function) {
+        add_from_function(result, spec->function, ctx);
+    }
+    if (result->count == 0 && spec->fallback_dirs) {
+        complete_files(result, word, true);
+    }
+    if (result->count == 0 && spec->fallback_default) {
+        complete_files(result, word, false);
+    }
+}
+
+static bool in_list(const char *word, const char *const *list) {
+    for (int i = 0; list[i]; i++) {
+        if (strcmp(word, list[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The first argument of the current command that does not start with -
+static void first_operand(const CompContext *ctx, char *out, size_t size) {
+    out[0] = '\0';
+    const char *line = ctx->line;
+    size_t i = 0;
+    bool past_command = false;
+    while (i < ctx->word_start) {
+        while (i < ctx->word_start && isspace((unsigned char)line[i])) {
+            i++;
+        }
+        size_t start = i;
+        while (i < ctx->word_start && !isspace((unsigned char)line[i])) {
+            i++;
+        }
+        if (i == start) {
+            break;
+        }
+        size_t n = i - start;
+        if (!past_command) {
+            if (n == strlen(ctx->command) && strncmp(line + start, ctx->command, n) == 0) {
+                past_command = true;
+            }
+            continue;
+        }
+        if (line[start] == '-') {
+            continue;
+        }
+        if (n < size) {
+            memcpy(out, line + start, n);
+            out[n] = '\0';
+        }
+        return;
+    }
+}
+
+// git: subcommands first, then refs, remotes or files depending on the subcommand
+static const char *const git_subcommands[] = {
+    "add", "am", "apply", "archive", "bisect", "blame", "branch", "bundle", "checkout",
+    "cherry-pick", "clean", "clone", "commit", "config", "describe", "diff", "difftool",
+    "fetch", "format-patch", "gc", "grep", "help", "init", "log", "merge", "mv", "notes",
+    "pull", "push", "range-diff", "rebase", "reflog", "remote", "reset", "restore",
+    "revert", "rm", "shortlog", "show", "sparse-checkout", "stash", "status", "submodule",
+    "switch", "tag", "worktree", NULL,
+};
+
+static void complete_git(CompletionResult *result, const CompContext *ctx) {
+    const char *word = ctx->word;
+    if (ctx->word_index - ctx->option_args == 1) {
+        size_t len = strlen(word);
+        for (int i = 0; git_subcommands[i]; i++) {
+            if (strncmp(git_subcommands[i], word, len) == 0) {
+                add_unique(result, git_subcommands[i]);
+            }
+        }
+        return;
+    }
+    char sub[MAX_COMPLETION_LENGTH];
+    first_operand(ctx, sub, sizeof(sub));
+    static const char *const ref_commands[] = {
+        "checkout", "switch", "merge", "rebase", "branch", "log", "diff", "reset",
+        "cherry-pick", "show", "revert", "rev-parse", "tag", NULL,
+    };
+    static const char *const remote_commands[] = { "push", "pull", "fetch", "remote", NULL };
+    static const char *const file_commands[] = {
+        "add", "rm", "mv", "restore", "checkout", "diff", "show", "blame", "grep", "log", NULL,
+    };
+    if (in_list(sub, ref_commands)) {
+        add_lines_from_command(result,
+            "git for-each-ref --format='%(refname:short)' refs/heads refs/remotes refs/tags 2>/dev/null", word);
+    }
+    if (in_list(sub, remote_commands)) {
+        add_lines_from_command(result, "git remote 2>/dev/null", word);
+    }
+    if (in_list(sub, file_commands) || result->count == 0) {
+        complete_files(result, word, false);
+    }
+}
+
+// make: targets of the makefile in the current directory
+static void add_make_targets_from(CompletionResult *result, const char *path, const char *prefix) {
+    FILE *fp = fopen(path, "r");
+    if (!fp) {
+        return;
+    }
+    size_t len = strlen(prefix);
+    char line[4096];
+    while (fgets(line, sizeof(line), fp) && result->count < MAX_COMPLETIONS) {
+        if (line[0] == '\t' || line[0] == '#' || line[0] == '\n') {
+            continue;  // recipe, comment, blank
+        }
+        char *colon = strchr(line, ':');
+        if (!colon || colon == line || colon[1] == '=') {
+            continue;  // no rule, or an assignment with :=
+        }
+        *colon = '\0';
+        if (strpbrk(line, "=$%#") != NULL) {
+            continue;  // assignment, variable or pattern rule
+        }
+        char *save = NULL;
+        for (char *name = strtok_r(line, " \t", &save); name; name = strtok_r(NULL, " \t", &save)) {
+            if (name[0] == '.' || name[0] == '\0') {
+                continue;  // .PHONY and friends
+            }
+            if (strncmp(name, prefix, len) == 0) {
+                add_unique(result, name);
+            }
+        }
+    }
+    fclose(fp);
+}
+
+static void complete_make(CompletionResult *result, const CompContext *ctx) {
+    const char *word = ctx->word;
+    if (strcmp(ctx->prev, "-f") == 0 || strcmp(ctx->prev, "-C") == 0 || strchr(word, '/')) {
+        complete_files(result, word, strcmp(ctx->prev, "-C") == 0);
+        return;
+    }
+    static const char *const names[] = { "GNUmakefile", "makefile", "Makefile", NULL };
+    for (int i = 0; names[i]; i++) {
+        if (access(names[i], R_OK) == 0) {
+            add_make_targets_from(result, names[i], word);
+            break;
+        }
+    }
+    if (result->count == 0) {
+        complete_files(result, word, false);
+    }
+}
+
+// man: page names from the manual directories
+static void add_man_pages_from(CompletionResult *result, const char *dir, const char *prefix) {
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        return;
+    }
+    size_t len = strlen(prefix);
+    const struct dirent *section;
+    while ((section = readdir(dp)) != NULL && result->count < MAX_COMPLETIONS) {
+        if (strncmp(section->d_name, "man", 3) != 0) {
+            continue;
+        }
+        char sub[PATH_MAX];
+        snprintf(sub, sizeof(sub), "%s/%s", dir, section->d_name);
+        DIR *sp = opendir(sub);
+        if (!sp) {
+            continue;
+        }
+        const struct dirent *page;
+        while ((page = readdir(sp)) != NULL && result->count < MAX_COMPLETIONS) {
+            if (page->d_name[0] == '.' || strncmp(page->d_name, prefix, len) != 0) {
+                continue;
+            }
+            char name[MAX_COMPLETION_LENGTH];
+            safe_strcpy(name, page->d_name, sizeof(name));
+            // Strip a compression suffix, then the section
+            static const char *const zips[] = { ".gz", ".bz2", ".xz", ".Z", ".lzma", ".zst", NULL };
+            for (int z = 0; zips[z]; z++) {
+                size_t zl = strlen(zips[z]);
+                size_t nl = strlen(name);
+                if (nl > zl && strcmp(name + nl - zl, zips[z]) == 0) {
+                    name[nl - zl] = '\0';
+                    break;
+                }
+            }
+            char *dot = strrchr(name, '.');
+            if (dot && dot != name) {
+                *dot = '\0';
+            }
+            if (name[0] && strncmp(name, prefix, len) == 0) {
+                add_unique(result, name);
+            }
+        }
+        closedir(sp);
+    }
+    closedir(dp);
+}
+
+static void complete_man(CompletionResult *result, const char *word) {
+    char dirs[4096] = "";
+    const char *env = getenv("MANPATH");
+    if (env && *env) {
+        safe_strcpy(dirs, env, sizeof(dirs));
+    } else {
+        FILE *fp = popen("manpath 2>/dev/null", "r");
+        if (fp) {
+            if (fgets(dirs, sizeof(dirs), fp)) {
+                dirs[strcspn(dirs, "\r\n")] = '\0';
+            }
+            pclose(fp);
+        }
+        if (dirs[0] == '\0') {
+            safe_strcpy(dirs, "/usr/share/man:/usr/local/share/man:/opt/homebrew/share/man", sizeof(dirs));
+        }
+    }
+    char *save = NULL;
+    for (char *dir = strtok_r(dirs, ":", &save); dir; dir = strtok_r(NULL, ":", &save)) {
+        if (*dir) {
+            add_man_pages_from(result, dir, word);
+        }
+    }
+}
+
+// Commands whose first operand is itself a command
+static const char *const command_prefixes[] = {
+    "command", "exec", "builtin", "type", "which", "sudo", "doas", "nohup", "nice", "time",
+    "env", "xargs", "watch", NULL,
+};
+
+static void complete_argument(CompletionResult *result, const CompContext *ctx) {
+    const char *word = ctx->word;
+    const char *cmd = ctx->command;
+
+    const CompSpec *spec = spec_lookup(cmd);
+    if (spec) {
+        complete_from_spec(result, spec, ctx);
+        return;
+    }
+    if (word[0] == '-') {
+        return;  // options are not completed
+    }
+    if (strcmp(cmd, "cd") == 0 || strcmp(cmd, "pushd") == 0 || strcmp(cmd, "rmdir") == 0) {
+        complete_files(result, word, true);
+    } else if (strcmp(cmd, "unalias") == 0) {
+        add_aliases(result, word, strlen(word));
+    } else if (strcmp(cmd, "unset") == 0) {
+        if (strcmp(ctx->prev, "-f") == 0) {
+            add_function_names(result, word);
+        } else {
+            add_variable_names(result, word, "", "");
+        }
+    } else if (strcmp(cmd, "export") == 0 || strcmp(cmd, "readonly") == 0 || strcmp(cmd, "local") == 0) {
+        add_variable_names(result, word, "", "");
+    } else if (in_list(cmd, command_prefixes)) {
+        if (ctx->word_index - ctx->option_args == 1) {
+            complete_commands(result, word);
+        } else {
+            complete_files(result, word, false);
+        }
+    } else if (strcmp(cmd, "git") == 0) {
+        complete_git(result, ctx);
+    } else if (strcmp(cmd, "make") == 0 || strcmp(cmd, "gmake") == 0) {
+        complete_make(result, ctx);
+    } else if (strcmp(cmd, "man") == 0) {
+        complete_man(result, word);
+    } else {
+        complete_files(result, word, false);
+    }
+}
+
+static int compare_matches(const void *a, const void *b) {
+    return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
 // Generate completions
@@ -365,39 +1126,31 @@ CompletionResult *completion_generate(const char *line, size_t pos) {
     CompletionResult *result = create_result();
     if (!result) return NULL;
 
-    // Extract word at cursor position
-    size_t word_start = pos;
-    while (word_start > 0 && !isspace(line[word_start - 1])) {
-        word_start--;
-    }
+    CompContext ctx;
+    analyze_context(line, pos, &ctx);
+    const char *word = ctx.word;
 
-    char word[1024];
-    size_t word_len = pos - word_start;
-    if (word_len >= sizeof(word)) word_len = sizeof(word) - 1;
-    memcpy(word, line + word_start, word_len);
-    word[word_len] = '\0';
-
-    // Determine if this is the first word (command) or argument
-    bool is_first_word = true;
-    for (size_t i = 0; i < word_start; i++) {
-        if (!isspace(line[i])) {
-            is_first_word = false;
-            break;
+    if (word[0] == '$' && word[1] != '(') {
+        complete_variables(result, word);
+    } else if (word[0] == '~' && word[1] != '\0' && strchr(word, '/') == NULL) {
+        complete_users(result, word);
+    } else if (ctx.word_index == 0) {
+        // The command: a path when it looks like one, otherwise names
+        if (char_in_string(word[0], ".~/") || strchr(word, '/') != NULL) {
+            complete_files(result, word, false);
+        } else {
+            complete_commands(result, word);
         }
-    }
-
-    // If it is first word and doesn't looks like a path, complete commands
-    if (is_first_word && !(char_in_string(word[0], ".~/") || strchr(word, '/') != NULL)) {
-        complete_commands(result, word);
     } else {
-        complete_files(result, word);
+        complete_argument(result, &ctx);
     }
 
-    // Calculate common prefix
+    if (result->count > 1) {
+        qsort(result->matches, (size_t)result->count, sizeof(char *), compare_matches);
+    }
     if (result->count > 0) {
         result->common_prefix = completion_common_prefix(result->matches, result->count);
     }
-
     return result;
 }
 

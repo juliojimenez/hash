@@ -507,3 +507,14 @@ void shellvar_list_all(void) {
         }
     }
 }
+
+void shellvar_foreach(void (*fn)(const char *name, const char *value, int attrs, void *ctx), void *ctx) {
+    if (!fn) {
+        return;
+    }
+    for (int i = 0; i < SHELLVAR_HASH_SIZE; i++) {
+        for (ShellVar *v = var_table[i]; v; v = v->next) {
+            fn(v->name, v->value, v->attrs, ctx);
+        }
+    }
+}

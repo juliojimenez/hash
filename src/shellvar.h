@@ -58,6 +58,11 @@ void shellvar_sync_from_env(void);
 void shellvar_list_all(void);
 
 /**
+ * Call fn for every shell variable (name, value or NULL, attrs), in no order.
+ */
+void shellvar_foreach(void (*fn)(const char *name, const char *value, int attrs, void *ctx), void *ctx);
+
+/**
  * Local variable scopes, one frame per function call. shellvar_local() records
  * a variable's state before the function changes it; shellvar_scope_pop() puts
  * every recorded variable back (value, attributes, environment) or removes one

@@ -43,6 +43,7 @@ typedef enum {
     BUILTIN_FUNC_WAIT,
     BUILTIN_FUNC_KILL,
     BUILTIN_FUNC_HASH,
+    BUILTIN_FUNC_COMPLETE,
 
     BUILTIN_FUNC_MAX
 } BuiltinFunc;
@@ -263,6 +264,13 @@ int shell_shift(char **args);
  * is unset inside the function. Fails outside a function or on a readonly name.
  */
 int shell_local(char **args);
+
+/**
+ * complete: programmable completion.
+ *   complete [-abcdfuv] [-o default|dirnames] [-W wordlist] [-F function] name...
+ *   complete -p [name...]   print specs      complete -r [name...]   remove specs
+ */
+int shell_complete(char **args);
 
 /**
  * Built-in command: return - return from function or sourced script
