@@ -1426,6 +1426,8 @@ void exec_feeder_init(ExecFeeder *feeder) {
     feeder->cap = 0;
     feeder->first_line = 1;
     feeder->next_line = 1;
+    feeder->on_program = NULL;
+    feeder->on_program_ctx = NULL;
 }
 
 void exec_feeder_skip_line(ExecFeeder *feeder) {
@@ -1490,6 +1492,11 @@ FeedResult exec_feed_line(ExecFeeder *feeder, const char *line, ExecStatus *stat
     arena_init(&arena, 0);
     AstParseResult parsed = parse_program(feeder->text, &arena);
     FeedResult result;
+    if (parsed.status != PARSE_INCOMPLETE && feeder->on_program) {
+        // The program is complete, for better or worse: hand the text over
+        // before it runs, so history holds it while it executes
+        feeder->on_program(feeder->text, feeder->on_program_ctx);
+    }
     if (parsed.status == PARSE_INCOMPLETE) {
         result = FEED_NEED_MORE;
     } else if (parsed.status == PARSE_ERROR) {

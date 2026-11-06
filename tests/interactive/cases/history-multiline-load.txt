@@ -1,0 +1,13 @@
+# A multi-line entry saved in the extended history format loads back as one entry
+write .hash_history #1700000000
+write .hash_history for i in a b; do
+write .hash_history echo got $i
+write .hash_history done
+write .hash_history #1700000001
+write .hash_history echo last
+raw \x1b[A
+raw \x1b[A
+raw \r
+expect got a\ngot b\n
+send exit
+status 0

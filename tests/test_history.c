@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <unistd.h>
 #include "unity.h"
 #include "../src/history.h"
 #include <string.h>
@@ -297,6 +299,54 @@ void test_history_expand_none(void) {
     TEST_ASSERT_NULL(expanded);  // No expansion, returns NULL
 }
 
+// ============================================================================
+// File format: multi-line entries and the old one-line format
+// ============================================================================
+
+#define HIST_TEST_FILE "/tmp/hash_test_history_format_12345"
+
+void test_history_save_load_multiline(void) {
+    setenv("HISTFILE", HIST_TEST_FILE, 1);
+    unlink(HIST_TEST_FILE);
+    history_init();
+    history_add("for i in 1 2; do\necho $i\ndone");
+    history_add("echo single");
+    history_save();
+    // Extended format: a #<seconds> line before each entry
+    FILE *f = fopen(HIST_TEST_FILE, "r");
+    TEST_ASSERT_NOT_NULL(f);
+    char first[64] = {0};
+    TEST_ASSERT_NOT_NULL(fgets(first, sizeof(first), f));
+    fclose(f);
+    TEST_ASSERT_EQUAL_CHAR('#', first[0]);
+    TEST_ASSERT_TRUE(first[1] >= '0' && first[1] <= '9');
+    TEST_ASSERT_TRUE(history_get_time(0) > 0);
+
+    history_clear();
+    history_load();
+    TEST_ASSERT_EQUAL_INT(2, history_count());
+    TEST_ASSERT_EQUAL_STRING("for i in 1 2; do\necho $i\ndone", history_get(0));
+    TEST_ASSERT_EQUAL_STRING("echo single", history_get(1));
+    TEST_ASSERT_TRUE(history_get_time(0) > 0);
+    unlink(HIST_TEST_FILE);
+    setenv("HISTFILE", "/tmp/hash_test_history_nonexistent_12345", 1);
+}
+
+void test_history_load_old_one_line_format(void) {
+    setenv("HISTFILE", HIST_TEST_FILE, 1);
+    FILE *f = fopen(HIST_TEST_FILE, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("echo old-one\necho old-two\n\necho old-three\n", f);
+    fclose(f);
+    history_init();
+    TEST_ASSERT_EQUAL_INT(3, history_count());  // the blank line is skipped
+    TEST_ASSERT_EQUAL_STRING("echo old-one", history_get(0));
+    TEST_ASSERT_EQUAL_STRING("echo old-three", history_get(2));
+    TEST_ASSERT_TRUE(history_get_time(0) > 0);  // old entries get the load time
+    unlink(HIST_TEST_FILE);
+    setenv("HISTFILE", "/tmp/hash_test_history_nonexistent_12345", 1);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -322,5 +372,7 @@ int main(void) {
     RUN_TEST(test_history_expand_escaped);
     RUN_TEST(test_history_expand_none);
 
+    RUN_TEST(test_history_save_load_multiline);
+    RUN_TEST(test_history_load_old_one_line_format);
     return UNITY_END();
 }

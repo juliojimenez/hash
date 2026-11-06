@@ -7,6 +7,8 @@
 #define HISTORY_DEFAULT_FILESIZE 2000
 #define HISTORY_MAX_LINE 4096
 
+#include <time.h>
+
 /**
  * Initialize history system
  * Loads history from file specified by HISTFILE (or ~/.hash_history)
@@ -112,6 +114,12 @@ char *history_expand(const char *line);
  * Save history to ~/.hash_history
  */
 void history_save(void);
+
+/**
+ * When the entry at index (0 = oldest) was added, or 0 when unknown.
+ * Entries read from a file in the old one-line format get the load time.
+ */
+time_t history_get_time(int index);
 
 /**
  * Load history from ~/.hash_history

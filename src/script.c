@@ -580,11 +580,28 @@ static char *expand_case_pattern(const char *pattern) {
 
 // Record a line the shell read as its own input into history.
 // Only the script given on the command line together with -i qualifies.
-static void script_record_input_line(bool record, const char *line) {
-    if (!record || !is_interactive || shell_option_nolog()) {
+// hash-shell -i script: each complete program of the script becomes one history
+// entry, the lines joined with newlines as at the prompt
+static void script_record_program(const char *text, void *ctx) {
+    (void)ctx;
+    if (!is_interactive || shell_option_nolog()) {
         return;
     }
-    history_add(line);
+    size_t len = strlen(text);
+    while (len > 0 && text[len - 1] == '\n') {
+        len--;
+    }
+    if (len == 0) {
+        return;
+    }
+    char *entry = malloc(len + 1);
+    if (!entry) {
+        return;
+    }
+    memcpy(entry, text, len);
+    entry[len] = '\0';
+    history_add(entry);
+    free(entry);
 }
 
 // Feed the file line by line so each complete command runs as
@@ -592,6 +609,9 @@ static void script_record_input_line(bool record, const char *line) {
 static int execute_file_lines_ast(FILE *fp, bool record_history) {
     ExecFeeder feeder;
     exec_feeder_init(&feeder);
+    if (record_history) {
+        feeder.on_program = script_record_program;
+    }
     char *line = NULL;
     size_t cap = 0;
     ssize_t n;
@@ -609,7 +629,6 @@ static int execute_file_lines_ast(FILE *fp, bool record_history) {
                 continue;  // shebang
             }
         }
-        script_record_input_line(record_history, line);
         ExecStatus st = EXEC_OK;
         FeedResult fed = exec_feed_line(&feeder, line, &st);
         if (fed == FEED_SYNTAX_ERROR) {

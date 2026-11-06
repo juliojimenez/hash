@@ -1,0 +1,13 @@
+# Ctrl-C on a pending compound command records nothing in history
+send if true; then
+expect ...
+send echo NOT''HING
+expect ...
+raw \x03
+expect ^C
+send echo AF''TER
+expect AFTER
+send exit
+status 0
+file .hash_history lacks if true
+file .hash_history has echo AF''TER
