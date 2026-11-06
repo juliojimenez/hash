@@ -82,6 +82,9 @@ make test
 
 # Run the interactive tests (drives the shell in a pty)
 python3 tests/interactive/run.py
+
+# Run the modernish conformance suite and compare with the recorded baseline
+bash tests/modernish/run.sh
 ```
 
 ### Cleaning Up
@@ -119,6 +122,7 @@ hash/
 ├── tests/                  # Unit tests
 │   ├── test_*.c            # Test files
 │   ├── interactive/        # Interactive tests: run.py drives a pty, cases/ holds the sessions
+│   ├── modernish/          # modernish conformance suite: run.sh, pinned commit, baseline, STATUS.md
 │   ├── setup_unity.sh      # Unity framework setup
 │   └── unity/              # Unity test framework (auto-downloaded)
 ├── docs/                   # Documentation
@@ -311,6 +315,10 @@ python3 tests/interactive/run.py            # every case
 python3 tests/interactive/run.py ctrl-c -v  # cases whose name contains ctrl-c, with their transcripts
 python3 tests/interactive/run.py --keep     # keep each case's HOME directory for a look
 ```
+
+### Conformance Suites
+
+smoosh (`.github/workflows/posix.yml`) gates every push and pull request. modernish (`.github/workflows/modernish.yml`) is the second suite and not a gate: `bash tests/modernish/run.sh` fetches it at the commit in `tests/modernish/MODERNISH_REF`, runs `hash-shell bin/modernish --test -eq` and compares the result with `tests/modernish/baseline.txt`; the weekly job fails only when the result is worse. When a change makes it better, rerun with `--update-baseline` and commit the new baseline with the change. `tests/modernish/STATUS.md` records where hash stands against it and the open issues that block it.
 
 ### Test Coverage
 

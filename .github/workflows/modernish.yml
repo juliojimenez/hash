@@ -1,0 +1,38 @@
+name: Modernish Conformance
+
+# Second conformance suite after smoosh (#326). Not a gate: it runs weekly and on
+# changes to its own files, and fails only when the result is worse than the
+# baseline recorded in tests/modernish/baseline.txt.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/modernish/**'
+      - '.github/workflows/modernish.yml'
+
+jobs:
+  modernish:
+    name: modernish regression suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build hash
+        run: |
+          make clean
+          make
+
+      - name: Run modernish against hash
+        run: bash tests/modernish/run.sh
+
+      - name: Upload results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: modernish-results
+          path: tests/modernish/results/
+          retention-days: 90

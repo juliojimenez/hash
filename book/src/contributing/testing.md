@@ -30,6 +30,14 @@ make test
 python3 tests/interactive/run.py
 ```
 
+### Conformance Suites
+
+```bash
+bash tests/modernish/run.sh      # modernish, compared with tests/modernish/baseline.txt
+```
+
+The smoosh suite runs in CI only (`.github/workflows/posix.yml`); running all of it locally exhausts the process limit.
+
 ### Clean Test Artifacts
 
 ```bash
@@ -134,6 +142,14 @@ python3 tests/interactive/run.py ctrl-c -v  # cases whose name contains ctrl-c, 
 python3 tests/interactive/run.py --keep     # keep each case's HOME for a look
 python3 tests/interactive/run.py --help     # the full directive reference
 ```
+
+## Conformance Suites
+
+Two external suites check hash against POSIX as other shells implement it.
+
+**smoosh** (`.github/workflows/posix.yml`) is the gate: every push and pull request runs its 186 cases, and one is skipped on purpose (`builtin.trap.subshell.false.exit`, see the workflow for the reasoning). Run a subset locally rather than the whole suite, which exhausts the process limit.
+
+**modernish** (`.github/workflows/modernish.yml`, `tests/modernish/`) is the second suite. It is not a gate: it runs weekly, on demand, and on changes to its own files, and fails only when the result is worse than `tests/modernish/baseline.txt`. `bash tests/modernish/run.sh` fetches modernish at the pinned commit, runs its regression suite as `hash-shell bin/modernish --test -eq`, prints the counts and compares them with the baseline; `--update-baseline` records an improvement. modernish refuses to start on a shell with any of the bugs in its fatal-bug battery, and hash has several of them today; `tests/modernish/STATUS.md` lists them with their issues and shows how to run the battery check by check.
 
 ## Sanitizer Tests
 
