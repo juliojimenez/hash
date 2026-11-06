@@ -175,6 +175,8 @@ hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element
 
 ## Built-in Commands
 
+`help` lists them all with their synopsis, and `help NAME` describes one; this table is the short form.
+
 | Command | Description |
 |---------|-------------|
 | `alias` | Define/list aliases |
@@ -188,6 +190,7 @@ hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element
 | `readonly` | Make a variable read-only |
 | `local` | Variables local to a function |
 | `complete` | Programmable completion: `-W words`, `-F function`, `-a -b -c -d -f -u -v`, `-o default`, `-p`, `-r` |
+| `help` | Synopsis and description of builtins and keywords: `help`, `help NAME`, `help -s NAME`, patterns allowed |
 | `read` | Read a line into variables |
 | `getopts` | Parse options in a script |
 | `shift` | Drop positional parameters |

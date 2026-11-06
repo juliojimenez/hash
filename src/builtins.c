@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdio.h>
+#include <fnmatch.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -46,46 +47,230 @@ void builtins_set_login_shell(bool is_login) {
 
 // Builtin command names and functions
 Builtin builtins[BUILTIN_FUNC_MAX] = {
-    [BUILTIN_FUNC_CD]               = (Builtin){"cd",           &shell_cd},
-    [BUILTIN_FUNC_EXIT]             = (Builtin){"exit",         &shell_exit},
-    [BUILTIN_FUNC_ALIAS]            = (Builtin){"alias",        &shell_alias},
-    [BUILTIN_FUNC_UNALIAS]          = (Builtin){"unalias",      &shell_unalias},
-    [BUILTIN_FUNC_SOURCE]           = (Builtin){"source",       &shell_source},
-    [BUILTIN_FUNC_DOT]              = (Builtin){".",            &shell_source},         // Alias for source (POSIX)
-    [BUILTIN_FUNC_EXPORT]           = (Builtin){"export",       &shell_export},
-    [BUILTIN_FUNC_SET]              = (Builtin){"set",          &shell_set},
-    [BUILTIN_FUNC_HISTORY]          = (Builtin){"history",      &shell_history},
-    [BUILTIN_FUNC_JOBS]             = (Builtin){"jobs",         &shell_jobs},
-    [BUILTIN_FUNC_FG]               = (Builtin){"fg",           &shell_fg},
-    [BUILTIN_FUNC_BG]               = (Builtin){"bg",           &shell_bg},
-    [BUILTIN_FUNC_LOGOUT]           = (Builtin){"logout",       &shell_logout},
-    [BUILTIN_FUNC_TEST]             = (Builtin){"test",         &shell_test},
-    [BUILTIN_FUNC_BRACKET]          = (Builtin){"[",            &shell_bracket},
-    [BUILTIN_FUNC_DOUBLE_BRACKET]   = (Builtin){"[[",           &shell_double_bracket}, // Bash-style extended test
-    [BUILTIN_FUNC_UNSET]            = (Builtin){"unset",        &shell_unset},
-    [BUILTIN_FUNC_TRUE]             = (Builtin){"true",         &shell_true},
-    [BUILTIN_FUNC_FALSE]            = (Builtin){"false",        &shell_false},
-    [BUILTIN_FUNC_COLON]            = (Builtin){":",            &shell_colon},
-    [BUILTIN_FUNC_ECHO]             = (Builtin){"echo",         &shell_echo},
-    [BUILTIN_FUNC_READ]             = (Builtin){"read",         &shell_read},
-    [BUILTIN_FUNC_GETOPTS]          = (Builtin){"getopts",      &shell_getopts},
-    [BUILTIN_FUNC_SHIFT]            = (Builtin){"shift",        &shell_shift},
-    [BUILTIN_FUNC_LOCAL]            = (Builtin){"local",        &shell_local},
-    [BUILTIN_FUNC_COMPLETE]         = (Builtin){"complete",     &shell_complete},
-    [BUILTIN_FUNC_RETURN]           = (Builtin){"return",       &shell_return},
-    [BUILTIN_FUNC_BREAK]            = (Builtin){"break",        &shell_break},
-    [BUILTIN_FUNC_CONTINUE]         = (Builtin){"continue",     &shell_continue_cmd},
-    [BUILTIN_FUNC_EVAL]             = (Builtin){"eval",         &shell_eval},
-    [BUILTIN_FUNC_UPDATE]           = (Builtin){"update",       &shell_update},
-    [BUILTIN_FUNC_COMMAND]          = (Builtin){"command",      &shell_command},
-    [BUILTIN_FUNC_EXEC]             = (Builtin){"exec",         &shell_exec},
-    [BUILTIN_FUNC_TIMES]            = (Builtin){"times",        &shell_times},
-    [BUILTIN_FUNC_TYPE]             = (Builtin){"type",         &shell_type},
-    [BUILTIN_FUNC_READONLY]         = (Builtin){"readonly",     &shell_readonly},
-    [BUILTIN_FUNC_TRAP]             = (Builtin){"trap",         &shell_trap},
-    [BUILTIN_FUNC_WAIT]             = (Builtin){"wait",         &shell_wait},
-    [BUILTIN_FUNC_KILL]             = (Builtin){"kill",         &shell_kill},
-    [BUILTIN_FUNC_HASH]             = (Builtin){"hash",         &shell_hash},
+    [BUILTIN_FUNC_CD] = (Builtin){"cd", &shell_cd,
+        "cd [dir]",
+        "Change the working directory to dir, or to $HOME without one. `cd -` goes back\n"
+        "to the previous directory and prints it. PWD and OLDPWD are updated.\n"
+        ""},
+    [BUILTIN_FUNC_EXIT] = (Builtin){"exit", &shell_exit,
+        "exit [n]",
+        "Leave the shell with status n, or with the status of the last command. The\n"
+        "EXIT trap runs first; a login shell also runs ~/.hash_logout.\n"
+        ""},
+    [BUILTIN_FUNC_ALIAS] = (Builtin){"alias", &shell_alias,
+        "alias [name[=value]...]",
+        "Define aliases, or print them: `alias` lists every alias, `alias name` prints\n"
+        "one. An alias is expanded when its name is the first word of a command.\n"
+        ""},
+    [BUILTIN_FUNC_UNALIAS] = (Builtin){"unalias", &shell_unalias,
+        "unalias name...",
+        "Remove the named aliases.\n"
+        ""},
+    [BUILTIN_FUNC_SOURCE] = (Builtin){"source", &shell_source,
+        "source file",
+        "Read and run file in the current shell, like `.`. Functions, variables and\n"
+        "aliases it defines stay. A file name without a slash is looked up in PATH.\n"
+        ""},
+    [BUILTIN_FUNC_DOT] = (Builtin){".", &shell_source,
+        ". file",
+        "Read and run file in the current shell (POSIX spelling of source). `return`\n"
+        "ends the file; `exit` ends the shell.\n"
+        ""},
+    [BUILTIN_FUNC_EXPORT] = (Builtin){"export", &shell_export,
+        "export [-p] [name[=value]...]",
+        "Mark variables for export to the environment of commands, assigning a value\n"
+        "when one is given. -p, or no arguments, prints the exported variables.\n"
+        ""},
+    [BUILTIN_FUNC_SET] = (Builtin){"set", &shell_set,
+        "set [-abCefhmnuvx] [-o option] [+...] [--] [arg...]\n"
+        "set name=value",
+        "Set shell options with -, clear them with +: -a allexport, -b notify,\n"
+        "-C noclobber, -e errexit, -f noglob, -h, -m monitor, -n noexec, -u nounset,\n"
+        "-v verbose, -x xtrace; -o takes a name, also emacs, vi, nolog and\n"
+        "nonlexicalctrl. `set -o` lists the options, `set +o` prints them as\n"
+        "commands, $- holds the letters in effect. Arguments after the options (or\n"
+        "after --) become the positional parameters.\n"
+        "hash's own settings use name=value: colors=on|off, welcome=on|off, PS1=...,\n"
+        "color.<element>=<spec>, syntax_highlight=on|off, autosuggest=on|off,\n"
+        "danger_highlight=on|off. They work at the prompt, in scripts and in ~/.hashrc.\n"
+        ""},
+    [BUILTIN_FUNC_HISTORY] = (Builtin){"history", &shell_history,
+        "history [-c | -w | -r]",
+        "Print the command history with its numbers. -c clears it, -w writes it to\n"
+        "the history file, -r reads the file back. HISTFILE, HISTSIZE, HISTFILESIZE\n"
+        "and HISTCONTROL apply; `!!`, `!n`, `!-n` and `!prefix` expand entries.\n"
+        ""},
+    [BUILTIN_FUNC_JOBS] = (Builtin){"jobs", &shell_jobs,
+        "jobs [-l | -p]",
+        "List the background jobs of this shell. -l adds the process IDs, -p prints\n"
+        "only them.\n"
+        ""},
+    [BUILTIN_FUNC_FG] = (Builtin){"fg", &shell_fg,
+        "fg [%job]",
+        "Bring a job to the foreground and wait for it. Without an argument, the\n"
+        "current job.\n"
+        ""},
+    [BUILTIN_FUNC_BG] = (Builtin){"bg", &shell_bg,
+        "bg [%job]",
+        "Continue a stopped job in the background.\n"
+        ""},
+    [BUILTIN_FUNC_LOGOUT] = (Builtin){"logout", &shell_logout,
+        "logout",
+        "Leave a login shell, running ~/.hash_logout first. In a shell that is not a\n"
+        "login shell it fails; use exit.\n"
+        ""},
+    [BUILTIN_FUNC_TEST] = (Builtin){"test", &shell_test,
+        "test expr",
+        "Evaluate a conditional expression: file tests (-e -f -d -r -w -x -s -L and\n"
+        "more), string tests (-z -n = !=), numbers (-eq -ne -lt -le -gt -ge), and !\n"
+        "-a -o with parentheses. The status is 0 when expr is true. `[ expr ]` is the\n"
+        "same command with a closing bracket.\n"
+        ""},
+    [BUILTIN_FUNC_BRACKET] = (Builtin){"[", &shell_bracket,
+        "[ expr ]",
+        "The test command written with brackets; the closing ] is required. See\n"
+        "`help test` for the operators.\n"
+        ""},
+    [BUILTIN_FUNC_DOUBLE_BRACKET] = (Builtin){"[[", &shell_double_bracket,
+        "[[ expr ]]",
+        "Extended test: the operators of test plus pattern matching with == and !=,\n"
+        "regular expressions with =~, and && and || inside the brackets. Words are\n"
+        "not split or glob-expanded.\n"
+        ""},
+    [BUILTIN_FUNC_UNSET] = (Builtin){"unset", &shell_unset,
+        "unset [-f | -v] name...",
+        "Remove variables (-v, the default) or functions (-f). Readonly variables\n"
+        "cannot be unset.\n"
+        ""},
+    [BUILTIN_FUNC_TRUE] = (Builtin){"true", &shell_true,
+        "true",
+        "Do nothing, successfully.\n"
+        ""},
+    [BUILTIN_FUNC_FALSE] = (Builtin){"false", &shell_false,
+        "false",
+        "Do nothing, with status 1.\n"
+        ""},
+    [BUILTIN_FUNC_COLON] = (Builtin){":", &shell_colon,
+        ": [arg...]",
+        "Do nothing; the arguments are expanded and dropped. Status 0.\n"
+        ""},
+    [BUILTIN_FUNC_ECHO] = (Builtin){"echo", &shell_echo,
+        "echo [-neE] [arg...]",
+        "Print the arguments separated by spaces, then a newline. -n leaves out the\n"
+        "newline, -e interprets backslash escapes (\\n \\t \\\\ ...), -E does not.\n"
+        ""},
+    [BUILTIN_FUNC_READ] = (Builtin){"read", &shell_read,
+        "read [-r] name...",
+        "Read one line from standard input and split it into the variables; the last\n"
+        "one takes the rest. Backslash continues a line unless -r is given. The\n"
+        "status is 1 at end of input.\n"
+        ""},
+    [BUILTIN_FUNC_GETOPTS] = (Builtin){"getopts", &shell_getopts,
+        "getopts optstring name [arg...]",
+        "Parse options from the positional parameters (or arg...) one call at a time,\n"
+        "placing the letter in name, its argument in OPTARG and the next index in\n"
+        "OPTIND. A colon after a letter in optstring means it takes an argument; a\n"
+        "leading colon selects silent error reporting.\n"
+        ""},
+    [BUILTIN_FUNC_SHIFT] = (Builtin){"shift", &shell_shift,
+        "shift [n]",
+        "Drop the first n positional parameters (one by default). A count past $# is\n"
+        "an error.\n"
+        ""},
+    [BUILTIN_FUNC_LOCAL] = (Builtin){"local", &shell_local,
+        "local [name[=value]...]",
+        "Declare variables local to the current function; the previous values come\n"
+        "back when it returns. Outside a function it is an error.\n"
+        ""},
+    [BUILTIN_FUNC_COMPLETE] = (Builtin){"complete", &shell_complete,
+        "complete [-abcdfuv] [-o default|dirnames] [-W words] [-F function] name...\n"
+        "complete -p [name...]   complete -r [name...]",
+        "Record how a command's arguments are tab-completed. -W gives the candidate\n"
+        "words, -F a function whose output lines are candidates ($1 command, $2 word,\n"
+        "$3 previous word), -a -b -c -d -f -u -v add aliases, builtins, commands,\n"
+        "directories, files, users or variables, -o default falls back to files.\n"
+        "-p prints the definitions in a form that can be typed back, -r removes them.\n"
+        ""},
+    [BUILTIN_FUNC_RETURN] = (Builtin){"return", &shell_return,
+        "return [n]",
+        "Leave the current function or sourced file with status n, or with the status\n"
+        "of the last command.\n"
+        ""},
+    [BUILTIN_FUNC_BREAK] = (Builtin){"break", &shell_break,
+        "break [n]",
+        "Leave the innermost n enclosing loops (one by default).\n"
+        ""},
+    [BUILTIN_FUNC_CONTINUE] = (Builtin){"continue", &shell_continue_cmd,
+        "continue [n]",
+        "Resume the next iteration of the innermost n enclosing loops.\n"
+        ""},
+    [BUILTIN_FUNC_EVAL] = (Builtin){"eval", &shell_eval,
+        "eval [arg...]",
+        "Join the arguments with spaces and run the result as a command in the\n"
+        "current shell.\n"
+        ""},
+    [BUILTIN_FUNC_UPDATE] = (Builtin){"update", &shell_update,
+        "update",
+        "Check for a newer release of hash and install it when one is available.\n"
+        "HASH_DISABLE_UPDATE_CHECK=1 turns the startup check off.\n"
+        ""},
+    [BUILTIN_FUNC_COMMAND] = (Builtin){"command", &shell_command,
+        "command name [arg...]\n"
+        "command -v | -V name...",
+        "Run name without looking up functions, so a function can call the command\n"
+        "it shadows; a failing special builtin does not end the shell. -v prints how\n"
+        "name would be resolved, -V describes it.\n"
+        ""},
+    [BUILTIN_FUNC_EXEC] = (Builtin){"exec", &shell_exec,
+        "exec [command [arg...]]\n"
+        "exec redirection...",
+        "Replace the shell with command. With only redirections, apply them to the\n"
+        "shell itself for the commands that follow (`exec 3< file`, `exec >log`).\n"
+        ""},
+    [BUILTIN_FUNC_TIMES] = (Builtin){"times", &shell_times,
+        "times",
+        "Print the user and system times used by the shell and by its children.\n"
+        ""},
+    [BUILTIN_FUNC_TYPE] = (Builtin){"type", &shell_type,
+        "type name...",
+        "Say how each name would be interpreted: an alias, a shell keyword, a builtin,\n"
+        "a function, or a file found in PATH.\n"
+        ""},
+    [BUILTIN_FUNC_READONLY] = (Builtin){"readonly", &shell_readonly,
+        "readonly [-p] [name[=value]...]",
+        "Mark variables read-only, assigning a value when one is given; later\n"
+        "assignments and unset fail. -p, or no arguments, prints them.\n"
+        ""},
+    [BUILTIN_FUNC_TRAP] = (Builtin){"trap", &shell_trap,
+        "trap [action] [signal...]\n"
+        "trap -l | -p",
+        "Run action when a signal arrives, or at EXIT. An empty action ignores the\n"
+        "signal, `-` restores the default. -l lists the signal names, -p prints the\n"
+        "traps in effect. The EXIT trap sees the shell's status as $?.\n"
+        ""},
+    [BUILTIN_FUNC_WAIT] = (Builtin){"wait", &shell_wait,
+        "wait [pid | %job ...]",
+        "Wait for the given background jobs, or for all of them, and return the\n"
+        "status of the last one waited for.\n"
+        ""},
+    [BUILTIN_FUNC_KILL] = (Builtin){"kill", &shell_kill,
+        "kill [-s signal | -signal] pid | %job ...\n"
+        "kill -l",
+        "Send a signal (TERM by default) to processes or jobs, by number or name.\n"
+        "-l lists the signal names.\n"
+        ""},
+    [BUILTIN_FUNC_HASH] = (Builtin){"hash", &shell_hash,
+        "hash [-r] [name...]",
+        "Remember where commands live. With names, look them up now; -r forgets\n"
+        "everything remembered; alone, print the table.\n"
+        ""},
+    [BUILTIN_FUNC_HELP] = (Builtin){"help", &shell_help,
+        "help [-s] [pattern...]",
+        "Describe the builtins and the shell's keywords. Alone, list every topic with\n"
+        "its synopsis; with names or glob patterns, print the synopsis and a short\n"
+        "description of each; -s prints the synopsis only. The book has the long\n"
+        "form: https://hash-shell.org/reference/\n"
+        ""},
 };
 
 // Parse job ID from argument (handles %n, %%, %+, %-, n)
@@ -2445,6 +2630,178 @@ int shell_complete(char **args) {
                 fprintf(stderr, "%s: complete: %s: could not record the specification\n", HASH_NAME, args[i]);
                 status = 1;
             }
+        }
+    }
+    last_command_exit_code = status;
+    return 1;
+}
+
+// ============================================================================
+// help: builtins and keywords, with their synopsis and a short description
+// ============================================================================
+
+// The shell's keywords are not builtins; help knows them too
+typedef struct {
+    const char *name;
+    const char *synopsis;
+    const char *description;
+} HelpTopic;
+
+static const HelpTopic keyword_topics[] = {
+    {"if", "if list; then list; [elif list; then list;]... [else list;] fi",
+     "Run the first list whose condition succeeds (status 0), or the else list.\n"},
+    {"for", "for name [in word...]; do list; done",
+     "Run list once for each word, with name set to it; without `in`, over the\n"
+     "positional parameters.\n"},
+    {"while", "while list; do list; done",
+     "Run the body as long as the condition list succeeds.\n"},
+    {"until", "until list; do list; done",
+     "Run the body as long as the condition list fails.\n"},
+    {"case", "case word in [pattern [| pattern]...) list ;;]... esac",
+     "Run the list of the first pattern that matches word. Patterns use * ? and\n"
+     "[...]; quote them to match literally.\n"},
+    {"function", "name() compound-command [redirection...]",
+     "Define a function; `name` then runs the command with the arguments as\n"
+     "positional parameters. `return` leaves it, `local` scopes variables to it.\n"},
+    {"{", "{ list; }",
+     "Group commands to run in the current shell, as one command for\n"
+     "redirections and && / ||.\n"},
+    {"(", "( list )",
+     "Run commands in a subshell: a copy of the shell whose changes to\n"
+     "variables and the working directory do not come back.\n"},
+    {"!", "! pipeline",
+     "Negate the status of a pipeline.\n"},
+};
+#define KEYWORD_TOPIC_COUNT (sizeof(keyword_topics) / sizeof(keyword_topics[0]))
+
+// Pages of the book for topics that have one of their own
+static const struct { const char *name; const char *page; } help_pages[] = {
+    {"test", "scripting/test-command.html"}, {"[", "scripting/test-command.html"},
+    {"[[", "scripting/test-command.html"}, {"history", "shell-features/history.html"},
+    {"complete", "shell-features/tab-completion.html"}, {"alias", "getting-started/hashrc.html"},
+    {"unalias", "getting-started/hashrc.html"}, {"set", "reference/index.html#shell-options"},
+    {"if", "scripting/control-structures.html"}, {"for", "scripting/control-structures.html"},
+    {"while", "scripting/control-structures.html"}, {"until", "scripting/control-structures.html"},
+    {"case", "scripting/control-structures.html"}, {"function", "scripting/index.html#functions"},
+    {"local", "scripting/index.html#functions"}, {"return", "scripting/index.html#functions"},
+    {"jobs", "operators/background.html"}, {"fg", "operators/background.html"},
+    {"bg", "operators/background.html"}, {"wait", "operators/background.html"},
+    {"kill", "operators/background.html"}, {"exec", "operators/redirection.html"},
+    {"(", "operators/command-chaining.html"}, {"!", "operators/command-chaining.html"},
+    {"{", "operators/command-chaining.html"},
+};
+
+static const char *help_page_for(const char *name) {
+    for (size_t i = 0; i < sizeof(help_pages) / sizeof(help_pages[0]); i++) {
+        if (strcmp(help_pages[i].name, name) == 0) {
+            return help_pages[i].page;
+        }
+    }
+    return "reference/index.html#built-in-commands";
+}
+
+static void help_print_topic(const char *name, const char *synopsis, const char *description, bool synopsis_only) {
+    printf("%s\n", synopsis);
+    if (synopsis_only) {
+        return;
+    }
+    printf("\n");
+    const char *p = description;
+    while (*p) {
+        const char *nl = strchr(p, '\n');
+        size_t len = nl ? (size_t)(nl - p) : strlen(p);
+        printf("    %.*s\n", (int)len, p);
+        p += len + (nl ? 1 : 0);
+    }
+    printf("\n    More: https://hash-shell.org/%s\n", help_page_for(name));
+}
+
+static int help_compare_names(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+// Every topic name, sorted, for the bare `help` listing
+static void help_list_all(void) {
+    const char *names[BUILTIN_FUNC_MAX + KEYWORD_TOPIC_COUNT];
+    size_t count = 0;
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        names[count++] = builtins[i].name;
+    }
+    for (size_t i = 0; i < KEYWORD_TOPIC_COUNT; i++) {
+        names[count++] = keyword_topics[i].name;
+    }
+    qsort(names, count, sizeof(names[0]), help_compare_names);
+    printf("%s builtins and keywords. `help NAME` describes one, `help -s NAME` prints\n"
+           "its synopsis; names may be patterns. The book: https://hash-shell.org/\n\n", HASH_NAME);
+    for (size_t i = 0; i < count; i++) {
+        const char *synopsis = NULL;
+        for (int b = 0; b < BUILTIN_FUNC_MAX && !synopsis; b++) {
+            if (strcmp(builtins[b].name, names[i]) == 0) {
+                synopsis = builtins[b].synopsis;
+            }
+        }
+        for (size_t k = 0; k < KEYWORD_TOPIC_COUNT && !synopsis; k++) {
+            if (strcmp(keyword_topics[k].name, names[i]) == 0) {
+                synopsis = keyword_topics[k].synopsis;
+            }
+        }
+        // A synopsis may have several lines; indent the continuation ones
+        const char *p = synopsis ? synopsis : names[i];
+        const char *nl;
+        while ((nl = strchr(p, '\n')) != NULL) {
+            printf("%.*s\n", (int)(nl - p), p);
+            p = nl + 1;
+        }
+        printf("%s\n", p);
+    }
+}
+
+int shell_help(char **args) {
+    bool synopsis_only = false;
+    int i = 1;
+    while (args[i] && args[i][0] == '-' && args[i][1] != '\0') {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        if (strcmp(args[i], "-s") == 0) {
+            synopsis_only = true;
+            i++;
+            continue;
+        }
+        fprintf(stderr, "%s: help: %s: invalid option\n%s: help: usage: help [-s] [pattern...]\n",
+                HASH_NAME, args[i], HASH_NAME);
+        last_command_exit_code = 2;
+        return 1;
+    }
+    if (!args[i]) {
+        help_list_all();
+        last_command_exit_code = 0;
+        return 1;
+    }
+    int status = 0;
+    bool first = true;
+    for (; args[i]; i++) {
+        bool found = false;
+        for (int b = 0; b < BUILTIN_FUNC_MAX; b++) {
+            if (fnmatch(args[i], builtins[b].name, 0) == 0) {
+                if (!first && !synopsis_only) printf("\n");
+                help_print_topic(builtins[b].name, builtins[b].synopsis, builtins[b].description, synopsis_only);
+                found = true;
+                first = false;
+            }
+        }
+        for (size_t k = 0; k < KEYWORD_TOPIC_COUNT; k++) {
+            if (fnmatch(args[i], keyword_topics[k].name, 0) == 0) {
+                if (!first && !synopsis_only) printf("\n");
+                help_print_topic(keyword_topics[k].name, keyword_topics[k].synopsis, keyword_topics[k].description, synopsis_only);
+                found = true;
+                first = false;
+            }
+        }
+        if (!found) {
+            fprintf(stderr, "%s: help: no help topics match '%s'. Try 'help' for the list.\n", HASH_NAME, args[i]);
+            status = 1;
         }
     }
     last_command_exit_code = status;

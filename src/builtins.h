@@ -44,6 +44,7 @@ typedef enum {
     BUILTIN_FUNC_KILL,
     BUILTIN_FUNC_HASH,
     BUILTIN_FUNC_COMPLETE,
+    BUILTIN_FUNC_HELP,
 
     BUILTIN_FUNC_MAX
 } BuiltinFunc;
@@ -51,6 +52,8 @@ typedef enum {
 typedef struct {
     const char *name;
     int (*func)(char **);
+    const char *synopsis;     /* one line: name and arguments, for `help` */
+    const char *description;  /* a few lines, each ending in a newline, for `help NAME` */
 } Builtin;
 
 extern Builtin builtins[BUILTIN_FUNC_MAX];
@@ -271,6 +274,13 @@ int shell_local(char **args);
  *   complete -p [name...]   print specs      complete -r [name...]   remove specs
  */
 int shell_complete(char **args);
+
+/**
+ * help: the builtins and the shell's keywords, with their synopsis and a short
+ * description. `help` lists them, `help NAME...` describes, `help -s NAME...`
+ * prints the synopsis only. Names may be glob patterns.
+ */
+int shell_help(char **args);
 
 /**
  * Built-in command: return - return from function or sourced script
