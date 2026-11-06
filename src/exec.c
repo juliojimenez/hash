@@ -102,7 +102,9 @@ static size_t stack_limit = 0;
 void exec_set_stack_base(void *base) {
     stack_base = (uintptr_t)base;
     struct rlimit rl;
-    if (getrlimit(RLIMIT_STACK, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY && rl.rlim_cur > STACK_MARGIN) {
+    // rlim_t is signed on FreeBSD and unsigned elsewhere: compare in one width
+    if (getrlimit(RLIMIT_STACK, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY && rl.rlim_cur > 0
+        && (unsigned long long)rl.rlim_cur > STACK_MARGIN) {
         stack_limit = (size_t)rl.rlim_cur;
     }
 }
