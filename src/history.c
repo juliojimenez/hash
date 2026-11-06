@@ -7,6 +7,7 @@
 #include <pwd.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <time.h>
 #include "history.h"
 #include "safe_string.h"
 #include "colors.h"
@@ -15,6 +16,7 @@
 
 // History storage
 static char **history = NULL;
+static time_t *history_time = NULL;  // When each entry was added, parallel to history[]
 static int history_size = 0;       // Max entries in memory (HISTSIZE)
 static int history_filesize = 0;   // Max entries in file (HISTFILESIZE)
 static int history_count_val = 0;  // Current count
@@ -100,6 +102,8 @@ void history_init(void) {
         history_clear();
         free(history);
         history = NULL;
+        free(history_time);
+        history_time = NULL;
     }
 
     history_size = get_histsize();
@@ -112,7 +116,12 @@ void history_init(void) {
     }
 
     history = calloc(history_size, sizeof(char *));
-    if (!history) {
+    history_time = history ? calloc(history_size, sizeof(time_t)) : NULL;
+    if (!history || !history_time) {
+        free(history);
+        free(history_time);
+        history = NULL;
+        history_time = NULL;
         history_size = 0;
         return;
     }
@@ -149,6 +158,7 @@ static void erase_duplicates(const char *line) {
                 int next_idx = history_index(j + 1);
                 if (curr_idx >= 0 && next_idx >= 0) {
                     history[curr_idx] = history[next_idx];
+                    history_time[curr_idx] = history_time[next_idx];
                 }
             }
 
@@ -190,14 +200,20 @@ void history_add(const char *line) {
         // Unlimited - grow the array
         int new_size = history_size * 2;
         char **new_history = realloc(history, new_size * sizeof(char *));
-        if (new_history) {
+        time_t *new_time = new_history ? realloc(history_time, new_size * sizeof(time_t)) : NULL;
+        if (new_history && new_time) {
             // Initialize new entries
             for (int i = history_size; i < new_size; i++) {
                 new_history[i] = NULL;
+                new_time[i] = 0;
             }
             history = new_history;
+            history_time = new_time;
             history_size = new_size;
         } else {
+            if (new_history) {
+                history = new_history;  // the pointer array may have moved
+            }
             // Allocation failed, remove oldest
             if (history_count_val > 0) {
                 free(history[history_start]);
@@ -217,6 +233,7 @@ void history_add(const char *line) {
     // Add new entry
     int idx = (history_start + history_count_val) % history_size;
     history[idx] = strdup(line);
+    history_time[idx] = time(NULL);
     if (history[idx]) {
         history_count_val++;
     }
@@ -452,16 +469,108 @@ void history_save(void) {
         entries_to_write = filesize;
     }
 
-    // Write most recent entries
+    // Write most recent entries in bash's extended format: a "#<seconds>" line
+    // before each entry, so an entry may span several lines (a loop or a
+    // function typed at the prompt) and the loader knows where each one starts
     int start_idx = history_count_val - entries_to_write;
     for (int i = start_idx; i < history_count_val; i++) {
         const char *cmd = history_get(i);
         if (cmd) {
-            fprintf(fp, "%s\n", cmd);
+            fprintf(fp, "#%lld\n%s\n", (long long)history_get_time(i), cmd);
         }
     }
     fflush(fp);
     fclose(fp);
+}
+
+time_t history_get_time(int index) {
+    int idx = history_index(index);
+    if (idx < 0 || !history_time) {
+        return 0;
+    }
+    return history_time[idx];
+}
+
+// A "#<seconds>" line of the extended history format
+static bool is_history_marker(const char *line) {
+    if (line[0] != '#' || !isdigit((unsigned char)line[1])) {
+        return false;
+    }
+    for (const char *p = line + 1; *p; p++) {
+        if (!isdigit((unsigned char)*p)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Make room for one more entry while loading: grow when HISTSIZE is unlimited,
+// otherwise drop the oldest. Returns false when the entry has to be skipped.
+static bool history_room_for_load(void) {
+    if (history_count_val < history_size) {
+        return true;
+    }
+    if (get_histsize() == -1) {
+        int new_size = history_size * 2;
+        char **new_history = realloc(history, new_size * sizeof(char *));
+        if (!new_history) {
+            return false;
+        }
+        history = new_history;
+        time_t *new_time = realloc(history_time, new_size * sizeof(time_t));
+        if (!new_time) {
+            return false;
+        }
+        for (int i = history_size; i < new_size; i++) {
+            new_history[i] = NULL;
+            new_time[i] = 0;
+        }
+        history_time = new_time;
+        history_size = new_size;
+        return true;
+    }
+    free(history[history_start]);
+    history[history_start] = NULL;
+    history_start = (history_start + 1) % history_size;
+    history_count_val--;
+    return true;
+}
+
+static void history_store_loaded(const char *text, time_t when) {
+    if (!text || text[0] == '\0' || !history_room_for_load()) {
+        return;
+    }
+    int idx = (history_start + history_count_val) % history_size;
+    history[idx] = strdup(text);
+    if (history[idx]) {
+        history_time[idx] = when;
+        history_count_val++;
+    }
+}
+
+// Append a line to the entry being assembled from the extended format
+static bool entry_append(char **entry, size_t *len, size_t *cap, const char *line) {
+    size_t n = strlen(line);
+    size_t need = *len + n + 2;
+    if (need > *cap) {
+        size_t new_cap = *cap ? *cap : 256;
+        while (new_cap < need) {
+            new_cap *= 2;
+        }
+        char *fresh = realloc(*entry, new_cap);
+        if (!fresh) {
+            return false;
+        }
+        *entry = fresh;
+        *cap = new_cap;
+    }
+    if (*len > 0) {
+        (*entry)[(*len)++] = '\n';
+    }
+    memcpy(*entry + *len, line, n);
+    *len += n;
+    (*entry)[*len] = '\0';
+    return true;
 }
 
 // Load history from file
@@ -474,66 +583,56 @@ void history_load(void) {
     FILE *fp = fopen(history_path, "r");
     if (!fp) return;
 
-    // Save old HISTCONTROL
-    const char *old_histcontrol = getenv("HISTCONTROL");
-    char saved_histcontrol[256] = {0};
-    if (old_histcontrol) {
-        safe_strcpy(saved_histcontrol, old_histcontrol, sizeof(saved_histcontrol));
-    }
+    // Two formats. The extended one (what history_save() writes) starts every
+    // entry with a "#<seconds>" line, so an entry may span several lines. A
+    // file whose first line is not a marker is in the old one-line-per-entry
+    // format; its entries get the load time.
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t n;
+    bool first = true;
+    bool extended = false;
+    char *entry = NULL;
+    size_t entry_len = 0;
+    size_t entry_cap = 0;
+    bool have_entry = false;
+    time_t when = 0;
+    time_t now = time(NULL);
 
-    // Temporarily disable HISTCONTROL during load
-    unsetenv("HISTCONTROL");
-
-    char line[HISTORY_MAX_LINE];
-    while (fgets(line, sizeof(line), fp)) {
-        line[HISTORY_MAX_LINE - 1] = '\0';
-
-        size_t len = safe_strlen(line, sizeof(line));
-        if (len > 0 && line[len - 1] == '\n') {
-            line[len - 1] = '\0';
+    while ((n = getline(&line, &cap, fp)) != -1) {
+        if (n > 0 && line[n - 1] == '\n') {
+            line[n - 1] = '\0';
         }
-
-        if (line[0] != '\0') {
-            // Check if we need to grow or wrap
-            if (history_count_val >= history_size) {
-                int histsize_limit = get_histsize();
-                if (histsize_limit == -1) {
-                    // Grow
-                    int new_size = history_size * 2;
-                    char **new_history = realloc(history, new_size * sizeof(char *));
-                    if (new_history) {
-                        for (int i = history_size; i < new_size; i++) {
-                            new_history[i] = NULL;
-                        }
-                        history = new_history;
-                        history_size = new_size;
-                    } else {
-                        // Can't grow, skip this entry
-                        continue;
-                    }
-                } else {
-                    // Wrap around
-                    free(history[history_start]);
-                    history[history_start] = NULL;
-                    history_start = (history_start + 1) % history_size;
-                    history_count_val--;
-                }
+        if (first) {
+            first = false;
+            extended = is_history_marker(line);
+        }
+        if (!extended) {
+            history_store_loaded(line, now);
+            continue;
+        }
+        if (is_history_marker(line)) {
+            if (have_entry) {
+                history_store_loaded(entry, when);
             }
-
-            int idx = (history_start + history_count_val) % history_size;
-            history[idx] = strdup(line);
-            if (history[idx]) {
-                history_count_val++;
+            when = (time_t)strtoll(line + 1, NULL, 10);
+            have_entry = true;
+            entry_len = 0;
+            if (entry) {
+                entry[0] = '\0';
             }
+            continue;
+        }
+        if (have_entry) {
+            entry_append(&entry, &entry_len, &entry_cap, line);
         }
     }
-
+    if (extended && have_entry) {
+        history_store_loaded(entry, when);
+    }
+    free(entry);
+    free(line);
     fclose(fp);
-
-    // Restore HISTCONTROL
-    if (saved_histcontrol[0] != '\0') {
-        setenv("HISTCONTROL", saved_histcontrol, 1);
-    }
 
     history_reset_position();
 }

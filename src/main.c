@@ -109,6 +109,32 @@ static bool prompt_has_pending_input(void) {
     return exec_feeder_pending(&prompt_feeder);
 }
 
+// One history entry per program: the lines of a compound command typed under
+// PS2 are recorded together once the feeder has a complete program, before it
+// runs (so `history` lists itself and `exit` is kept). Ctrl+C on a pending
+// command resets the feeder and nothing is recorded, as in bash.
+static void prompt_record_history(const char *text, void *ctx) {
+    (void)ctx;
+    if (shell_option_nolog()) {
+        return;  // set -o nolog
+    }
+    size_t len = strlen(text);
+    while (len > 0 && text[len - 1] == '\n') {
+        len--;  // the feeder ends every line with a newline
+    }
+    if (len == 0) {
+        return;
+    }
+    char *entry = malloc(len + 1);
+    if (!entry) {
+        return;
+    }
+    memcpy(entry, text, len);
+    entry[len] = '\0';
+    history_add(entry);
+    free(entry);
+}
+
 static void prompt_discard_pending_input(void) {
     exec_feeder_reset(&prompt_feeder);
 }
@@ -140,12 +166,8 @@ static int run_prompt_line(char *line, int *last_exit_code) {
         return 1;
     }
 
-    // Record the typed line (unless nolog is set)
-    if (!shell_option_nolog()) {
-        history_add(line);
-    }
-
-    // Lines accumulate until the parser has a complete program, then it runs
+    // Lines accumulate until the parser has a complete program, then it runs;
+    // the feeder records the whole program into history (prompt_record_history)
     ExecStatus st = EXEC_OK;
     FeedResult fed = exec_feed_line(&prompt_feeder, line, &st);
     if (st == EXEC_ABORT) {
@@ -160,6 +182,7 @@ static void loop(void) {
     int status;
     int last_exit_code = 0;
     exec_feeder_init(&prompt_feeder);
+    prompt_feeder.on_program = prompt_record_history;
 
     do {
         // Check for completed background jobs before displaying prompt

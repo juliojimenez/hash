@@ -32,6 +32,28 @@ List all commands:
     3  git status
 ```
 
+### Multi-line Commands
+
+A command typed over several lines is one history entry. A `for` loop, an
+`if`, a function or a here-document entered under the continuation prompt is
+recorded whole once it is complete, so Up brings the entire command back,
+spread over its lines, and Enter runs it again:
+
+```bash
+#> for i in 1 2; do
+> echo "$i"
+> done
+1
+2
+# Press Up: the three lines come back together
+#> for i in 1 2; do
+echo "$i"
+done
+```
+
+`history` lists such an entry on several lines, `!n` re-runs all of it, and
+Ctrl-C on an unfinished command records nothing.
+
 ## History Expansion
 
 ### !! - Last Command
@@ -114,6 +136,24 @@ History file location:
 # Custom
 export HISTFILE=~/my_history
 ```
+
+### History File Format
+
+The file holds one `#<seconds>` line before each entry, the same extended
+format bash uses with `HISTTIMEFORMAT`, so an entry may span several lines and
+the time it was entered is kept:
+
+```
+#1762459200
+for i in 1 2; do
+echo "$i"
+done
+#1762459207
+echo done
+```
+
+A history file from an earlier release, with one command per line, still
+loads; it is rewritten in this format the next time a command is added.
 
 ### HISTCONTROL
 

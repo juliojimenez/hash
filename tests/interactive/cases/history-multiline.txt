@@ -1,0 +1,17 @@
+# A compound command typed over several lines is one history entry: Up brings
+# the whole loop back and Enter runs it again (#328)
+send for i in 1 2; do
+expect ...
+send echo it''em $i
+expect ...
+send done
+expect item 1\nitem 2\n
+raw \x1b[A
+raw \r
+expect item 1\nitem 2\n
+send history
+expect 0  for i in 1 2; do\necho it''em $i\ndone\n
+send exit
+status 0
+file .hash_history has \n#1
+file .hash_history has for i in 1 2; do\necho it''em $i\ndone\n#

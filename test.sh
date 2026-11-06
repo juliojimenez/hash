@@ -702,6 +702,30 @@ fi
 run_test "recursion within the limit still works" 'n=0; f() { n=$((n+1)); [ $n -lt 200 ] && f; }; f; echo "depth $n"' "depth 200"
 run_interactive_test "recursion limit keeps an interactive session going" $'f() { f; }\nf\necho alive $?' "alive 1"
 
+# A compound command typed over several lines is one history entry, saved in the
+# extended format (a "#<seconds>" line before each entry) and loaded back whole.
+echo -n "Testing: multi-line command is one history entry, saved and reloaded... "
+rm -rf "$TEST_DIR/mlhist"; mkdir -p "$TEST_DIR/mlhist"
+ml1=$(printf 'if true; then\necho yes\nfi\nhistory\nexit\n' | HOME="$PWD/$TEST_DIR/mlhist" HISTFILE="$PWD/$TEST_DIR/mlhist/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+ml_markers=$(grep -c '^#[0-9][0-9]*$' "$TEST_DIR/mlhist/hash_history")   # three entries: the if, history, exit
+ml2=$(printf 'history\nexit\n' | HOME="$PWD/$TEST_DIR/mlhist" HISTFILE="$PWD/$TEST_DIR/mlhist/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+ml_want=$(printf '    0  if true; then\necho yes\nfi\n    1  history')
+if [[ "$ml1" == *"$ml_want"* && "$ml1" != *"1  echo yes"* && "$ml2" == *"$ml_want"* && "$ml_markers" == "3" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  session 1:"; echo "$ml1" | head -8; echo "  session 2:"; echo "$ml2" | head -8; echo "  file:"; cat "$TEST_DIR/mlhist/hash_history" | head -8; ((FAILED++))
+fi
+
+echo -n "Testing: a history file in the old one-line format still loads... "
+rm -rf "$TEST_DIR/oldhist"; mkdir -p "$TEST_DIR/oldhist"
+printf 'echo old-one\necho old-two\n' > "$TEST_DIR/oldhist/hash_history"
+oh=$(printf 'history\nexit\n' | HOME="$PWD/$TEST_DIR/oldhist" HISTFILE="$PWD/$TEST_DIR/oldhist/hash_history" PS1='$ ' HASH_DISABLE_UPDATE_CHECK=1 run_with_timeout 2 "$HASH_BIN" -i 2>&1)
+if [[ "$oh" == *"0  echo old-one"* && "$oh" == *"1  echo old-two"* && "$oh" == *"2  history"* ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "$oh" | head -6; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

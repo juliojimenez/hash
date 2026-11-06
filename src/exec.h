@@ -75,6 +75,11 @@ typedef struct {
     size_t cap;
     size_t first_line;  /* input line (1-based) where the pending text starts */
     size_t next_line;   /* input line the next fed line will have */
+    /* Called with the complete text (lines joined with newlines) once the
+       feeder has a whole program, right before it runs or its syntax error is
+       reported; the prompt records history from it. NULL when unused. */
+    void (*on_program)(const char *text, void *ctx);
+    void *on_program_ctx;
 } ExecFeeder;
 
 typedef enum {
