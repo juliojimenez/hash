@@ -72,3 +72,7 @@ CLAUDE.local.md
 
 # Python bytecode from tests/interactive/run.py
 __pycache__/
+
+# modernish checkout and results from tests/modernish/run.sh
+tests/modernish/modernish-src/
+tests/modernish/results/
