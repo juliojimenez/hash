@@ -88,6 +88,51 @@ void test_git_dirty(void) {
     TEST_ASSERT_TRUE(true);
 }
 
+// Presets and the newer escapes (#333)
+void test_prompt_presets(void) {
+    size_t count = 0;
+    const PromptPreset *all = prompt_presets(&count);
+    TEST_ASSERT_EQUAL_INT(5, (int)count);
+    TEST_ASSERT_EQUAL_STRING("classic", all[0].name);
+    TEST_ASSERT_TRUE(prompt_set_preset("minimal"));
+    TEST_ASSERT_EQUAL_STRING("minimal", prompt_current_preset());
+    TEST_ASSERT_EQUAL_STRING(all[2].ps1, prompt_config.ps1);
+    TEST_ASSERT_NULL(getenv("PS1"));                    // a preset drops an inherited PS1
+    TEST_ASSERT_FALSE(prompt_set_preset("nosuch"));
+    TEST_ASSERT_EQUAL_STRING("minimal", prompt_current_preset());
+    prompt_set_ps1("\\w $ ");
+    TEST_ASSERT_NULL(prompt_current_preset());          // a hand-made PS1 is no preset
+    for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT_TRUE(strlen(prompt_render(all[i].ps1, 0)) > 0);
+        TEST_ASSERT_TRUE(strlen(all[i].blurb) > 10);
+    }
+}
+
+void test_prompt_escapes_status_time_host(void) {
+    const char *r = prompt_render("[\\?]", 0);
+    TEST_ASSERT_NOT_NULL(strstr(r, "[]"));              // \? is empty on success
+    r = prompt_render("[\\?]", 3);
+    TEST_ASSERT_NOT_NULL(strstr(r, "[3]"));
+    r = prompt_render("\\t", 0);
+    const char *stamp = strchr(r, ':');                 // HH:MM:SS somewhere in the wrapped text
+    TEST_ASSERT_NOT_NULL(stamp);
+    TEST_ASSERT_TRUE(stamp - r >= 2 && stamp[3] == ':');
+    r = prompt_render("\\s \\v", 0);
+    TEST_ASSERT_NOT_NULL(strstr(r, "hash "));
+    r = prompt_render("\\[x\\]", 0);
+    TEST_ASSERT_NULL(strstr(r, "[x]"));                 // bash's markers are dropped (colour codes contain [ too)
+    TEST_ASSERT_NOT_NULL(strstr(r, "x"));
+    r = prompt_render("\\h", 0);
+    TEST_ASSERT_NULL(strchr(r, '.'));                   // \h stops at the first dot
+    char full[256];
+    gethostname(full, sizeof(full));
+    if (strchr(full, '.')) {
+        TEST_ASSERT_NOT_NULL(strstr(prompt_render("\\H", 0), full));
+    }
+    r = prompt_render("\\j", 0);
+    TEST_ASSERT_NOT_NULL(strstr(r, "0"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -102,5 +147,7 @@ int main(void) {
     RUN_TEST(test_git_branch);
     RUN_TEST(test_git_dirty);
 
+    RUN_TEST(test_prompt_presets);
+    RUN_TEST(test_prompt_escapes_status_time_host);
     return UNITY_END();
 }

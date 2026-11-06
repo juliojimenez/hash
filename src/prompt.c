@@ -5,7 +5,10 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <time.h>
 #include "prompt.h"
+#include "hash.h"
+#include "history.h"
 #include "colors.h"
 #include "color_config.h"
 #include "safe_string.h"
@@ -23,13 +26,63 @@ void prompt_init(void) {
 }
 
 // Set up default fancy prompt (call only when stdin is a tty)
+// ============================================================================
+// Presets: named prompts, picked with `set prompt=NAME`
+// ============================================================================
+// Each is a PS1 in hash's escape language; colours come from the colour
+// configuration through \w, \g and \e, except the powerline segments, whose
+// backgrounds are part of the look. The characters used (chevron, box
+// drawing, triangle) are in every common monospace font: no special font.
+
+static const PromptPreset presets[] = {
+    {"classic", "\\w\\g \\e#>\\e",
+     "path, git, and #> coloured by the last status (the default)"},
+    {"plain", "\\u@\\h:\\w\\$",
+     "user@host:path $, like a classic bash prompt"},
+    {"minimal", "\\W \\e\xe2\x9d\xaf\\e",
+     "the directory and a chevron coloured by the last status"},
+    {"two-line", "\xe2\x95\xad\xe2\x94\x80 \\u@\\h \\w\\g \\e\\?\\e\n\xe2\x95\xb0\xe2\x94\x80\\e\xe2\x9d\xaf\\e",
+     "user, host, path and git above, the chevron below"},
+    {"powerline", "\033[0;30;44m \\u@\\h \033[0;34;100m\xe2\x96\xb6\033[0;97;100m \\w\033[0;97;100m \033[0;90m\xe2\x96\xb6\033[0m\\g \\e\xe2\x9d\xaf\\e",
+     "coloured segments and triangles; no special font needed"},
+};
+#define PRESET_COUNT (sizeof(presets) / sizeof(presets[0]))
+
+static const char *current_preset = NULL;
+
+const PromptPreset *prompt_presets(size_t *count) {
+    if (count) {
+        *count = PRESET_COUNT;
+    }
+    return presets;
+}
+
+const char *prompt_current_preset(void) {
+    return current_preset;
+}
+
+bool prompt_set_preset(const char *name) {
+    if (!name) {
+        return false;
+    }
+    for (size_t i = 0; i < PRESET_COUNT; i++) {
+        if (strcmp(presets[i].name, name) == 0) {
+            prompt_set_ps1(presets[i].ps1);
+            current_preset = presets[i].name;
+            unsetenv("PS1");  // a preset asked for by name beats an inherited PS1
+            return true;
+        }
+    }
+    return false;
+}
+
 void prompt_set_fancy_default(void) {
     // Only set fancy default if PS1 is not already in environment
     // and no custom PS1 has been configured
     if (getenv("PS1") == NULL && !prompt_config.use_custom_ps1) {
         prompt_config.use_custom_ps1 = true;
-        // Default PS1: <path> git:(branch) #>
-        safe_strcpy(prompt_config.ps1, "\\w\\g \\e#>\\e", MAX_PROMPT_LENGTH);
+        safe_strcpy(prompt_config.ps1, presets[0].ps1, MAX_PROMPT_LENGTH);  // the classic preset
+        current_preset = presets[0].name;
     }
 }
 
@@ -49,6 +102,7 @@ void prompt_set_ps1(const char *ps1) {
 
     safe_strcpy(prompt_config.ps1, ps1, MAX_PROMPT_LENGTH);
     prompt_config.use_custom_ps1 = true;
+    current_preset = NULL;  // prompt_set_preset() names it again when it was a preset
 }
 
 char *prompt_git_branch(void) {
@@ -234,7 +288,23 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                 out_pos = safe_append(output, out_pos, max_pos, prompt_get_user());
                 break;
 
-            case 'h':
+            case 'h': {
+                    // The host name up to the first dot, as in bash; \H is the whole name
+                    const char *host = prompt_get_hostname();
+                    const char *dot = host ? strchr(host, '.') : NULL;
+                    if (dot) {
+                        char shortname[256];
+                        size_t n = (size_t)(dot - host);
+                        if (n >= sizeof(shortname)) n = sizeof(shortname) - 1;
+                        memcpy(shortname, host, n);
+                        shortname[n] = '\0';
+                        out_pos = safe_append(output, out_pos, max_pos, shortname);
+                    } else {
+                        out_pos = safe_append(output, out_pos, max_pos, host);
+                    }
+                }
+                break;
+            case 'H':
                 out_pos = safe_append(output, out_pos, max_pos, prompt_get_hostname());
                 break;
 
@@ -268,6 +338,63 @@ static void process_ps1_escapes(char *output, size_t out_size, const char *ps1, 
                     output[out_pos++] = '\n';
                 }
                 break;
+
+            case 't': case 'T': case '@': case 'd': {
+                    // Time and date, as in bash: \t 24h, \T 12h, \@ 12h am/pm, \d weekday month day
+                    time_t now = time(NULL);
+                    struct tm tm_now;
+                    localtime_r(&now, &tm_now);
+                    const char *format = (*p == 't') ? "%H:%M:%S" : (*p == 'T') ? "%I:%M:%S"
+                                       : (*p == '@') ? "%I:%M %p" : "%a %b %d";
+                    char stamp[64];
+                    if (strftime(stamp, sizeof(stamp), format, &tm_now) > 0) {
+                        out_pos = safe_append(output, out_pos, max_pos, stamp);
+                    }
+                }
+                break;
+
+            case 'j': {
+                    char count[16];
+                    snprintf(count, sizeof(count), "%d", jobs_count());
+                    out_pos = safe_append(output, out_pos, max_pos, count);
+                }
+                break;
+
+            case '!': {
+                    char number[16];
+                    snprintf(number, sizeof(number), "%d", history_count() + 1);
+                    out_pos = safe_append(output, out_pos, max_pos, number);
+                }
+                break;
+
+            case 's':
+                out_pos = safe_append(output, out_pos, max_pos, HASH_NAME);
+                break;
+
+            case 'v':
+                out_pos = safe_append(output, out_pos, max_pos, HASH_VERSION);
+                break;
+
+            case '?':
+                // The last exit status, only when it was not 0
+                if (last_exit_code != 0) {
+                    char status[16];
+                    snprintf(status, sizeof(status), "%d", last_exit_code);
+                    out_pos = safe_append(output, out_pos, max_pos, status);
+                }
+                break;
+
+            case 'b': {
+                    // The git branch alone, nothing outside a repository
+                    char *branch = prompt_git_branch();
+                    if (branch) {
+                        out_pos = safe_append(output, out_pos, max_pos, branch);
+                    }
+                }
+                break;
+
+            case '[': case ']':
+                break;  // bash's non-printing markers: the editor measures escapes itself
 
             case '\\':
                 if (out_pos < max_pos) {
@@ -344,6 +471,20 @@ static void handle_dynamic_expansion(char *prompt, const char *ps1, int last_exi
     // Don't add extra reset/space for external prompts - they handle their own formatting
 }
 
+// Escapes processed and, for the shell's own prompt, wrapped in the base colour
+// with a trailing reset and space; a PS1 from the environment is left as is
+static void render_prompt(char *out, size_t out_size, const char *ps1, int last_exit_code, bool wrap) {
+    // Reserve space for base_color (~32 bytes) + COLOR_RESET (~10 bytes) + space + null
+    char temp_prompt[MAX_PROMPT_LENGTH - 64];
+    process_ps1_escapes(temp_prompt, sizeof(temp_prompt), ps1, last_exit_code);
+    if (!wrap) {
+        safe_strcpy(out, temp_prompt, out_size);
+        return;
+    }
+    const char *base_color = color_config_get(color_config.prompt);
+    snprintf(out, out_size, "%s%s%s ", base_color, temp_prompt, color_code(COLOR_RESET));
+}
+
 // Generate prompt
 char *prompt_generate(int last_exit_code) {
     static char prompt[MAX_PROMPT_LENGTH];
@@ -373,20 +514,29 @@ char *prompt_generate(int last_exit_code) {
         return prompt;
     }
 
-    // Process hash-specific escape sequences (for built-in prompts)
-    // Reserve space for base_color (~32 bytes) + COLOR_RESET (~10 bytes) + space + null
-    char temp_prompt[MAX_PROMPT_LENGTH - 64];
-    process_ps1_escapes(temp_prompt, sizeof(temp_prompt), ps1, last_exit_code);
-
-    // POSIX compliance: if PS1 is from environment, output it without adding colors
-    // Only add color wrapping for the default hash prompt
-    if (ps1_from_env) {
-        safe_strcpy(prompt, temp_prompt, sizeof(prompt));
-    } else {
-        // Wrap entire prompt in base prompt color (bold by default) and add final reset + space
-        const char *base_color = color_config_get(color_config.prompt);
-        snprintf(prompt, sizeof(prompt), "%s%s%s ", base_color, temp_prompt, color_code(COLOR_RESET));
-    }
-
+    render_prompt(prompt, sizeof(prompt), ps1, last_exit_code, !ps1_from_env);
     return prompt;
+}
+
+const char *prompt_render(const char *ps1, int last_exit_code) {
+    static char rendered[MAX_PROMPT_LENGTH];
+    render_prompt(rendered, sizeof(rendered), ps1 ? ps1 : "", last_exit_code, true);
+    return rendered;
+}
+
+void prompt_print_presets(FILE *out) {
+    for (size_t i = 0; i < PRESET_COUNT; i++) {
+        const char *mark = (current_preset && strcmp(current_preset, presets[i].name) == 0) ? "*" : " ";
+        fprintf(out, "%s %-10s %s\n", mark, presets[i].name, presets[i].blurb);
+        // The sample, its own lines indented under the name
+        fputs("             ", out);
+        for (const char *c = prompt_render(presets[i].ps1, 0); *c; c++) {
+            fputc(*c, out);
+            if (*c == '\n') {
+                fputs("             ", out);
+            }
+        }
+        fputc('\n', out);
+    }
+    fprintf(out, "\n`set prompt=NAME` picks one; `set PS1='...'` builds your own.\n");
 }

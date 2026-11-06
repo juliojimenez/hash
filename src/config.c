@@ -313,6 +313,24 @@ int config_set_option(const char *assignment) {
         prompt_set_ps1(assignment + 4);
         return 0;
     }
+    if (strncmp(assignment, "prompt=", 7) == 0) {
+        const char *value = assignment + 7;
+        if (strcmp(value, "list") == 0) {
+            prompt_print_presets(stdout);
+            return 0;
+        }
+        if (prompt_set_preset(value)) {
+            return 0;
+        }
+        size_t count;
+        const PromptPreset *all = prompt_presets(&count);
+        fprintf(stderr, "%s: set: prompt: no preset named '%s'; the presets are", HASH_NAME, value);
+        for (size_t i = 0; i < count; i++) {
+            fprintf(stderr, "%s %s", i ? "," : "", all[i].name);
+        }
+        fprintf(stderr, " (set prompt=list shows them)\n");
+        return 1;  // ours, but rejected
+    }
 
     // set color.<element>=<value>, e.g. color.prompt=bold,blue
     if (strncmp(assignment, "color.", 6) == 0) {

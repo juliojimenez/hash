@@ -1,0 +1,18 @@
+# set prompt=NAME changes the prompt at once; two-line shows a failed status (#333)
+send set prompt=minimal
+expect ❯ 
+raw echo on''e\r
+expect \none\n
+raw set prompt=two-line\r
+expect ╭─ 
+expect ╰─❯ 
+raw false\r
+expect  1\n
+raw set prompt=plain\r
+expect @
+raw echo tw''o\r
+expect \ntwo\n
+raw set prompt=powerline\r
+expect ▶
+raw exit\r
+status 0
