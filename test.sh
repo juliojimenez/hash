@@ -700,7 +700,9 @@ else
 fi
 
 run_test "recursion within the limit still works" 'n=0; f() { n=$((n+1)); [ $n -lt 200 ] && f; }; f; echo "depth $n"' "depth 200"
-run_interactive_test "recursion limit keeps an interactive session going" $'f() { f; }\nf\necho alive $?' "alive 1"
+# FUNCNEST=20 keeps this well inside the 2 s budget of run_interactive_test on a
+# loaded runner; the default limit is covered by the -c case above
+run_interactive_test "recursion limit keeps an interactive session going" $'FUNCNEST=20\nf() { f; }\nf\necho alive $?' "alive 1"
 
 # A compound command typed over several lines is one history entry, saved in the
 # extended format (a "#<seconds>" line before each entry) and loaded back whole.
