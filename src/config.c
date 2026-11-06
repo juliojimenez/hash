@@ -56,6 +56,8 @@ static const ShellOptionDef shell_option_defs[] = {
     {'x', "xtrace", &shell_config.options.xtrace},
     {0, "nolog", &shell_config.options.nolog},
     {0, "nonlexicalctrl", &shell_config.options.nonlexicalctrl},
+    {0, "emacs", &shell_config.options.emacs},
+    {0, "vi", &shell_config.options.vi},
 };
 #define SHELL_OPTION_COUNT (sizeof(shell_option_defs) / sizeof(shell_option_defs[0]))
 
@@ -77,10 +79,20 @@ bool shell_option_apply_name(const char *name, bool on) {
     for (size_t i = 0; i < SHELL_OPTION_COUNT; i++) {
         if (strcmp(shell_option_defs[i].name, name) == 0) {
             *shell_option_defs[i].flag = on;
+            // vi and emacs are the two states of one setting
+            if (strcmp(name, "vi") == 0) {
+                shell_config.options.emacs = !on;
+            } else if (strcmp(name, "emacs") == 0) {
+                shell_config.options.vi = !on;
+            }
             return true;
         }
     }
     return false;
+}
+
+bool shell_option_vi(void) {
+    return shell_config.options.vi;
 }
 
 void shell_options_print(bool as_commands) {
@@ -125,6 +137,8 @@ void shell_options_init(void) {
     shell_config.options.noglob = false;
     shell_config.options.noexec = false;
     shell_config.options.notify = false;
+    shell_config.options.vi = false;
+    shell_config.options.emacs = true;  // the default editing mode; `set -o vi` switches
 }
 
 // Get the nounset option value

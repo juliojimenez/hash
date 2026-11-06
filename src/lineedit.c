@@ -9,7 +9,9 @@
 #include <termios.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <wchar.h>
 #include <locale.h>
 #include "lineedit.h"
@@ -22,6 +24,7 @@
 #include "color_config.h"
 #include "colors.h"
 #include "autosuggest.h"
+#include "config.h"
 
 #define MAX_LINE_LENGTH 4096
 
@@ -137,9 +140,29 @@ static void disable_raw_mode(void) {
 }
 
 // Read a key from stdin
+// A key read after Esc that turned out not to start an escape sequence; it
+// is the next key, not part of the Esc
+static int pushed_back_key = -1;
+
+// Is a byte waiting on stdin within the given time? Esc followed by nothing
+// is a bare Esc, which vi mode needs; terminals send a whole sequence at once.
+static bool byte_pending(int milliseconds) {
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+    struct timeval tv = { 0, milliseconds * 1000 };
+    return select(STDIN_FILENO + 1, &set, NULL, NULL, &tv) > 0;
+}
+
 static int read_key(void) {
     char c;
     ssize_t nread;
+
+    if (pushed_back_key >= 0) {
+        int key = pushed_back_key;
+        pushed_back_key = -1;
+        return key;
+    }
 
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
         if (nread == -1) return -1;
@@ -149,8 +172,14 @@ static int read_key(void) {
     if (c == KEY_ESC) {
         char seq[3];
 
-        // Read next two bytes
+        // A bare Esc arrives alone; a sequence follows within a few milliseconds
+        if (!byte_pending(50)) return KEY_ESC;
         if (read(STDIN_FILENO, &seq[0], 1) != 1) return KEY_ESC;
+        if (seq[0] != '[' && seq[0] != 'O') {
+            pushed_back_key = (unsigned char)seq[0];  // Esc, then this key on its own
+            return KEY_ESC;
+        }
+        if (!byte_pending(50)) return KEY_ESC;
         if (read(STDIN_FILENO, &seq[1], 1) != 1) return KEY_ESC;
 
         if (seq[0] == '[') {
@@ -707,10 +736,12 @@ static char *handle_enter_key(LineEdit *edit) {
         return NULL;
     }
 
-    // Refresh line and move the cursor to end of line
-    // Hack to disable auto suggestion, move cursor one position back
+    // Redraw without the autosuggestion (it shows only with the cursor at the
+    // end, so step back first when we are there) and move to the end of the line
     if (edit->len > 0) {
-        set_cursor(edit, edit->pos - 1);
+        if (edit->pos > 0) {
+            set_cursor(edit, edit->pos - 1);
+        }
         refresh_line(edit);
         set_cursor(edit, edit->len);
     }
@@ -1173,6 +1204,342 @@ static void handle_default(LineEdit *edit, int c) {
     }
 }
 
+// ============================================================================
+// Vi mode (set -o vi)
+// ============================================================================
+// Each line starts in insert mode, where every key works as in emacs mode.
+// Esc enters command mode: the cursor stands on a character, motions move it,
+// operators act on a motion, i/a/I/A go back to inserting. A subset of vi:
+//   h l 0 ^ $ w b e          motions (words are blank-separated)
+//   x X D C s r ~ p P u      edits, yank/put through one cut buffer, one-level undo
+//   d c y + motion, dd cc yy operators
+//   i a I A                  insert
+//   k j                      history, / incremental search (Enter runs the match)
+// Counts are not implemented.
+
+static bool vi_enabled = false;   // set -o vi was in effect when the line started
+static bool vi_command = false;   // command mode (false = insert mode)
+static char vi_pending = 0;       // operator waiting for its motion: d, c, y, r
+static char vi_cut[MAX_LINE_LENGTH];
+static size_t vi_cut_len = 0;
+static char vi_undo_buf[MAX_LINE_LENGTH];
+static size_t vi_undo_len = 0;
+static size_t vi_undo_pos = 0;
+static bool vi_undo_valid = false;
+
+// In command mode the cursor is on a character, never past the last one
+static void vi_clamp(LineEdit *edit) {
+    if (edit->len == 0) {
+        edit->pos = 0;
+    } else if (edit->pos >= edit->len) {
+        edit->pos = edit->len - 1;
+    }
+}
+
+static void vi_enter_command(LineEdit *edit) {
+    vi_command = true;
+    vi_pending = 0;
+    if (edit->pos > 0) {
+        edit->pos--;  // leaving insert mode steps back onto the last typed character
+    }
+    vi_clamp(edit);
+    refresh_line(edit);
+}
+
+static void vi_enter_insert(LineEdit *edit, size_t pos) {
+    vi_command = false;
+    vi_pending = 0;
+    edit->pos = pos > edit->len ? edit->len : pos;
+    refresh_line(edit);
+}
+
+static void vi_save_undo(const LineEdit *edit) {
+    memcpy(vi_undo_buf, edit->buf, edit->len + 1);
+    vi_undo_len = edit->len;
+    vi_undo_pos = edit->pos;
+    vi_undo_valid = true;
+}
+
+static void vi_undo(LineEdit *edit) {
+    if (!vi_undo_valid) {
+        return;
+    }
+    char swap_buf[MAX_LINE_LENGTH];
+    size_t swap_len = edit->len;
+    size_t swap_pos = edit->pos;
+    memcpy(swap_buf, edit->buf, edit->len + 1);
+    memcpy(edit->buf, vi_undo_buf, vi_undo_len + 1);
+    edit->len = vi_undo_len;
+    edit->pos = vi_undo_pos;
+    memcpy(vi_undo_buf, swap_buf, swap_len + 1);  // u again redoes
+    vi_undo_len = swap_len;
+    vi_undo_pos = swap_pos;
+    vi_clamp(edit);
+    refresh_line(edit);
+}
+
+static void vi_yank(const LineEdit *edit, size_t from, size_t to) {
+    if (to > edit->len) {
+        to = edit->len;
+    }
+    if (from >= to) {
+        return;
+    }
+    vi_cut_len = to - from;
+    memcpy(vi_cut, edit->buf + from, vi_cut_len);
+    vi_cut[vi_cut_len] = '\0';
+}
+
+// Remove [from, to) into the cut buffer; the cursor lands on from
+static void vi_delete(LineEdit *edit, size_t from, size_t to) {
+    if (to > edit->len) {
+        to = edit->len;
+    }
+    if (from >= to) {
+        return;
+    }
+    vi_save_undo(edit);
+    vi_yank(edit, from, to);
+    memmove(edit->buf + from, edit->buf + to, edit->len - to);
+    edit->len -= to - from;
+    edit->buf[edit->len] = '\0';
+    edit->pos = from;
+}
+
+static bool vi_blank(char ch) {
+    return isspace((unsigned char)ch) != 0;
+}
+
+// Start of the next word (words are runs of non-blanks)
+static size_t vi_word_forward(const LineEdit *edit, size_t pos) {
+    while (pos < edit->len && !vi_blank(edit->buf[pos])) pos++;
+    while (pos < edit->len && vi_blank(edit->buf[pos])) pos++;
+    return pos;
+}
+
+// Last character of the current word, or of the next one when already there
+static size_t vi_word_end(const LineEdit *edit, size_t pos) {
+    if (edit->len == 0) {
+        return 0;
+    }
+    if (pos + 1 < edit->len) {
+        pos++;
+    }
+    while (pos < edit->len && vi_blank(edit->buf[pos])) pos++;
+    while (pos + 1 < edit->len && !vi_blank(edit->buf[pos + 1])) pos++;
+    return pos >= edit->len ? edit->len - 1 : pos;
+}
+
+// Start of the current word, or of the previous one when already there
+static size_t vi_word_backward(const LineEdit *edit, size_t pos) {
+    while (pos > 0 && vi_blank(edit->buf[pos - 1])) pos--;
+    while (pos > 0 && !vi_blank(edit->buf[pos - 1])) pos--;
+    return pos;
+}
+
+// The range [from, to) a motion key covers from the cursor; false for keys that are no motion
+static bool vi_motion_range(const LineEdit *edit, int key, size_t *from, size_t *to) {
+    size_t pos = edit->pos;
+    switch (key) {
+        case 'w': *from = pos; *to = vi_word_forward(edit, pos); return true;
+        case 'e': *from = pos; *to = edit->len ? vi_word_end(edit, pos) + 1 : 0; return true;
+        case 'b': *from = vi_word_backward(edit, pos); *to = pos; return true;
+        case '$': *from = pos; *to = edit->len; return true;
+        case '0': case '^': *from = 0; *to = pos; return true;
+        case 'h': case KEY_LEFT_ARROW: *from = pos > 0 ? pos - 1 : 0; *to = pos; return true;
+        case 'l': case ' ': case KEY_RIGHT_ARROW: *from = pos; *to = pos < edit->len ? pos + 1 : pos; return true;
+        default: return false;
+    }
+}
+
+// The operator in vi_pending now has its motion (or a repeat of itself for the whole line)
+static void vi_apply_operator(LineEdit *edit, int key) {
+    char op = vi_pending;
+    vi_pending = 0;
+    size_t from, to;
+    if (key == op) {
+        from = 0;
+        to = edit->len;  // dd, cc, yy
+    } else if (op == 'c' && key == 'w') {
+        // cw changes to the end of the word and keeps the blanks after it, as vi does
+        if (!vi_motion_range(edit, 'e', &from, &to)) {
+            return;
+        }
+    } else if (!vi_motion_range(edit, key, &from, &to)) {
+        return;  // not a motion: the operator is cancelled
+    }
+    switch (op) {
+        case 'd':
+            vi_delete(edit, from, to);
+            vi_clamp(edit);
+            refresh_line(edit);
+            break;
+        case 'c':
+            vi_delete(edit, from, to);
+            vi_enter_insert(edit, from);
+            break;
+        case 'y':
+            vi_yank(edit, from, to);
+            break;
+        default:
+            break;
+    }
+}
+
+static void vi_put(LineEdit *edit, bool after) {
+    if (vi_cut_len == 0 || edit->len + vi_cut_len >= MAX_LINE_LENGTH) {
+        return;
+    }
+    vi_save_undo(edit);
+    size_t at = edit->pos;
+    if (after && edit->len > 0) {
+        at++;
+    }
+    memmove(edit->buf + at + vi_cut_len, edit->buf + at, edit->len - at);
+    memcpy(edit->buf + at, vi_cut, vi_cut_len);
+    edit->len += vi_cut_len;
+    edit->buf[edit->len] = '\0';
+    edit->pos = at + vi_cut_len - 1;
+    refresh_line(edit);
+}
+
+static void vi_recall(LineEdit *edit, bool older) {
+    if (older) {
+        handle_up_arrow(edit);
+    } else {
+        handle_down_arrow(edit);
+    }
+    edit->pos = 0;  // a recalled line is viewed from its start
+    refresh_line(edit);
+}
+
+// One key in command mode. Keys the switch in lineedit_read_line owns
+// (Enter, the control keys) never reach here.
+static void vi_command_key(LineEdit *edit, int c) {
+    edit->last_was_tab = false;
+    if (vi_pending == 'r') {
+        vi_pending = 0;
+        if (c >= 32 && c < 127 && edit->len > 0) {
+            vi_save_undo(edit);
+            edit->buf[edit->pos] = (char)c;
+            refresh_line(edit);
+        }
+        return;
+    }
+    if (vi_pending) {
+        vi_apply_operator(edit, c);
+        return;
+    }
+    switch (c) {
+        case 'h': case KEY_LEFT_ARROW:
+            if (edit->pos > 0) set_cursor(edit, edit->pos - 1);
+            break;
+        case 'l': case ' ': case KEY_RIGHT_ARROW:
+            if (edit->pos + 1 < edit->len) set_cursor(edit, edit->pos + 1);
+            break;
+        case '0': case '^':
+            set_cursor(edit, 0);
+            break;
+        case '$':
+            set_cursor(edit, edit->len ? edit->len - 1 : 0);
+            break;
+        case 'w':
+            set_cursor(edit, vi_word_forward(edit, edit->pos));
+            vi_clamp(edit);
+            set_cursor(edit, edit->pos);
+            break;
+        case 'e':
+            set_cursor(edit, vi_word_end(edit, edit->pos));
+            break;
+        case 'b':
+            set_cursor(edit, vi_word_backward(edit, edit->pos));
+            break;
+        case 'i':
+            vi_enter_insert(edit, edit->pos);
+            break;
+        case 'a':
+            vi_enter_insert(edit, edit->len ? edit->pos + 1 : 0);
+            break;
+        case 'I':
+            vi_enter_insert(edit, 0);
+            break;
+        case 'A':
+            vi_enter_insert(edit, edit->len);
+            break;
+        case 'x':
+            if (edit->len > 0) {
+                vi_delete(edit, edit->pos, edit->pos + 1);
+                vi_clamp(edit);
+                refresh_line(edit);
+            }
+            break;
+        case 'X':
+            if (edit->pos > 0) {
+                vi_delete(edit, edit->pos - 1, edit->pos);
+                refresh_line(edit);
+            }
+            break;
+        case 'D':
+            vi_delete(edit, edit->pos, edit->len);
+            vi_clamp(edit);
+            refresh_line(edit);
+            break;
+        case 'C':
+            vi_delete(edit, edit->pos, edit->len);
+            vi_enter_insert(edit, edit->len);
+            break;
+        case 's':
+            if (edit->len > 0) {
+                vi_delete(edit, edit->pos, edit->pos + 1);
+            }
+            vi_enter_insert(edit, edit->pos);
+            break;
+        case 'S':
+            vi_delete(edit, 0, edit->len);
+            vi_enter_insert(edit, 0);
+            break;
+        case 'r': case 'd': case 'c': case 'y':
+            vi_pending = (char)c;
+            break;
+        case '~':
+            if (edit->len > 0) {
+                vi_save_undo(edit);
+                char ch = edit->buf[edit->pos];
+                edit->buf[edit->pos] = islower((unsigned char)ch) ? (char)toupper((unsigned char)ch)
+                                     : (char)tolower((unsigned char)ch);
+                if (edit->pos + 1 < edit->len) edit->pos++;
+                refresh_line(edit);
+            }
+            break;
+        case 'p':
+            vi_put(edit, true);
+            break;
+        case 'P':
+            vi_put(edit, false);
+            break;
+        case 'u':
+            vi_undo(edit);
+            break;
+        case 'k': case KEY_UP_ARROW:
+            vi_recall(edit, true);
+            break;
+        case 'j': case KEY_DOWN_ARROW:
+            vi_recall(edit, false);
+            break;
+        case '/':
+            handle_ctrl_r(edit);  // incremental search; Enter runs the match
+            break;
+        default:
+            break;  // not a vi command we know
+    }
+}
+
+// Does command mode take this key? Control keys and Enter stay with the main switch.
+static bool vi_takes_key(int c) {
+    return (c >= 32 && c < 127) || c == KEY_UP_ARROW || c == KEY_DOWN_ARROW
+        || c == KEY_LEFT_ARROW || c == KEY_RIGHT_ARROW;
+}
+
 // Read a line with editing capabilities
 char *lineedit_read_line(const char *prompt) {
     static LineEdit edit = (LineEdit){0};
@@ -1184,6 +1551,10 @@ char *lineedit_read_line(const char *prompt) {
     edit.pos = 0;
     edit.prompt = prompt ? prompt : "";
     last_read_interrupted = false;
+    vi_enabled = shell_option_vi();
+    vi_command = false;       // every line starts in insert mode
+    vi_pending = 0;
+    vi_undo_valid = false;
 
     refresh_line_reset();
 
@@ -1221,6 +1592,19 @@ char *lineedit_read_line(const char *prompt) {
         int c = read_key();
 
         if (c == -1) break;
+
+        if (vi_enabled && c == KEY_ESC) {
+            // Esc: leave insert mode (or a search) for command mode
+            if (search_state.active) {
+                search_cleanup();
+            }
+            vi_enter_command(&edit);
+            continue;
+        }
+        if (vi_enabled && vi_command && !search_state.active && vi_takes_key(c)) {
+            vi_command_key(&edit, c);
+            continue;
+        }
 
         switch (c) {
             case KEY_ENTER:

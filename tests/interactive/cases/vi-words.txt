@@ -1,0 +1,21 @@
+# vi motions and operators on words: 0 w cw, A appends, $ and ~
+send set -o vi
+raw echo foo bar
+raw \x1b
+raw 0
+raw w
+raw cw
+raw baz
+raw \x1b
+raw A
+raw  end
+raw \x1b
+raw \r
+expect \nbaz bar end\n
+raw echo mid
+raw \x1b
+raw b~
+raw \r
+expect \nMid\n
+send exit
+status 0

@@ -94,6 +94,42 @@ Cancel current input and get a fresh prompt:
 - On empty line: Exits the shell
 - On non-empty line: Does nothing
 
+## Vi Mode
+
+`set -o vi` switches the editor to vi's modal editing; `set -o emacs` (the
+default) switches back. Both appear in `set -o`, and `set +o` prints the one in
+effect as a command you can put in `~/.hashrc`.
+
+Each line starts in insert mode, where every key works as in emacs mode. `Esc`
+enters command mode: the cursor stands on a character, motions move it,
+operators act on a motion, and `i`, `a`, `I`, `A` return to inserting. Words are
+blank-separated. Counts are not implemented.
+
+| Key | Action |
+|-----|--------|
+| `Esc` | Command mode |
+| `h` `l` (or arrows) | Left, right |
+| `0` `^` `$` | Start, start, end of line |
+| `w` `b` `e` | Next word, previous word, end of word |
+| `i` `a` `I` `A` | Insert here, after the cursor, at the start, at the end |
+| `x` `X` | Delete the character under, before the cursor |
+| `d` + motion, `dd`, `D` | Delete through a motion, the whole line, to the end |
+| `c` + motion, `cc`, `C`, `s`, `S` | Delete the same, then insert (`cw` changes to the end of the word) |
+| `y` + motion, `yy` | Copy to the cut buffer |
+| `p` `P` | Put the cut buffer after, before the cursor |
+| `r` + char | Replace the character under the cursor |
+| `~` | Toggle case and move right |
+| `u` | Undo the last edit (again redoes) |
+| `k` `j` (or arrows) | Older, newer history entry, cursor at the start |
+| `/` | Incremental history search: type, `Enter` runs the match, `Esc` keeps it for editing |
+| `Enter` | Run the line, from either mode |
+
+```bash
+#> set -o vi
+#> echo helo          # Esc, h, i, l, Esc, Enter
+hello
+```
+
 ## Tips & Tricks
 
 ### Quick Edits
@@ -157,11 +193,12 @@ export TERM=xterm-256color
 - Ctrl+L, Ctrl+C, Ctrl+D
 - Home/End keys
 - Insert mode
+- Ctrl+R reverse search
+- Vi mode (`set -o vi`), the subset listed above
 
 ### Not Yet Supported
 
-- Ctrl+R (reverse search)
 - Ctrl+T (transpose)
 - Alt key bindings
-- Vi mode
+- Vi counts and text objects
 - Custom key bindings

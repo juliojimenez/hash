@@ -28,6 +28,8 @@ typedef struct {
     bool noglob;       // -f: No pathname expansion
     bool noexec;       // -n: Read and parse commands but do not run them (not interactive)
     bool notify;       // -b: accepted; background job status is reported at the prompt
+    bool vi;           // -o vi: modal line editing (the emacs option is its opposite)
+    bool emacs;        // -o emacs: the default line editing
 } ShellOptions;
 
 // Configuration structure
@@ -193,6 +195,8 @@ bool shell_option_noexec(void);
  * option the shell does not have.
  */
 bool shell_option_apply_letter(char letter, bool on);
+/* The line editing mode: true when `set -o vi` is in effect */
+bool shell_option_vi(void);
 bool shell_option_apply_name(const char *name, bool on);
 
 /** `set -o`: one "name<TAB>on|off" line per option; `set +o`: "set -o name" / "set +o name" lines. */

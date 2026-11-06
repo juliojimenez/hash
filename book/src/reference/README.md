@@ -166,6 +166,8 @@ commands, and `$-` holds the letters in effect.
 | `-x` | `xtrace` | Print each command, after expansion, before it runs (`PS4` is the prefix) |
 | | `nolog` | Keep commands out of the history |
 | | `nonlexicalctrl` | `break` and `continue` reach loops in calling functions |
+| | `emacs` | Emacs-style line editing (the default) |
+| | `vi` | Vi-style modal line editing; `set -o vi` turns `emacs` off and back |
 
 hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element>`,
 `syntax_highlight`, `autosuggest`, `danger_highlight`) are listed on the
