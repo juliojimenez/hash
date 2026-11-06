@@ -218,6 +218,22 @@ void test_try_builtin_type(void) {
     TEST_ASSERT_NOT_EQUAL_INT(-1, result);  // Should recognize type
 }
 
+// Every builtin must document itself for `help`
+void test_every_builtin_has_help_text(void) {
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        TEST_ASSERT_NOT_NULL_MESSAGE(builtins[i].name, "builtin without a name");
+        TEST_ASSERT_NOT_NULL_MESSAGE(builtins[i].synopsis, builtins[i].name);
+        TEST_ASSERT_NOT_NULL_MESSAGE(builtins[i].description, builtins[i].name);
+        TEST_ASSERT_TRUE_MESSAGE(builtins[i].synopsis[0] != '\0', builtins[i].name);
+        TEST_ASSERT_TRUE_MESSAGE(builtins[i].description[0] != '\0', builtins[i].name);
+        // The synopsis starts with the name, so the listing reads as a table
+        TEST_ASSERT_EQUAL_STRING_LEN_MESSAGE(builtins[i].name, builtins[i].synopsis, strlen(builtins[i].name), builtins[i].name);
+        // Descriptions end with a newline, one sentence block per line
+        size_t len = strlen(builtins[i].description);
+        TEST_ASSERT_TRUE_MESSAGE(builtins[i].description[len - 1] == '\n', builtins[i].name);
+    }
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -243,5 +259,6 @@ int main(void) {
     RUN_TEST(test_try_builtin_times);
     RUN_TEST(test_try_builtin_type);
 
+    RUN_TEST(test_every_builtin_has_help_text);
     return UNITY_END();
 }

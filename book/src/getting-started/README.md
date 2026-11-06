@@ -2,6 +2,8 @@
 
 Welcome to hash shell! This guide will help you get started with the basics.
 
+Inside the shell, `help` lists the builtins and `help NAME` describes one, `help trap` for instance.
+
 ## First Steps
 
 After [installing hash](../installation/README.md), start it by running:

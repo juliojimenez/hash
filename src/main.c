@@ -223,6 +223,7 @@ static void print_usage(const char *prog_name) {
     printf("\n");
     printf("If a script-file is provided, hash executes the script.\n");
     printf("Without arguments, hash runs interactively.\n");
+    printf("Inside the shell, `help` describes the builtins and `help NAME` one of them.\n");
 }
 
 static void print_version(void) {

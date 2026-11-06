@@ -737,6 +737,15 @@ run_test "complete rejects an unknown option" "complete -Z x; echo \"status=\$?\
 run_test "set -o vi turns emacs off" "set -o vi; set -o | grep -E '^(vi|emacs)' | tr -s ' \t' ' ' | tr '\n' ' '" "emacs off vi on"
 run_test "set +o vi restores emacs" "set -o vi; set +o vi; set +o | grep -E 'emacs|vi' | tr '\n' ' '" "set -o emacs set +o vi"
 
+# help: every builtin and keyword has a synopsis; help NAME describes one
+run_test "help lists trap and the keywords" "help | grep -E '^(trap|if|case) ' | wc -l | tr -d ' '" "4"
+run_test "help NAME prints synopsis, description and the book page" "help trap" "More: https://hash-shell.org/"
+run_test "help -s prints the synopsis only" "help -s cd exit | tr '\n' '|'" "cd [dir]|exit [n]|"
+run_test "help takes patterns" "help -s 'ex*' | head -1" "exit [n]"
+run_test "help set lists hash's own options" "help set" "welcome=on|off"
+run_test "help with an unknown topic fails" "help nosuchthing; echo \"status=\$?\"" "status=1"
+run_test "help rejects an unknown option" "help -z; echo \"status=\$?\"" "status=2"
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"
