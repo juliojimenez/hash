@@ -26,6 +26,12 @@ void tearDown(void) {
     if (saved_cwd[0]) {
         chdir(saved_cwd);  // a failed assertion may have left us in the test tree
     }
+    // script_init() zeroes the function table without freeing it, so a function
+    // defined by a test would leak once the next setUp runs: free it here, as
+    // test_exec.c does
+    script_cleanup();
+    shellvar_cleanup();
+    completion_spec_remove_all();
 }
 
 // Test completion generation returns results
