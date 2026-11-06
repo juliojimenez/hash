@@ -1,0 +1,12 @@
+# set -o vi: Esc enters command mode, h moves, i inserts, Enter runs (#330)
+send set -o vi
+raw echo helo
+raw \x1b
+raw h
+raw i
+raw l
+raw \x1b
+raw \r
+expect \nhello\n
+send exit
+status 0

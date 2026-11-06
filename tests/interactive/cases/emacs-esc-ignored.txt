@@ -1,0 +1,8 @@
+# In the default emacs mode a bare Esc does nothing and the next key is kept
+raw echo a
+raw \x1b
+raw b
+raw \r
+expect \nab\n
+send exit
+status 0

@@ -1,0 +1,27 @@
+# vi command mode: k recalls history, / searches it, p puts the cut text, u undoes
+send set -o vi
+send echo fir''st
+expect \nfirst\n
+send echo sec''ond
+expect \nsecond\n
+raw \x1b
+raw kk
+raw \r
+expect \nfirst\n
+raw \x1b
+raw /sec
+raw \r
+expect \nsecond\n
+raw echo acb
+raw \x1b
+raw hxp
+raw \r
+expect \nabc\n
+raw echo xyz
+raw \x1b
+raw dd
+raw u
+raw \r
+expect \nxyz\n
+send exit
+status 0

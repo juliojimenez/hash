@@ -1,0 +1,7 @@
+# Enter with the cursor at the start of a non-empty line runs it (Ctrl-A then Enter used to crash the shell)
+raw echo hi
+raw \x01
+raw \r
+expect \nhi\n
+send exit
+status 0

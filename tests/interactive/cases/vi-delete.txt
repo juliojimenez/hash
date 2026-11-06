@@ -1,0 +1,24 @@
+# vi command mode: dd clears the line, D deletes to the end, x deletes a character
+send set -o vi
+raw echo WR''ONG
+raw \x1b
+raw dd
+raw i
+raw echo RIGHT
+raw \r
+expect \nRIGHT\n
+absent WRONG
+raw echo keep DEL''ETED
+raw \x1b
+raw b
+raw D
+raw \r
+expect \nkeep\n
+absent DELETED
+raw echo abXc
+raw \x1b
+raw hx
+raw \r
+expect \nabc\n
+send exit
+status 0

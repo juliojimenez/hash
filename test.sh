@@ -733,6 +733,10 @@ run_test "complete -F records a function spec" "complete -F _hc -o default hcoth
 run_test "complete -r removes a spec" "complete -W x hcgone; complete -r hcgone; complete -p hcgone; echo \"status=\$?\"" "status=1"
 run_test "complete rejects an unknown option" "complete -Z x; echo \"status=\$?\"" "status=2"
 
+# set -o vi and set -o emacs are the two states of the editing mode
+run_test "set -o vi turns emacs off" "set -o vi; set -o | grep -E '^(vi|emacs)' | tr -s ' \t' ' ' | tr '\n' ' '" "emacs off vi on"
+run_test "set +o vi restores emacs" "set -o vi; set +o vi; set +o | grep -E 'emacs|vi' | tr '\n' ' '" "set -o emacs set +o vi"
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

@@ -200,7 +200,7 @@ void test_set_options_by_letter_and_name(void) {
     TEST_ASSERT_FALSE(shell_option_noclobber());
     TEST_ASSERT_TRUE(shell_option_apply_letter('h', true));   // accepted, nothing to do
     TEST_ASSERT_FALSE(shell_option_apply_letter('z', true));
-    TEST_ASSERT_FALSE(shell_option_apply_name("vi", true));
+    TEST_ASSERT_FALSE(shell_option_apply_name("braceexpand", true));  // vi is an option since #330
     TEST_ASSERT_FALSE(shell_option_apply_name(NULL, true));
 }
 
@@ -220,6 +220,19 @@ void test_set_options_flags_string(void) {
 // A missing startup file is not an error
 void test_missing_startup_file_is_fine(void) {
     TEST_ASSERT_EQUAL_INT(0, config_load_silent("/tmp/hash_config_test_missing/.hashrc"));
+}
+
+void test_vi_and_emacs_are_one_setting(void) {
+    shell_options_init();
+    TEST_ASSERT_FALSE(shell_option_vi());
+    TEST_ASSERT_TRUE(shell_option_apply_name("vi", true));
+    TEST_ASSERT_TRUE(shell_option_vi());
+    TEST_ASSERT_TRUE(shell_option_apply_name("vi", false));
+    TEST_ASSERT_FALSE(shell_option_vi());
+    TEST_ASSERT_TRUE(shell_option_apply_name("emacs", false));
+    TEST_ASSERT_TRUE(shell_option_vi());
+    TEST_ASSERT_TRUE(shell_option_apply_name("emacs", true));
+    TEST_ASSERT_FALSE(shell_option_vi());
 }
 
 int main(void) {
@@ -243,5 +256,6 @@ int main(void) {
     RUN_TEST(test_set_options_flags_string);
     RUN_TEST(test_missing_startup_file_is_fine);
 
+    RUN_TEST(test_vi_and_emacs_are_one_setting);
     return UNITY_END();
 }
