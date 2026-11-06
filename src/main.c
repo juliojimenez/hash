@@ -148,6 +148,9 @@ static int run_prompt_line(char *line, int *last_exit_code) {
     // Lines accumulate until the parser has a complete program, then it runs
     ExecStatus st = EXEC_OK;
     FeedResult fed = exec_feed_line(&prompt_feeder, line, &st);
+    if (st == EXEC_ABORT) {
+        exec_abort_clear();  // the nesting limit abandoned the command; the prompt goes on
+    }
     *last_exit_code = execute_get_last_exit_code();
     free(line);
     return !(fed == FEED_RAN && st == EXEC_EXIT);
@@ -214,6 +217,9 @@ int main(int argc, char *argv[]) {
     bool force_interactive = false;   // -i flag
     bool read_stdin = false;          // -s flag
     char option_letters[64] = "";    // set options given on the command line (-e, -u, -x, -ex ...)
+
+    // The stack guard for function nesting measures from here
+    exec_set_stack_base(&argc);
 
     // Determine if we're a login shell
     // A login shell is indicated by:
@@ -451,7 +457,7 @@ int main(int argc, char *argv[]) {
             }
             ExecStatus st = EXEC_OK;
             FeedResult fed = exec_feed_line(&feeder, line, &st);
-            if (fed == FEED_SYNTAX_ERROR || (fed == FEED_RAN && st == EXEC_EXIT)) {
+            if (fed == FEED_SYNTAX_ERROR || (fed == FEED_RAN && (st == EXEC_EXIT || st == EXEC_ABORT))) {
                 result = (fed == FEED_SYNTAX_ERROR) ? -1 : 0;
                 break;
             }

@@ -18,7 +18,9 @@ typedef enum {
     EXEC_BREAK,     /* break pending (levels in script_get_break_pending()) */
     EXEC_CONTINUE,  /* continue pending */
     EXEC_RETURN,    /* return from the current function */
-    EXEC_EXIT       /* The shell must exit: exit builtin, errexit, fatal error */
+    EXEC_EXIT,      /* The shell must exit: exit builtin, errexit, fatal error */
+    EXEC_ABORT      /* The command is abandoned (nesting limit): every level unwinds,
+                       the status is 1, an interactive shell shows the next prompt */
 } ExecStatus;
 
 /**
@@ -46,6 +48,20 @@ int exec_string_status(const char *src);
  * function. Returns execute()'s convention (1 continue, 0 exit).
  */
 int exec_run_function(const ShellFunction *func, int argc, char **argv);
+
+/* Nesting guard: function calls, `.` and eval share one depth. FUNCNEST sets
+   the limit (1000 when unset; 0 or a non-number means no depth limit), and a
+   call that would leave too little C stack is refused as well. A refused call
+   prints the message, sets status 1 and raises the abort that EXEC_ABORT
+   carries to the top level. */
+bool exec_nesting_enter(const char *name);
+void exec_nesting_leave(void);
+int exec_nesting_limit(void);
+int exec_nesting_depth(void);
+bool exec_abort_pending(void);
+void exec_abort_clear(void);
+/* Record where the stack starts (an address in main's frame), for the stack guard */
+void exec_set_stack_base(void *base);
 
 /**
  * Line feeder: accumulates lines until they form a complete program, then

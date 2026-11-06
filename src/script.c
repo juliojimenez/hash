@@ -616,8 +616,8 @@ static int execute_file_lines_ast(FILE *fp, bool record_history) {
             result = -1;
             break;
         }
-        if (fed == FEED_RAN && st == EXEC_EXIT) {
-            result = 0;
+        if (fed == FEED_RAN && (st == EXEC_EXIT || st == EXEC_ABORT)) {
+            result = 0;  // exit, or the nesting limit: the file ends here
             break;
         }
         if (fed == FEED_RAN && st == EXEC_RETURN) {
@@ -666,6 +666,11 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
         } else {
             close(new_fd);
         }
+    }
+
+    if (!exec_nesting_enter(".")) {
+        fclose(fp);
+        return 1;
     }
 
     // Save and set silent_errors flag
@@ -744,6 +749,7 @@ int script_execute_file_ex(const char *filepath, int argc, char **argv, bool sil
     // POSIX lexical scoping: restore break/continue state
     // Any break/continue set inside the sourced file stays inside that file
     script_state.function_call_depth--;
+    exec_nesting_leave();
     break_pending = old_break_pending;
     continue_pending = old_continue_pending;
     return_pending = old_return_pending;

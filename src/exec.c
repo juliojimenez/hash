@@ -9,6 +9,9 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <limits.h>
+#include <stdint.h>
+#include <sys/resource.h>
 
 #include "exec.h"
 #include "arena.h"
@@ -75,8 +78,103 @@ void exec_report_syntax_error(const char *message, size_t line) {
 // Status mapping
 // ============================================================================
 
+// ============================================================================
+// Nesting guard
+// ============================================================================
+// Function calls, `.` and eval recurse through the executor on the C stack, so
+// unbounded recursion used to end the shell with SIGSEGV. One depth counter
+// covers the three. FUNCNEST (bash's variable) sets its limit, 1000 when unset;
+// 0 or a non-number means no depth limit. Independently, a call that would
+// leave less than STACK_MARGIN of the stack limit is refused, so a shape that
+// spends more stack per level than the limit allows still fails with a message
+// instead of a crash. A refused call abandons the whole command: EXEC_ABORT
+// unwinds every level, the status is 1, an interactive shell shows the next
+// prompt and a non-interactive one ends, as zsh does.
+
+#define NESTING_DEFAULT_LIMIT 1000
+#define STACK_MARGIN (512UL * 1024UL)
+
+static int nesting_depth = 0;
+static bool abort_pending = false;
+static uintptr_t stack_base = 0;
+static size_t stack_limit = 0;
+
+void exec_set_stack_base(void *base) {
+    stack_base = (uintptr_t)base;
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_STACK, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY && rl.rlim_cur > STACK_MARGIN) {
+        stack_limit = (size_t)rl.rlim_cur;
+    }
+}
+
+int exec_nesting_limit(void) {
+    const char *value = shellvar_get("FUNCNEST");
+    if (!value) {
+        return NESTING_DEFAULT_LIMIT;
+    }
+    char *end = NULL;
+    long n = strtol(value, &end, 10);
+    if (end == value || *end != '\0' || n <= 0) {
+        return INT_MAX;  // no depth limit; the stack guard remains
+    }
+    return n > INT_MAX ? INT_MAX : (int)n;
+}
+
+int exec_nesting_depth(void) {
+    return nesting_depth;
+}
+
+// True when less than STACK_MARGIN of the stack limit is left. The stack grows
+// down on every supported platform, so the distance from the base is what is used.
+static bool stack_is_low(void) {
+    if (stack_base == 0 || stack_limit == 0) {
+        return false;
+    }
+    char here;
+    uintptr_t now = (uintptr_t)&here;
+    if (now >= stack_base) {
+        return false;
+    }
+    return (size_t)(stack_base - now) + STACK_MARGIN > stack_limit;
+}
+
+bool exec_nesting_enter(const char *name) {
+    int limit = exec_nesting_limit();
+    if (nesting_depth >= limit) {
+        fprintf(stderr, "%s: %s: maximum function nesting level exceeded (%d)\n", HASH_NAME, name, limit);
+    } else if (stack_is_low()) {
+        fprintf(stderr, "%s: %s: maximum function nesting level exceeded (stack exhausted at depth %d)\n",
+                HASH_NAME, name, nesting_depth);
+    } else {
+        nesting_depth++;
+        return true;
+    }
+    last_command_exit_code = 1;
+    abort_pending = true;
+    return false;
+}
+
+void exec_nesting_leave(void) {
+    if (nesting_depth > 0) {
+        nesting_depth--;
+    }
+}
+
+bool exec_abort_pending(void) {
+    return abort_pending;
+}
+
+// The top level has unwound: the next command starts clean, with status 1
+void exec_abort_clear(void) {
+    abort_pending = false;
+    last_command_exit_code = 1;
+}
+
 // execute() returns 1 to keep going, 0 to stop, -2/-3/-4 for return/break/continue
 static ExecStatus status_from_execute(int rc) {
+    if (abort_pending) {
+        return EXEC_ABORT;
+    }
     switch (rc) {
         case -2:
             return EXEC_RETURN;
@@ -1145,6 +1243,9 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     if (!func || !func->body) {
         return 1;
     }
+    if (!exec_nesting_enter(func->name)) {
+        return 0;  // the abort is pending: status_from_execute() turns this into EXEC_ABORT
+    }
     char **old_params = script_state.positional_params;
     int old_count = script_state.positional_count;
     bool old_exit_requested = script_state.exit_requested;
@@ -1184,12 +1285,23 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     shellvar_scope_pop();               // locals go back to what they were
     exec_line_base = old_line_base;
     exec_lineno = old_lineno;
+    exec_nesting_leave();
 
     script_state.function_call_depth--;
     exec_directly_in_child = old_direct;
     script_state.in_script = old_in_script;
     script_state.positional_params = old_params;
     script_state.positional_count = old_count;
+
+    if (st == EXEC_ABORT || abort_pending) {
+        // A deeper call hit the nesting limit: keep unwinding, nothing else runs here
+        if (!dynamic_scoping) {
+            script_set_break_pending(old_break);
+            script_set_continue_pending(old_continue);
+        }
+        script_state.exit_requested = old_exit_requested;
+        return 0;
+    }
 
     bool exit_called = script_state.exit_requested || st == EXEC_EXIT;
     if (exit_called) {
@@ -1290,10 +1402,13 @@ int exec_string_status(const char *src) {
     bool old_in_script = script_state.in_script;
     script_state.in_script = true;
     bool incomplete = false;
-    (void)exec_string(src, &incomplete);
+    ExecStatus st = exec_string(src, &incomplete);
     if (incomplete) {
         exec_report_syntax_error("syntax error: unexpected end of file", count_lines(src));
         last_command_exit_code = 2;
+    }
+    if (st == EXEC_ABORT) {
+        exec_abort_clear();  // this text was the top level of the abandoned command
     }
     script_state.in_script = old_in_script;
     return last_command_exit_code;
