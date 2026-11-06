@@ -1,3 +1,4 @@
+#include <limits.h>
 #include "unity.h"
 #include "../src/exec.h"
 #include "../src/execute.h"
@@ -25,6 +26,7 @@ void setUp(void) {
     config_init();
     trap_init();
     is_interactive = false;
+    exec_abort_clear();  // a nesting test may have left the abort raised
     last_command_exit_code = 0;
     unlink(TMP_FILE);
 }
@@ -485,6 +487,43 @@ void test_local_errors(void) {
     TEST_ASSERT_EQUAL_STRING("st=1 r=1\n", run("readonly r=1; f() { local r=2 2>/dev/null; echo \"st=$? r=$r\"; }; f"));
 }
 
+// ============================================================================
+// Function nesting limit
+// ============================================================================
+
+void test_function_nesting_limit_from_funcnest(void) {
+    shellvar_unset("FUNCNEST");
+    TEST_ASSERT_EQUAL_INT(1000, exec_nesting_limit());
+    shellvar_set("FUNCNEST", "50");
+    TEST_ASSERT_EQUAL_INT(50, exec_nesting_limit());
+    shellvar_set("FUNCNEST", "0");       // no depth limit, the stack guard remains
+    TEST_ASSERT_EQUAL_INT(INT_MAX, exec_nesting_limit());
+    shellvar_set("FUNCNEST", "abc");
+    TEST_ASSERT_EQUAL_INT(INT_MAX, exec_nesting_limit());
+    shellvar_unset("FUNCNEST");
+    TEST_ASSERT_EQUAL_INT(0, exec_nesting_depth());
+}
+
+void test_function_recursion_aborts_with_status_1(void) {
+    shellvar_set("FUNCNEST", "25");
+    // The innermost call is refused, every level unwinds, nothing after the call runs
+    TEST_ASSERT_EQUAL_STRING("", run("f() { f; echo never; }; f; echo never"));
+    TEST_ASSERT_EQUAL_INT(EXEC_ABORT, status);
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_TRUE(exec_abort_pending());
+    TEST_ASSERT_EQUAL_INT(0, exec_nesting_depth());
+    // The top level clears the abort and the next command runs normally
+    exec_abort_clear();
+    TEST_ASSERT_FALSE(exec_abort_pending());
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("echo ok"));
+    TEST_ASSERT_EQUAL_INT(EXEC_OK, status);
+    // eval and . are levels too
+    TEST_ASSERT_EQUAL_STRING("", run("e() { eval e; }; e; echo never"));
+    TEST_ASSERT_EQUAL_INT(EXEC_ABORT, status);
+    exec_abort_clear();
+    shellvar_unset("FUNCNEST");
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -540,5 +579,7 @@ int main(void) {
     RUN_TEST(test_local_keeps_export_and_restores_environment);
     RUN_TEST(test_local_errors);
 
+    RUN_TEST(test_function_nesting_limit_from_funcnest);
+    RUN_TEST(test_function_recursion_aborts_with_status_1);
     return UNITY_END();
 }

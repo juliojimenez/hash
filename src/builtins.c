@@ -336,6 +336,9 @@ int shell_source(char **args) {
         return 0;
     }
     script_state.exit_requested = old_exit_requested;
+    if (exec_abort_pending()) {
+        return 0;  // the nesting limit was hit inside: keep unwinding
+    }
     return 1;
 }
 
@@ -962,11 +965,16 @@ int shell_eval(char **args) {
         strcat(cmd, args[i]);
     }
 
+    if (!exec_nesting_enter("eval")) {
+        free(cmd);
+        return 0;  // abort pending: unwinds as EXEC_ABORT
+    }
     // Messages from the text name eval as their source
     const char *old_source = exec_source();
     exec_set_source("eval");
     bool incomplete = false;
     ExecStatus st = exec_string(cmd, &incomplete);
+    exec_nesting_leave();
     size_t cmd_lines = 1;
     for (const char *p = cmd; *p; p++) {
         if (*p == '\n' && p[1] != '\0') {
@@ -990,6 +998,7 @@ int shell_eval(char **args) {
     }
     switch (st) {
         case EXEC_EXIT:
+        case EXEC_ABORT:
             return 0;
         case EXEC_RETURN:
             return -2;

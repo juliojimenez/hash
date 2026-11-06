@@ -672,6 +672,36 @@ else
     echo -e "${RED}FAIL${NC}"; echo "  Expected exit 7 and no output; got exit $ife_ec: $ife_out"; ((FAILED++))
 fi
 
+# Function nesting is limited (FUNCNEST, default 1000; eval and . count too), so
+# unbounded recursion fails with a message and status 1 instead of overflowing
+# the stack. A non-interactive shell stops there, as zsh does. Sanitizer builds
+# use far more stack per level and hit the stack guard first, whose message
+# names the depth instead of the limit, so only the FUNCNEST=20 checks compare
+# the whole line.
+echo -n "Testing: unbounded recursion fails with a message, status 1... "
+r_out=$(run_with_timeout 10 "$HASH_BIN" -c 'f() { f; }; f; echo never' 2>&1); r_ec=$?
+if [[ "$r_out" == *"hash: f: maximum function nesting level exceeded"* && "$r_out" != *never* && "$r_ec" == "1" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got ec=$r_ec: $r_out" | head -3; ((FAILED++))
+fi
+
+echo -n "Testing: FUNCNEST sets the limit; eval and . count as levels... "
+n_out=$(run_with_timeout 10 "$HASH_BIN" -c 'FUNCNEST=20; f() { f; }; f' 2>&1); n_ec=$?
+e_out=$(run_with_timeout 10 "$HASH_BIN" -c 'FUNCNEST=20; e() { eval e; }; e' 2>&1); e_ec=$?
+printf '. "$0"\n' > "$TEST_DIR/self.sh"
+d_out=$(FUNCNEST=20 run_with_timeout 10 "$HASH_BIN" "$TEST_DIR/self.sh" 2>&1); d_ec=$?
+if [[ "$n_out" == "hash: f: maximum function nesting level exceeded (20)" && "$n_ec" == "1" \
+      && "$e_out" == *"maximum function nesting level exceeded (20)"* && "$e_ec" == "1" \
+      && "$d_out" == "hash: .: maximum function nesting level exceeded (20)" && "$d_ec" == "1" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  f: [$n_out] ec=$n_ec; eval: [$e_out] ec=$e_ec; dot: [$d_out] ec=$d_ec"; ((FAILED++))
+fi
+
+run_test "recursion within the limit still works" 'n=0; f() { n=$((n+1)); [ $n -lt 200 ] && f; }; f; echo "depth $n"' "depth 200"
+run_interactive_test "recursion limit keeps an interactive session going" $'f() { f; }\nf\necho alive $?' "alive 1"
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

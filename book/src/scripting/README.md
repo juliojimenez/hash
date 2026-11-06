@@ -158,6 +158,14 @@ outside: 0
 Scoping is dynamic, as in dash and bash: a function called from `bump` sees
 its `count`. `local` outside a function is an error.
 
+A function may call itself, through `eval` and `.` too, 1000 levels deep by
+default. One level more fails with `hash: f: maximum function nesting level
+exceeded (1000)`: the whole command is abandoned with status 1, an interactive
+shell shows the next prompt, and a script stops there. `FUNCNEST` changes the
+limit (`FUNCNEST=50`); `FUNCNEST=0` removes the depth limit and leaves only the
+guard that refuses a call when the C stack is about to run out. Either way,
+runaway recursion ends with a message rather than a segmentation fault.
+
 ## Variables
 
 ### Assignment

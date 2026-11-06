@@ -138,6 +138,7 @@ A consolidated reference for hash shell features.
 | `HISTSIZE` | Commands in memory |
 | `HISTFILESIZE` | Commands in file |
 | `HISTFILE` | History file location |
+| `FUNCNEST` | Function nesting limit, `eval` and `.` included (default 1000; `0` keeps only the stack guard) |
 | `HISTCONTROL` | History behavior |
 | `PS1` | Prompt format |
 | `PATH` | Command search path |

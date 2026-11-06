@@ -1,0 +1,8 @@
+# Unbounded recursion fails with a message and the session goes on (#327)
+send f() { f; }
+send f
+expect maximum function nesting level exceeded
+send echo AL''IVE $?
+expect ALIVE 1
+send exit
+status 0
