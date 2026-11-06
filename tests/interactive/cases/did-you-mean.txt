@@ -1,0 +1,11 @@
+# A misspelt command gets a suggestion at the prompt (#332)
+send ehco hi
+expect command not found
+expect Did you mean: echo?
+send myfunction() { echo ran; }
+send myfuncton
+expect Did you mean: myfunction?
+send echo AL''IVE
+expect ALIVE
+send exit
+status 0

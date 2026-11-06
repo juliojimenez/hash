@@ -746,6 +746,18 @@ run_test "help set lists hash's own options" "help set" "welcome=on|off"
 run_test "help with an unknown topic fails" "help nosuchthing; echo \"status=\$?\"" "status=1"
 run_test "help rejects an unknown option" "help -z; echo \"status=\$?\"" "status=2"
 
+# Did you mean: an interactive shell suggests the closest command after
+# "command not found"; a non-interactive one does not, and the status stays 127
+run_interactive_test "unknown command suggests the closest name" 'ehco hi; echo "st=$?"' "Did you mean: echo?"
+run_interactive_test "the status after a suggestion is still 127" 'ehco hi; echo "st=$?"' "st=127"
+echo -n "Testing: no suggestion in a non-interactive shell... "
+ni_out=$(run_with_timeout 2 "$HASH_BIN" -c 'ehco hi' 2>&1); ni_ec=$?
+if [[ "$ni_out" == "hash: ehco: command not found" && "$ni_ec" == "127" ]]; then
+    echo -e "${GREEN}PASS${NC}"; ((PASSED++))
+else
+    echo -e "${RED}FAIL${NC}"; echo "  got ec=$ni_ec: $ni_out"; ((FAILED++))
+fi
+
 cleanup
 
 echo -e "\n${YELLOW}=== Test Summary ===${NC}"

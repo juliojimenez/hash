@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <limits.h>
+#include <time.h>
 #include "completion.h"
 #include "safe_string.h"
 #include "config.h"
@@ -119,66 +120,138 @@ static void add_aliases(CompletionResult *result, const char *prefix, size_t pre
     }
 }
 
-static void add_executables_from_path(CompletionResult *result, const char *prefix, size_t prefix_len) {
-    const char *path_env = getenv("PATH");
-    if (!path_env) return;
+// ============================================================================
+// The executables on PATH, cached
+// ============================================================================
+// Tab completion and did-you-mean both need every command name. The PATH scan
+// is the expensive part (one stat per entry), so it is done once and kept
+// while PATH is unchanged and the scan is recent. Builtins, aliases and
+// functions change at the prompt, so they are read live by the callers.
 
-    char *path_copy = strdup(path_env);
-    if (!path_copy) return;
+#define PATH_CACHE_TTL_SECONDS 15
 
-    char *saveptr;
-    char *dir = strtok_r(path_copy, ":", &saveptr);
-    while (dir && result->count < MAX_COMPLETIONS) {
-        DIR *dp = opendir(dir);
-        if (!dp) {
-            dir = strtok_r(NULL, ":", &saveptr);
-            continue;
-        }
+static char **path_names = NULL;
+static size_t path_count = 0;
+static size_t path_cap = 0;
+static char *path_cache_key = NULL;   // the PATH the cache was built from
+static time_t path_cache_time = 0;
 
-        struct dirent *entry;
-        while ((entry = readdir(dp)) != NULL && result->count < MAX_COMPLETIONS) {
-            // Check if name matches prefix
-            if (strncmp(entry->d_name, prefix, prefix_len) == 0) {
-                // Check if it's executable
-                char full_path[PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);
-
-                if (access(full_path, X_OK) == 0) {
-                    // Check for duplicates
-                    int is_dup = 0;
-                    for (int i = 0; i < result->count; i++) {
-                        if (strcmp(result->matches[i], entry->d_name) == 0) {
-                            is_dup = 1;
-                            break;
-                        }
-                    }
-
-                    if (!is_dup) {
-                        add_match(result, entry->d_name);
-                    }
-                }
-            }
-        }
-
-        closedir(dp);
-        dir = strtok_r(NULL, ":", &saveptr);
+static void path_cache_clear(void) {
+    for (size_t i = 0; i < path_count; i++) {
+        free(path_names[i]);
     }
-
-    free(path_copy);
+    free(path_names);
+    path_names = NULL;
+    path_count = 0;
+    path_cap = 0;
+    free(path_cache_key);
+    path_cache_key = NULL;
 }
 
-// Complete commands from PATH
+void completion_path_cache_invalidate(void) {
+    path_cache_time = 0;
+}
+
+static bool path_cache_push(const char *name) {
+    if (path_count == path_cap) {
+        size_t cap = path_cap ? path_cap * 2 : 512;
+        char **fresh = realloc(path_names, cap * sizeof(char *));
+        if (!fresh) {
+            return false;
+        }
+        path_names = fresh;
+        path_cap = cap;
+    }
+    path_names[path_count] = strdup(name);
+    if (!path_names[path_count]) {
+        return false;
+    }
+    path_count++;
+    return true;
+}
+
+static int compare_cstrings(const void *a, const void *b) {
+    return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+static void path_cache_refresh(void) {
+    const char *path_env = getenv("PATH");
+    if (!path_env) {
+        path_env = "";
+    }
+    time_t now = time(NULL);
+    if (path_names && path_cache_key && strcmp(path_cache_key, path_env) == 0
+            && now - path_cache_time < PATH_CACHE_TTL_SECONDS) {
+        return;
+    }
+    path_cache_clear();
+    path_cache_key = strdup(path_env);
+    path_cache_time = now;
+
+    char *path_copy = strdup(path_env);
+    if (!path_copy) {
+        return;
+    }
+    char *saveptr;
+    for (char *dir = strtok_r(path_copy, ":", &saveptr); dir; dir = strtok_r(NULL, ":", &saveptr)) {
+        DIR *dp = opendir(dir);
+        if (!dp) {
+            continue;
+        }
+        struct dirent *entry;
+        while ((entry = readdir(dp)) != NULL) {
+            if (entry->d_name[0] == '.') {
+                continue;
+            }
+            char full_path[PATH_MAX];
+            snprintf(full_path, sizeof(full_path), "%s/%s", dir, entry->d_name);
+            struct stat st;
+            if (stat(full_path, &st) == 0 && S_ISREG(st.st_mode) && access(full_path, X_OK) == 0) {
+                path_cache_push(entry->d_name);
+            }
+        }
+        closedir(dp);
+    }
+    free(path_copy);
+
+    // Sorted and unique
+    if (path_count > 1) {
+        qsort(path_names, path_count, sizeof(char *), compare_cstrings);
+        size_t kept = 1;
+        for (size_t i = 1; i < path_count; i++) {
+            if (strcmp(path_names[i], path_names[kept - 1]) == 0) {
+                free(path_names[i]);
+            } else {
+                path_names[kept++] = path_names[i];
+            }
+        }
+        path_count = kept;
+    }
+}
+
+size_t completion_path_commands(const char *const **names) {
+    path_cache_refresh();
+    *names = (const char *const *)path_names;
+    return path_count;
+}
+
+static void add_function_names(CompletionResult *result, const char *prefix);
+
+// Complete commands: builtins, aliases, functions and the executables on PATH
 static void complete_commands(CompletionResult *result, const char *prefix) {
     size_t prefix_len = strlen(prefix);
 
-    // Add built-in commands
     add_builtin_commands(result, prefix, prefix_len);
-
-    // Add aliases
     add_aliases(result, prefix, prefix_len);
+    add_function_names(result, prefix);
 
-    // Search PATH for executables
-    add_executables_from_path(result, prefix, prefix_len);
+    const char *const *names;
+    size_t count = completion_path_commands(&names);
+    for (size_t i = 0; i < count && result->count < MAX_COMPLETIONS; i++) {
+        if (strncmp(names[i], prefix, prefix_len) == 0) {
+            add_unique(result, names[i]);
+        }
+    }
 }
 
 static void build_full_match(const struct dirent *entry, char *full_match,
@@ -1113,6 +1186,115 @@ static void complete_argument(CompletionResult *result, const CompContext *ctx) 
     } else {
         complete_files(result, word, false);
     }
+}
+
+// ============================================================================
+// Did you mean: the closest command names to a misspelt one
+// ============================================================================
+
+#define SUGGEST_MAX_NAME 64
+
+int completion_edit_distance(const char *a, const char *b) {
+    size_t la = strlen(a);
+    size_t lb = strlen(b);
+    if (la > SUGGEST_MAX_NAME || lb > SUGGEST_MAX_NAME) {
+        return INT_MAX;
+    }
+    // Optimal string alignment: insert, delete, substitute, swap neighbours
+    int rows[SUGGEST_MAX_NAME + 1][SUGGEST_MAX_NAME + 1];
+    for (size_t i = 0; i <= la; i++) rows[i][0] = (int)i;
+    for (size_t j = 0; j <= lb; j++) rows[0][j] = (int)j;
+    for (size_t i = 1; i <= la; i++) {
+        for (size_t j = 1; j <= lb; j++) {
+            int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+            int best = rows[i - 1][j] + 1;
+            if (rows[i][j - 1] + 1 < best) best = rows[i][j - 1] + 1;
+            if (rows[i - 1][j - 1] + cost < best) best = rows[i - 1][j - 1] + cost;
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]
+                    && rows[i - 2][j - 2] + 1 < best) {
+                best = rows[i - 2][j - 2] + 1;
+            }
+            rows[i][j] = best;
+        }
+    }
+    return rows[la][lb];
+}
+
+typedef struct {
+    const char *name;
+    char **out;
+    int *distances;
+    int max;
+    int count;
+    int threshold;
+} Suggestions;
+
+// Keep candidate when it is close enough and among the best so far (distance, then name)
+static void suggest_consider(Suggestions *s, const char *candidate) {
+    if (!candidate || strcmp(candidate, s->name) == 0) {
+        return;
+    }
+    for (int i = 0; i < s->count; i++) {
+        if (strcmp(s->out[i], candidate) == 0) {
+            return;
+        }
+    }
+    int d = completion_edit_distance(s->name, candidate);
+    if (d > s->threshold) {
+        return;
+    }
+    int at = s->count;
+    while (at > 0 && (s->distances[at - 1] > d
+                      || (s->distances[at - 1] == d && strcmp(s->out[at - 1], candidate) > 0))) {
+        at--;
+    }
+    if (at >= s->max) {
+        return;
+    }
+    if (s->count == s->max) {
+        free(s->out[s->count - 1]);
+        s->count--;
+    }
+    for (int i = s->count; i > at; i--) {
+        s->out[i] = s->out[i - 1];
+        s->distances[i] = s->distances[i - 1];
+    }
+    s->out[at] = strdup(candidate);
+    s->distances[at] = d;
+    if (s->out[at]) {
+        s->count++;
+    }
+}
+
+int completion_suggest_commands(const char *name, char **out, int max) {
+    if (!name || !*name || max <= 0 || strlen(name) > SUGGEST_MAX_NAME) {
+        return 0;
+    }
+    int distances[16];
+    if (max > 16) {
+        max = 16;
+    }
+    Suggestions s = { name, out, distances, max, 0, strlen(name) <= 3 ? 1 : 2 };
+    for (int i = 0; i < BUILTIN_FUNC_MAX; i++) {
+        suggest_consider(&s, builtins[i].name);
+    }
+    for (int i = 0; i < shell_config.alias_count; i++) {
+        suggest_consider(&s, shell_config.aliases[i].name);
+    }
+    for (int i = 0; i < script_state.function_count; i++) {
+        suggest_consider(&s, script_state.functions[i].name);
+    }
+    const char *const *names;
+    size_t count = completion_path_commands(&names);
+    for (size_t i = 0; i < count; i++) {
+        suggest_consider(&s, names[i]);
+    }
+    // Only the closest: a one-edit match makes two-edit ones noise
+    while (s.count > 1 && distances[s.count - 1] > distances[0]) {
+        free(out[s.count - 1]);
+        s.count--;
+    }
+    return s.count;
 }
 
 static int compare_matches(const void *a, const void *b) {

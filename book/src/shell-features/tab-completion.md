@@ -48,7 +48,8 @@ testfile.txt  test.md  test_data.csv
 Completes from:
 - Built-in commands (cd, exit, alias, etc.)
 - Aliases from .hashrc
-- Executables in PATH
+- Shell functions
+- Executables in PATH, scanned once and rescanned when `PATH` changes or after 15 seconds
 
 ```bash
 #> g<TAB><TAB>

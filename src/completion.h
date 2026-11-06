@@ -40,6 +40,19 @@ typedef struct CompSpec {
  */
 void completion_init(void);
 
+/* The executables on PATH, scanned once and kept until PATH changes or the
+   scan is older than a few seconds; sorted, without duplicates. */
+size_t completion_path_commands(const char *const **names);
+void completion_path_cache_invalidate(void);
+
+/* Damerau-Levenshtein distance (adjacent transpositions count one), for did-you-mean */
+int completion_edit_distance(const char *a, const char *b);
+
+/* The closest command names to a misspelt one: builtins, aliases, functions and
+   PATH executables within a small edit distance. Fills out with up to max
+   strdup'd names, best first; returns how many. */
+int completion_suggest_commands(const char *name, char **out, int max);
+
 /* Programmable completion: define, remove, look up and print specs */
 int completion_spec_define(const char *command, const char *wordlist, const char *function,
                            unsigned actions, bool fallback_default, bool fallback_dirs);

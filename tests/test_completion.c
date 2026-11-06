@@ -316,6 +316,46 @@ void test_completion_function_spec(void) {
     completion_spec_remove("hashcomp_cmd");
 }
 
+// ============================================================================
+// Did you mean (#332)
+// ============================================================================
+
+void test_edit_distance(void) {
+    TEST_ASSERT_EQUAL_INT(0, completion_edit_distance("echo", "echo"));
+    TEST_ASSERT_EQUAL_INT(1, completion_edit_distance("ehco", "echo"));   // transposition counts one
+    TEST_ASSERT_EQUAL_INT(1, completion_edit_distance("sl", "ls"));
+    TEST_ASSERT_EQUAL_INT(1, completion_edit_distance("exprot", "export"));
+    TEST_ASSERT_EQUAL_INT(1, completion_edit_distance("gti", "git"));
+    TEST_ASSERT_EQUAL_INT(2, completion_edit_distance("expr", "export"));
+    TEST_ASSERT_EQUAL_INT(3, completion_edit_distance("abc", "xyz"));
+    TEST_ASSERT_EQUAL_INT(4, completion_edit_distance("", "echo"));
+}
+
+void test_suggest_commands(void) {
+    char *out[3];
+    int n = completion_suggest_commands("ehco", out, 3);
+    TEST_ASSERT_EQUAL_INT(1, n);                       // echo is one edit away, nothing else that close
+    TEST_ASSERT_EQUAL_STRING("echo", out[0]);
+    for (int i = 0; i < n; i++) free(out[i]);
+    n = completion_suggest_commands("exprot", out, 3);
+    TEST_ASSERT_TRUE(n >= 1);
+    TEST_ASSERT_EQUAL_STRING("export", out[0]);
+    for (int i = 0; i < n; i++) free(out[i]);
+    n = completion_suggest_commands("zqxjkvw", out, 3);  // nothing within two edits
+    TEST_ASSERT_EQUAL_INT(0, n);
+    n = completion_suggest_commands("echo", out, 3);     // the name itself is not a suggestion
+    for (int i = 0; i < n; i++) {
+        TEST_ASSERT_TRUE(strcmp(out[i], "echo") != 0);
+        free(out[i]);
+    }
+    const char *const *names;
+    size_t count = completion_path_commands(&names);     // the cached PATH scan is sorted and populated
+    TEST_ASSERT_TRUE(count > 10);
+    for (size_t i = 1; i < count; i++) {
+        TEST_ASSERT_TRUE(strcmp(names[i - 1], names[i]) < 0);
+    }
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -338,5 +378,7 @@ int main(void) {
     RUN_TEST(test_completion_make_targets);
     RUN_TEST(test_completion_git_subcommands);
     RUN_TEST(test_completion_function_spec);
+    RUN_TEST(test_edit_distance);
+    RUN_TEST(test_suggest_commands);
     return UNITY_END();
 }

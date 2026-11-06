@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include "completion.h"
 #include "hash.h"
 #include "execute.h"
 #include "exec.h"
@@ -39,6 +40,24 @@ int last_command_exit_code = 0;
 // run with silent_errors stay quiet.
 static int exec_failure_status(int err) {
     return err == ENOENT ? 127 : 126;
+}
+
+// After "command not found" at the prompt: the closest names by edit distance
+static void suggest_commands(const char *name) {
+    char *matches[3];
+    int n = completion_suggest_commands(name, matches, 3);
+    if (n == 1) {
+        fprintf(stderr, "    Did you mean: %s?\n", matches[0]);
+    } else if (n > 1) {
+        fprintf(stderr, "    Did you mean one of these?");
+        for (int i = 0; i < n; i++) {
+            fprintf(stderr, " %s", matches[i]);
+        }
+        fprintf(stderr, "\n");
+    }
+    for (int i = 0; i < n; i++) {
+        free(matches[i]);
+    }
 }
 
 static void exec_failure_message(const char *cmd, int err) {
@@ -259,6 +278,10 @@ static int launch(char **args, const char *cmd_string) {
         // Add command to hash table if we found its path
         if (cmd_path) {
             cmd_hash_add(exec_args[0], cmd_path);
+        } else if (is_interactive && !script_state.silent_errors && WIFEXITED(status)
+                   && WEXITSTATUS(status) == 127 && exec_args[0] && strchr(exec_args[0], '/') == NULL) {
+            // The child said "command not found"; at the prompt, say what was probably meant
+            suggest_commands(exec_args[0]);
         }
     }
 

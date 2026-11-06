@@ -43,6 +43,24 @@ Hash shell includes powerful interactive features for efficient command-line use
 | Other words | Files, directories |
 | Double TAB | Show all matches |
 
+## Unknown Commands
+
+When a command is not found, an interactive shell says so and, when a builtin,
+alias, function or executable on `PATH` is within one or two edits of what was
+typed, suggests it:
+
+```bash
+#> ehco hi
+hash: ehco: command not found
+    Did you mean: echo?
+#> sl
+hash: sl: command not found
+    Did you mean one of these? ls nl pl
+```
+
+Only the closest names are offered, the status stays 127, and scripts and
+`hash -c` get the plain message.
+
 ## Default Prompt
 
 The default prompt shows:
