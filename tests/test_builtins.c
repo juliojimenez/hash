@@ -2,6 +2,7 @@
 #include "../src/builtins.h"
 #include "../src/execute.h"
 #include "../src/shellvar.h"
+#include "../src/config.h"
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -223,6 +224,58 @@ void test_shell_cd_failure_status(void) {
     TEST_ASSERT_EQUAL_STRING(saved, shellvar_get("PWD") ? shellvar_get("PWD") : "");
 }
 
+// unalias removes every name given; a missing one is reported with status 1
+// and the others still go
+void test_shell_unalias_many_names(void) {
+    config_clear_aliases();
+    config_add_alias("ua_a", ":");
+    config_add_alias("ua_b", ":");
+    config_add_alias("ua_c", ":");
+
+    char *args[] = {"unalias", "ua_a", "ua_b", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(args));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    TEST_ASSERT_NULL(config_get_alias("ua_a"));
+    TEST_ASSERT_NULL(config_get_alias("ua_b"));
+    TEST_ASSERT_NOT_NULL(config_get_alias("ua_c"));
+
+    char *missing[] = {"unalias", "ua_nosuch", "ua_c", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(missing));
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_NULL(config_get_alias("ua_c"));   // removed despite the earlier miss
+}
+
+// unalias -a clears the table; -- ends the options
+void test_shell_unalias_all_and_double_dash(void) {
+    config_clear_aliases();
+    config_add_alias("ua_a", ":");
+    config_add_alias("ua_b", ":");
+    char *all[] = {"unalias", "-a", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(all));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    TEST_ASSERT_EQUAL_INT(0, shell_config.alias_count);
+
+    config_add_alias("ua_d", ":");
+    char *dd[] = {"unalias", "--", "ua_d", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(dd));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    TEST_ASSERT_NULL(config_get_alias("ua_d"));
+}
+
+// No names, or an unknown option, is a usage error with status 2
+void test_shell_unalias_usage_errors(void) {
+    config_clear_aliases();
+    config_add_alias("ua_e", ":");
+    char *none[] = {"unalias", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(none));
+    TEST_ASSERT_EQUAL_INT(2, last_command_exit_code);
+    char *bad[] = {"unalias", "-x", "ua_e", NULL};
+    TEST_ASSERT_EQUAL_INT(1, shell_unalias(bad));
+    TEST_ASSERT_EQUAL_INT(2, last_command_exit_code);
+    TEST_ASSERT_NOT_NULL(config_get_alias("ua_e"));   // nothing removed on a usage error
+    config_clear_aliases();
+}
+
 // Test try_builtin with cd command
 void test_try_builtin_cd(void) {
     // Use /usr which exists on both Linux and macOS without symlink issues
@@ -385,6 +438,9 @@ int main(void) {
     RUN_TEST(test_shell_cd_double_dash);
     RUN_TEST(test_shell_cd_invalid_option);
     RUN_TEST(test_shell_cd_failure_status);
+    RUN_TEST(test_shell_unalias_many_names);
+    RUN_TEST(test_shell_unalias_all_and_double_dash);
+    RUN_TEST(test_shell_unalias_usage_errors);
     RUN_TEST(test_try_builtin_cd);
     RUN_TEST(test_try_builtin_exit);
     RUN_TEST(test_try_builtin_not_builtin);

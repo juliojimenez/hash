@@ -86,6 +86,19 @@ void test_remove_nonexistent_alias(void) {
     TEST_ASSERT_EQUAL_INT(-1, result);
 }
 
+// unalias -a: config_clear_aliases empties the table
+void test_clear_aliases(void) {
+    config_add_alias("ll", "ls -lah");
+    config_add_alias("la", "ls -A");
+    config_clear_aliases();
+    TEST_ASSERT_EQUAL_INT(0, shell_config.alias_count);
+    TEST_ASSERT_NULL(config_get_alias("ll"));
+    TEST_ASSERT_NULL(config_get_alias("la"));
+    // The table is usable again afterwards
+    TEST_ASSERT_EQUAL_INT(0, config_add_alias("x", "echo x"));
+    TEST_ASSERT_EQUAL_STRING("echo x", config_get_alias("x"));
+}
+
 // Test multiple aliases
 void test_multiple_aliases(void) {
     config_add_alias("ll", "ls -lah");
@@ -245,6 +258,7 @@ int main(void) {
     RUN_TEST(test_update_alias);
     RUN_TEST(test_remove_alias);
     RUN_TEST(test_remove_nonexistent_alias);
+    RUN_TEST(test_clear_aliases);
     RUN_TEST(test_multiple_aliases);
     RUN_TEST(test_config_load_logout_files);
     RUN_TEST(test_set_option_known);
