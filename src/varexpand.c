@@ -22,29 +22,6 @@
 // appending and the expansion is run again with a bigger one, up to this
 #define MAX_EXPANSION_SIZE (256u * 1024u * 1024u)
 
-// Static buffers that hold one expansion result grow to what they are given
-static char *grow(char **buf, size_t *cap, size_t needed) {
-    if (needed > *cap) {
-        size_t new_cap = needed + needed / 2 + 64;
-        char *fresh = realloc(*buf, new_cap);
-        if (!fresh) {
-            return NULL;
-        }
-        *buf = fresh;
-        *cap = new_cap;
-    }
-    return *buf;
-}
-
-// Copy into a growable static buffer; the empty string when memory runs out
-static const char *keep(char **buf, size_t *cap, const char *s) {
-    if (!grow(buf, cap, strlen(s) + 1)) {
-        return "";
-    }
-    strcpy(*buf, s);
-    return *buf;
-}
-
 // Track if an unset variable error occurred during expansion
 static bool varexpand_error = false;
 
@@ -150,11 +127,12 @@ static size_t positional_params_room(void) {
 }
 
 // Value of the special parameter c. Numbers are written to buf; "$*" and "$@"
-// come back in static buffers with the field separators the append step
-// expects: \x04 between fields, or the first character of IFS for a quoted
-// "$*" (none when IFS is empty).
+// come back in a malloc'd buffer handed to *alloc (the caller frees it when
+// the word is done) with the field separators the append step expects: \x04
+// between fields, or the first character of IFS for a quoted "$*" (none when
+// IFS is empty).
 static const char *special_param_value(char c, bool is_quoted, int last_exit_code,
-                                       char *buf, size_t bufsz) {
+                                       char *buf, size_t bufsz, char **alloc) {
     switch (c) {
         case '?':   // exit status of the last command
             snprintf(buf, bufsz, "%d", last_exit_code);
@@ -181,11 +159,14 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
         case '*': {
             // POSIX: quoted "$*" joins with the first character of IFS into one
             // field; unquoted, each parameter is its own field (\x04 separator)
-            static char *star_buf;
-            static size_t star_cap;
+            size_t star_cap = positional_params_room();
+            char *star_buf = malloc(star_cap);
             size_t pos = 0;
             char sep = '\x04';
             bool use_sep = true;
+            if (!star_buf) {
+                return "";
+            }
             if (is_quoted) {
                 const char *ifs = ifs_get();
                 if (ifs[0] == '\0') {
@@ -193,9 +174,6 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
                 } else {
                     sep = ifs[0];
                 }
-            }
-            if (!grow(&star_buf, &star_cap, positional_params_room())) {
-                return "";
             }
             for (int i = 1; i < script_state.positional_count && pos < star_cap - 1; i++) {
                 const char *param = get_positional_param(i);
@@ -207,14 +185,15 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
                 }
             }
             star_buf[pos] = '\0';
+            *alloc = star_buf;
             return star_buf;
         }
         case '@': {
             // Quoted or not, each parameter is its own field (\x04 separator)
-            static char *at_buf;
-            static size_t at_cap;
+            size_t at_cap = positional_params_room();
+            char *at_buf = malloc(at_cap);
             size_t pos = 0;
-            if (!grow(&at_buf, &at_cap, positional_params_room())) {
+            if (!at_buf) {
                 return "";
             }
             for (int i = 1; i < script_state.positional_count && pos < at_cap - 1; i++) {
@@ -227,11 +206,41 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
                 }
             }
             at_buf[pos] = '\0';
+            *alloc = at_buf;
             return at_buf;
         }
         default:
             return NULL;
     }
+}
+
+// p points at the $ of a ${...}: the position just past its closing brace.
+// The braces nest, and quotes inside count only for finding that brace, so
+// a word of its own with quotes in it ("${x%%" "*}") does not end the
+// segment the expansion sits in.
+static const char *past_brace_expansion(const char *p) {
+    p += 2;
+    int depth = 1;
+    bool sq = false, dq = false;
+    while (*p && depth > 0) {
+        if (*p == '\\' && p[1] && !sq) {
+            p += 2;
+            continue;
+        }
+        if (*p == '\'' && !dq) sq = !sq;
+        else if (*p == '"' && !sq) dq = !dq;
+        else if (!sq && !dq) {
+            if (*p == '{') depth++;
+            else if (*p == '}') depth--;
+        }
+        p++;
+    }
+    return p;
+}
+
+// An unprotected $ that opens a ${...}
+static bool opens_brace_expansion(const char *word, const char *p) {
+    return *p == '$' && p[1] == '{' && (p == word || p[-1] != '\x01');
 }
 
 // The word of ${var-word}, ${var:-word}, ${var+word}, ${var=word} and
@@ -280,6 +289,10 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
             p++;
             start = p;
             while (*p && *p != '"') {
+                if (opens_brace_expansion(word, p)) {
+                    p = past_brace_expansion(p);
+                    continue;
+                }
                 if (*p == '\\' && p[1]) p++;
                 p++;
             }
@@ -291,6 +304,10 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
             // the backslash (`${t:+a\}b}` must give a}b) or fold \\ and \$ its own way
             start = p;
             while (*p && *p != '\'' && *p != '"') {
+                if (opens_brace_expansion(word, p)) {
+                    p = past_brace_expansion(p);
+                    continue;
+                }
                 if (*p == '\\' && p[1]) p++;
                 p++;
             }
@@ -387,6 +404,10 @@ static char *expand_pattern_word(const char *word, int last_exit_code) {
             p++;
             start = p;
             while (*p && *p != '"') {
+                if (opens_brace_expansion(word, p)) {
+                    p = past_brace_expansion(p);
+                    continue;
+                }
                 if (*p == '\\' && p[1]) p++;
                 p++;
             }
@@ -398,6 +419,10 @@ static char *expand_pattern_word(const char *word, int last_exit_code) {
             // expansion, which would otherwise fold \\ into \ and \$ into $
             start = p;
             while (*p && *p != '\'' && *p != '"') {
+                if (opens_brace_expansion(word, p)) {
+                    p = past_brace_expansion(p);
+                    continue;
+                }
                 if (*p == '\\' && p[1]) p++;
                 p++;
             }
@@ -478,6 +503,14 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
     size_t out_pos = 0;
     const char *p = str;
 
+    // Buffers one ${...} may need; they live until its value has been
+    // appended. (They were static once, and a ${a#${b#c}} nested through
+    // expand_pattern_word() wrote the inner expansion over the outer's.)
+    char *word_buf = NULL;      // the word of ${var-word} and friends
+    char *expanded_buf = NULL;  // that word expanded
+    char *pattern_buf = NULL;   // the value being trimmed by # or %
+    char *params_buf = NULL;    // "$*" or "$@"
+
     while (*p && out_pos < result_size - 1) {
         if (*p == '\x01' && *(p + 1) == '\\' && *(p + 2) == '\\') {
             // Protected double backslash from single quotes - output both literally
@@ -529,7 +562,7 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                 special++;
             }
             if (is_special_param(*special)) {
-                var_value = special_param_value(*special, is_quoted, last_exit_code, var_name, sizeof(var_name));
+                var_value = special_param_value(*special, is_quoted, last_exit_code, var_name, sizeof(var_name), &params_buf);
                 if (*special == '@' || *special == '*') {
                     premarked = var_value;
                 }
@@ -585,11 +618,12 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                 char modifier = 0;
                 bool check_null = false;
                 bool double_modifier = false;  // For ## and %%
-                static char *word;       // static to persist after scope
-                static size_t word_cap;
-                if (!grow(&word, &word_cap, strlen(p) + 1)) {
+                size_t word_cap = strlen(p) + 1;   // the word cannot outgrow what follows
+                word_buf = malloc(word_cap);
+                if (!word_buf) {
                     break;
                 }
+                char *word = word_buf;
                 word[0] = '\0';
 
                 if (*p == ':') {
@@ -660,7 +694,7 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                         static char special_buf[256];
                         if (is_special) {
                             val = special_param_value(var_name[0], is_quoted, last_exit_code,
-                                                      special_buf, sizeof(special_buf));
+                                                      special_buf, sizeof(special_buf), &params_buf);
                             if (var_name[0] == '@' || var_name[0] == '*') {
                                 premarked = val;
                             }
@@ -679,8 +713,6 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
 
                         // Apply modifier
                         // Note: POSIX requires the word to be expanded when used
-                        static char *expanded_word_buf;
-                        static size_t expanded_word_cap;
                         const char *effective_word = word;
 
                         if (modifier == '-') {
@@ -690,8 +722,8 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                                 // Expand the word with its own quotes honoured
                                 char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
                                 if (expanded_word) {
-                                    effective_word = keep(&expanded_word_buf, &expanded_word_cap, expanded_word);
-                                    free(expanded_word);
+                                    expanded_buf = expanded_word;
+                                    effective_word = expanded_buf;
                                 }
                                 var_value = effective_word;
                                 premarked_word = effective_word;
@@ -705,8 +737,8 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                                 // Expand the word with its own quotes honoured
                                 char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
                                 if (expanded_word) {
-                                    effective_word = keep(&expanded_word_buf, &expanded_word_cap, expanded_word);
-                                    free(expanded_word);
+                                    expanded_buf = expanded_word;
+                                    effective_word = expanded_buf;
                                 }
                                 var_value = effective_word;
                                 premarked_word = effective_word;
@@ -725,8 +757,8 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                                 // Expand the word with its own quotes honoured
                                 char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
                                 if (expanded_word) {
-                                    effective_word = keep(&expanded_word_buf, &expanded_word_cap, expanded_word);
-                                    free(expanded_word);
+                                    expanded_buf = expanded_word;
+                                    effective_word = expanded_buf;
                                 }
                                 // Store the word as the user sees it: through the
                                 // variable table (not setenv alone, which $var does
@@ -751,9 +783,9 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                                 // Expand the word for the message, then drop the markers
                                 char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
                                 if (expanded_word) {
-                                    effective_word = keep(&expanded_word_buf, &expanded_word_cap, expanded_word);
-                                    free(expanded_word);
-                                    strip_quote_markers(expanded_word_buf);
+                                    expanded_buf = expanded_word;
+                                    strip_quote_markers(expanded_buf);
+                                    effective_word = expanded_buf;
                                 }
                                 if (effective_word[0]) {
                                     fprintf(stderr, "%s: %s\n", var_name, effective_word);
@@ -769,12 +801,11 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                             // ${var#pattern}: remove smallest prefix matching pattern
                             // ${var##pattern}: remove largest prefix matching pattern
                             if (val) {
-                                static char *pattern_result;
-                                static size_t pattern_cap;
-                                if (!grow(&pattern_result, &pattern_cap, strlen(val) + 1)) {
+                                pattern_buf = strdup(val);
+                                if (!pattern_buf) {
                                     break;
                                 }
-                                strcpy(pattern_result, val);
+                                char *pattern_result = pattern_buf;
 
                                 size_t val_len = strlen(val);
                                 size_t match_len = 0;
@@ -822,12 +853,11 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                             // ${var%pattern}: remove smallest suffix matching pattern
                             // ${var%%pattern}: remove largest suffix matching pattern
                             if (val) {
-                                static char *pattern_result;
-                                static size_t pattern_cap;
-                                if (!grow(&pattern_result, &pattern_cap, strlen(val) + 1)) {
+                                pattern_buf = strdup(val);
+                                if (!pattern_buf) {
                                     break;
                                 }
-                                strcpy(pattern_result, val);
+                                char *pattern_result = pattern_buf;
 
                                 size_t val_len = strlen(val);
                                 size_t keep_len = val_len;  // How much to keep
@@ -1005,7 +1035,16 @@ append_value:
             // Regular character
             result[out_pos++] = *p++;
         }
+        free(word_buf);
+        free(expanded_buf);
+        free(pattern_buf);
+        free(params_buf);
+        word_buf = expanded_buf = pattern_buf = params_buf = NULL;
     }
+    free(word_buf);
+    free(expanded_buf);
+    free(pattern_buf);
+    free(params_buf);
 
     result[out_pos] = '\0';
     *truncated = (*p != '\0') || (out_pos + 64 >= result_size);

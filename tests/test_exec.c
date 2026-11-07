@@ -8,6 +8,7 @@
 #include "../src/trap.h"
 #include "../src/hash.h"
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -773,6 +774,30 @@ void test_command_keeps_quoted_operators_and_skips_functions(void) {
     TEST_ASSERT_EQUAL_STRING("ext\n", run("echo() { builtin_echo_replaced; }; command echo ext; unset -f echo"));
 }
 
+// A ${...} nested in the word of another, with quotes of its own, is one
+// unit of that word: the segmenters used to cut the outer word at the
+// inner quotes (modernish's str isint: ${2#"${2%%[!" $CCt$CCn"]*}"})
+void test_nested_expansion_with_quotes_in_a_word(void) {
+    TEST_ASSERT_EQUAL_STRING("[ 42 ]\n", run("x=' 42 '; echo \"[${x#\"${x%%\" \"*}\"}]\""));
+    TEST_ASSERT_EQUAL_STRING("[42 ]\n", run("x=' 42 '; echo \"[${x#${x%%[!\" ab\"]*}}]\""));
+    TEST_ASSERT_EQUAL_STRING("[ ]\n", run("x=' 42 '; echo \"[${nope:-\"${x%%[!\" ab\"]*}\"}]\""));
+    TEST_ASSERT_EQUAL_STRING("[42 ]\n", run("t=$(printf '\\t'); set -- a ' 42 '; echo \"[${2#\"${2%%[!\" $t\"]*}\"}]\""));
+    TEST_ASSERT_EQUAL_STRING("[ 42 ]\n", run("x=' 42 '; echo \"[${x#\"${x%% *}\"}]\""));
+}
+
+// A signal ignored when the shell started stays ignored: trap - does not
+// make it default again and a trap on it is dropped (GitHub Actions runs
+// every step with SIGPIPE ignored; modernish probes exactly this)
+void test_trap_keeps_signals_ignored_on_entry(void) {
+    signal(SIGPIPE, SIG_IGN);
+    trap_init();
+    TEST_ASSERT_EQUAL_STRING("alive\n", run("trap - PIPE; kill -s PIPE $$; echo alive"));
+    TEST_ASSERT_EQUAL_STRING("alive too\n", run("trap 'echo trapped' PIPE; kill -s PIPE $$; echo alive too"));
+    signal(SIGPIPE, SIG_DFL);
+    trap_init();
+    TEST_ASSERT_EQUAL_STRING("trapped\n", run("trap 'echo trapped' PIPE; kill -s PIPE $$; trap - PIPE"));
+}
+
 void test_quoted_at_fields(void) {
     TEST_ASSERT_EQUAL_STRING("[0] x\n", run("f() { /bin/echo \"[$#]\" \"$@\" x; }; f"));
     TEST_ASSERT_EQUAL_STRING("[1]  x\n", run("set -- ''; /bin/echo \"[$#]\" \"$@\" x"));
@@ -865,6 +890,8 @@ int main(void) {
     RUN_TEST(test_finished_background_jobs_make_room);
     RUN_TEST(test_case_word_with_control_bytes);
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
+    RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
+    RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_quoted_at_fields);

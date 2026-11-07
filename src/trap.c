@@ -57,8 +57,22 @@ static const struct {
     {NULL, 0}
 };
 
+// Signals that arrived ignored. POSIX: a non-interactive shell cannot trap
+// or reset them (they stay ignored, quietly), and `trap - SIG` puts a signal
+// back to what it was on entry, which for these is ignored. GitHub Actions
+// runs every step with SIGPIPE ignored, so a script there must not undo that.
+static bool ignored_at_entry[MAX_TRAPS];
+
 void trap_init(void) {
     memset(traps, 0, sizeof(traps));
+    for (int i = 1; i < MAX_TRAPS; i++) {
+        struct sigaction sa;
+        ignored_at_entry[i] = sigaction(i, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN;
+    }
+}
+
+bool trap_ignored_at_entry(int signum) {
+    return signum > 0 && signum < MAX_TRAPS && ignored_at_entry[signum];
 }
 
 void trap_cleanup(void) {
@@ -139,9 +153,9 @@ int trap_set(const char *action, const char *signal_name) {
 
     // Check for reset (NULL or "-")
     if (!action || (action[0] == '-' && action[1] == '\0')) {
-        // Reset to default
+        // Back to the disposition the shell started with
         if (signum > 0) {
-            signal(signum, SIG_DFL);
+            signal(signum, ignored_at_entry[signum] ? SIG_IGN : SIG_DFL);
         }
         return 0;
     }
@@ -153,6 +167,12 @@ int trap_set(const char *action, const char *signal_name) {
         if (signum > 0 && signum != SIGKILL && signum != SIGSTOP) {
             signal(signum, SIG_IGN);
         }
+        return 0;
+    }
+
+    // A signal ignored on entry stays ignored in a non-interactive shell; the
+    // action is accepted and dropped, as bash and dash do
+    if (signum > 0 && ignored_at_entry[signum] && !is_interactive) {
         return 0;
     }
 

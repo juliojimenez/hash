@@ -429,6 +429,8 @@ run_test "quoted \$@ in an assignment joins with spaces" "set -- a b; x=\"\$@\";
 run_test "case word with a 0x03 byte does not match a 0x01 pattern" "c3=\$(printf '\\003'); c1=\$(printf '\\001'); v=\"a\${c3}b*c\"; case \$v in ( *\"\$c1\"* ) echo bug ;; ( * ) echo case-ok ;; esac" "case-ok"
 run_test "command keeps a quoted operator as an argument" "command expr X '<' X" "0"
 run_test "command skips a function of the same name" "f() { echo function; }; command f 2>&1; echo rc=\$?" "rc=127"
+run_test "nested expansion with quotes inside a pattern word" $'x=\' 42 \'; echo "[${x#"${x%%" "*}"}]"' "[ 42 ]"
+run_test "trap - keeps a signal that arrived ignored ignored" "/bin/sh -c 'trap \"\" PIPE; exec \"\$1\" -c \"trap - PIPE; kill -s PIPE \\\$\\\$; echo still-alive\"' sh $HASH_BIN" "still-alive"
 run_test "a 16 KB value expands whole" "v=x; i=0; while [ \$i -lt 14 ]; do v=\$v\$v; i=\$((i+1)); done; printf '%s' \"\$v\" | wc -c | tr -d ' '" "16384"
 run_test "an invalid parameter name is a bad substitution" "echo \${.sh.version+s} 2>&1" "bad substitution"
 run_test "a script may start more background jobs than the table holds" "i=0; while [ \$i -lt 80 ]; do ( : ) & i=\$((i+1)); done; wait; echo jobs-ok 2>&1" "jobs-ok"
