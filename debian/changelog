@@ -1,3 +1,32 @@
+hash-shell (52-1) unstable; urgency=medium
+
+  * docs: drop the Product Hunt badge; the book catches up with the shell
+  * fix(parser): expand aliases while parsing, and what modernish found next
+  * fix(parser): $v"ro" keeps the variable's name boundary; $1 in $(( )) is text
+  * fix(builtins): read assigns shell variables, not environment entries
+  * fix(builtins): a listing that cannot be written fails; jobs says nothing without jobs
+  * fix(expand): ${var#word} and ${var%word} expand their word; the battery's other finds
+  * fix(expand): real 0x01..0x04 bytes survive expansion (marker collision)
+  * fix(case): backslashes and quoted pattern characters in words and patterns
+  * fix(exec): an empty matched case clause has status 0; eval of nothing succeeds
+  * fix(builtins): command keeps break, continue, return and exit in effect
+  * fix(varexpand): special parameters in braces and quotes, and a stable $$
+  * fix(builtins): unalias -a, several names, and -- (POSIX)
+  * fix(builtins): cd takes -L, -P and --, and keeps $PWD current
+  * fix(lineedit): keep what was typed while a command ran (typeahead)
+  * docs(site): say what hash is good at, with a conformance figure CI writes
+  * feat(prompt): presets picked with set prompt=NAME, and the rest of bash's escapes
+  * feat(execute): did-you-mean after "command not found" at the prompt
+  * feat(builtins): help, with the text kept next to each builtin
+  * feat(lineedit): vi editing mode with set -o vi
+  * feat(completion): variables, directories, name spaces, git, make, man, and a complete builtin
+  * fix(history): one entry per command, however many lines it took
+  * fix(exec): refuse function nesting past FUNCNEST or the stack instead of crashing
+  * test(modernish): second conformance suite, weekly, with a baseline
+  * docs(install): the .deb download names use a dot, not a tilde
+
+ -- Julio Jimenez <julio@julioj.com>  Sat, 07 Nov 2026 13:00:26 -0500
+
 hash-shell (51-1) unstable; urgency=medium
 
   * feat(set): the POSIX set options: -a allexport, -C noclobber (and >|),

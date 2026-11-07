@@ -15,7 +15,7 @@ hash-shell
 You'll see:
 
 ```
-hash v51
+hash v52
 Type 'exit' to quit
 
 #>
