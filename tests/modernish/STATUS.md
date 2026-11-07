@@ -31,30 +31,32 @@ as a bad substitution, `command` keeping quoted operators and skipping functions
 `${...}` with quotes of its own inside another's word, and `trap -` keeping a signal that
 arrived ignored ignored.
 
-The 43 unexpected failures, by area:
+The 43 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
+order worth taking them in):
 
-| Area | Tests | What fails |
-|------|-------|------------|
-| Unquoted `$*` and `$@` | posparam.t 001 003 005 011 013, posparam_spc.t 001 004 006 010 012 | the fields are not split on IFS (`set -- "a b" c; printf '[%s]' $*` prints `[a b][c]`, POSIX wants `[a][b][c]`) |
-| `$*` joining | posparam.t 016 021 023 028 057 058, posparam_spc.t 015 020 026 035 038 039 | unquoted `$*` in an assignment, `${var=$*}` and a here-document join with a space instead of the first IFS character (or nothing when IFS is empty) |
-| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field |
-| shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution |
-| Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body |
-| `read` | string.t 009 | trailing IFS whitespace is not trimmed |
-| Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` |
-| Functions in subshells | isset.t 026 027 | `local` assignments with regular builtins; `unset -f` inside a subshell |
-| `trap` | trap.t 001 | `var=$(trap)` does not print the traps |
-| `command` | builtin.t 005 | argument parsing |
-| `ulimit` | builtin.t 003 | there is no `ulimit` builtin |
-| `exec` with a closed fd | io.t 001 | a block cannot save and restore a closed file descriptor |
-| Here-doc in alias body | local.t 013, loop_cond.t 019 | a `$( )` inside a here-document inside `LOCAL`/`LOOP` (modernish's BUG_ALIASCSHD probe) |
-| `LOOP find --xargs` | loop_cond.t 022 | finds no files |
-| Sanity | @sanitychecks.t 002 | the `$CC*` control character constants |
+| Area | Tests | What fails | Issue |
+|------|-------|------------|-------|
+| Unquoted `$*` and `$@` | posparam.t 001 003 005 011 013, posparam_spc.t 001 004 006 010 012 | the fields are not split on IFS (`set -- "a b" c; printf '[%s]' $*` prints `[a b][c]`, POSIX wants `[a][b][c]`) | #383 |
+| `$*` joining | posparam.t 016 021 023 028 057 058, posparam_spc.t 015 020 026 035 038 039 | unquoted `$*` in an assignment, `${var=$*}` and a here-document join with a space instead of the first IFS character (or nothing when IFS is empty) | #383 |
+| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #383 |
+| shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution | #387 |
+| Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body | #384 |
+| `read` | string.t 009 | trailing IFS whitespace is not trimmed | #385 |
+| Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` | #386 |
+| Functions in subshells | isset.t 026 027 | `local` assignments with regular builtins; `unset -f` inside a subshell | #389 #390 |
+| `trap` | trap.t 001 | `var=$(trap)` does not print the traps | #391 |
+| `command` | builtin.t 005 | argument parsing | #393 |
+| `ulimit` | builtin.t 003 | there is no `ulimit` builtin | #396 |
+| `exec` with a closed fd | io.t 001 | a block cannot save and restore a closed file descriptor | #392 |
+| Here-doc in alias body | local.t 013, loop_cond.t 019 | a `$( )` inside a here-document inside `LOCAL`/`LOOP` (modernish's BUG_ALIASCSHD probe) | #394 |
+| `LOOP find --xargs` | loop_cond.t 022 | finds no files | #395 |
+| Sanity | @sanitychecks.t 002 | the `$CC*` control character constants | #388 |
 
 The two warnings (WRN_EREMBYTE, WRN_MULTIBYTE) are about multibyte characters in `ematch`
 and IFS, as on other shells without full UTF-8 support. Also seen in the output, not
 counted as failures: `pwd` after `cd -P` into a symlinked temp directory fails (`pwd: Not a
-directory` on Linux), and the `$'...'` quoting modernish probes for leaves `bar` unbound.
+directory` on Linux; #397), and `$'...'` quoting, which hash parses as neither POSIX nor ANSI-C
+(#388). Trap actions still run inside the signal handler (#398).
 
 All nine shell bugs that modernish's fatal-bug battery (`lib/modernish/adj/fatal.sh`)
 found against v51 are fixed; the battery passes, and `bin/modernish` initialises on hash.
