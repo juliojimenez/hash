@@ -210,6 +210,13 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# read assigns shell variables, not environment entries (#365)
+run_test "read into a name a for loop used takes the new value" "for rv in a b; do :; done; echo fromread | { read rv; echo \"[\$rv]\"; }" "[fromread]"
+run_test "read does not export the variable" "echo v | { read rx; env | grep -c '^rx='; }" "0"
+run_test "read keeps an exported variable exported" "export re=old; echo new | { read re; env | grep '^re='; }" "re=new"
+run_test "read with no name sets REPLY, unexported" "echo line | { read; echo \"[\$REPLY] \$(env | grep -c '^REPLY=')\"; }" "[line] 0"
+run_test "read into a readonly variable fails and keeps the value" "readonly rr=keep; echo x | { read rr 2>/dev/null; echo \"st=\$? [\$rr]\"; }" "st=1 [keep]"
+
 # Listing builtins fail when their output cannot be written; jobs prints nothing without jobs (#364)
 run_test "jobs with no jobs prints nothing" "echo \"[\$(jobs)]\"" "[]"
 run_test "jobs with no jobs still succeeds" "jobs; echo rc=\$?" "rc=0"

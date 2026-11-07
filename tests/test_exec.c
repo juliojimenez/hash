@@ -325,6 +325,18 @@ void test_listing_write_errors(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("export >/dev/null; echo $?"));
 }
 
+// read assigns shell variables, not environment entries (#365): a name a for
+// loop used takes the new value, nothing is exported, an exported variable
+// stays exported with the new value, REPLY works, a readonly name fails
+void test_read_assigns_shell_variables(void) {
+    TEST_ASSERT_EQUAL_STRING("fromread\n", run("for hr_ in a b; do :; done; echo fromread | { read hr_; echo \"$hr_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("0\n", run("echo v | { read hr2_; env | grep -c '^hr2_='; }"));
+    TEST_ASSERT_EQUAL_STRING("hr3_=new\n", run("export hr3_=old; echo new | { read hr3_; env | grep '^hr3_='; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][b c]\n", run("echo 'a b c' | { read hp_ hq_; echo \"[$hp_][$hq_]\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[line] 0\n", run("echo line | { read; echo \"[$REPLY] $(env | grep -c '^REPLY=')\"; }"));
+    TEST_ASSERT_EQUAL_STRING("st=1 [keep]\n", run("readonly hro_=keep; echo x | { read hro_ 2>/dev/null; echo \"st=$? [$hro_]\"; }"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -666,6 +678,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_read_assigns_shell_variables);
     RUN_TEST(test_listing_write_errors);
     RUN_TEST(test_modernish_battery_findings);
     RUN_TEST(test_default_words_and_function_args);
