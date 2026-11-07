@@ -209,6 +209,23 @@ echo -e "\n${YELLOW}Built-in Commands:${NC}"
 run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
+
+# cd options (#347): -L keeps the logical path, -P resolves symlinks, -- ends options,
+# $PWD follows cd (it was stale when PWD came from the environment)
+CD_FIX=$(mktemp -d /tmp/hash-cd-XXXXXX); mkdir -p "$CD_FIX/real/sub"; ln -s real "$CD_FIX/link"
+CD_PHYS=$(cd "$CD_FIX" && pwd -P)
+run_test "cd -- dir works" "cd -- $CD_PHYS/real && echo CD-OK-\$PWD" "CD-OK-$CD_PHYS/real"
+run_test "cd keeps the symlink in PWD (-L default)" "cd $CD_PHYS/link && echo \$PWD" "$CD_PHYS/link"
+run_test "cd -P resolves the symlink" "cd -P $CD_PHYS/link && echo \$PWD" "$CD_PHYS/real"
+run_test "cd .. under a symlink goes to the link's parent" "cd $CD_PHYS/link/sub && cd ../.. && echo DOTDOT=\$PWD" "DOTDOT=$CD_PHYS"
+run_test "cd -P -L: the last option wins" "cd -P -L $CD_PHYS/link && echo \$PWD" "$CD_PHYS/link"
+run_test "cd - prints the directory it lands in" "cd $CD_PHYS/real; cd /usr; cd -" "$CD_PHYS/real"
+run_test "cd -- - still means the previous directory" "cd /usr; cd $CD_PHYS; cd -- - >/dev/null; echo BACK=\$PWD" "BACK=/usr"
+run_test "cd -x is an invalid option with status 2" "cd -x /usr; echo rc=\$?" "rc=2"
+run_test "cd to a missing directory names it and fails with 1" "cd /no/such/dir/12345 2>&1; echo rc=\$?" "rc=1"
+run_test "cd error message names the directory" "cd /no/such/dir/12345" "cd: /no/such/dir/12345: No such file or directory"
+run_test "OLDPWD follows cd" "cd $CD_PHYS/real; cd /usr; echo OLD=\$OLDPWD" "OLD=$CD_PHYS/real"
+rm -rf "$CD_FIX"
 run_command_test "exit command" "exit"
 
 echo -e "\n${YELLOW}Error Handling:${NC}"
@@ -742,7 +759,7 @@ run_test "set +o vi restores emacs" "set -o vi; set +o vi; set +o | grep -E 'ema
 # help: every builtin and keyword has a synopsis; help NAME describes one
 run_test "help lists trap and the keywords" "help | grep -E '^(trap|if|case) ' | wc -l | tr -d ' '" "4"
 run_test "help NAME prints synopsis, description and the book page" "help trap" "More: https://hash-shell.org/"
-run_test "help -s prints the synopsis only" "help -s cd exit | tr '\n' '|'" "cd [dir]|exit [n]|"
+run_test "help -s prints the synopsis only" "help -s cd exit | tr '\n' '|'" "cd [-L|-P] [dir]|exit [n]|"
 run_test "help takes patterns" "help -s 'ex*' | head -1" "exit [n]"
 run_test "help set lists hash's own options" "help set" "welcome=on|off"
 run_test "help with an unknown topic fails" "help nosuchthing; echo \"status=\$?\"" "status=1"

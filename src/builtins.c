@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/times.h>
 #include <sys/wait.h>
@@ -48,9 +49,12 @@ void builtins_set_login_shell(bool is_login) {
 // Builtin command names and functions
 Builtin builtins[BUILTIN_FUNC_MAX] = {
     [BUILTIN_FUNC_CD] = (Builtin){"cd", &shell_cd,
-        "cd [dir]",
-        "Change the working directory to dir, or to $HOME without one. `cd -` goes back\n"
-        "to the previous directory and prints it. PWD and OLDPWD are updated.\n"
+        "cd [-L|-P] [dir]",
+        "Change the working directory to dir, or to $HOME without one. -L, the default,\n"
+        "keeps the logical path, so `cd ..` under a symlinked directory goes to the\n"
+        "parent of the link; -P follows symlinks and sets PWD to the physical path.\n"
+        "`cd -` goes back to the previous directory and prints it. PWD and OLDPWD are\n"
+        "updated.\n"
         ""},
     [BUILTIN_FUNC_EXIT] = (Builtin){"exit", &shell_exit,
         "exit [n]",
@@ -301,57 +305,172 @@ static int parse_job_id(const char *arg) {
 // Core Builtins
 // ============================================================================
 
-int shell_cd(char **args) {
-    const char *path = args[1];
+// $PWD when it still names the current directory, else the physical path.
+// The logical path is what cd -L builds on; a stale or missing PWD (the shell
+// was started with a wrong one, or the directory moved) falls back to getcwd().
+static const char *cd_current_dir(char *buf, size_t bufsz) {
+    const char *pwd = shellvar_get("PWD");
+    struct stat here, named;
+    if (pwd && pwd[0] == '/' && stat(pwd, &named) == 0 && stat(".", &here) == 0 &&
+        named.st_dev == here.st_dev && named.st_ino == here.st_ino) {
+        return pwd;
+    }
+    return getcwd(buf, bufsz);
+}
 
-    // Handle cd - (go to previous directory)
-    if (path != NULL && strcmp(path, "-") == 0) {
-        path = getenv("OLDPWD");
-        if (!path) {
-            color_error("%s: cd: OLDPWD not set", HASH_NAME);
-            last_command_exit_code = 1;
-            return 1;
+// The path cd -L changes to, built the way POSIX describes: an absolute operand
+// stands, a relative one goes under the logical current directory, "." drops
+// out, and each ".." removes the component before it after checking that the
+// prefix is a directory (so `cd ..` from a symlinked directory goes to the
+// parent of the link, not of its target). Returns 0, or -1 with errno set.
+static int cd_logical_path(const char *dir, char *out, size_t outsz) {
+    char base[PATH_MAX];
+    const char *from = "";
+    if (dir[0] != '/') {
+        from = cd_current_dir(base, sizeof(base));
+        if (!from) {
+            return -1;
         }
-        // Print the directory when using cd -
-        printf("%s\n", path);
     }
 
-    if (path == NULL) {
-        path = getenv("HOME");
+    size_t olen = 1;
+    out[0] = '/';
+    out[1] = '\0';
 
-        if (!path) {
+    // Walk the components of "<from>/<dir>" without building that string
+    const char *parts[2] = {from, dir};
+    for (int k = 0; k < 2; k++) {
+        const char *p = parts[k];
+        while (*p) {
+            while (*p == '/') p++;
+            if (!*p) break;
+            const char *comp = p;
+            while (*p && *p != '/') p++;
+            size_t n = (size_t)(p - comp);
+
+            if (n == 1 && comp[0] == '.') {
+                continue;
+            }
+            if (n == 2 && comp[0] == '.' && comp[1] == '.') {
+                struct stat st;
+                if (stat(out, &st) != 0) {
+                    return -1;
+                }
+                if (!S_ISDIR(st.st_mode)) {
+                    errno = ENOTDIR;
+                    return -1;
+                }
+                if (olen > 1) {
+                    char *slash = strrchr(out, '/');
+                    if (slash == out) {
+                        out[1] = '\0';
+                        olen = 1;
+                    } else {
+                        *slash = '\0';
+                        olen = (size_t)(slash - out);
+                    }
+                }
+                continue;
+            }
+            if (olen + (olen > 1 ? 1 : 0) + n + 1 > outsz) {
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+            if (olen > 1) {
+                out[olen++] = '/';
+            }
+            memcpy(out + olen, comp, n);
+            olen += n;
+            out[olen] = '\0';
+        }
+    }
+    return 0;
+}
+
+int shell_cd(char **args) {
+    bool physical = false;   // -L is the default, the last of -L/-P wins
+
+    int i = 1;
+    while (args[i] && args[i][0] == '-' && args[i][1] != '\0') {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        for (const char *o = args[i] + 1; *o; o++) {
+            if (*o == 'L') {
+                physical = false;
+            } else if (*o == 'P') {
+                physical = true;
+            } else {
+                color_error("%s: cd: -%c: invalid option", HASH_NAME, *o);
+                fprintf(stderr, "cd: usage: cd [-L|-P] [dir]\n");
+                last_command_exit_code = 2;
+                return 1;
+            }
+        }
+        i++;
+    }
+
+    const char *dir = args[i];   // further operands are ignored, as dash does
+    bool print = false;
+
+    if (dir == NULL) {
+        dir = shellvar_get("HOME");
+        if (!dir) {
             struct passwd pw;
             struct passwd *result = NULL;
             char buf[1024];
 
             if (getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result) == 0 && result != NULL) {
-                path = pw.pw_dir;
+                dir = pw.pw_dir;
             } else {
-                color_error("%s: could not determine home directory", HASH_NAME);
+                color_error("%s: cd: could not determine home directory", HASH_NAME);
                 last_command_exit_code = 1;
                 return 1;
             }
         }
-    }
-
-    // Save current directory as OLDPWD before changing
-    char oldpwd[PATH_MAX];
-    if (getcwd(oldpwd, sizeof(oldpwd)) != NULL) {
-        setenv("OLDPWD", oldpwd, 1);
-    }
-
-    if (chdir(path) != 0) {
-        perror(HASH_NAME);
-        last_command_exit_code = 1;
-    } else {
-        // Update PWD after successful change
-        char newpwd[PATH_MAX];
-        if (getcwd(newpwd, sizeof(newpwd)) != NULL) {
-            setenv("PWD", newpwd, 1);
+    } else if (strcmp(dir, "-") == 0) {
+        dir = shellvar_get("OLDPWD");
+        if (!dir) {
+            color_error("%s: cd: OLDPWD not set", HASH_NAME);
+            last_command_exit_code = 1;
+            return 1;
         }
-        last_command_exit_code = 0;
+        print = true;   // POSIX: cd - prints the new working directory
     }
 
+    // The directory we leave, as $PWD names it, becomes OLDPWD
+    char oldbuf[PATH_MAX];
+    const char *oldpwd = cd_current_dir(oldbuf, sizeof(oldbuf));
+
+    char target[PATH_MAX];
+    if (physical) {
+        if (chdir(dir) != 0 || getcwd(target, sizeof(target)) == NULL) {
+            color_error("%s: cd: %s: %s", HASH_NAME, dir, strerror(errno));
+            last_command_exit_code = 1;
+            return 1;
+        }
+    } else {
+        if (cd_logical_path(dir, target, sizeof(target)) != 0 || chdir(target) != 0) {
+            color_error("%s: cd: %s: %s", HASH_NAME, dir, strerror(errno));
+            last_command_exit_code = 1;
+            return 1;
+        }
+    }
+
+    // Through the variable table, not setenv() alone: the environment is
+    // imported into the table at startup and $PWD reads the table first, so a
+    // plain setenv() left $PWD at the directory the shell started in.
+    if (oldpwd) {
+        shellvar_set("OLDPWD", oldpwd);
+        shellvar_set_export("OLDPWD");
+    }
+    shellvar_set("PWD", target);
+    shellvar_set_export("PWD");
+    if (print) {
+        printf("%s\n", target);
+    }
+    last_command_exit_code = 0;
     return 1;
 }
 
