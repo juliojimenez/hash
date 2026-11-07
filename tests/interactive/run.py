@@ -145,8 +145,10 @@ class Session:
 
         The line editor redraws the typed line when Enter is pressed, so the
         output can end with the prompt text for an instant while the shell is
-        about to switch terminal modes and flush its input; waiting for quiet
-        makes sure the prompt is the one the shell is reading at."""
+        about to switch terminal modes; waiting for quiet makes sure the prompt
+        is the one the shell is reading at. (Input typed during that switch is
+        kept since #342, so this is about reading the transcript, not losing
+        keys.)"""
         quiet = not self.read(0.2)
         out = self.text()
         return quiet and any(out.endswith(p) for p in prompts)

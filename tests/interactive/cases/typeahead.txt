@@ -1,0 +1,7 @@
+# Typing while a command runs is kept and runs next (typeahead)
+send sleep 1; echo SL''EPT
+raw echo TYPE''AHEAD\r
+expect SLEPT
+expect TYPEAHEAD
+send exit
+status 0

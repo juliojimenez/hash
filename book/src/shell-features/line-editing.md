@@ -36,7 +36,7 @@ Hash shell includes a custom line editor with full cursor navigation and editing
 | `Ctrl+L` | Clear screen |
 | `Ctrl+C` | Cancel current line |
 | `Ctrl+D` | EOF (exit if line empty) |
-| `Enter` | Submit command |
+| `Enter` or `Ctrl+J` | Submit command |
 
 ## Features
 
@@ -55,6 +55,22 @@ hello world
 
 Type 'beautiful ' → hello beautiful world
 ```
+
+### Typing Ahead
+
+Text typed while a command is still running is not lost. The terminal echoes
+it once as you type it, and when the prompt comes back the editor reads it and
+runs it, so you can queue the next command without waiting:
+
+```
+#> sleep 2
+echo next          # typed during the sleep
+#> echo next       # the editor shows it again, then runs it
+next
+```
+
+Keys typed between pressing `Enter` and the command's first read go to the
+command, as they do in other shells.
 
 ### Tab Completion
 
