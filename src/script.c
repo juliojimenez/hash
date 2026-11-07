@@ -312,6 +312,10 @@ static char *remove_shell_quotes_for_pattern(const char *str) {
             result[j++] = next;  // Copy literal character
             continue;
         }
+        // Field markers around an unquoted expansion mean nothing in a pattern
+        if (c == '\x03' || c == '\x04') {
+            continue;
+        }
 
         if (c == '\'' && !in_double) {
             // Single quote - toggle state, don't output the quote
@@ -406,6 +410,42 @@ static char *mark_case_text(const char *word, bool all_literal) {
             result[j++] = c;
             continue;
         }
+        // The body of $(...), $((...)) or `...` is a command (or expression) of
+        // its own: copy it verbatim, so its quoted $ are not marked here (a
+        // \x02 inside the command text reached the child as a path byte:
+        // `case $(f "${d}/${n}") in` exec'd "\x02/bin/\x02sh")
+        if (!in_single && c == '$' && word[i + 1] == '(') {
+            size_t k = i + 2;
+            int depth = 1;
+            bool q1 = false, q2 = false;
+            while (word[k] && depth > 0) {
+                char d = word[k];
+                if (d == '\\' && word[k + 1] && !q1) { k += 2; continue; }
+                if (d == '\'' && !q2) q1 = !q1;
+                else if (d == '"' && !q1) q2 = !q2;
+                else if (!q1 && !q2) {
+                    if (d == '(') depth++;
+                    else if (d == ')') depth--;
+                }
+                k++;
+            }
+            memcpy(result + j, word + i, k - i);
+            j += k - i;
+            i = k - 1;
+            continue;
+        }
+        if (!in_single && c == '`') {
+            size_t k = i + 1;
+            while (word[k] && word[k] != '`') {
+                if (word[k] == '\\' && word[k + 1]) k++;
+                k++;
+            }
+            if (word[k] == '`') k++;
+            memcpy(result + j, word + i, k - i);
+            j += k - i;
+            i = k - 1;
+            continue;
+        }
         if (c == '\'' && !in_double) {
             in_single = !in_single;
             result[j++] = c;
@@ -438,6 +478,9 @@ static char *mark_case_text(const char *word, bool all_literal) {
         if (c == '$') {
             if (in_single) {
                 result[j++] = '\x01';
+            } else if (word[i + 1] == '(' && word[i + 2] == '(') {
+                ;   // $((...)): arithmetic, never marked (a \x02 would make cmdsub_expand
+                    // read it as a quoted $( ) command substitution); its result is digits
             } else if (in_double || all_literal) {
                 result[j++] = '\x02';
             }
@@ -455,10 +498,11 @@ static char *add_quote_markers(const char *word) {
     return mark_case_text(word, false);
 }
 
-// Case pattern: every expansion is literal (its characters are not pattern
-// characters), so all $ are marked
+// Case pattern: the same marking. An unquoted expansion's result is pattern
+// text (POSIX 2.9.4.3; `p='[+-]*'; case --x in ($p)` matches), a quoted one
+// matches literally.
 static char *add_pattern_markers(const char *word) {
-    return mark_case_text(word, true);
+    return mark_case_text(word, false);
 }
 
 static char *expand_case_word(const char *word) {
@@ -568,6 +612,36 @@ static char *expand_case_pattern(const char *pattern) {
     if (varexp) {
         free(result);
         result = varexp;
+    }
+
+    // A quote character that came out of an unquoted expansion is a plain
+    // character, not a quote (foo='"'; case '"' in $foo) matches): protect
+    // the quotes inside the \x03 regions before quote removal. Backslashes
+    // stay as they are: in an unquoted expansion they escape for the pattern.
+    {
+        size_t len = strlen(result);
+        char *marked_regions = malloc(len * 2 + 1);
+        if (marked_regions) {
+            const char *read = result;
+            char *write = marked_regions;
+            bool in_region = false;
+            while (*read) {
+                if (*read == '\x01' && read[1]) {
+                    *write++ = *read++;
+                    *write++ = *read++;
+                    continue;
+                }
+                if (*read == '\x03') {
+                    in_region = !in_region;
+                } else if (in_region && (*read == '"' || *read == '\'')) {
+                    *write++ = '\x01';
+                }
+                *write++ = *read++;
+            }
+            *write = '\0';
+            free(result);
+            result = marked_regions;
+        }
     }
 
     // Remove shell quotes (quote removal phase)

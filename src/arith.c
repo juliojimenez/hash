@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "arith.h"
 #include "varexpand.h"
+#include "expand.h"
 #include "safe_string.h"
 #include "cmdsub.h"
 #include "shellvar.h"
@@ -266,6 +267,15 @@ static void get_variable_token(Parser *p) {
     if (len < sizeof(p->current.name)) {
         memcpy(p->current.name, p->input + start, len);
         p->current.name[len] = '\0';
+    }
+
+    // A plain assignment (`t = 1`, not `t += 1` or `t == 1`) never reads the
+    // old value, so `: $((t = 1))` with t unset is fine under set -u, as in bash
+    size_t k = p->pos;
+    while (p->input[k] == ' ' || p->input[k] == '\t') k++;
+    if (p->input[k] == '=' && p->input[k + 1] != '=') {
+        p->current.value = 0;
+        return;
     }
 
     p->current.value = get_variable(p->current.name);
@@ -849,6 +859,66 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
             read++;
         }
         *write = '\0';
+    }
+
+    // POSIX: the expression undergoes parameter expansion before it is
+    // evaluated. The evaluator reads plain $name and ${name} itself, but a
+    // name assembled from text and an expansion (`_a_${v} + 1`, modernish's
+    // `_Msh__V${_Msh_push_V}__SP += 1`) must be expanded first.
+    if (strstr(expr, "${")) {
+        size_t cap = strlen(expr) * 2 + 64;
+        char *out = malloc(cap);
+        size_t o = 0;
+        const char *p = expr;
+        while (out && *p) {
+            if (p[0] == '$' && p[1] == '{') {
+                const char *q = p + 2;
+                int depth = 1;
+                while (*q && depth > 0) {
+                    if (*q == '{') depth++;
+                    else if (*q == '}') depth--;
+                    if (depth > 0) q++;
+                }
+                if (*q == '}') {
+                    size_t n = (size_t)(q + 1 - p);
+                    char *piece = malloc(n + 2);
+                    if (piece) {
+                        piece[0] = '\x02';          // quoted: the value is one unit, no field markers
+                        memcpy(piece + 1, p, n);
+                        piece[n + 1] = '\0';
+                        char *val = varexpand_expand(piece, last_command_exit_code);
+                        free(piece);
+                        if (val) {
+                            strip_quote_markers(val);
+                            size_t vl = strlen(val);
+                            if (o + vl + 1 > cap) {
+                                cap = (o + vl + 1) * 2;
+                                char *grown = realloc(out, cap);
+                                if (!grown) { free(val); break; }
+                                out = grown;
+                            }
+                            memcpy(out + o, val, vl);
+                            o += vl;
+                            free(val);
+                        }
+                    }
+                    p = q + 1;
+                    continue;
+                }
+            }
+            if (o + 2 > cap) {
+                cap *= 2;
+                char *grown = realloc(out, cap);
+                if (!grown) break;
+                out = grown;
+            }
+            out[o++] = *p++;
+        }
+        if (out) {
+            out[o] = '\0';
+            free(expr);
+            expr = out;
+        }
     }
 
     int ret = arith_evaluate(expr, result);

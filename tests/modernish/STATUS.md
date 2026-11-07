@@ -8,10 +8,17 @@ on changes to these files, and fails only when the result is worse than the base
 
 ## Where things stand
 
-modernish does not start on hash yet. Before it runs a single regression test it
-checks the shell against a battery of fatal bugs (`lib/modernish/adj/fatal.sh`) and
-aborts on the first one. Running that battery check by check against v51 found nine
-distinct shell bugs, each filed with a reproducer:
+All nine shell bugs that modernish's fatal-bug battery (`lib/modernish/adj/fatal.sh`)
+found against v51 are fixed; the battery passes, and `bin/modernish` initialises on hash.
+The regression suite itself then dies while loading its modules (#376), so `baseline.txt`
+records `state=died`: the runner's middle state between `init-failed` and `ran`. Fixing
+#376 should make the suite run; `run.sh` will then say "better than the baseline" and
+ask for `--update-baseline` with the number of unexpected failures it reports. From then
+on the weekly job turns red only when that number goes up.
+
+Running the battery check by check against v51 found these nine bugs, each filed with a
+reproducer; the fixes also turned up a dozen more (expansion, `case`, `$( )` parsing,
+`exec`, function parameters) that are listed in the pull requests closing them:
 
 | Issue | What fails | modernish check |
 |-------|------------|-----------------|
@@ -23,12 +30,7 @@ distinct shell bugs, each filed with a reproducer:
 | #352 | ~~`\\` right before an operator swallows the operator~~ fixed: the tokenizer was fine, the `case` word lost its backslash | FTL_CASEBKSL2 |
 | #353 | ~~backslashes in unquoted and double-quoted `case` patterns~~ fixed | FTL_CASEBKSL |
 | #354 | ~~a 0x01 byte in a value is dropped with the next character~~ fixed: real 0x01..0x04 bytes now travel as `\x01` + byte through every expansion step | FTL_CC7F, FTL_CASECC |
-| #355 | the word of `${var#word}` / `${var%word}` is not expanded | FTL_PSUB2, FTL_PSUB3, FTL_PSUBPP |
-
-Once all nine are fixed, `run.sh` will report "better than the baseline"; rerun it with
-`--update-baseline` and commit `baseline.txt` with the number of unexpected failures the
-regression suite itself reports. From then on the weekly job turns red only when that
-number goes up.
+| #355 | ~~the word of `${var#word}` / `${var%word}` is not expanded~~ fixed | FTL_PSUB2, FTL_PSUB3, FTL_PSUBPP |
 
 ## Reproducing the battery check by check
 

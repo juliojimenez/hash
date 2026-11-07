@@ -687,11 +687,13 @@ static ExecStatus exec_simple(const Node *n) {
     const WordVec *assignments = &n->u.simple.assignments;
     const WordVec *words = &n->u.simple.words;
     bool permanent = is_bare_exec(words);
-    bool is_exec_with_command = !permanent && words->count > 1 && strcmp(words->items[0], "exec") == 0;
 
+    // Redirections apply here, for `exec cmd 2>/dev/null` too: exec replaces
+    // the process with them in effect, and gets them back if it fails. They
+    // used to be handed to exec as words, and the command saw "2>" "/dev/null".
     SavedFd saved[EXEC_MAX_REDIRS];
     int saved_count = 0;
-    if (!is_exec_with_command && n->redirs.count > 0) {
+    if (n->redirs.count > 0) {
         if (!apply_redirs(&n->redirs, saved, &saved_count)) {
             restore_redirs(saved, saved_count);
             bool special = words->count > 0 && is_special_builtin_name(words->items[0]);
@@ -700,7 +702,7 @@ static ExecStatus exec_simple(const Node *n) {
     }
 
     // Rebuild the command text for the one-command executor
-    size_t redir_tokens = is_exec_with_command ? n->redirs.count : 0;
+    size_t redir_tokens = 0;
     size_t total = assignments->count + words->count + redir_tokens;
     char **parts = malloc((total ? total : 1) * sizeof(char *));
     char **owned = calloc(redir_tokens ? redir_tokens : 1, sizeof(char *));
@@ -1277,7 +1279,17 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
         script_set_continue_pending(0);
     }
 
-    script_state.positional_params = argv;
+    // The function owns its positional parameters: `set --` and `shift` inside
+    // it free and replace the array, so it must not be the caller's argv
+    // (which execute() frees afterwards; sharing it was a double free)
+    char **own_params = malloc(((size_t)argc + 1) * sizeof(char *));
+    if (own_params) {
+        for (int i = 0; i < argc; i++) {
+            own_params[i] = strdup(argv[i]);
+        }
+        own_params[argc] = NULL;
+    }
+    script_state.positional_params = own_params ? own_params : argv;
     script_state.positional_count = argc;
     script_state.exit_requested = false;
     script_state.in_script = true;      // `return` is allowed here
@@ -1305,6 +1317,14 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     script_state.function_call_depth--;
     exec_directly_in_child = old_direct;
     script_state.in_script = old_in_script;
+    // Free the function's parameters: the copy made above, or whatever `set`
+    // put in their place (both malloc'd arrays of malloc'd strings)
+    if (own_params && script_state.positional_params) {
+        for (int i = 0; i < script_state.positional_count; i++) {
+            free(script_state.positional_params[i]);
+        }
+        free(script_state.positional_params);
+    }
     script_state.positional_params = old_params;
     script_state.positional_count = old_count;
 

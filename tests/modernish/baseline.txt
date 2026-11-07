@@ -1,1 +1,1 @@
-state=init-failed
+state=died

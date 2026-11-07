@@ -143,11 +143,43 @@ static void handle_doller(Parser *parser) {
         }
         *parser->write_pos++ = *parser->read_pos++;  // $
         *parser->write_pos++ = *parser->read_pos++;  // (
+        // Copy the body to its closing parenthesis: parentheses inside quotes
+        // or comments do not count, escapes are copied as pairs (the body is
+        // a command of its own; cmdsub_expand parses it later)
         int depth = 1;
+        bool word_start = true;
         while (*parser->read_pos && depth > 0) {
-            if (*parser->read_pos == '(') {
+            char c = *parser->read_pos;
+            if (c == '#' && word_start) {
+                while (*parser->read_pos && *parser->read_pos != '\n') {
+                    *parser->write_pos++ = *parser->read_pos++;
+                }
+                continue;
+            }
+            word_start = (c == ' ' || c == '\t' || c == '\n' || c == '(' || c == ')' ||
+                          c == ';' || c == '|' || c == '&');
+            if (c == '\\' && *(parser->read_pos + 1)) {
+                *parser->write_pos++ = *parser->read_pos++;
+                *parser->write_pos++ = *parser->read_pos++;
+                continue;
+            }
+            if (c == '\'' || c == '"') {
+                char q = c;
+                *parser->write_pos++ = *parser->read_pos++;
+                while (*parser->read_pos && *parser->read_pos != q) {
+                    if (q == '"' && *parser->read_pos == '\\' && *(parser->read_pos + 1)) {
+                        *parser->write_pos++ = *parser->read_pos++;
+                    }
+                    *parser->write_pos++ = *parser->read_pos++;
+                }
+                if (*parser->read_pos) {
+                    *parser->write_pos++ = *parser->read_pos++;
+                }
+                continue;
+            }
+            if (c == '(') {
                 depth++;
-            } else if (*parser->read_pos == ')') {
+            } else if (c == ')') {
                 depth--;
             }
             *parser->write_pos++ = *parser->read_pos++;
@@ -161,10 +193,11 @@ static void handle_doller(Parser *parser) {
         *parser->write_pos++ = *parser->read_pos++;  // $
         *parser->write_pos++ = *parser->read_pos++;  // {
 
-        // ${name-word} ${name:-word} and the + = ? forms: the word is copied
-        // with its own quotes, which expand_default_word() in varexpand honours
-        // (a quoted "a b" or "$@" inside must stay one field each). The other
-        // forms strip quotes here and mark the glob characters they protected.
+        // ${name-word} ${name:-word}, the + = ? forms and the # ## % %% pattern
+        // forms: the word is copied with its own quotes, which varexpand honours
+        // (expand_default_word: a quoted "a b" or "$@" stays one field each;
+        // expand_pattern_word: quoted parts match literally, expansions are
+        // performed). ${#name} and ${name} strip quotes here as before.
         const char *scan = parser->read_pos;
         if (isalpha((unsigned char)*scan) || *scan == '_') {
             while (isalnum((unsigned char)*scan) || *scan == '_') scan++;
@@ -172,7 +205,8 @@ static void handle_doller(Parser *parser) {
             scan++;
         }
         if (*scan == ':') scan++;
-        bool raw_word = (*scan == '-' || *scan == '+' || *scan == '=' || *scan == '?') && scan != parser->read_pos;
+        bool raw_word = (*scan == '-' || *scan == '+' || *scan == '=' || *scan == '?' ||
+                         *scan == '#' || *scan == '%') && scan != parser->read_pos;
         if (raw_word) {
             int depth = 1;
             bool sq = false, dq = false;
