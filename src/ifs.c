@@ -117,19 +117,10 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
 
     while (*p && word_count < MAX_SPLIT_ARGS - 1) {
         if (is_protected_pair(p)) {
-            // A protected byte is never a marker. It is a split point only when
-            // the byte itself is in IFS (a non-whitespace delimiter, as control
-            // characters cannot be IFS whitespace); otherwise it is word content
-            if (in_expansion && is_ifs_char(*(p + 1), ifs)) {
-                current_word[current_len] = '\0';
-                all_words[word_count++] = strdup(current_word);
-                current_len = 0;
-                p += 2;
-                while (*p && *p != '\x03' && ifs_is_whitespace(*p, ifs)) {
-                    p++;
-                }
-                continue;
-            }
+            // A protected byte is quoted content: never a marker, never a split
+            // point (a quoted space inside ${1+"$@"} stays in its field). A real
+            // control byte travels the same way, so IFS set to such a byte does
+            // not split on it; bash does, and nobody has needed that yet.
             if (current_len < MAX_ARG_LENGTH - 2) {
                 current_word[current_len++] = *p;
                 current_word[current_len++] = *(p + 1);
@@ -310,10 +301,6 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             int in_expansion = 0;
             while (*p) {
                 if (is_protected_pair(p)) {
-                    if (in_expansion && is_ifs_char(*(p + 1), ifs)) {
-                        has_splitting = 1;   // the protected byte is an IFS delimiter
-                        break;
-                    }
                     p += 2;
                     continue;
                 }

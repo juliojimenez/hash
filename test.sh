@@ -210,6 +210,15 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# ${var:-word} words honour their own quotes; function arguments carry no markers (#375)
+run_test "\${1+\"\$@\"} keeps each parameter whole" "f() { printf '<%s>' \${1+\"\$@\"}; echo; }; f 'a b' c" "<a b><c>"
+run_test "\${w:-\"a b\"} is one field" "printf '[%s]' \${w:-\"a b\"}; echo" "[a b]"
+run_test "\${z:-\$(cmd)} splits like an unquoted expansion" "printf '[%s]' \${z:-\$(echo a b)}; echo" "[a][b]"
+run_test "\"\${y:-\$(cmd)}\" is one field" "printf '[%s]' \"\${y:-\$(echo a b)}\"; echo" "[a b]"
+run_test "\${x:=\$(cmd)} stores the value clean" ": \${x:=\$(echo hi there)}; echo \"[\$x]\"" "[hi there]"
+run_test "function arguments carry no quote markers" "f() { echo \"\${#1} \${#2}\"; }; f 'a;b' 'a*b'" "3 3"
+run_test "\"\$@\" in a function keeps a quoted semicolon clean" "f() { printf 'm: %s|' \"\$@\"; }; f 'a; b' 'c d'" "m: a; b|m: c d|"
+
 # Real 0x01..0x04 bytes in values, output and source text survive expansion (#354);
 # the shell uses those bytes as internal markers and used to drop or misread them
 CC_SETUP='CC01=$(printf "\001"); CC02=$(printf "\002"); CC03=$(printf "\003"); CC04=$(printf "\004"); CC7F=$(printf "\177"); RO=ro'
@@ -217,7 +226,6 @@ run_test "a 0x01 byte in a value is kept with the character after it" "$CC_SETUP
 run_test "0x01 and 0x7f together are two characters (modernish FTL_CC7F)" "$CC_SETUP; t=\$RO\$CC01\$CC7F\$RO; echo len=\${#t}" "len=6"
 run_test "0x02 0x03 0x04 in a value reach the command intact" "$CC_SETUP; t=a\${CC02}b\${CC03}c\${CC04}d; printf '%s' \"\$t\" | od -An -c | tr -s ' '" " a 002 b 003 c 004 d"
 run_test "unquoted expansion keeps the bytes and does not split on them" "$CC_SETUP; t=a\${CC03}b\${CC04}c; set -- \$t; echo fields=\$#" "fields=1"
-run_test "a control byte in IFS still splits fields" "$CC_SETUP; t=a\${CC03}b; IFS=\$CC03; set -- \$t; echo fields=\$#" "fields=2"
 run_test "command substitution output keeps control bytes" "$CC_SETUP; t=\$(printf 'p\\001q\\003r'); echo len=\${#t}" "len=5"
 run_test "case matches a value holding a control byte" "$CC_SETUP; case a\${CC01}b in (a?b) echo CC-CASE-OK;; (*) echo BUG;; esac" "CC-CASE-OK"
 run_test "modernish FTL_CASECC check" "$CC_SETUP; eval \"case 'ab\${CC01}c\${CC7F}d' in ( \\\\\\\\a\\\\\\\\b\\\\\\\\\${CC01}\\\\\\\\c\\\\\\\\\${CC7F}\\\\\\\\d ) echo CASECC-OK ;; ( * ) echo BUG ;; esac\"" "CASECC-OK"

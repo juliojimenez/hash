@@ -1212,6 +1212,13 @@ int execute(char **args) {
             }
         }
 
+        // The function sees its arguments the way a command does: quote
+        // markers removed. Builtins and external commands strip them on their
+        // own paths; positional parameters kept them (${#1} of "a;b" was 4,
+        // and "$@" later leaked the marker as a byte).
+        for (int i = 1; i < argc; i++) {
+            strip_quote_markers(exec_args[i]);
+        }
         result = exec_run_function(func, argc, exec_args);
 
         // Restore file descriptors after function execution

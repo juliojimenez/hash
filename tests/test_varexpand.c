@@ -1,6 +1,7 @@
 #include "unity.h"
 #include "../src/varexpand.h"
 #include "../src/script.h"
+#include "../src/shellvar.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -211,6 +212,54 @@ void test_expand_marker_bytes_in_values(void) {
     free(result);
 }
 
+// The word of ${var:-word} keeps its own quotes (the preprocessor passes them
+// through since #375): a quoted segment is one protected field, an unquoted
+// one splits; ${var:=word} stores the word clean (#375)
+void test_expand_default_word_quotes(void) {
+    unsetenv("HASH_DW");
+    char *result = varexpand_expand("${HASH_DW:-\"a b\"}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03\x01" "a\x01 \x01" "b\x03", result);
+    free(result);
+    result = varexpand_expand("${HASH_DW:-a b}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03" "a b\x03", result);
+    free(result);
+    result = varexpand_expand("${HASH_DW:-'q r'}x", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03\x01" "q\x01 \x01" "r\x03" "x", result);
+    free(result);
+    // a $(...) already substituted into the word (its \x03 region) splits unquoted,
+    // and is one field when the whole ${...} is quoted
+    result = varexpand_expand("${HASH_DW:-\x03" "a b\x03}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03" "a b\x03", result);
+    free(result);
+    result = varexpand_expand("\x02${HASH_DW:-\x03" "a b\x03}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x01" "a\x01 \x01" "b", result);
+    free(result);
+    // := stores the value without markers
+    result = varexpand_expand("${HASH_DW:=\x03" "hi there\x03}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("hi there", shellvar_get("HASH_DW"));
+    free(result);
+    shellvar_unset("HASH_DW");
+}
+
+// ${1+"$@"}: each parameter stays one field, the \x04 separators stay raw
+void test_expand_default_word_quoted_at(void) {
+    script_state.positional_params = malloc(3 * sizeof(char*));
+    script_state.positional_params[0] = strdup("script.sh");
+    script_state.positional_params[1] = strdup("a b");
+    script_state.positional_params[2] = strdup("c");
+    script_state.positional_count = 3;
+    char *result = varexpand_expand("${1+\"$@\"}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03\x01" "a\x01 \x01" "b\x04\x01" "c\x03", result);
+    free(result);
+}
+
 // Test $$ (process ID)
 void test_expand_pid(void) {
     char *result = varexpand_expand("PID: $$", 0);
@@ -401,6 +450,8 @@ int main(void) {
     RUN_TEST(test_expand_multiple_vars);
     RUN_TEST(test_expand_exit_code);
     RUN_TEST(test_expand_pid);
+    RUN_TEST(test_expand_default_word_quotes);
+    RUN_TEST(test_expand_default_word_quoted_at);
     RUN_TEST(test_expand_marker_bytes_in_values);
     RUN_TEST(test_expand_pid_quoted);
     RUN_TEST(test_expand_special_braced);

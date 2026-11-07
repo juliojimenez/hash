@@ -14,6 +14,7 @@
 #include "shellvar.h"
 #include "ifs.h"
 #include "utils.h"
+#include "expand.h"
 
 #define MAX_EXPANDED_LENGTH 8192
 
@@ -103,6 +104,8 @@ static const char *mark_dollars_as_quoted(const char *word) {
     marked[out] = '\0';
     return marked;
 }
+
+static char *expand_default_word(const char *word, bool is_quoted, int last_exit_code);
 
 // The special parameters that are not positional: $ ? ! - # @ *. They expand
 // the same with and without braces, in and out of double quotes.
@@ -205,6 +208,98 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
     }
 }
 
+// The word of ${var-word}, ${var:-word}, ${var+word}, ${var=word} and
+// ${var?word}. The preprocessor copies brace contents raw, so the word still
+// has its own quotes; they are honoured here. Single quotes make a literal
+// segment; double quotes a quoted segment, whose expansions are literal and
+// whose characters are protected so they never split fields or glob (this is
+// what keeps each parameter of ${1+"$@"} whole); the rest expands and splits
+// like any unquoted text. When the whole ${...} is in double quotes the word
+// is one quoted segment. The result is marked text for the append step, which
+// keeps its \x01 pairs and \x04 separators and drops its \x03 regions.
+static char *expand_default_word(const char *word, bool is_quoted, int last_exit_code) {
+    size_t cap = strlen(word) * 2 + 64;
+    char *out = malloc(cap);
+    if (!out) return NULL;
+    size_t o = 0;
+    // Room for `need` more bytes; the output grows with the expansions, not the word
+    #define ROOM(need) do { \
+        if (o + (need) + 1 > cap) { \
+            size_t ncap = (o + (need) + 1) * 2; \
+            char *grown = realloc(out, ncap); \
+            if (!grown) { out[o] = '\0'; return out; } \
+            out = grown; cap = ncap; \
+        } \
+    } while (0)
+#define PUT(ch) do { ROOM(1); out[o++] = (ch); } while (0)
+
+    const char *p = word;
+    while (*p) {
+        const char *start;
+        char *seg;
+        if (*p == '\'') {
+            // Literal segment: every character protected, nothing expands
+            p++;
+            start = p;
+            while (*p && *p != '\'') p++;
+            for (const char *q = start; q < p; q++) {
+                PUT('\x01');
+                PUT(*q);
+            }
+            if (*p) p++;
+            continue;
+        }
+        bool dquote = (*p == '"');
+        if (dquote) {
+            p++;
+            start = p;
+            while (*p && *p != '"') {
+                if (*p == '\\' && p[1]) p++;
+                p++;
+            }
+            seg = strndup(start, (size_t)(p - start));
+            if (*p) p++;
+        } else {
+            start = p;
+            while (*p && *p != '\'' && *p != '"') {
+                if (*p == '\\' && p[1]) p++;
+                p++;
+            }
+            seg = strndup(start, (size_t)(p - start));
+        }
+        if (!seg) break;
+        // Quoted here, or the whole ${...} in quotes: expansions are literal and
+        // the output never splits or globs. Otherwise it splits like any text.
+        bool protect = dquote || is_quoted;
+        char *marked = protect ? strdup(mark_dollars_as_quoted(seg)) : NULL;
+        char *e = varexpand_expand(protect ? (marked ? marked : seg) : seg, last_exit_code);
+        free(marked);
+        free(seg);
+        if (!e) continue;
+        for (const char *q = e; *q; q++) {
+            if (*q == '\x01' && q[1]) {
+                PUT(*q);                // an already protected byte
+                PUT(q[1]);
+                q++;
+            } else if (*q == '\x04') {
+                PUT(*q);                // "$@" field separator
+            } else if (*q == '\x03') {
+                ;                       // a $(...) region: the word is one region (or none, quoted)
+            } else if (protect) {
+                PUT('\x01');
+                PUT(*q);
+            } else {
+                PUT(*q);
+            }
+        }
+        free(e);
+    }
+#undef PUT
+#undef ROOM
+    out[o] = '\0';
+    return out;
+}
+
 // Expand environment variables in a string
 char *varexpand_expand(const char *str, int last_exit_code) {
     if (!str) return NULL;
@@ -264,6 +359,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             char var_name[256] = {0};
             bool is_literal_dollar = false;  // Track if this is just a literal $, not an expansion
             const char *premarked = NULL;    // a "$*"/"$@" buffer: its bytes are already protected
+            const char *premarked_word = NULL;  // a ${var:-word} word: expanded text, markers and all
 
             // Special parameters ($ ? ! - # @ *). Inside double quotes the parser
             // puts \x02 before $ and \x01 before ? and *; skip that marker.
@@ -404,17 +500,15 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var-word}: use word if unset
                             // ${var:-word}: use word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word, preserving quoting context
-                                if (strchr(word, '$')) {
-                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
-                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
-                                    if (expanded_word) {
-                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
-                                        free(expanded_word);
-                                        effective_word = expanded_word_buf;
-                                    }
+                                // Expand the word with its own quotes honoured
+                                char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
+                                if (expanded_word) {
+                                    safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                    free(expanded_word);
+                                    effective_word = expanded_word_buf;
                                 }
                                 var_value = effective_word;
+                                premarked_word = effective_word;
                             } else {
                                 var_value = val;
                             }
@@ -422,17 +516,15 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var+word}: use word if set
                             // ${var:+word}: use word if set and not null
                             if (!is_unset && (!check_null || !is_null)) {
-                                // Expand variables in word, preserving quoting context
-                                if (strchr(word, '$')) {
-                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
-                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
-                                    if (expanded_word) {
-                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
-                                        free(expanded_word);
-                                        effective_word = expanded_word_buf;
-                                    }
+                                // Expand the word with its own quotes honoured
+                                char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
+                                if (expanded_word) {
+                                    safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                    free(expanded_word);
+                                    effective_word = expanded_word_buf;
                                 }
                                 var_value = effective_word;
+                                premarked_word = effective_word;
                             } else {
                                 var_value = "";
                             }
@@ -445,18 +537,24 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var=word}: assign word if unset
                             // ${var:=word}: assign word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word, preserving quoting context
-                                if (strchr(word, '$')) {
-                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
-                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
-                                    if (expanded_word) {
-                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
-                                        free(expanded_word);
-                                        effective_word = expanded_word_buf;
-                                    }
+                                // Expand the word with its own quotes honoured
+                                char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
+                                if (expanded_word) {
+                                    safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                    free(expanded_word);
+                                    effective_word = expanded_word_buf;
                                 }
-                                setenv(var_name, effective_word, 1);
+                                // Store the word as the user sees it: through the
+                                // variable table (not setenv alone, which $var does
+                                // not read back) and without the expansion markers it
+                                // still carries; v51 stored "\x03hi there\x03" for
+                                // ${x:=$(echo hi there)} and $x then split in two
+                                static char assign_buf[4096];
+                                safe_strcpy(assign_buf, effective_word, sizeof(assign_buf));
+                                strip_quote_markers(assign_buf);
+                                shellvar_set(var_name, assign_buf);
                                 var_value = effective_word;
+                                premarked_word = effective_word;
                             } else {
                                 var_value = val;
                             }
@@ -464,15 +562,13 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             // ${var?word}: error if unset
                             // ${var:?word}: error if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand variables in word for error message, preserving quoting context
-                                if (strchr(word, '$')) {
-                                    const char *word_to_expand = is_quoted ? mark_dollars_as_quoted(word) : word;
-                                    char *expanded_word = varexpand_expand(word_to_expand, last_exit_code);
-                                    if (expanded_word) {
-                                        safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
-                                        free(expanded_word);
-                                        effective_word = expanded_word_buf;
-                                    }
+                                // Expand the word for the message, then drop the markers
+                                char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
+                                if (expanded_word) {
+                                    safe_strcpy(expanded_word_buf, expanded_word, sizeof(expanded_word_buf));
+                                    free(expanded_word);
+                                    strip_quote_markers(expanded_word_buf);
+                                    effective_word = expanded_word_buf;
                                 }
                                 if (effective_word[0]) {
                                     fprintf(stderr, "%s: %s\n", var_name, effective_word);
@@ -638,7 +734,14 @@ append_value:
             } else if (var_value) {
                 size_t val_len = strlen(var_value);
                 if (val_len > 0) {
-                    bool keep_pairs = (premarked != NULL && var_value == premarked);
+                    // A "$@"/"$*" buffer or an expanded ${var:-word} word is already
+                    // marked: its \x01 pairs and \x04 separators pass as they are. The
+                    // word's own \x03 regions (from a $(...) inside it) are dropped: the
+                    // whole word is one expansion here, wrapped once below when unquoted,
+                    // and never split when quoted.
+                    bool keep_pairs = (premarked != NULL && var_value == premarked) ||
+                                      (premarked_word != NULL && var_value == premarked_word);
+                    bool drop_regions = (premarked_word != NULL && var_value == premarked_word);
                     if (is_quoted) {
                         // Append with markers to prevent glob expansion and quote interpretation
                         for (size_t i = 0; i < val_len && out_pos < result_size - 2; i++) {
@@ -648,8 +751,11 @@ append_value:
                                 result[out_pos++] = var_value[++i];
                                 continue;
                             }
-                            if (keep_pairs && c == '\x04') {
-                                result[out_pos++] = c;          // the field separator itself
+                            if (drop_regions && c == '\x03') {
+                                continue;
+                            }
+                            if (keep_pairs && is_marker_byte(c)) {
+                                result[out_pos++] = c;          // a marker of the word's own
                                 continue;
                             }
                             if (char_in_string(c, "*?[]'\"\\<|>&~") || is_marker_byte(c)) {
@@ -669,6 +775,9 @@ append_value:
                                 if (keep_pairs && c == '\x01' && i + 1 < val_len) {
                                     result[out_pos++] = c;      // an already protected byte
                                     result[out_pos++] = var_value[++i];
+                                    continue;
+                                }
+                                if (drop_regions && c == '\x03') {
                                     continue;
                                 }
                                 if (!keep_pairs && is_marker_byte(c)) {
