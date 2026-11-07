@@ -7,6 +7,11 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
+#if defined(__GLIBC__)
+#include <stdio_ext.h>   // __fpurge
+#else
+int fpurge(FILE *);     // BSD libcs (FreeBSD, macOS): hidden by the strict feature macros above
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/times.h>
@@ -524,6 +529,18 @@ int shell_exit(char **args) {
     return 0;
 }
 
+// Drop what stdout still holds after a failed flush. glibc discards the data
+// itself; the BSD libcs (FreeBSD, macOS) keep it for a retry, so the failed
+// listing would come out with the next command's output once the redirection
+// is gone.
+static void discard_stdout_buffer(void) {
+#if defined(__GLIBC__)
+    __fpurge(stdout);
+#else
+    fpurge(stdout);
+#endif
+}
+
 // The status of a builtin that printed a listing: 0, or 1 with a message when
 // the output could not be written (stdout on /dev/full, a closed descriptor).
 // echo and printf already answer that way; a listing that said nothing about
@@ -531,6 +548,7 @@ int shell_exit(char **args) {
 static int listing_status(const char *name) {
     if (fflush(stdout) == EOF || ferror(stdout)) {
         fprintf(stderr, "%s: %s: write error: %s\n", HASH_NAME, name, strerror(errno));
+        discard_stdout_buffer();
         clearerr(stdout);
         last_command_exit_code = 1;
     } else {
@@ -1124,6 +1142,10 @@ done:
 
     // Check for write errors on flush
     if (fflush(stdout) == EOF) write_error = 1;
+    if (write_error) {
+        discard_stdout_buffer();
+        clearerr(stdout);
+    }
 
     last_command_exit_code = write_error ? 1 : 0;
     return 1;
