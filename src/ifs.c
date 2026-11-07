@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "ifs.h"
+#include "utils.h"
 #include "shellvar.h"
 
 #define MAX_SPLIT_ARGS 1024
@@ -45,12 +46,37 @@ static int is_var_assignment(const char *arg) {
     return *p == '=';
 }
 
+// A protected byte: \x01 then the byte itself, which may be a real \x03 or
+// \x04 that must not be read as a marker. Every scan here skips the pair whole.
+static bool is_protected_pair(const char *p) {
+    return p[0] == '\x01' && p[1] != '\0';
+}
+
+// Does s hold a real marker m (not a protected byte that happens to equal it)?
+static bool has_marker(const char *s, char m) {
+    for (const char *p = s; *p; p++) {
+        if (is_protected_pair(p)) {
+            p++;
+            continue;
+        }
+        if (*p == m) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Strip \x03 and \x04 markers from a string in place
 static void strip_markers_inplace(char *s) {
     if (!s) return;
     const char *src = s;
     char *dst = s;
     while (*src) {
+        if (is_protected_pair(src)) {
+            *dst++ = *src++;
+            *dst++ = *src++;
+            continue;
+        }
         if (*src != '\x03' && *src != '\x04') {
             *dst++ = *src;
         }
@@ -66,7 +92,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
     *result_count = 0;
 
     // Quick check: does this arg have any \x03 markers?
-    if (!strchr(arg, '\x03')) {
+    if (!has_marker(arg, '\x03')) {
         // No markers - return a copy of the original
         char **result = malloc(2 * sizeof(char *));
         if (!result) return NULL;
@@ -90,6 +116,18 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
     int in_expansion = 0;
 
     while (*p && word_count < MAX_SPLIT_ARGS - 1) {
+        if (is_protected_pair(p)) {
+            // A protected byte is quoted content: never a marker, never a split
+            // point (a quoted space inside ${1+"$@"} stays in its field). A real
+            // control byte travels the same way, so IFS set to such a byte does
+            // not split on it; bash does, and nobody has needed that yet.
+            if (current_len < MAX_ARG_LENGTH - 2) {
+                current_word[current_len++] = *p;
+                current_word[current_len++] = *(p + 1);
+            }
+            p += 2;
+            continue;
+        }
         if (*p == '\x03') {
             // Toggle expansion mode
             if (!in_expansion) {
@@ -194,7 +232,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         // Check if we have \x04 markers (quoted $@) - these still need to be split
         int has_at_split = 0;
         for (int i = 0; i < *arg_count; i++) {
-            if (strchr(args[i], '\x04')) {
+            if (has_marker(args[i], '\x04')) {
                 has_at_split = 1;
                 break;
             }
@@ -238,18 +276,10 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             } else {
                 // No empty expansions - just strip markers in place
                 for (int i = 0; i < *arg_count; i++) {
-                    if (!strchr(args[i], '\x03')) {
+                    if (!has_marker(args[i], '\x03')) {
                         continue;
                     }
-                    const char *src = args[i];
-                    char *dst = args[i];
-                    while (*src) {
-                        if (*src != '\x03') {
-                            *dst++ = *src;
-                        }
-                        src++;
-                    }
-                    *dst = '\0';
+                    strip_markers_inplace(args[i]);
                 }
             }
             return 0;
@@ -261,15 +291,19 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
     int has_splitting = 0;
     for (int i = 0; i < *arg_count; i++) {
         // Check for \x04 marker (quoted $@ argument separator)
-        if (strchr(args[i], '\x04')) {
+        if (has_marker(args[i], '\x04')) {
             has_splitting = 1;
             break;
         }
-        if (strchr(args[i], '\x03')) {
+        if (has_marker(args[i], '\x03')) {
             // Has expansion markers - check if IFS chars are inside or empty expansion
             const char *p = args[i];
             int in_expansion = 0;
             while (*p) {
+                if (is_protected_pair(p)) {
+                    p += 2;
+                    continue;
+                }
                 if (*p == '\x03') {
                     if (in_expansion) {
                         // Closing marker - check if expansion was empty
@@ -299,18 +333,10 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         for (int i = 0; i < *arg_count; i++) {
             // Only modify strings that actually have markers
             // (avoid writing to read-only string literals)
-            if (!strchr(args[i], '\x03') && !strchr(args[i], '\x04')) {
+            if (!has_marker(args[i], '\x03') && !has_marker(args[i], '\x04')) {
                 continue;
             }
-            const char *src = args[i];
-            char *dst = args[i];
-            while (*src) {
-                if (*src != '\x03' && *src != '\x04') {
-                    *dst++ = *src;
-                }
-                src++;
-            }
-            *dst = '\0';
+            strip_markers_inplace(args[i]);
         }
         return 0;
     }
@@ -333,7 +359,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
         }
 
         // Check for \x04 marker (quoted $@ - split into separate args, no IFS splitting)
-        if (strchr(args[i], '\x04')) {
+        if (has_marker(args[i], '\x04')) {
             // Split on \x04 markers
             char *copy = strdup(args[i]);
             if (!copy) continue;
@@ -341,6 +367,10 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
             const char *start = copy;
             char *p = copy;
             while (*p && new_count < MAX_SPLIT_ARGS - 1) {
+                if (is_protected_pair(p)) {
+                    p += 2;
+                    continue;
+                }
                 if (*p == '\x04') {
                     *p = '\0';  // Terminate current part
                     // Strip \x03 markers from this part and add if non-empty

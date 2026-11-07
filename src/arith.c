@@ -840,7 +840,10 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
         const char *read = expr;
         char *write = expr;
         while (*read) {
-            if (*read != '\x03') {
+            if (*read == '\x01' && read[1]) {
+                *write++ = *read++;   // keep a protected byte's pair whole
+                *write++ = *read;
+            } else if (*read != '\x03') {
                 *write++ = *read;
             }
             read++;

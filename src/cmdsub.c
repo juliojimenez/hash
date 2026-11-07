@@ -277,10 +277,11 @@ static int process_substitution(const char *cmd_start, size_t cmd_len,
         }
         for (size_t i = 0; i < output_len; i++) {
             char c = output[i];
-            if (char_in_string(c, "$`")) {
+            if (char_in_string(c, "$`") || is_marker_byte(c)) {
                 // Always protect $ and ` from further expansion
                 // (POSIX: command substitution output is not re-scanned
-                // for variable expansion or nested command substitution)
+                // for variable expansion or nested command substitution),
+                // and a real marker-range byte, which travels as \x01 + byte
                 buf->data[buf->len++] = '\x01';
             } else if (in_quoted && needs_quote_protection(c)) {
                 // Protect special character with \x01 marker
@@ -326,6 +327,17 @@ static bool handle_soh_marker(const char **read_char, CmdSubBuf *buf) {
         if (cmdsub_buf_ensure(buf, 2) == 0) {
             buf->data[buf->len++] = *p++;  // marker
             buf->data[buf->len++] = *p++;  // $
+        } else {
+            p += 2;
+        }
+        goto handled;
+    }
+    // Any other protected byte: keep the pair whole, so the byte after the
+    // marker is not read as a marker or an expansion start
+    if (*p == '\x01' && *(p + 1)) {
+        if (cmdsub_buf_ensure(buf, 2) == 0) {
+            buf->data[buf->len++] = *p++;
+            buf->data[buf->len++] = *p++;
         } else {
             p += 2;
         }

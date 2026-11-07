@@ -267,6 +267,22 @@ void test_case_backslashes_and_quoted_patterns(void) {
     TEST_ASSERT_EQUAL_STRING("ok\n", run("case abc in (a[bx]c) echo ok;; (*) echo BUG;; esac"));
 }
 
+// ${var:-word} words honour their quotes end to end, and function arguments
+// arrive without quote markers (#375)
+void test_default_words_and_function_args(void) {
+    TEST_ASSERT_EQUAL_STRING("<a b><c>\n", run("f() { printf '<%s>' ${1+\"$@\"}; echo; }; f 'a b' c"));
+    TEST_ASSERT_EQUAL_STRING("<>\n", run("f() { printf '<%s>' ${1+\"$@\"}; echo; }; f"));
+    TEST_ASSERT_EQUAL_STRING("[a b]\n", run("printf '[%s]' ${hw_:-\"a b\"}; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a][b]\n", run("printf '[%s]' ${hw_:-a b}; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a][b]\n", run("printf '[%s]' ${hz_:-$(echo a b)}; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a b]\n", run("printf '[%s]' \"${hy_:-$(echo a b)}\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("[p q]\n", run("hv_='p q'; printf '[%s]' ${hw_:-\"$hv_\"}; echo"));
+    TEST_ASSERT_EQUAL_STRING("[x y][z]\n", run("hu_=set; printf '[%s]' ${hu_:+\"x y\" z}; echo"));
+    TEST_ASSERT_EQUAL_STRING("hi there\n", run(": ${hx_:=$(echo hi there)}; echo \"$hx_\""));
+    TEST_ASSERT_EQUAL_STRING("3 3\n", run("f() { echo \"${#1} ${#2}\"; }; f 'a;b' 'a*b'"));
+    TEST_ASSERT_EQUAL_STRING("m: a; b\nm: c d\n", run("f() { printf 'm: %s\\n' \"$@\"; }; f 'a; b' 'c d'"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -608,6 +624,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_default_words_and_function_args);
     RUN_TEST(test_case_backslashes_and_quoted_patterns);
 
     RUN_TEST(test_brace_group_runs_in_current_shell);

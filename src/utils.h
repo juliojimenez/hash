@@ -22,4 +22,15 @@
  */
 bool char_in_string(char c, const char *str);
 
+/**
+ * The bytes the shell uses as internal markers while a word is expanded:
+ * \x01 "the next byte is literal", \x02 "quoted $", \x03 and \x04 field
+ * boundaries. A real byte in this range (from a $(printf '\001') result, a
+ * variable, or the input itself) travels as \x01 + byte so it cannot be read
+ * as a marker, and comes out as the byte again when the markers are removed.
+ */
+static inline bool is_marker_byte(char c) {
+    return (unsigned char)c >= 1 && (unsigned char)c <= 4;
+}
+
 #endif // UTILS_H

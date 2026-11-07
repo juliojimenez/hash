@@ -34,6 +34,14 @@ void test_cmdsub_simple_dollar_paren(void) {
     free(result);
 }
 
+// Output holding a real 0x01..0x04 byte is protected as \x01 + byte (#354)
+void test_cmdsub_protects_marker_bytes(void) {
+    char *result = cmdsub_expand("$(printf 'a\\001b\\003c')");
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03" "a\x01\x01" "b\x01\x03" "c\x03", result);
+    free(result);
+}
+
 // Test command substitution with backticks
 void test_cmdsub_backticks(void) {
     char *result = cmdsub_expand("`echo world`");
@@ -172,6 +180,7 @@ int main(void) {
     RUN_TEST(test_cmdsub_multiline_output);
     RUN_TEST(test_cmdsub_empty_command);
     RUN_TEST(test_cmdsub_with_args);
+    RUN_TEST(test_cmdsub_protects_marker_bytes);
 
     return UNITY_END();
 }

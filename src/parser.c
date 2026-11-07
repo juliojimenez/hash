@@ -55,6 +55,9 @@ static void handle_backslash(Parser *parser) {
             return;
         }
         *parser->write_pos++ = *parser->read_pos++;
+        if (is_marker_byte(*parser->read_pos)) {
+            mark_and_write_char(parser);  // a real marker-range byte after the backslash
+        }
         return;
     }
 
@@ -83,6 +86,9 @@ static void handle_backslash(Parser *parser) {
             default:
                 // Keep both backslash and character
                 *parser->write_pos++ = '\\';
+                if (is_marker_byte(*parser->read_pos)) {
+                    *parser->write_pos++ = '\x01';
+                }
                 *parser->write_pos++ = *parser->read_pos++;
                 break;
         }
@@ -94,7 +100,7 @@ static void handle_backslash(Parser *parser) {
         } else {
             // Remove backslash, keep the character
             // If it's a glob character, redirection operator, or tilde, mark it to prevent special handling
-            if (char_in_string(*parser->read_pos, "*?[<>|&;~")) {
+            if (char_in_string(*parser->read_pos, "*?[<>|&;~") || is_marker_byte(*parser->read_pos)) {
                 mark_and_write_char(parser); // Marker to prevent special interpretation
                 return;
             }
@@ -154,6 +160,45 @@ static void handle_doller(Parser *parser) {
         }
         *parser->write_pos++ = *parser->read_pos++;  // $
         *parser->write_pos++ = *parser->read_pos++;  // {
+
+        // ${name-word} ${name:-word} and the + = ? forms: the word is copied
+        // with its own quotes, which expand_default_word() in varexpand honours
+        // (a quoted "a b" or "$@" inside must stay one field each). The other
+        // forms strip quotes here and mark the glob characters they protected.
+        const char *scan = parser->read_pos;
+        if (isalpha((unsigned char)*scan) || *scan == '_') {
+            while (isalnum((unsigned char)*scan) || *scan == '_') scan++;
+        } else if (*scan && strchr("@*#?-$!0123456789", *scan)) {
+            scan++;
+        }
+        if (*scan == ':') scan++;
+        bool raw_word = (*scan == '-' || *scan == '+' || *scan == '=' || *scan == '?') && scan != parser->read_pos;
+        if (raw_word) {
+            int depth = 1;
+            bool sq = false, dq = false;
+            while (*parser->read_pos && depth > 0) {
+                char c = *parser->read_pos;
+                if (c == '\\' && *(parser->read_pos + 1) && !sq) {
+                    *parser->write_pos++ = *parser->read_pos++;
+                    *parser->write_pos++ = *parser->read_pos++;
+                    continue;
+                }
+                if (c == '\'' && !dq) {
+                    sq = !sq;
+                } else if (c == '"' && !sq) {
+                    dq = !dq;
+                } else if (!sq && !dq) {
+                    if (c == '{') depth++;
+                    else if (c == '}') depth--;
+                }
+                if (is_marker_byte(c)) {
+                    *parser->write_pos++ = '\x01';
+                }
+                *parser->write_pos++ = *parser->read_pos++;
+            }
+            return;
+        }
+
         int depth = 1;
         while (*parser->read_pos && depth > 0) {
             if (*parser->read_pos == '\\' && *(parser->read_pos + 1)) {
@@ -472,7 +517,10 @@ ParseResult parse_line(const char *line) {
                 break;
         }
 
-        // Regular character
+        // Regular character; a real marker-range byte is carried as \x01 + byte
+        if (is_marker_byte(*parser.read_pos)) {
+            *parser.write_pos++ = '\x01';
+        }
         *parser.write_pos++ = *parser.read_pos++;
     }
 

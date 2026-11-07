@@ -222,6 +222,14 @@ void test_expand_glob_null(void) {
     TEST_ASSERT_EQUAL_INT(-1, expand_glob(&args, &arg_count));
 }
 
+// strip_quote_markers keeps a protected byte (\x01 + byte) as the byte, drops
+// \x03 markers, and so restores a real control character (#354)
+void test_strip_quote_markers_protected_bytes(void) {
+    char s[] = "\x03" "a\x01\x01" "b\x01\x03" "c\x03" "\x01*";
+    strip_quote_markers(s);
+    TEST_ASSERT_EQUAL_STRING("a\x01" "b\x03" "c*", s);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -243,6 +251,7 @@ int main(void) {
     RUN_TEST(test_has_glob_chars_incomplete_bracket);
     RUN_TEST(test_expand_glob_no_glob);
     RUN_TEST(test_expand_glob_null);
+    RUN_TEST(test_strip_quote_markers_protected_bytes);
 
     return UNITY_END();
 }

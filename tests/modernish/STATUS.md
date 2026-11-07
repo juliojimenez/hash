@@ -22,7 +22,7 @@ distinct shell bugs, each filed with a reproducer:
 | #351 | ~~`!` ignored on a pipeline after `&&` or `\|\|`~~ fixed: the real bug was `case` with an empty matched clause keeping the previous exit status | FTL_ORNOT |
 | #352 | ~~`\\` right before an operator swallows the operator~~ fixed: the tokenizer was fine, the `case` word lost its backslash | FTL_CASEBKSL2 |
 | #353 | ~~backslashes in unquoted and double-quoted `case` patterns~~ fixed | FTL_CASEBKSL |
-| #354 | a 0x01 byte in a value is dropped with the next character | FTL_CC7F, FTL_CASECC |
+| #354 | ~~a 0x01 byte in a value is dropped with the next character~~ fixed: real 0x01..0x04 bytes now travel as `\x01` + byte through every expansion step | FTL_CC7F, FTL_CASECC |
 | #355 | the word of `${var#word}` / `${var%word}` is not expanded | FTL_PSUB2, FTL_PSUB3, FTL_PSUBPP |
 
 Once all nine are fixed, `run.sh` will report "better than the baseline"; rerun it with
