@@ -4,7 +4,7 @@
 
 
 # hash
-A modern command line interpreter for Linux, macOS, and BSD.
+A modern command line interpreter for Linux, macOS, and BSD: a POSIX shell written from scratch in C, one small binary with no dependencies beyond libc, with syntax highlighting, autosuggestions, a git-aware prompt and smart completion built in. [Why hash](https://hash-shell.org/why.html) says what it is good at and how it is tested.
 
 <center><img src="demo.gif" /></center>
 

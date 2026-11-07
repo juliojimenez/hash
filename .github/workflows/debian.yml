@@ -83,6 +83,7 @@ jobs:
 
     permissions:
       contents: read
+      actions: read   # scripts/conformance-figure.sh reads the smoosh workflow's results
       pages: write
       id-token: write
 
@@ -121,6 +122,8 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Site (book and APT repository)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash scripts/build-site.sh "${{ steps.get_version.outputs.version }}" artifacts
 
       - name: Setup Pages

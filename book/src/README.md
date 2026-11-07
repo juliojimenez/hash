@@ -1,6 +1,14 @@
 # Introduction
 
-**Hash** is a modern, POSIX-compliant command line interpreter for Linux, macOS, and BSD.
+**Hash** is a POSIX shell written from scratch in C for Linux, macOS and BSD:
+one small binary with no dependencies beyond libc, and the comforts people
+install plugins for (syntax highlighting, autosuggestions, a git-aware prompt,
+did-you-mean, smart completion) built in.
+
+{{#include conformance.md}}
+
+[Why hash](why.md) has the longer answer, a feature table against bash, dash,
+zsh and fish, and how the shell is tested.
 
 ## Features
 
