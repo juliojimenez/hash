@@ -1151,6 +1151,15 @@ done:
     return 1;
 }
 
+// read assigns a shell variable, as POSIX says: through the variable table,
+// which is what $name reads first (a plain setenv() left `for v in ...; read v`
+// showing the loop's last value) and which puts the value in the environment
+// only when the variable is exported. Returns false for a readonly variable
+// (shellvar_set has said so); read then fails.
+static bool read_assign(const char *name, const char *value) {
+    return shellvar_set(name, value) == 0;
+}
+
 int shell_read(char **args) {
     // Basic read implementation
     // Usage: read [-r] [var ...]
@@ -1178,10 +1187,10 @@ int shell_read(char **args) {
 
     // If no variables specified, use REPLY
     if (args[start] == NULL) {
-        setenv("REPLY", line, 1);
-        last_command_exit_code = 0;
+        last_command_exit_code = read_assign("REPLY", line) ? 0 : 1;
         return 1;
     }
+    int status = 0;
 
     // Split line into words and assign to variables
     char *saveptr;
@@ -1201,12 +1210,12 @@ int shell_read(char **args) {
                     safe_strcat(rest, " ", sizeof(rest));
                     safe_strcat(rest, remaining, sizeof(rest));
                 }
-                setenv(args[i], rest, 1);
+                if (!read_assign(args[i], rest)) status = 1;
             } else {
-                setenv(args[i], "", 1);
+                if (!read_assign(args[i], "")) status = 1;
             }
         } else {
-            setenv(args[i], word ? word : "", 1);
+            if (!read_assign(args[i], word ? word : "")) status = 1;
             if (word) {
                 // TODO: Use the IFS
                 word = strtok_r(NULL, " \t", &saveptr);
@@ -1217,7 +1226,7 @@ int shell_read(char **args) {
 
     (void)raw;  // TODO: Handle -r flag for backslash escapes
 
-    last_command_exit_code = 0;
+    last_command_exit_code = status;
     return 1;
 }
 
