@@ -69,6 +69,7 @@ static int raw_mode_enabled = 0;
 #define KEY_CTRL_K      11
 #define KEY_CTRL_L      12
 #define KEY_ENTER       13
+#define KEY_LINEFEED    10  // Ctrl-J, and Enter typed while the terminal was cooked (ICRNL)
 #define KEY_CTRL_U      21
 #define KEY_CTRL_W      23
 #define KEY_ESC         27
@@ -123,7 +124,12 @@ static int enable_raw_mode(void) {
     raw.c_cc[VMIN] = 1;
     raw.c_cc[VTIME] = 0;
 
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
+    // TCSADRAIN, not TCSAFLUSH: a flush would throw away what was typed while
+    // the previous command ran with the terminal in cooked mode. Those bytes
+    // are the next command (bash, zsh and dash all keep them), so they must
+    // stay queued for the editor to read. The terminal already applied ICRNL
+    // to them, which is why KEY_LINEFEED is accepted as Enter below.
+    if (tcsetattr(STDIN_FILENO, TCSADRAIN, &raw) == -1) {
         return -1;
     }
 
@@ -134,7 +140,9 @@ static int enable_raw_mode(void) {
 // Disable raw mode
 static void disable_raw_mode(void) {
     if (raw_mode_enabled) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+        // Keep pending input here too: keys typed between Enter and the
+        // command's first read belong to the command, as in cooked-mode shells.
+        tcsetattr(STDIN_FILENO, TCSADRAIN, &orig_termios);
         raw_mode_enabled = 0;
     }
 }
@@ -1608,6 +1616,7 @@ char *lineedit_read_line(const char *prompt) {
 
         switch (c) {
             case KEY_ENTER:
+            case KEY_LINEFEED:
                 if ((result = handle_enter_key(&edit)) != NULL) {
                     return result;
                 }
