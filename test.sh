@@ -210,6 +210,18 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# Listing builtins fail when their output cannot be written; jobs prints nothing without jobs (#364)
+run_test "jobs with no jobs prints nothing" "echo \"[\$(jobs)]\"" "[]"
+run_test "jobs with no jobs still succeeds" "jobs; echo rc=\$?" "rc=0"
+if [ -w /dev/full ]; then
+    run_test "export fails when the write fails" "export >/dev/full 2>/dev/null; echo rc=\$?" "rc=1"
+    run_test "set fails when the write fails" "set >/dev/full 2>/dev/null; echo rc=\$?" "rc=1"
+    run_test "help fails when the write fails" "help >/dev/full 2>/dev/null; echo rc=\$?" "rc=1"
+    run_test "kill -l fails when the write fails" "kill -l >/dev/full 2>/dev/null; echo rc=\$?" "rc=1"
+    run_test "type fails when the write fails" "type echo >/dev/full 2>/dev/null; echo rc=\$?" "rc=1"
+    run_test "a failed listing write names the builtin" "export >/dev/full" "export: write error"
+fi
+
 # ${var#word} / ${var%word}: the word is expanded, quoted parts match literally (#355)
 run_test "\${t#*\"\$t2\"}: expansion inside a pattern word (modernish FTL_PSUB3)" "t=abcdefghij; t2=efg; echo \"\${t#*\"\$t2\"}\"" "hij"
 run_test "\${1#\" \$2 -> \"}: positional parameters in a pattern word (FTL_PSUBPP)" "set -- ' foo -> bar' foo; echo \"\${1#\" \$2 -> \"}\"" "bar"

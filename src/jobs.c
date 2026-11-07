@@ -251,9 +251,9 @@ void jobs_list(JobsFormat format) {
         }
     }
 
-    if (found == 0 && format != JOBS_FORMAT_PID_ONLY) {
-        printf("No jobs\n");
-    }
+    // No jobs: print nothing, as POSIX jobs does (bash, dash and zsh agree);
+    // "No jobs" made `jobs` look like it had output to a script
+    (void)found;
 }
 
 // Get number of active jobs
