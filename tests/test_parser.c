@@ -59,6 +59,25 @@ void test_parse_line_keeps_quotes_in_default_word(void) {
     parse_result_free(&parsed);
 }
 
+// A variable name directly followed by a quote keeps its boundary: the quote
+// is removed here, so $v"ro" would read as $vro; it is written as ${v}ro (#374)
+void test_parse_line_braces_variable_before_quote(void) {
+    char line[] = "echo $v\"ro\" \"$v\"ro $v'ro' $1\"x\" $?\"x\" $$\"x\" $v ro $v";
+    ParseResult parsed = parse_line(line);
+    TEST_ASSERT_NOT_NULL(parsed.tokens);
+    TEST_ASSERT_EQUAL_STRING("${v}ro", parsed.tokens[1]);
+    TEST_ASSERT_EQUAL_STRING("\x02${v}ro", parsed.tokens[2]);
+    TEST_ASSERT_EQUAL_STRING("${v}ro", parsed.tokens[3]);
+    TEST_ASSERT_EQUAL_STRING("${1}x", parsed.tokens[4]);
+    TEST_ASSERT_EQUAL_STRING("${?}x", parsed.tokens[5]);
+    TEST_ASSERT_EQUAL_STRING("${$}x", parsed.tokens[6]);
+    TEST_ASSERT_EQUAL_STRING("$v", parsed.tokens[7]);       // no quote follows: unchanged
+    TEST_ASSERT_EQUAL_STRING("ro", parsed.tokens[8]);
+    TEST_ASSERT_EQUAL_STRING("$v", parsed.tokens[9]);
+    TEST_ASSERT_NULL(parsed.tokens[10]);
+    parse_result_free(&parsed);
+}
+
 // Test parse_line with multiple arguments
 void test_parse_line_multiple_args(void) {
     char line[] = "ls -la /tmp";
@@ -404,6 +423,7 @@ int main(void) {
     RUN_TEST(test_parse_arith_with_cmdsub);
     RUN_TEST(test_parse_line_protects_marker_bytes);
     RUN_TEST(test_parse_line_keeps_quotes_in_default_word);
+    RUN_TEST(test_parse_line_braces_variable_before_quote);
 
     return UNITY_END();
 }

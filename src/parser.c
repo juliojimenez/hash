@@ -287,7 +287,26 @@ static void handle_doller(Parser *parser) {
             // Mark as quoted variable - \x02$ means "don't glob the expansion"
             *parser->write_pos++ = '\x02';
         }
-        *parser->write_pos++ = *parser->read_pos++;
+        *parser->write_pos++ = *parser->read_pos++;   // $
+
+        // The name: letters, digits and _, or one digit or special parameter.
+        // When a quote follows it (`$v"ro"`, `"$v"ro`), this pass removes the
+        // quote and the name would run into the next characters ($vro). Write
+        // ${name} then, which expands the same and keeps its boundary.
+        const char *name = parser->read_pos;
+        const char *end = name;
+        if (isalpha((unsigned char)*end) || *end == '_') {
+            while (isalnum((unsigned char)*end) || *end == '_') end++;
+        } else if (*end && strchr("0123456789@*#?-$!", *end)) {
+            end++;
+        }
+        if (end > name && (*end == '"' || *end == '\'')) {
+            *parser->write_pos++ = '{';
+            while (parser->read_pos < end) {
+                *parser->write_pos++ = *parser->read_pos++;
+            }
+            *parser->write_pos++ = '}';
+        }
     }
 }
 

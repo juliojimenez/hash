@@ -337,6 +337,17 @@ void test_read_assigns_shell_variables(void) {
     TEST_ASSERT_EQUAL_STRING("st=1 [keep]\n", run("readonly hro_=keep; echo x | { read hro_ 2>/dev/null; echo \"st=$? [$hro_]\"; }"));
 }
 
+// A $name, $N or $? inside $(( )) is substituted as text before evaluation
+// (POSIX), so a parameter holding an expression is evaluated, not read as a
+// number: modernish's let does `return "$((!($1)))"` with $1 = "0 == 0"
+void test_arith_substitutes_parameters_as_text(void) {
+    TEST_ASSERT_EQUAL_STRING("0\n", run("f() { echo $(( !($1) )); }; f '0 == 0'"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("f() { echo $(( !($1) )); }; f '0 == 1'"));
+    TEST_ASSERT_EQUAL_STRING("3 3\n", run("hx_='1+2'; echo $(( $hx_ )) $(( ${hx_} ))"));
+    TEST_ASSERT_EQUAL_STRING("6 6 5\n", run("set -- 5; echo $(( $1 + 1 )) $(( ${1} + 1 )) $(( $1 ))"));
+    TEST_ASSERT_EQUAL_STRING("4\n", run("echo $(( $(echo 3) + 1 ))"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -678,6 +689,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_arith_substitutes_parameters_as_text);
     RUN_TEST(test_read_assigns_shell_variables);
     RUN_TEST(test_listing_write_errors);
     RUN_TEST(test_modernish_battery_findings);
