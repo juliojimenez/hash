@@ -2,6 +2,7 @@
 #define VAREXPAND_H
 
 #include <stdbool.h>
+#include <sys/types.h>
 
 /**
  * Expand environment variables in a string
@@ -39,6 +40,14 @@ int varexpand_args(char **args, int last_exit_code);
  * @return true if error occurred, false otherwise
  */
 bool varexpand_had_error(void);
+
+/**
+ * The process ID that $$ expands to: the shell's own, recorded at startup, so
+ * it stays the same inside pipelines, subshells, command substitutions and
+ * background jobs, which fork. Before shell_pid_init() it is getpid().
+ */
+void shell_pid_init(void);
+pid_t shell_pid(void);
 
 /**
  * Clear the expansion error flag

@@ -53,6 +53,16 @@ static bool check_unset_error(const char *var_name) {
 }
 
 // Get the last expansion error status
+static pid_t shell_pid_value = 0;
+
+void shell_pid_init(void) {
+    shell_pid_value = getpid();
+}
+
+pid_t shell_pid(void) {
+    return shell_pid_value > 0 ? shell_pid_value : getpid();
+}
+
 bool varexpand_had_error(void) {
     return varexpand_error;
 }
@@ -92,6 +102,97 @@ static const char *mark_dollars_as_quoted(const char *word) {
     }
     marked[out] = '\0';
     return marked;
+}
+
+// The special parameters that are not positional: $ ? ! - # @ *. They expand
+// the same with and without braces, in and out of double quotes.
+static bool is_special_param(char c) {
+    return c != '\0' && strchr("$?!-#@*", c) != NULL;
+}
+
+// Value of the special parameter c. Numbers are written to buf; "$*" and "$@"
+// come back in static buffers with the field separators the append step
+// expects: \x04 between fields, or the first character of IFS for a quoted
+// "$*" (none when IFS is empty).
+static const char *special_param_value(char c, bool is_quoted, int last_exit_code,
+                                       char *buf, size_t bufsz) {
+    switch (c) {
+        case '?':   // exit status of the last command
+            snprintf(buf, bufsz, "%d", last_exit_code);
+            return buf;
+        case '$':   // process ID of the shell, the same inside its subshells
+            snprintf(buf, bufsz, "%d", (int)shell_pid());
+            return buf;
+        case '!': {  // process ID of the last background job, empty before any
+            pid_t bg_pid = jobs_get_last_bg_pid();
+            if (bg_pid > 0) {
+                snprintf(buf, bufsz, "%d", bg_pid);
+                return buf;
+            }
+            return "";
+        }
+        case '-':   // the option letters in effect
+            shell_options_flags(buf, bufsz);
+            return buf;
+        case '#': {  // number of positional parameters (excluding $0)
+            int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
+            snprintf(buf, bufsz, "%d", count);
+            return buf;
+        }
+        case '*': {
+            // POSIX: quoted "$*" joins with the first character of IFS into one
+            // field; unquoted, each parameter is its own field (\x04 separator)
+            static char star_buf[MAX_EXPANDED_LENGTH];
+            size_t pos = 0;
+            char sep = '\x04';
+            bool use_sep = true;
+            if (is_quoted) {
+                const char *ifs = ifs_get();
+                if (ifs[0] == '\0') {
+                    use_sep = false;
+                } else {
+                    sep = ifs[0];
+                }
+            }
+            for (int i = 1; i < script_state.positional_count && pos < sizeof(star_buf) - 1; i++) {
+                const char *param = get_positional_param(i);
+                if (param) {
+                    if (i > 1 && use_sep && pos < sizeof(star_buf) - 1) {
+                        star_buf[pos++] = sep;
+                    }
+                    size_t plen = strlen(param);
+                    if (pos + plen < sizeof(star_buf)) {
+                        memcpy(star_buf + pos, param, plen);
+                        pos += plen;
+                    }
+                }
+            }
+            star_buf[pos] = '\0';
+            return star_buf;
+        }
+        case '@': {
+            // Quoted or not, each parameter is its own field (\x04 separator)
+            static char at_buf[MAX_EXPANDED_LENGTH];
+            size_t pos = 0;
+            for (int i = 1; i < script_state.positional_count && pos < sizeof(at_buf) - 1; i++) {
+                const char *param = get_positional_param(i);
+                if (param) {
+                    if (i > 1 && pos < sizeof(at_buf) - 1) {
+                        at_buf[pos++] = '\x04';
+                    }
+                    size_t plen = strlen(param);
+                    if (pos + plen < sizeof(at_buf)) {
+                        memcpy(at_buf + pos, param, plen);
+                        pos += plen;
+                    }
+                }
+            }
+            at_buf[pos] = '\0';
+            return at_buf;
+        }
+        default:
+            return NULL;
+    }
 }
 
 // Expand environment variables in a string
@@ -148,103 +249,15 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             char var_name[256] = {0};
             bool is_literal_dollar = false;  // Track if this is just a literal $, not an expansion
 
-            // Check for special variables
-            // Note: Parser may add \x01 marker before ?, *, [ when in quotes
-            // We need to skip the marker when checking for special variables like $?
-            if (*p == '?' || (*p == '\x01' && *(p + 1) == '?')) {
-                // $? - exit code
-                if (*p == '\x01') p++;  // Skip marker if present
-                snprintf(var_name, sizeof(var_name), "%d", last_exit_code);
-                var_value = var_name;
-                p++;
-            } else if (*p == '$') {
-                // $$ - process ID
-                snprintf(var_name, sizeof(var_name), "%d", getpid());
-                var_value = var_name;
-                p++;
-            } else if (*p == '!') {
-                // $! - PID of last background job
-                pid_t bg_pid = jobs_get_last_bg_pid();
-                if (bg_pid > 0) {
-                    snprintf(var_name, sizeof(var_name), "%d", bg_pid);
-                    var_value = var_name;
-                } else {
-                    var_value = "";
-                }
-                p++;
-            } else if (*p == '-') {
-                // $- - the option letters in effect
-                shell_options_flags(var_name, sizeof(var_name));
-                var_value = var_name;
-                p++;
-            } else if (*p == '#') {
-                // $# - number of positional parameters (excluding $0)
-                int count = script_state.positional_count > 0 ? script_state.positional_count - 1 : 0;
-                snprintf(var_name, sizeof(var_name), "%d", count);
-                var_value = var_name;
-                p++;
-            } else if (*p == '*' || (*p == '\x01' && *(p + 1) == '*')) {
-                // $* - all positional parameters
-                // POSIX: When quoted ("$*"), join with first character of IFS (single field)
-                // When unquoted, each param becomes a separate field (use \x04 separator)
-                if (*p == '\x01') p++;  // Skip marker if present
-                static char star_buf[MAX_EXPANDED_LENGTH];
-                star_buf[0] = '\0';
-                size_t pos = 0;
-
-                // Determine separator based on quoting context
-                char sep = '\x04';  // Default: separate fields for unquoted
-                bool use_sep = true;
-                if (is_quoted) {
-                    const char *ifs = ifs_get();
-                    if (ifs[0] == '\0') {
-                        // Empty IFS: concatenate without separator
-                        use_sep = false;
-                    } else {
-                        sep = ifs[0];
-                    }
-                }
-
-                for (int i = 1; i < script_state.positional_count && pos < sizeof(star_buf) - 1; i++) {
-                    const char *param = get_positional_param(i);
-                    if (param) {
-                        if (i > 1 && use_sep && pos < sizeof(star_buf) - 1) {
-                            star_buf[pos++] = sep;
-                        }
-                        size_t plen = strlen(param);
-                        if (pos + plen < sizeof(star_buf)) {
-                            memcpy(star_buf + pos, param, plen);
-                            pos += plen;
-                        }
-                    }
-                }
-                star_buf[pos] = '\0';
-                var_value = star_buf;
-                p++;
-            } else if (*p == '@') {
-                // $@ - all positional parameters
-                // Both quoted ("$@") and unquoted ($@) produce separate fields
-                // Use \x04 separator to ensure each param becomes a separate argument
-                static char at_buf[MAX_EXPANDED_LENGTH];
-                at_buf[0] = '\0';
-                size_t pos = 0;
-                for (int i = 1; i < script_state.positional_count && pos < sizeof(at_buf) - 1; i++) {
-                    const char *param = get_positional_param(i);
-                    if (param) {
-                        if (i > 1 && pos < sizeof(at_buf) - 1) {
-                            // Use \x04 separator for both quoted and unquoted $@
-                            at_buf[pos++] = '\x04';
-                        }
-                        size_t plen = strlen(param);
-                        if (pos + plen < sizeof(at_buf)) {
-                            memcpy(at_buf + pos, param, plen);
-                            pos += plen;
-                        }
-                    }
-                }
-                at_buf[pos] = '\0';
-                var_value = at_buf;
-                p++;
+            // Special parameters ($ ? ! - # @ *). Inside double quotes the parser
+            // puts \x02 before $ and \x01 before ? and *; skip that marker.
+            const char *special = p;
+            if ((*special == '\x01' || *special == '\x02') && *(special + 1)) {
+                special++;
+            }
+            if (is_special_param(*special)) {
+                var_value = special_param_value(*special, is_quoted, last_exit_code, var_name, sizeof(var_name));
+                p = special + 1;
             } else if (*p == '0') {
                 // $0 - script name or shell name
                 const char *param0 = get_positional_param(0);
@@ -269,12 +282,27 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                     p++;  // Skip #
                 }
 
-                // Parse variable name
+                // The name: a special parameter (${$} ${?} ${!} ${-} ${@} ${*}, and
+                // ${#X} for their lengths) is one character; otherwise letters,
+                // digits and underscores
                 size_t name_len = 0;
-                while (*p && is_varname_char(*p) && name_len < sizeof(var_name) - 1) {
-                    var_name[name_len++] = *p++;
+                bool is_special = false;
+                const char *special = p;
+                if ((*special == '\x01' || *special == '\x02') && *(special + 1)) {
+                    special++;
                 }
-                var_name[name_len] = '\0';
+                if (is_special_param(*special) && *special != '#') {
+                    var_name[0] = *special;
+                    var_name[1] = '\0';
+                    name_len = 1;
+                    is_special = true;
+                    p = special + 1;
+                } else {
+                    while (*p && is_varname_char(*p) && name_len < sizeof(var_name) - 1) {
+                        var_name[name_len++] = *p++;
+                    }
+                    var_name[name_len] = '\0';
+                }
 
                 // Check for modifiers: - + = ? # % (and : prefix)
                 char modifier = 0;
@@ -318,14 +346,21 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         const char *val = NULL;
 
                         // Check if it's a positional parameter
-                        int is_positional = 1;
-                        for (size_t i = 0; i < name_len; i++) {
-                            if (!isdigit(var_name[i])) {
-                                is_positional = 0;
-                                break;
+                        int is_positional = 0;
+                        if (!is_special) {
+                            is_positional = 1;
+                            for (size_t i = 0; i < name_len; i++) {
+                                if (!isdigit(var_name[i])) {
+                                    is_positional = 0;
+                                    break;
+                                }
                             }
                         }
-                        if (is_positional) {
+                        static char special_buf[256];
+                        if (is_special) {
+                            val = special_param_value(var_name[0], is_quoted, last_exit_code,
+                                                      special_buf, sizeof(special_buf));
+                        } else if (is_positional) {
                             int param_num = atoi(var_name);
                             val = get_positional_param(param_num);
                         } else if (strcmp(var_name, "LINENO") == 0) {
@@ -379,6 +414,11 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                             } else {
                                 var_value = "";
                             }
+                        } else if (modifier == '=' && is_special) {
+                            // ${?=word}: a special parameter cannot be assigned
+                            fprintf(stderr, "%s: ${%s=%s}: cannot assign in this way\n", HASH_NAME, var_name, word);
+                            varexpand_error = true;
+                            var_value = "";
                         } else if (modifier == '=') {
                             // ${var=word}: assign word if unset
                             // ${var:=word}: assign word if unset or null

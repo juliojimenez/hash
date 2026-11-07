@@ -210,6 +210,20 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# Special parameters (#349): the same with and without braces, in and out of quotes;
+# $$ is the shell's own pid in every subshell it forks
+run_test "\"\$\$\" in double quotes is the pid" "[ \"\$\$\" = \$\$ ] && echo QUOTED-PID-OK" "QUOTED-PID-OK"
+run_test "\${\$} is the pid" "[ \"\${\$}\" = \$\$ ] && echo BRACED-PID-OK" "BRACED-PID-OK"
+run_test "\${?} is the exit status" "false; echo rc=\${?}" "rc=1"
+run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
+run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"
+run_test "\${#} \${@} \${*} in braces" "set -- a b; echo \"\${#}:\${@}:\${*}\"" "2:a b:a b"
+run_test "\${-} in braces is the option letters" "set -f; case \"\${-}\" in *f*) echo DASH-OK;; esac" "DASH-OK"
+run_test "modifiers work on special parameters" "false; echo \"\${?:-x} \${?:+set} \${#?}\"" "1 set 1"
+run_test "\$\$ in a pipeline is the shell's pid" "echo \$\$ | { read p; [ \"\$p\" = \$\$ ] && echo PIPE-PID-OK; }" "PIPE-PID-OK"
+run_test "\$\$ in a subshell and a command substitution is the shell's pid" "[ \"\$(echo \$\$)\" = \$\$ ] && ( [ \$\$ = \"\$PPID\" ] || echo SUB-PID-OK )" "SUB-PID-OK"
+run_test "\$\$ in arithmetic is the shell's pid" "[ \$(( \$\$ )) = \$\$ ] && echo ARITH-PID-OK" "ARITH-PID-OK"
+
 # cd options (#347): -L keeps the logical path, -P resolves symlinks, -- ends options,
 # $PWD follows cd (it was stale when PWD came from the environment)
 CD_FIX=$(mktemp -d /tmp/hash-cd-XXXXXX); mkdir -p "$CD_FIX/real/sub"; ln -s real "$CD_FIX/link"
