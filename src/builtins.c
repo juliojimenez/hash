@@ -225,8 +225,9 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "command name [arg...]\n"
         "command -v | -V name...",
         "Run name without looking up functions, so a function can call the command\n"
-        "it shadows; a failing special builtin does not end the shell. -v prints how\n"
-        "name would be resolved, -V describes it.\n"
+        "it shadows; a failing special builtin does not end the shell, but break,\n"
+        "continue, return and exit keep their effect. -v prints how name would be\n"
+        "resolved, -V describes it.\n"
         ""},
     [BUILTIN_FUNC_EXEC] = (Builtin){"exec", &shell_exec,
         "exec [command [arg...]]\n"
@@ -1540,13 +1541,20 @@ int shell_command(char **args) {
         return 1;
     }
 
-    // Execute command, bypassing functions
-    // First check builtins
-    // POSIX: 'command' removes "special" status from special builtins
-    // So errors should not cause shell to exit (always return 1)
+    // Execute command, bypassing functions. First check builtins.
+    // POSIX: `command` strips a special builtin of its "an error exits the
+    // shell" property, not of what it does: break, continue, return and exit
+    // keep their control flow (their -3/-4/-2 and exit codes go back to the
+    // executor exactly as a direct call's would), while a builtin that
+    // returns 0 to stop the shell on an error is turned into "keep going".
     int result = try_builtin(args + arg_start);
     if (result != -1) {
-        // Always return 1 (continue) - special builtins lose their "exit on error" behavior
+        if (result == -2 || result == -3 || result == -4) {
+            return result;
+        }
+        if (result == 0 && script_state.exit_requested) {
+            return 0;
+        }
         // The exit code is already set in last_command_exit_code by the builtin
         return 1;
     }

@@ -183,6 +183,7 @@ hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `colo
 | `unalias` | Remove aliases: `unalias name...`, or every alias with `unalias -a` |
 | `cd` | Change directory: `cd [-L\|-P] [dir]`, `-L` (default) keeps the logical path, `-P` resolves symlinks, `cd -` goes back |
 | `pwd` | Print working directory |
+| `command` | Run a command without function lookup: `command name [arg...]`, `-v`/`-V` show how a name resolves; `command break`/`continue`/`return`/`exit` keep their effect |
 | `echo` | Print arguments |
 | `export` | Set environment variable |
 | `set` | Shell options and positional parameters |

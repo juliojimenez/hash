@@ -210,6 +210,16 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# command with the control-flow builtins (#350): break, continue, return and exit keep
+# their effect through `command`, also inside eval
+run_test "command continue continues the loop" "for i in 1 2; do command continue; echo BUG; done; echo CC-OK" "CC-OK"
+run_test "command break leaves the loop" "for i in 1 2; do command break; echo BUG; done; echo CB-OK" "CB-OK"
+run_test "command continue 2 skips the outer loop" "for i in 1 2; do for j in a b; do echo \$i\$j; command continue 2; done; done | tr '\n' ' '" "1a 2a "
+run_test "command return returns from the function with its status" "f() { command return 3; echo BUG; }; f; echo st=\$?" "st=3"
+run_test "command exit exits with its status" "sh_out=\$(\"$HASH_BIN\" -c 'command exit 4; echo BUG'); echo \"out=[\$sh_out] st=\$?\"" "out=[] st=4"
+run_test "eval 'command continue' continues the loop" "for i in 1 2; do eval 'command continue'; echo BUG; done; echo EV-OK" "EV-OK"
+run_test "command still bypasses functions" "echo() { builtin_echo_shadowed; }; command echo PLAIN-OK; unset -f echo" "PLAIN-OK"
+
 # Special parameters (#349): the same with and without braces, in and out of quotes;
 # $$ is the shell's own pid in every subshell it forks
 run_test "\"\$\$\" in double quotes is the pid" "[ \"\$\$\" = \$\$ ] && echo QUOTED-PID-OK" "QUOTED-PID-OK"
