@@ -32,6 +32,28 @@ wc -l < file.txt
 sort < unsorted.txt > sorted.txt
 ```
 
+### Here-Documents (<<)
+
+The lines up to the delimiter become the command's input. Variables and command
+substitutions in the body are expanded unless the delimiter is quoted; `<<-`
+also strips leading tabs, so the body can be indented with the code around it:
+
+```bash
+cat <<EOF
+Hello, $USER
+EOF
+
+cat <<'EOF'
+$USER is printed as written
+EOF
+
+if true; then
+	cat <<-EOF
+	indented with a tab, printed flush left
+	EOF
+fi
+```
+
 ## Error Redirection
 
 ### Stderr (2>)
@@ -120,9 +142,12 @@ Use `>>` to append, or check first:
 test -f file.txt && echo "File exists!"
 ```
 
+## Noclobber
+
+`set -C` (`set -o noclobber`) makes `>` refuse to overwrite an existing file;
+`>|` overwrites anyway. See the [shell options](../reference/README.md#shell-options).
+
 ## Limitations
 
-- No heredoc (`<< EOF`)
 - No here-string (`<<< "string"`)
 - No process substitution (`<(command)`)
-- No noclobber protection

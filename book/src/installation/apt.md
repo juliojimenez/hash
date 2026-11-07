@@ -51,22 +51,22 @@ If you prefer not to use the repository, download packages directly:
 ### Ubuntu 24.04 (Noble)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~noble_amd64.deb
-sudo dpkg -i hash-shell_*~noble_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*.noble_amd64.deb
+sudo dpkg -i hash-shell_*.noble_amd64.deb
 ```
 
 ### Ubuntu 22.04 (Jammy)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~jammy_amd64.deb
-sudo dpkg -i hash-shell_*~jammy_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*.jammy_amd64.deb
+sudo dpkg -i hash-shell_*.jammy_amd64.deb
 ```
 
 ### Debian 12 (Bookworm)
 
 ```bash
-curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*~bookworm_amd64.deb
-sudo dpkg -i hash-shell_*~bookworm_amd64.deb
+curl -LO https://github.com/juliojimenez/hash/releases/latest/download/hash-shell_*.bookworm_amd64.deb
+sudo dpkg -i hash-shell_*.bookworm_amd64.deb
 ```
 
 **Note:** Direct downloads won't receive automatic updates.
