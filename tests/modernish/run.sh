@@ -82,13 +82,15 @@ elif grep -q '^Out of [0-9]* tests\{0,1\}:' "$output"; then
     oks=$(count succeeded); skips=$(count '(was|were) skipped'); warns=$(count 'produced warnings')
     xfails=$(count 'failed expectedly'); fails=$(sed -n -E 's/^.*- ([0-9]+) failed unexpectedly.*/\1/p' "$output" | tail -1)
     oks=${oks:-0}; skips=${skips:-0}; warns=${warns:-0}; xfails=${xfails:-0}; fails=${fails:-0}
+elif [ "$status" -ne 0 ]; then
+    state=died            # initialised, then the shell or the suite stopped before any summary
 else
     state=no-summary
 fi
 
 case $state in
     init-failed) summary="modernish could not initialise on hash (status $status): $(grep -m1 -vE 'Initialisation failed|^$' "$output" | head -c 200)" ;;
-    died)        summary="modernish initialised but died before any summary (status $status): $(grep -m1 'died' "$output" | head -c 200)" ;;
+    died)        summary="modernish initialised but died before any summary (status $status): $(grep -m1 -vE '^getconf|^$' "$output" | head -c 200)" ;;
     no-summary)  summary="modernish produced no summary (status $status); see $output" ;;
     ran)         summary="modernish: $total tests, $oks succeeded, $skips skipped, $warns warnings, $xfails expected failures, $fails unexpected failures" ;;
 esac

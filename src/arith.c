@@ -865,22 +865,37 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
     // evaluated. The evaluator reads plain $name and ${name} itself, but a
     // name assembled from text and an expansion (`_a_${v} + 1`, modernish's
     // `_Msh__V${_Msh_push_V}__SP += 1`) must be expanded first.
-    if (strstr(expr, "${")) {
+    // The same goes for $name, $1 and $?: `let "$# == 0"` passes "0 == 0" as
+    // $1, and `return "$((!($1)))"` must see !(0 == 0), not !(0).
+    if (strchr(expr, '$')) {
         size_t cap = strlen(expr) * 2 + 64;
         char *out = malloc(cap);
         size_t o = 0;
         const char *p = expr;
         while (out && *p) {
+            const char *q = NULL;      // one past the parameter expansion starting at p
             if (p[0] == '$' && p[1] == '{') {
-                const char *q = p + 2;
+                q = p + 2;
                 int depth = 1;
                 while (*q && depth > 0) {
                     if (*q == '{') depth++;
                     else if (*q == '}') depth--;
                     if (depth > 0) q++;
                 }
-                if (*q == '}') {
-                    size_t n = (size_t)(q + 1 - p);
+                q = (*q == '}') ? q + 1 : NULL;
+            } else if (p[0] == '$' && p[1] != '(' && p[1] != '\0') {
+                q = p + 1;
+                if (isalpha((unsigned char)*q) || *q == '_') {
+                    while (isalnum((unsigned char)*q) || *q == '_') q++;
+                } else if (strchr("0123456789@*#?-$!", *q)) {
+                    q++;
+                } else {
+                    q = NULL;
+                }
+            }
+            if (q) {
+                {
+                    size_t n = (size_t)(q - p);
                     char *piece = malloc(n + 2);
                     if (piece) {
                         piece[0] = '\x02';          // quoted: the value is one unit, no field markers
@@ -888,6 +903,11 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
                         piece[n + 1] = '\0';
                         char *val = varexpand_expand(piece, last_command_exit_code);
                         free(piece);
+                        if (varexpand_had_error()) {
+                            // set -u and the parameter is unset: varexpand has printed the
+                            // message; fail the command the way a bare name does here
+                            arith_unset_error = true;
+                        }
                         if (val) {
                             strip_quote_markers(val);
                             size_t vl = strlen(val);
@@ -902,7 +922,7 @@ static int expand_and_evaluate_expr(const char *expr_start, size_t expr_len, lon
                             free(val);
                         }
                     }
-                    p = q + 1;
+                    p = q;
                     continue;
                 }
             }

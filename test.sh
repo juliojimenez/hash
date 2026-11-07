@@ -210,6 +210,19 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# A variable directly followed by a quoted string keeps its name boundary (#374)
+run_test "\$v\"ro\" expands the variable and appends the string" "v=ab; echo \$v\"ro\"" "abro"
+run_test "\$v\"ro\" in an assignment" "v=ab; t=\$v\"ro\"; echo \"[\$t]\"" "[abro]"
+run_test "\$v'ro' in an assignment" "v=ab; t=\$v'ro'; echo \"[\$t]\"" "[abro]"
+run_test "\"\$v\"ro keeps the boundary too" "v=ab; t=\"\$v\"ro; echo \"[\$t]\"" "[abro]"
+run_test "x\$v\"ro\" with a literal prefix" "v=ab; t=x\$v\"ro\"; echo \"[\$t]\"" "[xabro]"
+run_test "positional and special parameters before a quote" "set -- one two; false; echo \"\$1\"x \$2\"y\" \$?\"z\"" "onex twoy 1z"
+run_test "a quote after a variable that is not followed by one is unchanged" "v=ab; echo \$v \"\$v\" \$v\$v" "ab ab abab"
+
+# A parameter inside arithmetic is substituted as text before evaluation (modernish's let)
+run_test "a parameter holding an expression is evaluated inside \$(( ))" "f() { echo \$(( !(\$1) )); }; f '0 == 0'; x='1+2'; echo \$(( \$x ))" "0"
+run_test "\$x holding an expression evaluates inside \$(( ))" "x='1+2'; echo \$(( \$x )) \$(( \${x} ))" "3 3"
+
 # read assigns shell variables, not environment entries (#365)
 run_test "read into a name a for loop used takes the new value" "for rv in a b; do :; done; echo fromread | { read rv; echo \"[\$rv]\"; }" "[fromread]"
 run_test "read does not export the variable" "echo v | { read rx; env | grep -c '^rx='; }" "0"
