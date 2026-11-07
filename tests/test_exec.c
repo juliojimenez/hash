@@ -200,6 +200,21 @@ void test_while_until(void) {
     TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
 }
 
+// `command break|continue|return|exit` keep their control flow (#350); command
+// only strips the "a special builtin's error exits the shell" property
+void test_command_keeps_control_flow(void) {
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("for i in 1 2; do command continue; echo BUG; done; echo ok"));
+    TEST_ASSERT_EQUAL_STRING("after\n", run("for i in 1 2; do command break; echo BUG; done; echo after"));
+    TEST_ASSERT_EQUAL_STRING("1a\n2a\n", run("for i in 1 2; do for j in a b; do echo $i$j; command continue 2; done; done"));
+    TEST_ASSERT_EQUAL_STRING("st=3\n", run("f() { command return 3; echo BUG; }; f; echo st=$?"));
+    TEST_ASSERT_EQUAL_STRING("eval-ok\n", run("for i in 1 2; do eval \"command continue\"; echo BUG; done; echo eval-ok"));
+    TEST_ASSERT_EQUAL_STRING("", run("command exit 4; echo BUG"));
+    TEST_ASSERT_EQUAL_INT(EXEC_EXIT, status);
+    TEST_ASSERT_EQUAL_INT(4, last_command_exit_code);
+    // plain `command` is unchanged
+    TEST_ASSERT_EQUAL_STRING("plain\n", run("command echo plain"));
+}
+
 void test_break_and_continue(void) {
     TEST_ASSERT_EQUAL_STRING("1\n3\n", run("for i in 1 2 3; do if [ $i = 2 ]; then continue; fi; echo $i; done"));
     TEST_ASSERT_EQUAL_STRING("1\n", run("for i in 1 2 3; do echo $i; break; done"));
@@ -546,6 +561,7 @@ int main(void) {
     RUN_TEST(test_for_loop);
     RUN_TEST(test_while_until);
     RUN_TEST(test_break_and_continue);
+    RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
 
     RUN_TEST(test_brace_group_runs_in_current_shell);
