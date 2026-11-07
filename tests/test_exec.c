@@ -230,6 +230,25 @@ void test_case(void) {
     TEST_ASSERT_EQUAL_STRING("", run("case zzz in a) echo a;; b) echo b;; esac"));
     TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
     TEST_ASSERT_EQUAL_STRING("second\n", run("case 2 in 1) echo first;; 2) echo second;; esac"));
+
+    // A matched clause with no commands completes with status 0 (#351); a clause
+    // with commands still sees the previous status in $?
+    TEST_ASSERT_EQUAL_STRING("", run("false; case x in x) ;; esac"));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("inside=1\n", run("false; case x in x) echo inside=$?;; esac"));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("1\n", run("false || ! case x in x) ;; esac; echo $?"));
+    // modernish's FTL_ORNOT check: the group must fail, so && does not fire
+    TEST_ASSERT_EQUAL_STRING("", run("{ ! : || ! case x in x) ;; esac; } && echo FATAL"));
+}
+
+// eval with no arguments, null arguments or blank text succeeds (POSIX)
+void test_eval_empty_is_success(void) {
+    TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval \"\"; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval \"\" \"\"; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval \" \"; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("eval false; echo $?"));
 }
 
 // ============================================================================
@@ -563,6 +582,7 @@ int main(void) {
     RUN_TEST(test_break_and_continue);
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
+    RUN_TEST(test_eval_empty_is_success);
 
     RUN_TEST(test_brace_group_runs_in_current_shell);
     RUN_TEST(test_subshell_isolates_state_and_reports_status);

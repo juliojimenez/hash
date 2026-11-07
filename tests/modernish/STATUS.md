@@ -19,7 +19,7 @@ distinct shell bugs, each filed with a reproducer:
 | #348 | ~~`unalias -a`; `unalias a b`~~ fixed | FTL_UNALIASA |
 | #349 | ~~`"$$"` in double quotes; `${$}`, `${?}`, `${!}`~~ fixed | FTL_HASHVAR |
 | #350 | ~~`command continue` / `break` / `return` / `exit` lose their control flow~~ fixed | FTL_EVALCOBR |
-| #351 | `!` ignored on a pipeline after `&&` or `\|\|` | FTL_ORNOT |
+| #351 | ~~`!` ignored on a pipeline after `&&` or `\|\|`~~ fixed: the real bug was `case` with an empty matched clause keeping the previous exit status | FTL_ORNOT |
 | #352 | `\\` right before an operator swallows the operator | FTL_CASEBKSL2 |
 | #353 | backslashes in unquoted and double-quoted `case` patterns | FTL_CASEBKSL |
 | #354 | a 0x01 byte in a value is dropped with the next character | FTL_CC7F, FTL_CASECC |

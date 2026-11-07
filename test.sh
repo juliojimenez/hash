@@ -210,6 +210,15 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# case with an empty matched clause completes with status 0 (#351; modernish FTL_ORNOT
+# saw `false || ! case x in x) ;; esac` negate the stale 1); eval of nothing succeeds
+run_test "empty matched case clause has status 0" "false; case x in x) ;; esac; echo rc=\$?" "rc=0"
+run_test "a case clause with commands still sees the previous status" "false; case x in x) echo inside=\$?;; esac" "inside=1"
+run_test "! case after || negates the case's own status" "false || ! case x in x) ;; esac; echo rc=\$?" "rc=1"
+run_test "modernish FTL_ORNOT check does not fire" "{ ! : || ! case x in x) ;; esac; } && echo FATAL; echo CHECK-DONE" "CHECK-DONE"
+run_test "eval with null arguments succeeds" "false; eval ''; echo rc=\$?" "rc=0"
+run_test "eval with blank text succeeds" "false; eval ' '; echo rc=\$?" "rc=0"
+
 # command with the control-flow builtins (#350): break, continue, return and exit keep
 # their effect through `command`, also inside eval
 run_test "command continue continues the loop" "for i in 1 2; do command continue; echo BUG; done; echo CC-OK" "CC-OK"
