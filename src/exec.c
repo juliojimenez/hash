@@ -458,8 +458,12 @@ static int heredoc_fd(const Redirect *r) {
         char *after_cmdsub = cmdsub_expand(source);
         char *after_arith = arith_expand(after_cmdsub ? after_cmdsub : source);
         varexpand_clear_error();
+        // The body is not field-split: $* joins with the first IFS character,
+        // the fields of $@ with a space
+        bool was = varexpand_set_no_split(true);
         expanded = varexpand_expand(after_arith ? after_arith : (after_cmdsub ? after_cmdsub : source),
                                     last_command_exit_code);
+        varexpand_set_no_split(was);
         free(after_arith);
         free(after_cmdsub);
         if (varexpand_had_error()) {

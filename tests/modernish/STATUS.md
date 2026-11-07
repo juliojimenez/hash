@@ -9,8 +9,8 @@ on changes to these files, and fails only when the result is worse than the base
 ## Where things stand
 
 The suite runs to its own summary, with the same result on macOS and on the GitHub
-runner: `baseline.txt` records `state=ran total=389 fails=43` (389 tests, 319 succeeded,
-12 skipped, 2 warnings, 13 expected failures, 43 unexpected failures). The weekly job turns
+runner: `baseline.txt` records `state=ran total=389 fails=21` (389 tests, 344 succeeded,
+12 skipped, 2 warnings, 10 expected failures, 21 unexpected failures). The weekly job turns
 red only when the number of unexpected failures goes up; when a fix brings it down, rerun
 with `--update-baseline` and commit `baseline.txt`.
 
@@ -31,14 +31,12 @@ as a bad substitution, `command` keeping quoted operators and skipping functions
 `${...}` with quotes of its own inside another's word, and `trap -` keeping a signal that
 arrived ignored ignored.
 
-The 43 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
-order worth taking them in):
+The 21 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
+order worth taking them in; #383, the 23 `$*`/`$@` tests, went first):
 
 | Area | Tests | What fails | Issue |
 |------|-------|------------|-------|
-| Unquoted `$*` and `$@` | posparam.t 001 003 005 011 013, posparam_spc.t 001 004 006 010 012 | the fields are not split on IFS (`set -- "a b" c; printf '[%s]' $*` prints `[a b][c]`, POSIX wants `[a][b][c]`) | #383 |
-| `$*` joining | posparam.t 016 021 023 028 057 058, posparam_spc.t 015 020 026 035 038 039 | unquoted `$*` in an assignment, `${var=$*}` and a here-document join with a space instead of the first IFS character (or nothing when IFS is empty) | #383 |
-| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #383 |
+| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #403 |
 | shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution | #387 |
 | Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body | #384 |
 | `read` | string.t 009 | trailing IFS whitespace is not trimmed | #385 |

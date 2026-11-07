@@ -505,9 +505,12 @@ static char *expand_assignment_value(const char *value, int *had_error) {
         result = arith_result;
     }
 
-    // Variable expansion
+    // Variable expansion; an assignment value is never field-split, so $* in
+    // it joins with the first IFS character
     varexpand_clear_error();
+    bool was = varexpand_set_no_split(true);
     char *var_result = varexpand_expand(result, last_command_exit_code);
+    varexpand_set_no_split(was);
     if (var_result) {
         free(result);
         result = var_result;
@@ -766,7 +769,11 @@ int execute(char **args) {
         // Skip already-processed prefix assignments (only for special builtins)
         if (i < early_prefix_count && is_special) continue;
         if (!is_redirection_arg(original_ptrs[i]) && strchr(arg, '$') != NULL) {
+            // An assignment word is never field-split, so v=$* joins with the
+            // first IFS character (POSIX 2.5.2)
+            bool was = varexpand_set_no_split(i < early_prefix_count);
             char *expanded = varexpand_expand(args[i], last_command_exit_code);
+            varexpand_set_no_split(was);
             if (expanded) {
                 args[i] = expanded;
             }

@@ -799,6 +799,31 @@ void test_trap_keeps_signals_ignored_on_entry(void) {
     // which the thread sanitizer flags as signal-unsafe; test.sh covers that.)
 }
 
+// POSIX 2.5.2: unquoted $* and $@ give one field per parameter, each split
+// again on IFS; where no splitting happens (an assignment, a here-document,
+// a case word, the value of ${var=$*}) $* joins with the first IFS character
+void test_unquoted_star_and_at_are_fields(void) {
+    TEST_ASSERT_EQUAL_STRING("[a][b][c]\n", run("set -- 'a b' c; printf '[%s]' $*; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a][b][c]\n", run("set -- 'a b' c; printf '[%s]' $@; echo"));
+    TEST_ASSERT_EQUAL_STRING("[one][two]\n", run("set -- one two; IFS=:; printf '[%s]' $*; echo; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[one][two]\n", run("set -- one two; IFS=; printf '[%s]' $*; echo; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[HIone][twoBYE]\n", run("set -- one two; IFS=; printf '[%s]' HI$*BYE; echo; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[a][b]\n", run("set -- a '' b; printf '[%s]' $@; echo"));
+    TEST_ASSERT_EQUAL_STRING("[xa][b][cy]\n", run("set -- 'a b' c; printf '[%s]' x$@y; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a][b]\n", run("set -- ' a ' b; printf '[%s]' $*; echo"));
+}
+
+void test_star_joins_where_nothing_splits(void) {
+    TEST_ASSERT_EQUAL_STRING("[one:two]\n", run("set -- one two; IFS=:; v=$*; printf '[%s]\\n' \"$v\"; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[one:two]\n", run("set -- one two; IFS=:; printf '[%s]\\n' \"$*\"; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[one][two] var=[one:two]\n", run("unset var; set -- one two; IFS=:; printf '[%s]' ${var=$*}; echo \" var=[$var]\"; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("one:two\n", run("set -- one two; IFS=:; cat <<X\n$*\nX\nunset IFS"));
+    TEST_ASSERT_EQUAL_STRING("joined\n", run("set -- one two; IFS=:; case $* in (one:two) echo joined ;; (*) echo split ;; esac; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[one two]\n", run("set -- one two; IFS=:; v=$@; printf '[%s]\\n' \"$v\"; unset IFS"));
+    TEST_ASSERT_EQUAL_STRING("[a b] [a b]\n", run("unset x; echo \"[${x=a b}] [$x]\""));
+    TEST_ASSERT_EQUAL_STRING("[a][b] y=[a b]\n", run("unset y; printf '[%s]' ${y=a b}; echo \" y=[$y]\""));
+}
+
 void test_quoted_at_fields(void) {
     TEST_ASSERT_EQUAL_STRING("[0] x\n", run("f() { /bin/echo \"[$#]\" \"$@\" x; }; f"));
     TEST_ASSERT_EQUAL_STRING("[1]  x\n", run("set -- ''; /bin/echo \"[$#]\" \"$@\" x"));
@@ -895,6 +920,8 @@ int main(void) {
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_bad_substitution_is_an_error);
+    RUN_TEST(test_unquoted_star_and_at_are_fields);
+    RUN_TEST(test_star_joins_where_nothing_splits);
     RUN_TEST(test_quoted_at_fields);
     RUN_TEST(test_escaped_backslash_and_dollar);
     return UNITY_END();

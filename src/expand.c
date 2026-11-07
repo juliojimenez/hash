@@ -284,7 +284,7 @@ void strip_quote_markers(char *s) {
     const char *check = s;
     bool has_markers = false;
     while (*check) {
-        if (char_in_string(*check, "\x01\x03")) {
+        if (char_in_string(*check, "\x01\x03\x04")) {
             has_markers = true;
             break;
         }
@@ -302,6 +302,11 @@ void strip_quote_markers(char *s) {
             *write++ = *read++;
         } else if (*read == '\x03') {
             // Skip IFS split marker entirely
+            read++;
+        } else if (*read == '\x04') {
+            // A "$@" field separator in a word that was never split (a
+            // here-document, an assignment): the fields join with a space
+            *write++ = ' ';
             read++;
         } else {
             *write++ = *read++;

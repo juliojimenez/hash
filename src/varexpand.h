@@ -57,3 +57,10 @@ void varexpand_clear_error(void);
 
 #endif // VAREXPAND_H
 
+
+char *varexpand_mark_quoted(const char *word);
+
+/* While on, $* joins with the first IFS character even unquoted: for a word
+ * that is never field-split (assignment, here-document, case word). Returns
+ * the previous setting, to restore. */
+bool varexpand_set_no_split(bool on);

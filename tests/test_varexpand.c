@@ -247,7 +247,9 @@ void test_expand_default_word_quotes(void) {
     shellvar_unset("HASH_DW");
 }
 
-// ${1+"$@"}: each parameter stays one field, the \x04 separators stay raw
+// ${1+"$@"}: one field per parameter (\x04 between them, each in a region of
+// its own so an unquoted $@ would split again); the bytes of a quoted "$@" are
+// protected, so these fields stay whole
 void test_expand_default_word_quoted_at(void) {
     script_state.positional_params = malloc(3 * sizeof(char*));
     script_state.positional_params[0] = strdup("script.sh");
@@ -256,7 +258,7 @@ void test_expand_default_word_quoted_at(void) {
     script_state.positional_count = 3;
     char *result = varexpand_expand("${1+\"$@\"}", 0);
     TEST_ASSERT_NOT_NULL(result);
-    TEST_ASSERT_EQUAL_STRING("\x03\x01" "a\x01 \x01" "b\x04\x01" "c\x03", result);
+    TEST_ASSERT_EQUAL_STRING("\x03\x01" "a\x01 \x01" "b\x03\x04\x03\x01" "c\x03", result);
     free(result);
 }
 
