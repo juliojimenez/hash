@@ -209,6 +209,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
 
     if (word_count == 0) {
         free(all_words);
+        free(current_word);
         return NULL;
     }
 
