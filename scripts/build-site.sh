@@ -26,6 +26,9 @@ for tool in dpkg-scanpackages gzip xz; do
     command -v "$tool" >/dev/null || die "$tool is required (dpkg-dev, gzip, xz-utils)"
 done
 
+# The conformance figure the book shows, from the latest smoosh run (kept as committed when unreachable)
+bash scripts/conformance-figure.sh
+
 # The book, at the site root
 if command -v mdbook >/dev/null; then
     mdbook build book

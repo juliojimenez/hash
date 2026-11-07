@@ -1,6 +1,7 @@
 # Summary
 
 [Introduction](README.md)
+[Why hash](why.md)
 
 # Installation
 
