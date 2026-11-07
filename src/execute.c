@@ -429,9 +429,15 @@ static void set_prefix_var(const char *name, const char *value) {
     shellvar_set(name, value);
 }
 
+// The saved values form a stack: every execute() remembers where its own
+// entries start and only ever restores or drops those, so a command run
+// inside the one being executed (the body of eval or of a function) leaves
+// the outer command's assignments alone. Restoring runs newest first, so a
+// name assigned twice (x=1 x=2 cmd) ends at its original value
+
 // Restore prefix variables to their original state
-static void restore_prefix_vars(void) {
-    for (int i = 0; i < prefix_var_count; i++) {
+static void restore_prefix_vars(int base) {
+    for (int i = prefix_var_count - 1; i >= base; i--) {
         // Restore environment
         if (prefix_vars[i].env_was_set) {
             setenv(prefix_vars[i].name, prefix_vars[i].old_env_value, 1);
@@ -450,17 +456,17 @@ static void restore_prefix_vars(void) {
 
         free(prefix_vars[i].name);
     }
-    prefix_var_count = 0;
+    prefix_var_count = base;
 }
 
 // Clear prefix var tracking without restoring (for special builtins where vars persist)
-static void clear_prefix_vars(void) {
-    for (int i = 0; i < prefix_var_count; i++) {
+static void clear_prefix_vars(int base) {
+    for (int i = prefix_var_count - 1; i >= base; i--) {
         free(prefix_vars[i].old_env_value);
         free(prefix_vars[i].old_shell_value);
         free(prefix_vars[i].name);
     }
-    prefix_var_count = 0;
+    prefix_var_count = base;
 }
 
 // Helper: check if a command name is a POSIX special builtin
@@ -538,6 +544,9 @@ int execute(char **args) {
         return 1;
     }
 
+    // Where this command's prefix assignments start on the saved-value stack
+    int prefix_base = prefix_var_count;
+
     // Track original args to know which ones we allocated
     // We need to free expanded args later
     char *expanded_args[MAX_ARGS];
@@ -607,6 +616,7 @@ int execute(char **args) {
             if (had_error) {
                 free(name);
                 free(expanded_value);
+                clear_prefix_vars(prefix_base);
                 last_command_exit_code = 1;
                 return is_interactive ? 1 : 0;
             }
@@ -728,9 +738,9 @@ int execute(char **args) {
             }
         }
         if (is_special) {
-            clear_prefix_vars();
+            clear_prefix_vars(prefix_base);
         } else {
-            restore_prefix_vars();
+            restore_prefix_vars(prefix_base);
         }
         last_command_exit_code = 1;
         return is_interactive ? 1 : 0;  // Continue in interactive mode, exit in non-interactive
@@ -791,9 +801,9 @@ int execute(char **args) {
         // For special builtins with prefix assignments that persisted, keep them
         // (Don't restore - the error happened but assignments already took effect)
         if (is_special) {
-            clear_prefix_vars();
+            clear_prefix_vars(prefix_base);
         } else {
-            restore_prefix_vars();
+            restore_prefix_vars(prefix_base);
         }
         last_command_exit_code = 1;
         return is_interactive ? 1 : 0;  // Continue in interactive mode, exit in non-interactive
@@ -987,9 +997,9 @@ int execute(char **args) {
     // - Flow control: break, continue, return, exit (affect execution flow)
     // - State modifying: read, export, unset, set, cd, alias, unalias,
     //   readonly, eval, exec, source, ., trap (modify shell state/variables)
-    bool is_special_builtin = false;
+    bool runs_in_shell = false;
     if (exec_args[0]) {
-        is_special_builtin = (strcmp(exec_args[0], ":") == 0 ||
+        runs_in_shell = (strcmp(exec_args[0], ":") == 0 ||
                               strcmp(exec_args[0], "break") == 0 ||
                               strcmp(exec_args[0], "continue") == 0 ||
                               strcmp(exec_args[0], "return") == 0 ||
@@ -1010,8 +1020,15 @@ int execute(char **args) {
                               strcmp(exec_args[0], "trap") == 0);
     }
 
+    // Prefix assignments persist after a POSIX special builtin (2.9.1). The
+    // list above is wider than that: read, cd, umask, alias and unalias run in
+    // this process but restore theirs like any command. (`command eval :`
+    // never gets here with eval: the command builtin runs it itself, and the
+    // outer command is regular, so its assignments are restored.)
+    bool keeps_assignments = is_posix_special_builtin(exec_args[0]);
+
     // If it's a builtin with redirections (but NOT special), run in child process
-    if (is_builtin_cmd && redir && redir->count > 0 && !is_special_builtin) {
+    if (is_builtin_cmd && redir && redir->count > 0 && !runs_in_shell) {
         pid_t pid = fork();
         if (pid == 0) {
             // Child process - apply redirections and run builtin
@@ -1038,7 +1055,7 @@ int execute(char **args) {
         if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
-        restore_prefix_vars();
+        restore_prefix_vars(prefix_base);
         return 1;
     }
 
@@ -1058,12 +1075,12 @@ int execute(char **args) {
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             // exec is a special builtin - prefix assignments persist
-            clear_prefix_vars();
+            clear_prefix_vars(prefix_base);
             return result;
         }
     }
 
-    if (is_special_builtin && redir && redir->count > 0 && !is_exec_builtin) {
+    if (runs_in_shell && redir && redir->count > 0 && !is_exec_builtin) {
         // Save current file descriptors
         saved_fds[0] = dup(STDIN_FILENO);
         saved_fds[1] = dup(STDOUT_FILENO);
@@ -1079,7 +1096,11 @@ int execute(char **args) {
             if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
             free_expanded_args(expanded_args, expanded_count);
             // Special builtin redirect error - vars still persist per POSIX
-            clear_prefix_vars();
+            if (keeps_assignments) {
+                clear_prefix_vars(prefix_base);
+            } else {
+                restore_prefix_vars(prefix_base);
+            }
             last_command_exit_code = 1;
             // Special builtin redirect error: exit non-interactive shell
             return is_interactive ? 1 : 0;
@@ -1104,10 +1125,10 @@ int execute(char **args) {
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
         // For special builtins, prefix assignments persist; for others, restore
-        if (is_special_builtin) {
-            clear_prefix_vars();
+        if (keeps_assignments) {
+            clear_prefix_vars(prefix_base);
         } else {
-            restore_prefix_vars();
+            restore_prefix_vars(prefix_base);
         }
         return result;
     }
@@ -1134,7 +1155,7 @@ int execute(char **args) {
                 if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
                 if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
                 free_expanded_args(expanded_args, expanded_count);
-                restore_prefix_vars();
+                restore_prefix_vars(prefix_base);
                 last_command_exit_code = 1;
                 return 1;
             }
@@ -1163,7 +1184,7 @@ int execute(char **args) {
         if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
         if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
         free_expanded_args(expanded_args, expanded_count);
-        restore_prefix_vars();
+        restore_prefix_vars(prefix_base);
         return result;
     }
 
@@ -1180,7 +1201,7 @@ int execute(char **args) {
     if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
     if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
     free_expanded_args(expanded_args, expanded_count);
-    restore_prefix_vars();
+    restore_prefix_vars(prefix_base);
 
     return result;
 }
