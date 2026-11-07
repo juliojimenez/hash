@@ -1,6 +1,8 @@
 #include "unity.h"
 #include "../src/ast_parser.h"
+#include "../src/config.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static Arena arena;
@@ -11,6 +13,7 @@ void setUp(void) {
 
 void tearDown(void) {
     arena_free(&arena);
+    config_clear_aliases();
 }
 
 // Parse and render; failures come back as INCOMPLETE or ERROR:line:col: message
@@ -296,6 +299,86 @@ void test_node_positions(void) {
     TEST_ASSERT_EQUAL_UINT(2, if_node->col);
 }
 
+// ============================================================================
+// Aliases
+// ============================================================================
+
+void test_alias_expands_in_command_position_only(void) {
+    config_add_alias("ll", "ls -l");
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"ls\" \"-l\" \"x\"))", sx("ll x"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"ll\"))", sx("echo ll"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"'ll'\" \"x\"))", sx("'ll' x"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd (assign \"X=1\") \"ls\" \"-l\"))", sx("X=1 ll"));
+    TEST_ASSERT_EQUAL_STRING("(list (pipe (cmd \"a\") (cmd \"ls\" \"-l\")))", sx("a | ll"));
+    TEST_ASSERT_EQUAL_STRING("(list (and (cmd \"a\") (cmd \"ls\" \"-l\")))", sx("a && ll"));
+}
+
+void test_alias_text_may_be_reserved_words(void) {
+    config_add_alias("not", "! ");
+    config_add_alias("forever", "while :;");
+    config_add_alias("so", "{ true; }");
+    TEST_ASSERT_EQUAL_STRING("(list (not (cmd \"false\")))", sx("not false"));
+    char *plain = strdup(sx("while :; do :; done"));
+    TEST_ASSERT_EQUAL_STRING(plain, sx("forever do :; done"));
+    free(plain);
+    plain = strdup(sx("if ! false; then :; fi"));
+    TEST_ASSERT_EQUAL_STRING(plain, sx("if not false; then :; fi"));
+    free(plain);
+    plain = strdup(sx("if { true; }; then :; fi"));
+    TEST_ASSERT_EQUAL_STRING(plain, sx("if so; then :; fi"));
+    free(plain);
+}
+
+void test_alias_recursion_stops(void) {
+    config_add_alias("ls", "ls -d");
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"ls\" \"-d\" \"x\"))", sx("ls x"));
+    config_add_alias("a", "b");
+    config_add_alias("b", "a");
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"a\"))", sx("a"));
+    config_add_alias("c", "d x");
+    config_add_alias("d", "echo");
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"x\"))", sx("c"));
+}
+
+void test_alias_trailing_blank_checks_the_next_word(void) {
+    config_add_alias("say", "echo ");
+    config_add_alias("say2", "echo");
+    config_add_alias("loud", "LOUD");
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"LOUD\"))", sx("say loud"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"loud\"))", sx("say2 loud"));
+    TEST_ASSERT_EQUAL_STRING("(list (cmd \"echo\" \"LOUD\" \"loud\"))", sx("say loud loud"));
+}
+
+void test_alias_reserved_word_names_are_left_alone(void) {
+    config_add_alias("fi", "echo");
+    TEST_ASSERT_EQUAL_STRING("ERROR:0:0: syntax error near unexpected token `fi'", sx("fi"));
+    config_add_alias("done", "echo");
+    char *plain = strdup(sx("while :; do :; done"));
+    TEST_ASSERT_EQUAL_STRING(plain, sx("while :; do :; done"));
+    free(plain);
+}
+
+// Source spans read from the rewritten text, with alias values in place, so
+// a function body that came from aliases runs the same when called later
+void test_alias_node_spans_cover_the_expanded_text(void) {
+    config_add_alias("x", "echo hi");
+    config_add_alias("open", "{ echo a;");
+    config_add_alias("close", "}");
+    AstParseResult r = parse_program("x; y", &arena);
+    TEST_ASSERT_EQUAL_INT(PARSE_OK, r.status);
+    Node *first = r.root->u.list.items.items[0].node;
+    TEST_ASSERT_EQUAL_UINT(7, first->src_len);
+    TEST_ASSERT_EQUAL_STRING_LEN("echo hi", first->src, first->src_len);
+    TEST_ASSERT_EQUAL_UINT(10, r.root->src_len);
+    TEST_ASSERT_EQUAL_STRING_LEN("echo hi; y", r.root->src, r.root->src_len);
+
+    r = parse_program("f() open close", &arena);
+    TEST_ASSERT_EQUAL_INT(PARSE_OK, r.status);
+    Node *fn = r.root->u.list.items.items[0].node->u.pipeline.commands.items[0];
+    TEST_ASSERT_EQUAL_INT(NODE_FUNCTION, fn->type);
+    TEST_ASSERT_EQUAL_STRING_LEN("{ echo a; }", fn->u.function.body->src, fn->u.function.body->src_len);
+}
+
 void test_redirect_struct_fields(void) {
     AstParseResult r = parse_program("cat <<-'X' 2>err\n\tbody\n\tX\n", &arena);
     TEST_ASSERT_EQUAL_INT(PARSE_OK, r.status);
@@ -350,6 +433,12 @@ int main(void) {
     RUN_TEST(test_error_position_tracks_lines);
     RUN_TEST(test_node_positions);
     RUN_TEST(test_redirect_struct_fields);
+    RUN_TEST(test_alias_expands_in_command_position_only);
+    RUN_TEST(test_alias_text_may_be_reserved_words);
+    RUN_TEST(test_alias_recursion_stops);
+    RUN_TEST(test_alias_trailing_blank_checks_the_next_word);
+    RUN_TEST(test_alias_reserved_word_names_are_left_alone);
+    RUN_TEST(test_alias_node_spans_cover_the_expanded_text);
 
     return UNITY_END();
 }

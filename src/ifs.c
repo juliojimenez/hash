@@ -7,7 +7,6 @@
 #include "shellvar.h"
 
 #define MAX_SPLIT_ARGS 1024
-#define MAX_ARG_LENGTH 8192
 
 // Get current IFS value
 const char *ifs_get(void) {
@@ -32,20 +31,6 @@ static int is_ifs_char(char c, const char *ifs) {
     return strchr(ifs, c) != NULL;
 }
 
-// Check if argument is a variable assignment (VAR=value)
-// POSIX: Assignment values don't undergo word splitting
-static int is_var_assignment(const char *arg) {
-    if (!arg) return 0;
-    // Must start with letter or underscore
-    if (!isalpha((unsigned char)*arg) && *arg != '_') return 0;
-    const char *p = arg + 1;
-    // Find the '=' - variable name must be alphanumeric or underscore
-    while (*p && (isalnum((unsigned char)*p) || *p == '_')) {
-        p++;
-    }
-    return *p == '=';
-}
-
 // A protected byte: \x01 then the byte itself, which may be a real \x03 or
 // \x04 that must not be read as a marker. Every scan here skips the pair whole.
 static bool is_protected_pair(const char *p) {
@@ -66,7 +51,9 @@ static bool has_marker(const char *s, char m) {
     return false;
 }
 
-// Strip \x03 and \x04 markers from a string in place
+// Strip \x03 and \x04 markers from a string in place. A \x04 left in a
+// word that is not split (an assignment, say) separated two positional
+// parameters of "$@": they are joined with a space, as in x="$@"
 static void strip_markers_inplace(char *s) {
     if (!s) return;
     const char *src = s;
@@ -77,7 +64,9 @@ static void strip_markers_inplace(char *s) {
             *dst++ = *src++;
             continue;
         }
-        if (*src != '\x03' && *src != '\x04') {
+        if (*src == '\x04') {
+            *dst++ = ' ';
+        } else if (*src != '\x03') {
             *dst++ = *src;
         }
         src++;
@@ -108,8 +97,14 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
     if (!all_words) return NULL;
     int word_count = 0;
 
-    // Buffer for accumulating the current word being built
-    char current_word[MAX_ARG_LENGTH];
+    // Buffer for accumulating the current word being built: never longer
+    // than the input (protected pairs stay pairs)
+    size_t word_cap = strlen(arg) + 2;
+    char *current_word = malloc(word_cap);
+    if (!current_word) {
+        free(all_words);
+        return NULL;
+    }
     size_t current_len = 0;
 
     const char *p = arg;
@@ -121,7 +116,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
             // point (a quoted space inside ${1+"$@"} stays in its field). A real
             // control byte travels the same way, so IFS set to such a byte does
             // not split on it; bash does, and nobody has needed that yet.
-            if (current_len < MAX_ARG_LENGTH - 2) {
+            if (current_len < word_cap - 2) {
                 current_word[current_len++] = *p;
                 current_word[current_len++] = *(p + 1);
             }
@@ -196,7 +191,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
             }
         } else {
             // Regular character - add to current word
-            if (current_len < MAX_ARG_LENGTH - 1) {
+            if (current_len < word_cap - 1) {
                 current_word[current_len++] = *p;
             }
             p++;
@@ -214,14 +209,16 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
 
     if (word_count == 0) {
         free(all_words);
+        free(current_word);
         return NULL;
     }
 
+    free(current_word);
     return all_words;
 }
 
 // Perform IFS word splitting on argument array
-int ifs_split_args(char ***args_ptr, int *arg_count) {
+int ifs_split_args(char ***args_ptr, int *arg_count, int assignment_words) {
     if (!args_ptr || !*args_ptr || !arg_count) return -1;
 
     char **args = *args_ptr;
@@ -349,7 +346,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
     for (int i = 0; i < *arg_count && new_count < MAX_SPLIT_ARGS - 1; i++) {
         // POSIX: Variable assignments don't undergo word splitting
         // Just strip markers and keep as single argument
-        if (is_var_assignment(args[i])) {
+        if (i < assignment_words) {
             char *copy = strdup(args[i]);
             if (copy) {
                 strip_markers_inplace(copy);
@@ -373,30 +370,23 @@ int ifs_split_args(char ***args_ptr, int *arg_count) {
                 }
                 if (*p == '\x04') {
                     *p = '\0';  // Terminate current part
-                    // Strip \x03 markers from this part and add if non-empty
+                    // Strip \x03 markers from this part; an empty part is an
+                    // empty positional parameter and stays a field
                     char *part = strdup(start);
                     if (part) {
                         strip_markers_inplace(part);
-                        if (*part) {
-                            new_args[new_count++] = part;
-                        } else {
-                            free(part);
-                        }
+                        new_args[new_count++] = part;
                     }
                     start = p + 1;
                 }
                 p++;
             }
-            // Handle last part after final \x04 (or entire string if no \x04)
-            if (*start && new_count < MAX_SPLIT_ARGS - 1) {
+            // Handle last part after final \x04
+            if (new_count < MAX_SPLIT_ARGS - 1) {
                 char *part = strdup(start);
                 if (part) {
                     strip_markers_inplace(part);
-                    if (*part) {
-                        new_args[new_count++] = part;
-                    } else {
-                        free(part);
-                    }
+                    new_args[new_count++] = part;
                 }
             }
             free(copy);

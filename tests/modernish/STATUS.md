@@ -8,13 +8,58 @@ on changes to these files, and fails only when the result is worse than the base
 
 ## Where things stand
 
+The suite runs to its own summary, with the same result on macOS and on the GitHub
+runner: `baseline.txt` records `state=ran total=389 fails=43` (389 tests, 319 succeeded,
+12 skipped, 2 warnings, 13 expected failures, 43 unexpected failures). The weekly job turns
+red only when the number of unexpected failures goes up; when a fix brings it down, rerun
+with `--update-baseline` and commit `baseline.txt`.
+
+`run.sh` exports `MSH_SHELL` so that modernish spawns hash for its subshells (it would
+otherwise prefer the runner's bash), writes `results/environment.txt` (shell, uname,
+`getconf PATH`, ignored signals, ulimit, env) next to the output, and with
+`MODERNISH_TRACE=1` keeps a `-x` trace in `results/trace.txt`; the workflow uploads the
+directory, so a failure that only happens on the runner can be read off the artifact. The
+runner ignores SIGPIPE in every step, which is what exposed the `trap -` bug below.
+
+Getting here (#376, after the battery work below) took parse-time alias expansion, a
+`umask` builtin, `kill -l` with arguments, and a run of fixes the suite found as it got
+further: `for` words under `set -f`, `read` status at end of file, unquoted `\\` and `\$`,
+`"$@"` with zero or empty parameters, the job table filling up in scripts, a word beginning
+with backslash-newline (`case \<newline>word \<newline>in`), protected bytes in a `case`
+word (which made `shellquote` loop for ever), the 8 KB cap on a word's expansion, `${bad}`
+as a bad substitution, `command` keeping quoted operators and skipping functions, a nested
+`${...}` with quotes of its own inside another's word, and `trap -` keeping a signal that
+arrived ignored ignored.
+
+The 43 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
+order worth taking them in):
+
+| Area | Tests | What fails | Issue |
+|------|-------|------------|-------|
+| Unquoted `$*` and `$@` | posparam.t 001 003 005 011 013, posparam_spc.t 001 004 006 010 012 | the fields are not split on IFS (`set -- "a b" c; printf '[%s]' $*` prints `[a b][c]`, POSIX wants `[a][b][c]`) | #383 |
+| `$*` joining | posparam.t 016 021 023 028 057 058, posparam_spc.t 015 020 026 035 038 039 | unquoted `$*` in an assignment, `${var=$*}` and a here-document join with a space instead of the first IFS character (or nothing when IFS is empty) | #383 |
+| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #383 |
+| shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution | #387 |
+| Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body | #384 |
+| `read` | string.t 009 | trailing IFS whitespace is not trimmed | #385 |
+| Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` | #386 |
+| Functions in subshells | isset.t 026 027 | `local` assignments with regular builtins; `unset -f` inside a subshell | #389 #390 |
+| `trap` | trap.t 001 | `var=$(trap)` does not print the traps | #391 |
+| `command` | builtin.t 005 | argument parsing | #393 |
+| `ulimit` | builtin.t 003 | there is no `ulimit` builtin | #396 |
+| `exec` with a closed fd | io.t 001 | a block cannot save and restore a closed file descriptor | #392 |
+| Here-doc in alias body | local.t 013, loop_cond.t 019 | a `$( )` inside a here-document inside `LOCAL`/`LOOP` (modernish's BUG_ALIASCSHD probe) | #394 |
+| `LOOP find --xargs` | loop_cond.t 022 | finds no files | #395 |
+| Sanity | @sanitychecks.t 002 | the `$CC*` control character constants | #388 |
+
+The two warnings (WRN_EREMBYTE, WRN_MULTIBYTE) are about multibyte characters in `ematch`
+and IFS, as on other shells without full UTF-8 support. Also seen in the output, not
+counted as failures: `pwd` after `cd -P` into a symlinked temp directory fails (`pwd: Not a
+directory` on Linux; #397), and `$'...'` quoting, which hash parses as neither POSIX nor ANSI-C
+(#388). Trap actions still run inside the signal handler (#398).
+
 All nine shell bugs that modernish's fatal-bug battery (`lib/modernish/adj/fatal.sh`)
 found against v51 are fixed; the battery passes, and `bin/modernish` initialises on hash.
-The regression suite itself then dies while loading its modules (#376), so `baseline.txt`
-records `state=died`: the runner's middle state between `init-failed` and `ran`. Fixing
-#376 should make the suite run; `run.sh` will then say "better than the baseline" and
-ask for `--update-baseline` with the number of unexpected failures it reports. From then
-on the weekly job turns red only when that number goes up.
 
 Running the battery check by check against v51 found these nine bugs, each filed with a
 reproducer; the fixes also turned up a dozen more (expansion, `case`, `$( )` parsing,

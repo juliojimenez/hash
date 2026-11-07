@@ -27,6 +27,7 @@ jobs:
           make
 
       - name: Run modernish against hash
+        # MODERNISH_TRACE=1 here (or -- -t FILE:NUM) keeps a -x trace in the results
         run: bash tests/modernish/run.sh
 
       - name: Upload results

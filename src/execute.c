@@ -520,7 +520,15 @@ static char *expand_assignment_value(const char *value, int *had_error) {
 }
 
 // Execute command (built-in or external)
+static bool bypass_functions_once = false;
+
+void execute_bypass_functions(void) {
+    bypass_functions_once = true;
+}
+
 int execute(char **args) {
+    bool bypass_functions = bypass_functions_once;
+    bypass_functions_once = false;
     if (args[0] == NULL) {
         // Empty command
         last_command_exit_code = 0;
@@ -806,7 +814,7 @@ int execute(char **args) {
         ifs_args[arg_count] = NULL;
 
         char **old_ifs_args = ifs_args;
-        if (ifs_split_args(&ifs_args, &ifs_arg_count) == 0 && ifs_args != old_ifs_args) {
+        if (ifs_split_args(&ifs_args, &ifs_arg_count, early_prefix_count) == 0 && ifs_args != old_ifs_args) {
             ifs_expanded = true;
             // ifs_split_args created a new array - free the temp one we made
             free(old_ifs_args);
@@ -951,96 +959,6 @@ int execute(char **args) {
 
     int result = 1;  // Default: continue shell
 
-    // Check if command is an alias (use original args[0] for alias lookup)
-    const char *alias_value = config_get_alias(exec_input[0]);
-    if (alias_value) {
-        // Expand alias by parsing the alias value
-        char *alias_line = strdup(alias_value);
-        if (!alias_line) {
-            last_command_exit_code = 1;
-            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
-            if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
-            free_expanded_args(expanded_args, expanded_count);
-            restore_prefix_vars();
-            return 1;
-        }
-
-        ParseResult alias_parsed = parse_line(alias_line);
-        if (!alias_parsed.tokens) {
-            free(alias_line);
-            last_command_exit_code = 1;
-            if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
-            if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
-            free_expanded_args(expanded_args, expanded_count);
-            restore_prefix_vars();
-            return 1;
-        }
-
-        // If original command had arguments, we need to append them
-        // Count original args (excluding command name)
-        int orig_arg_count = 0;
-        for (int j = 1; exec_input[j] != NULL; j++) {
-            orig_arg_count++;
-        }
-
-        if (orig_arg_count > 0) {
-            // Count alias args
-            int alias_arg_count = 0;
-            while (alias_parsed.tokens[alias_arg_count] != NULL) {
-                alias_arg_count++;
-            }
-
-            // Create new args array with alias + original args
-            char **combined_args = malloc((alias_arg_count + orig_arg_count + 1) * sizeof(char*));
-            if (combined_args) {
-                // Copy alias args
-                for (int i = 0; i < alias_arg_count; i++) {
-                    combined_args[i] = alias_parsed.tokens[i];
-                }
-                // Append original args (skip command name)
-                for (int i = 0; i < orig_arg_count; i++) {
-                    combined_args[alias_arg_count + i] = exec_input[i + 1];
-                }
-                combined_args[alias_arg_count + orig_arg_count] = NULL;
-
-                // Execute with combined args
-                result = execute(combined_args);
-
-                free(combined_args);
-                parse_result_free(&alias_parsed);
-                free(alias_line);
-                if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
-                if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
-                free_expanded_args(expanded_args, expanded_count);
-                restore_prefix_vars();
-                return result;
-            }
-        }
-
-        // No original args, just execute alias
-#if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: Executing alias '%s' -> '%s'\n", exec_input[0], alias_value);
-        fprintf(stderr, "DEBUG: Before recursive execute, last_command_exit_code=%d\n", last_command_exit_code);
-#endif
-        result = execute(alias_parsed.tokens);
-#if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: After recursive execute, last_command_exit_code=%d, result=%d\n", last_command_exit_code, result);
-#endif
-        parse_result_free(&alias_parsed);
-        free(alias_line);
-#if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: After freeing alias stuff, last_command_exit_code=%d\n", last_command_exit_code);
-#endif
-        if (ifs_expanded) free_glob_args(ifs_args, ifs_arg_count);
-        if (glob_expanded) free_glob_args(glob_args, glob_arg_count);
-        free_expanded_args(expanded_args, expanded_count);
-#if DEBUG_EXIT_CODE
-        fprintf(stderr, "DEBUG: After free_expanded_args, last_command_exit_code=%d\n", last_command_exit_code);
-#endif
-        restore_prefix_vars();
-        return result;
-    }
-
     // Check for redirections
     RedirInfo *redir = redirect_parse(exec_input);
 
@@ -1050,8 +968,10 @@ int execute(char **args) {
     int is_builtin_cmd = exec_args[0] ? is_builtin(exec_args[0]) : 0;
 
     // Strip quote markers only for builtins
-    // External commands go through launch() which does its own redirect parsing and marker stripping
-    if (is_builtin_cmd) {
+    // External commands go through launch() which does its own redirect parsing and marker stripping.
+    // `command` hands its arguments to execute() again, so they keep their markers: a quoted
+    // operator (expr X '<' X) stayed an argument there, not a redirection
+    if (is_builtin_cmd && strcmp(exec_args[0], "command") != 0) {
         strip_quote_markers_args(exec_args);
     }
 
@@ -1073,6 +993,7 @@ int execute(char **args) {
                               strcmp(exec_args[0], "unset") == 0 ||
                               strcmp(exec_args[0], "readonly") == 0 ||
                               strcmp(exec_args[0], "cd") == 0 ||
+                              strcmp(exec_args[0], "umask") == 0 ||
                               strcmp(exec_args[0], "alias") == 0 ||
                               strcmp(exec_args[0], "unalias") == 0 ||
                               strcmp(exec_args[0], "eval") == 0 ||
@@ -1184,8 +1105,8 @@ int execute(char **args) {
         return result;
     }
 
-    // Check for user-defined functions
-    const ShellFunction *func = script_get_function(exec_args[0]);
+    // Check for user-defined functions (not for `command name`)
+    const ShellFunction *func = bypass_functions ? NULL : script_get_function(exec_args[0]);
     if (func) {
         // Count arguments (including function name as $0)
         int argc = 0;

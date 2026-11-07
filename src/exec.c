@@ -303,7 +303,7 @@ static char **expand_words(char **raw, size_t raw_count, bool split, bool glob, 
         if (copy) {
             char **before = copy;
             int n = current_count;
-            if (ifs_split_args(&copy, &n) == 0 && copy != before) {
+            if (ifs_split_args(&copy, &n, 0) == 0 && copy != before) {
                 free(before);
                 current = copy;
                 current_count = n;
@@ -314,7 +314,7 @@ static char **expand_words(char **raw, size_t raw_count, bool split, bool glob, 
         }
     }
 
-    if (glob) {
+    if (glob && !shell_option_noglob()) {  // set -f leaves patterns as words
         bool has_globs = false;
         for (int i = 0; i < current_count; i++) {
             if (has_glob_chars(current[i])) {

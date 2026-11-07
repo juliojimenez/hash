@@ -375,8 +375,8 @@ run_test "mixed quotes" "echo \"double\" 'single'" "double"
 
 echo -e "\n${YELLOW}Alias Functionality:${NC}"
 run_command_test "create alias" "alias testcmd='echo test works'"
-run_test "use alias" "alias testcmd='echo aliasworks' && testcmd" "aliasworks"
-run_test "alias with args" "alias ll='ls -la' && ll ." "total"
+run_test "use alias" $'alias testcmd=\'echo aliasworks\'\ntestcmd' "aliasworks"
+run_test "alias with args" $'alias ll=\'ls -la\'\nll .' "total"
 run_command_test "list aliases" "alias"
 run_command_test "remove alias" "alias testcmd='echo hi'; unalias testcmd"
 run_test "unalias removes several names" "alias ua1=:; alias ua2=:; alias ua3=:; unalias ua1 ua2; alias | tr '\n' '|'" "alias ua3=':'|"
@@ -386,6 +386,59 @@ run_test "unalias names a missing alias and still removes the others" "alias ua1
 run_test "unalias missing alias message" "unalias nosuch_ua" "unalias: nosuch_ua: not found"
 run_test "unalias without names is a usage error with status 2" "unalias 2>/dev/null; echo rc=\$?" "rc=2"
 run_test "unalias -- ends the options" "alias ua1=:; unalias -- ua1; echo rc=\$? left=\$(alias | wc -l | tr -d ' ')" "rc=0 left=0"
+# Aliases are expanded while parsing (POSIX): a definition takes effect for the
+# lines that follow it, never for the line it is on, and the text may stand for
+# reserved words
+run_test "alias defined on the same line is not expanded" "alias zz1='echo no'; zz1" "zz1: command not found"
+run_test "alias can stand for the ! keyword" $'alias not=\'! \'\nnot false; echo st=$?' "st=0"
+run_test "alias ! keyword works in an if condition" $'alias not=\'! \'\nif not false; then echo taken; fi' "taken"
+run_test "alias can open a while loop" $'alias forever=\'while :;\'\nn=0; forever do n=$((n+1)); [ $n -ge 3 ] && break; done; echo n=$n' "n=3"
+run_test "alias can be a brace group" $'alias so=\'{ [ "$?" -eq 0 ]; }\'\ntrue; if so; then echo so-ok; fi' "so-ok"
+run_test "alias whose text names itself expands once" $'alias ls=\'ls -d\'\nls /tmp' "/tmp"
+run_test "alias ending in a blank checks the next word" $'alias say=\'echo \'; alias loud=\'LOUD\'\nsay loud' "LOUD"
+run_test "alias without a trailing blank leaves the next word alone" $'alias say2=\'echo\'; alias loud2=\'LOUD\'\nsay2 loud2' "loud2"
+run_test "quoted word is not an alias" $'alias qq=\'echo aliased\'\n\'qq\'' "qq: command not found"
+run_test "alias in argument position is not expanded" $'alias arg1=\'echo aliased\'\necho arg1' "arg1"
+run_test "mutually recursive aliases stop" $'alias r1=r2; alias r2=r1\nr1 2>&1; echo st=$?' "st=127"
+run_test "alias after a variable assignment prefix" $'alias pa=\'echo prefixed\'\nX=1 pa' "prefixed"
+run_test "alias inside a function body" $'alias not=\'! \'\nf() { not false; }\nf; echo st=$?' "st=0"
+
+# kill -l translates between signal names and numbers
+run_test "kill -l with a number prints the name" "kill -l 9" "KILL"
+run_test "kill -l with several numbers" "kill -l 1 15 | tr '\n' ' '" "HUP TERM"
+run_test "kill -l with a name prints the number" "echo n=\$(kill -l HUP)" "n=1"
+run_test "kill -l with a SIG-prefixed name" "echo n=\$(kill -l SIGINT)" "n=2"
+run_test "kill -l accepts an exit status above 128" "kill -l 129" "HUP"
+run_test "kill -l rejects an unknown signal" "kill -l 999 2>/dev/null; echo rc=\$?" "rc=1"
+
+# umask
+run_test "umask prints the mask in octal" "umask 022; umask" "0022"
+run_test "umask -S prints the symbolic form" "umask 027; umask -S" "u=rwx,g=rx,o="
+run_test "umask takes a symbolic mode" "umask 022; umask g-w,o=; umask" "0027"
+run_test "umask grants with a symbolic mode" "umask 0477; umask u+r; umask" "0077"
+run_test "umask rejects an out of range number" "umask 999 2>/dev/null; echo rc=\$?" "rc=1"
+run_test "umask applies to files the shell creates" "umask 077; : > $TEST_DIR/umask_file; ls -l $TEST_DIR/umask_file | cut -c2-10" "rw-------"
+
+# Expansion corner cases found by modernish
+run_test "quoted \$@ with no parameters is no field" "f() { /bin/echo \"[\$#]\" \"\$@\" x; }; f" "[0] x"
+run_test "quoted \$@ keeps one empty parameter" "set -- ''; /bin/echo \"[\$#]\" \"\$@\" x" "[1]  x"
+run_test "quoted \$@ keeps empty parameters in the middle" "set -- a '' b; printf '[%s]' \"\$@\"; echo" "[a][][b]"
+run_test "for over an empty quoted \$@ runs no iteration" "set --; for w in \"\$@\"; do echo iterated; done; echo done" "done"
+run_test "quoted \$@ splits when the first parameter has an equals sign" "f() { echo n=\$# second=\$2; }; g() { f \"\$@\"; }; g n=1 to three" "n=3 second=to"
+run_test "quoted \$@ in an assignment joins with spaces" "set -- a b; x=\"\$@\"; echo \"[\$x]\"" "[a b]"
+run_test "case word with a 0x03 byte does not match a 0x01 pattern" "c3=\$(printf '\\003'); c1=\$(printf '\\001'); v=\"a\${c3}b*c\"; case \$v in ( *\"\$c1\"* ) echo bug ;; ( * ) echo case-ok ;; esac" "case-ok"
+run_test "command keeps a quoted operator as an argument" "command expr X '<' X" "0"
+run_test "command skips a function of the same name" "f() { echo function; }; command f 2>&1; echo rc=\$?" "rc=127"
+run_test "nested expansion with quotes inside a pattern word" $'x=\' 42 \'; echo "[${x#"${x%%" "*}"}]"' "[ 42 ]"
+run_test "trap - keeps a signal that arrived ignored ignored" "/bin/sh -c 'trap \"\" PIPE; exec \"\$1\" -c \"trap - PIPE; kill -s PIPE \\\$\\\$; echo still-alive\"' sh $HASH_BIN" "still-alive"
+run_test "a 16 KB value expands whole" "v=x; i=0; while [ \$i -lt 14 ]; do v=\$v\$v; i=\$((i+1)); done; printf '%s' \"\$v\" | wc -c | tr -d ' '" "16384"
+run_test "an invalid parameter name is a bad substitution" "echo \${.sh.version+s} 2>&1" "bad substitution"
+run_test "a script may start more background jobs than the table holds" "i=0; while [ \$i -lt 80 ]; do ( : ) & i=\$((i+1)); done; wait; echo jobs-ok 2>&1" "jobs-ok"
+run_test "for loop words honour set -f" "set -f; a='*'; for w in \$a; do echo w=\$w; done" "w=*"
+run_test "read reports end of file without a newline" "printf abc | { read -r x; echo rc=\$? x=\$x; }" "rc=1 x=abc"
+run_test "escaped backslash before a parameter keeps the backslash" $'V=star; W=\\\\${V}; printf \'%s\\n\' "$W"' '\star'
+run_test "escaped dollar sign is literal" $'x=VAL; printf \'%s\\n\' \\$x' '$x'
+run_test "escaped backslash then escaped dollar" $'x=VAL; printf \'%s\\n\' \\\\\\$x' '\$x'
 
 echo -e "\n${YELLOW}File Operations:${NC}"
 run_file_test "create file with echo" "echo test_content > $TEST_DIR/testfile.txt" "$TEST_DIR/testfile.txt" "test_content"
@@ -748,7 +801,7 @@ else
 fi
 
 # The shell removes the quotes around an alias value; quotes inside it stay
-run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"; greet' "hello world"
+run_test "alias keeps the quotes inside its value" $'alias greet="\'printf\' \'%s\\n\' \'hello world\'"\ngreet' "hello world"
 
 # return in .hashrc ends the file, and only the file
 echo -n "Testing: return in .hashrc ends only the file... "

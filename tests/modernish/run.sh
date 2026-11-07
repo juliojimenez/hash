@@ -65,23 +65,49 @@ fi
 mkdir -p "$results"
 output=$results/output.txt
 shell_version=$("$shell_bin" --version 2>/dev/null | head -1)
+
+# What the suite ran under, for reading platform differences off the uploaded
+# results: the environment, the default PATH modernish will use, which signals
+# arrived ignored, and the tools it reaches for
+{
+    echo "shell: $shell_bin ($shell_version)"
+    echo "uname: $(uname -a)"
+    echo "getconf PATH: $(getconf PATH 2>&1)"
+    echo "awk: $(command -v awk 2>&1) -> $(readlink -f "$(command -v awk 2>/dev/null)" 2>/dev/null)"
+    [ -r /proc/self/status ] && grep -E '^Sig(Ign|Blk):' /proc/self/status
+    echo "--- ulimit -a ---"; ulimit -a
+    echo "--- env ---"; env | sort
+} > "$results/environment.txt" 2>&1
 echo "modernish $(git -C "$src" rev-parse --short HEAD) on ${shell_version:-$shell_bin}"
-(cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2>&1
+# modernish picks "a good POSIX shell" for the subshells it spawns ($MSH_SHELL)
+# from a preference list (zsh, ksh93, yash, bash, ...) and would take the
+# runner's bash on Linux; the shell under test goes first when it is exported
+export MSH_SHELL=$shell_bin
+
+# MODERNISH_TRACE=1 runs the shell with -x and keeps the trace apart from the
+# results (results/trace.txt), for reading a failure off the uploaded artifact
+if [ -n "${MODERNISH_TRACE:-}" ]; then
+    (cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" -x bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2> "$results/trace.txt"
+else
+    (cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2>&1
+fi
 status=$?
 
 # Read the result
 state=ran
 total=0; oks=0; skips=0; warns=0; xfails=0; fails=0
+# The summary decides first: a test may make a subshell print "modernish:
+# ... died" (io.t's SIGPIPE check does on Linux) and the suite still finishes
 if grep -q 'Initialisation failed' "$output"; then
     state=init-failed
-elif grep -q 'modernish died\|^modernish: .*died' "$output"; then
-    state=died
 elif grep -q '^Out of [0-9]* tests\{0,1\}:' "$output"; then
     total=$(sed -n -E 's/^Out of ([0-9]+) tests?:.*/\1/p' "$output" | tail -1)
     count() { sed -n -E "s/^- ([0-9]+) $1.*/\1/p" "$output" | tail -1; }
     oks=$(count succeeded); skips=$(count '(was|were) skipped'); warns=$(count 'produced warnings')
     xfails=$(count 'failed expectedly'); fails=$(sed -n -E 's/^.*- ([0-9]+) failed unexpectedly.*/\1/p' "$output" | tail -1)
     oks=${oks:-0}; skips=${skips:-0}; warns=${warns:-0}; xfails=${xfails:-0}; fails=${fails:-0}
+elif grep -q 'modernish died\|^modernish: .*died' "$output"; then
+    state=died
 elif [ "$status" -ne 0 ]; then
     state=died            # initialised, then the shell or the suite stopped before any summary
 else

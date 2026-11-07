@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "ast_parser.h"
+#include "config.h"
 #include "tokenizer.h"
 
 // A here-document whose body still has to be read from the lines after the
@@ -13,9 +15,34 @@ typedef struct {
     size_t index;
 } PendingHeredoc;
 
+// One version of the text being parsed. Alias substitution rewrites the text
+// (the alias word replaced by its value), so the parser keeps every version:
+// node source pointers into an older version are translated when the node is
+// finished, which works because text before the replaced word never moves.
+typedef struct {
+    const char *base;
+    size_t len;
+} TextVersion;
+
+// An alias whose value is still being read: a word spelling its name is not
+// expanded again until the text has been read past end
+typedef struct {
+    const char *name;
+    const char *end;
+} ActiveAlias;
+
+#define MAX_ACTIVE_ALIASES 32
+
 typedef struct {
     Tokenizer tk;
     Arena *arena;
+
+    TextVersion *texts;
+    size_t text_count;
+    size_t text_cap;
+    ActiveAlias active[MAX_ACTIVE_ALIASES];
+    int active_count;
+    const char *alias_blank_end;   /* Alias value ended in a blank: check the next word from here on */
 
     Token lookahead[2];
     int lookahead_count;
@@ -297,6 +324,15 @@ static Token fetch(Parser *p) {
             p->after_continuation = true;
             continue;
         }
+        // A word that starts with backslash-newline pairs (`case \<newline>in`):
+        // the pairs join the lines and the rest is the word, a reserved word
+        // included, so they are dropped here where keywords are compared raw
+        while (t.type == TOKEN_WORD && t.value.len >= 2 && t.value.str[0] == '\\' && t.value.str[1] == '\n') {
+            t.value.str += 2;
+            t.value.len -= 2;
+            t.line++;
+            t.col = 0;
+        }
         if (t.type == TOKEN_EOF && p->after_continuation) {
             // Input ended on a backslash-newline: the command goes on
             fail_at(p, &t, PARSE_INCOMPLETE, "unexpected end of input after line continuation");
@@ -358,6 +394,183 @@ static bool expect_type(Parser *p, TokenType type) {
     }
     advance(p);
     return true;
+}
+
+// ============================================================================
+// Alias substitution
+// ============================================================================
+// POSIX expands aliases while parsing: the command name word of a simple
+// command, when it is an unquoted alias name, is replaced by the alias value
+// before the grammar looks at it, so a value may stand for reserved words
+// (alias not='! ', alias forever='while :;'). The text is rewritten with the
+// value in place of the word and tokenized again from there. A name whose
+// value is still being read is not expanded again, which keeps
+// alias ls='ls -l' from looping; when the value ends in a blank the word that
+// follows it is checked as well.
+
+static const TextVersion *current_text(const Parser *p) {
+    return &p->texts[p->text_count - 1];
+}
+
+static bool push_text(Parser *p, const char *base, size_t len) {
+    if (p->text_count == p->text_cap) {
+        size_t new_cap = p->text_cap ? p->text_cap * 2 : 4;
+        TextVersion *fresh = arena_alloc(p->arena, new_cap * sizeof(TextVersion));
+        if (!fresh) {
+            fail_oom(p);
+            return false;
+        }
+        if (p->text_count > 0) {
+            memcpy(fresh, p->texts, p->text_count * sizeof(TextVersion));
+        }
+        p->texts = fresh;
+        p->text_cap = new_cap;
+    }
+    p->texts[p->text_count].base = base;
+    p->texts[p->text_count].len = len;
+    p->text_count++;
+    return true;
+}
+
+// A pointer into an earlier version of the text, moved to the current one.
+// Only positions before every later substitution are asked for, and those
+// keep their offset.
+static const char *in_current_text(const Parser *p, const char *q) {
+    const TextVersion *cur = current_text(p);
+    for (size_t i = p->text_count - 1; i > 0; i--) {
+        const TextVersion *v = &p->texts[i - 1];
+        if ((uintptr_t)q >= (uintptr_t)v->base && (uintptr_t)q <= (uintptr_t)(v->base + v->len)) {
+            size_t offset = (size_t)(q - v->base);
+            return cur->base + (offset <= cur->len ? offset : cur->len);
+        }
+    }
+    return q;
+}
+
+// Reserved words never name an alias here (dash does the same), so an alias
+// called fi or done cannot break the grammar
+static bool is_reserved_word(const Token *t) {
+    static const char *const words[] = {"!", "{", "}", "case", "do", "done", "elif", "else", "esac",
+                                        "fi", "for", "if", "in", "then", "until", "while", NULL};
+    for (int i = 0; words[i]; i++) {
+        if (tok_is_word(t, words[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// An unquoted word that could be an alias name
+static bool alias_candidate(const Token *t) {
+    if (t->type != TOKEN_WORD || t->value.len == 0 || t->value.len >= MAX_ALIAS_NAME || is_reserved_word(t)) {
+        return false;
+    }
+    for (size_t i = 0; i < t->value.len; i++) {
+        if (strchr("\\'\"$`=", t->value.str[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Aliases whose value has been read past position pos are done
+static void release_finished_aliases(Parser *p, const char *pos) {
+    int kept = 0;
+    for (int i = 0; i < p->active_count; i++) {
+        if ((uintptr_t)p->active[i].end > (uintptr_t)pos) {
+            p->active[kept++] = p->active[i];
+        }
+    }
+    p->active_count = kept;
+}
+
+static bool alias_in_progress(const Parser *p, const char *name) {
+    for (int i = 0; i < p->active_count; i++) {
+        if (strcmp(p->active[i].name, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Rewrite the text with value in place of the word at the head of the
+// stream (the only token read ahead) and tokenize again from there
+static bool splice_alias(Parser *p, const Token *t, const char *name, const char *value) {
+    if (p->active_count >= MAX_ACTIVE_ALIASES || p->lookahead_count != 1) {
+        return false;
+    }
+    const TextVersion *old = current_text(p);
+    size_t at = (size_t)(t->value.str - old->base);
+    size_t word_len = t->value.len;
+    size_t value_len = strlen(value);
+    size_t new_len = old->len - word_len + value_len;
+    char *text = arena_alloc(p->arena, new_len + 1);
+    char *name_copy = arena_strdup(p->arena, name);
+    if (!text || !name_copy) {
+        fail_oom(p);
+        return false;
+    }
+    memcpy(text, old->base, at);
+    memcpy(text + at, value, value_len);
+    memcpy(text + at + value_len, old->base + at + word_len, old->len - at - word_len);
+    text[new_len] = '\0';
+    const char *word_start = old->base + at;
+    const char *word_end = word_start + word_len;
+    const char *value_end = text + at + value_len;
+    if (!push_text(p, text, new_len)) {
+        return false;
+    }
+
+    // Positions after the replaced word move with the rest of the text
+    for (int i = 0; i < p->active_count; i++) {
+        const char *end = p->active[i].end;
+        p->active[i].end = (uintptr_t)end >= (uintptr_t)word_end ? value_end + (end - word_end) : value_end;
+    }
+    if (p->alias_blank_end) {
+        const char *end = p->alias_blank_end;
+        p->alias_blank_end = (uintptr_t)end >= (uintptr_t)word_end ? value_end + (end - word_end) : value_end;
+    }
+    p->active[p->active_count].name = name_copy;
+    p->active[p->active_count].end = value_end;
+    p->active_count++;
+    if (value_len > 0 && (value[value_len - 1] == ' ' || value[value_len - 1] == '\t')) {
+        p->alias_blank_end = value_end;
+    }
+
+    tokenizer_init(&p->tk, text);
+    tokenizer_advance_to(&p->tk, text + at);
+    p->tk.line = t->line;
+    p->tk.col = t->col;
+    p->lookahead_count = 0;
+    p->after_continuation = false;
+    return true;
+}
+
+// The next token is a command name (or follows an alias value ending in a
+// blank): replace it while it names an alias
+static void expand_command_alias(Parser *p) {
+    while (p->status == PARSE_OK) {
+        Token *t = peek(p);
+        if (p->alias_blank_end && (uintptr_t)t->value.str >= (uintptr_t)p->alias_blank_end) {
+            p->alias_blank_end = NULL;  // This is the word the blank asked to check
+        }
+        if (!alias_candidate(t)) {
+            return;
+        }
+        release_finished_aliases(p, t->value.str);
+        char name[MAX_ALIAS_NAME];
+        memcpy(name, t->value.str, t->value.len);
+        name[t->value.len] = '\0';
+        const char *value = alias_in_progress(p, name) ? NULL : config_get_alias(name);
+        if (!value || !splice_alias(p, t, name, value)) {
+            return;
+        }
+    }
+}
+
+// A word in argument position that the previous alias value asked to check
+static bool follows_blank_alias(const Parser *p, const Token *t) {
+    return p->alias_blank_end && (uintptr_t)t->value.str >= (uintptr_t)p->alias_blank_end;
 }
 
 // ============================================================================
@@ -467,10 +680,18 @@ static Node *new_node(Parser *p, NodeType type, const Token *at) {
     return node;
 }
 
-// Close the node's source span at the last consumed token
+// Close the node's source span at the last consumed token. Alias
+// substitution may have rewritten the text since the node began, so both
+// ends are taken in the current version, where the span reads with the
+// alias values in place.
 static Node *finish(Parser *p, Node *node) {
-    if (node && p->last_end >= node->src) {
-        node->src_len = (size_t)(p->last_end - node->src);
+    if (node) {
+        const char *from = in_current_text(p, node->src);
+        const char *to = in_current_text(p, p->last_end);
+        node->src = from;
+        if ((uintptr_t)to >= (uintptr_t)from) {
+            node->src_len = (size_t)(to - from);
+        }
     }
     return node;
 }
@@ -549,6 +770,10 @@ static Node *parse_simple(Parser *p) {
     bool seen_command = false;
     while (p->status == PARSE_OK) {
         Token *t = peek(p);
+        if (t->type == TOKEN_WORD && (!seen_command || follows_blank_alias(p, t))) {
+            expand_command_alias(p);
+            t = peek(p);
+        }
         if (starts_redirect(t)) {
             if (!parse_redirect(p, &node->redirs)) {
                 return NULL;
@@ -810,6 +1035,7 @@ static Node *parse_function(Parser *p) {
         return NULL;
     }
     skip_newlines(p);
+    expand_command_alias(p);
     if (!starts_compound_command(peek(p))) {
         unexpected(p, peek(p));
         return NULL;
@@ -828,6 +1054,7 @@ static Node *parse_function(Parser *p) {
 }
 
 static Node *parse_command(Parser *p) {
+    expand_command_alias(p);
     Token *t = peek(p);
     if (p->status != PARSE_OK) {
         return NULL;
@@ -871,6 +1098,7 @@ static Node *parse_command(Parser *p) {
 }
 
 static Node *parse_pipeline(Parser *p) {
+    expand_command_alias(p);
     Token first = *peek(p);
     bool negated = false;
     if (tok_is_word(&first, "!")) {
@@ -941,7 +1169,13 @@ static Node *parse_list(Parser *p, bool top_level) {
     }
     skip_newlines(p);
     while (p->status == PARSE_OK) {
+        expand_command_alias(p);
         Token *t = peek(p);
+        if (t->type == TOKEN_NEWLINE) {
+            // An alias that expands to nothing leaves an empty line behind
+            skip_newlines(p);
+            continue;
+        }
         if (t->type == TOKEN_EOF || (!top_level && ends_compound_list(t))) {
             break;
         }
@@ -994,6 +1228,13 @@ AstParseResult parse_program(const char *src, Arena *arena) {
     p.arena = arena;
     p.status = PARSE_OK;
     p.last_end = src;
+    if (!push_text(&p, src, strlen(src))) {
+        AstParseResult oom;
+        memset(&oom, 0, sizeof(oom));
+        oom.status = PARSE_ERROR;
+        oom.message = "out of memory";
+        return oom;
+    }
 
     Node *root = parse_list(&p, true);
 

@@ -45,6 +45,7 @@ typedef enum {
     BUILTIN_FUNC_HASH,
     BUILTIN_FUNC_COMPLETE,
     BUILTIN_FUNC_HELP,
+    BUILTIN_FUNC_UMASK,
 
     BUILTIN_FUNC_MAX
 } BuiltinFunc;
@@ -398,6 +399,15 @@ int shell_wait(char **args);
  * @return
  */
 int shell_kill(char **args);
+
+/**
+ * Built-in command: umask - show or set the file creation mask
+ *
+ * @param args Arguments for the command
+ *
+ * @return
+ */
+int shell_umask(char **args);
 
 /**
  * Built-in command: hash - manage command path hash table

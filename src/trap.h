@@ -1,6 +1,8 @@
 #ifndef TRAP_H
 #define TRAP_H
 
+#include <stdbool.h>
+
 #include <signal.h>
 
 // Special pseudo-signal numbers for shell traps
@@ -14,6 +16,10 @@
 
 // Initialize trap system
 void trap_init(void);
+
+/* Was signum ignored when the shell started? Such a signal cannot be trapped
+ * or reset by a non-interactive shell; trap - keeps it ignored */
+bool trap_ignored_at_entry(int signum);
 
 // Clean up trap system
 void trap_cleanup(void);

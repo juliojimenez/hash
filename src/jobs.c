@@ -47,9 +47,37 @@ static int find_empty_slot(void) {
     return -1;
 }
 
+// Drop the jobs that have finished. The prompt loop reports and removes them
+// as they end, but a script never gets there: one that starts many background
+// jobs (a generator per loop, say) would fill the table and be told "too many
+// background jobs" for ever after. Called when the table is full.
+static void jobs_prune_finished(void) {
+    for (int i = 0; i < MAX_JOBS; i++) {
+        if (jobs[i].pid == 0) {
+            continue;
+        }
+        if (jobs[i].state == JOB_RUNNING) {
+            int status;
+            pid_t result = waitpid(jobs[i].pid, &status, WNOHANG);
+            if (result > 0) {
+                jobs_update_status(jobs[i].pid, status);
+            } else if (result == -1 && errno == ECHILD) {
+                jobs[i].state = JOB_DONE;
+            }
+        }
+        if (jobs[i].state == JOB_DONE || jobs[i].state == JOB_TERMINATED) {
+            jobs_remove(jobs[i].job_id);
+        }
+    }
+}
+
 // Add a new background job
 int jobs_add(pid_t pid, const char *command) {
     int slot = find_empty_slot();
+    if (slot == -1) {
+        jobs_prune_finished();
+        slot = find_empty_slot();
+    }
     if (slot == -1) {
         color_error("%s: too many background jobs", HASH_NAME);
         return -1;
