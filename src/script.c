@@ -551,8 +551,21 @@ static char *expand_case_word(const char *word) {
             char *write = new_result;
             bool in_expansion = false;
             while (*read) {
+                if (*read == '\x01' && read[1]) {
+                    // A protected byte (a real \x03 in the value, say): keep
+                    // the pair whole so it is not read as a marker here
+                    *write++ = *read++;
+                    *write++ = *read++;
+                    continue;
+                }
                 if (*read == '\x03') {
                     in_expansion = !in_expansion;
+                    read++;
+                    continue;
+                }
+                if (*read == '\x04') {
+                    // "$@" in a case word: the fields are joined with a space
+                    *write++ = ' ';
                     read++;
                     continue;
                 }

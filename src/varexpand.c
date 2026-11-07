@@ -446,10 +446,10 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             p += 3;
             continue;
         } else if (*p == '\x01' && *(p + 1) == '\\' && char_in_string(*(p + 2), "$`")) {
-            // Protected backslash from single quotes - output \$ or \` literally
+            // A literal backslash (unquoted \\) before $ or `: keep the
+            // backslash; what follows is expanded as usual
             result[out_pos++] = '\\';
-            result[out_pos++] = *(p + 2);
-            p += 3;
+            p += 2;
             continue;
         } else if (*p == '\\' && *(p + 1) == '\\') {
             // Double backslash outside single quotes - output one backslash and continue
@@ -924,6 +924,13 @@ append_value:
                 } else if (!is_quoted && out_pos < result_size - 2) {
                     // Empty unquoted expansion - add markers so IFS splitting can remove it
                     // POSIX: empty unquoted expansion produces no field
+                    result[out_pos++] = '\x03';
+                    result[out_pos++] = '\x03';
+                } else if (is_quoted && var_name[0] == '@' && var_name[1] == '\0' &&
+                           script_state.positional_count <= 1 && out_pos < result_size - 2) {
+                    // "$@" with no positional parameters is no field at all (POSIX),
+                    // unlike "", "$empty" or "$@" with one empty parameter: mark it
+                    // like an empty unquoted expansion so field splitting removes it
                     result[out_pos++] = '\x03';
                     result[out_pos++] = '\x03';
                 }

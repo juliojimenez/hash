@@ -8,13 +8,45 @@ on changes to these files, and fails only when the result is worse than the base
 
 ## Where things stand
 
+The suite runs to its own summary. `baseline.txt` records `state=ran total=389 fails=45`:
+389 tests, 317 succeeded, 12 skipped, 2 warnings, 13 expected failures, 45 unexpected
+failures. The weekly job turns red only when the number of unexpected failures goes up;
+when a fix brings it down, rerun with `--update-baseline` and commit `baseline.txt`.
+
+Getting here (#376, after the battery work below) took parse-time alias expansion, a
+`umask` builtin, `kill -l` with arguments, and a run of fixes the suite found as it got
+further: `for` words under `set -f`, `read` status at end of file, unquoted `\\` and `\$`,
+`"$@"` with zero or empty parameters, the job table filling up in scripts, a word beginning
+with backslash-newline (`case \<newline>word \<newline>in`), and protected bytes in a
+`case` word (which made `shellquote` loop for ever).
+
+The 45 unexpected failures, by area:
+
+| Area | Tests | What fails |
+|------|-------|------------|
+| Unquoted `$*` and `$@` | posparam.t 001 003 005 011 013, posparam_spc.t 001 004 006 010 012 | the fields are not split on IFS (`set -- "a b" c; printf '[%s]' $*` prints `[a b][c]`, POSIX wants `[a][b][c]`) |
+| `$*` joining | posparam.t 016 021 023 028 057 058, posparam_spc.t 015 020 026 035 038 039 | unquoted `$*` in an assignment, `${var=$*}` and a here-document join with a space instead of the first IFS character (or nothing when IFS is empty) |
+| `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field |
+| shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution |
+| Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body |
+| `read` | string.t 009 | trailing IFS whitespace is not trimmed |
+| `str lt/gt` | string.t 032 | the comparison runs a command (`hash: No such file or directory`) |
+| Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` |
+| Functions in subshells | isset.t 026 027 | `local` assignments with regular builtins; `unset -f` inside a subshell |
+| `trap` | trap.t 001 | `var=$(trap)` does not print the traps |
+| `${foo*}` | var.t 005 | should be a bad substitution error |
+| `command` | builtin.t 005 | argument parsing |
+| `ulimit` | builtin.t 003 | there is no `ulimit` builtin |
+| `exec` with a closed fd | io.t 001 | a block cannot save and restore a closed file descriptor |
+| Here-doc in alias body | local.t 013, loop_cond.t 019 | a `$( )` inside a here-document inside `LOCAL`/`LOOP` (modernish's BUG_ALIASCSHD probe) |
+| `LOOP find --xargs` | loop_cond.t 022 | finds no files |
+| Sanity | @sanitychecks.t 002 | the `$CC*` control character constants |
+
+The two warnings (WRN_EREMBYTE, WRN_MULTIBYTE) are about multibyte characters in `ematch`
+and IFS, as on other shells without full UTF-8 support.
+
 All nine shell bugs that modernish's fatal-bug battery (`lib/modernish/adj/fatal.sh`)
 found against v51 are fixed; the battery passes, and `bin/modernish` initialises on hash.
-The regression suite itself then dies while loading its modules (#376), so `baseline.txt`
-records `state=died`: the runner's middle state between `init-failed` and `ran`. Fixing
-#376 should make the suite run; `run.sh` will then say "better than the baseline" and
-ask for `--update-baseline` with the number of unexpected failures it reports. From then
-on the weekly job turns red only when that number goes up.
 
 Running the battery check by check against v51 found these nine bugs, each filed with a
 reproducer; the fixes also turned up a dozen more (expansion, `case`, `$( )` parsing,

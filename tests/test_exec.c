@@ -9,6 +9,7 @@
 #include "../src/hash.h"
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -664,6 +665,98 @@ void test_function_recursion_aborts_with_status_1(void) {
     shellvar_unset("FUNCNEST");
 }
 
+void test_alias_takes_effect_for_later_programs(void) {
+    TEST_ASSERT_EQUAL_STRING("", run("alias hi='echo hi'; hi 2>/dev/null"));
+    TEST_ASSERT_EQUAL_INT(127, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("hi\n", run("hi"));
+    TEST_ASSERT_EQUAL_STRING("hi there\n", run("hi there"));
+    run("alias not='! '");
+    run("not false");
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    run("not true");
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("yes\n", run("if not false; then echo yes; fi"));
+    TEST_ASSERT_EQUAL_STRING("", run("unalias hi; unalias not"));
+}
+
+// The stored body has the alias values in place: it must not be expanded
+// again when the function runs (an alias may have changed or gone by then)
+void test_alias_in_function_body_is_stored_expanded(void) {
+    run("alias not='! '");
+    run("f() { not false; }");
+    ShellFunction *fn = script_get_function("f");
+    TEST_ASSERT_NOT_NULL(fn);
+    TEST_ASSERT_EQUAL_STRING("{ !  false; }", fn->body);
+    run("f");
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    run("unalias not");
+}
+
+void test_kill_l_translates_names_and_numbers(void) {
+    TEST_ASSERT_EQUAL_STRING("KILL\nTERM\n", run("kill -l 9 15"));
+    TEST_ASSERT_EQUAL_STRING("1\n2\n", run("kill -l HUP SIGINT"));
+    TEST_ASSERT_EQUAL_STRING("HUP\n", run("kill -l 129"));
+    run("kill -l 999 2>/dev/null");
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+}
+
+void test_umask_shows_and_sets_the_mask(void) {
+    mode_t saved = umask(022);
+    TEST_ASSERT_EQUAL_STRING("0022\n", run("umask 022; umask"));
+    TEST_ASSERT_EQUAL_STRING("u=rwx,g=rx,o=\n", run("umask 027; umask -S"));
+    TEST_ASSERT_EQUAL_STRING("0027\n", run("umask 022; umask g-w,o=; umask"));
+    TEST_ASSERT_EQUAL_STRING("0077\n", run("umask 0477; umask u+r; umask"));
+    TEST_ASSERT_EQUAL_STRING("0022\n", run("umask a=rwx,g=rx,o=rx; umask"));
+    run("umask 999 2>/dev/null");
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    run("umask q+r 2>/dev/null");
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("0077\n", run("umask 077; (umask 022); umask"));
+    umask(saved);
+}
+
+void test_for_words_honour_noglob(void) {
+    TEST_ASSERT_EQUAL_STRING("*\n", run("set -f; a='*'; for w in $a; do echo \"$w\"; done; set +f"));
+}
+
+void test_read_reports_end_of_file(void) {
+    TEST_ASSERT_EQUAL_STRING("rc=1 x=abc\n", run("printf abc | { read -r x; echo rc=$? x=$x; }"));
+    TEST_ASSERT_EQUAL_STRING("rc=0 x=abc\n", run("printf 'abc\\n' | { read -r x; echo rc=$? x=$x; }"));
+}
+
+void test_finished_background_jobs_make_room(void) {
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("i=0; while [ $i -lt 80 ]; do ( : ) & i=$((i+1)); done; wait; echo ok"));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+}
+
+// A real 0x03 in the case word used to be read as a region marker, which
+// shifted the protected pairs and left marker bytes in the word for fnmatch
+void test_case_word_with_control_bytes(void) {
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("c3=$(printf '\\003'); c1=$(printf '\\001'); v=\"a${c3}b*c\"; "
+                                        "case $v in ( *\"$c1\"* ) echo bug ;; ( * ) echo ok ;; esac"));
+    TEST_ASSERT_EQUAL_STRING("match\n", run("c3=$(printf '\\003'); v=\"a${c3}b\"; "
+                                           "case $v in ( a\"$c3\"b ) echo match ;; ( * ) echo miss ;; esac"));
+    TEST_ASSERT_EQUAL_STRING("joined\n", run("set -- x y; case \"$@\" in ( 'x y' ) echo joined ;; ( * ) echo other ;; esac"));
+}
+
+void test_quoted_at_fields(void) {
+    TEST_ASSERT_EQUAL_STRING("[0] x\n", run("f() { /bin/echo \"[$#]\" \"$@\" x; }; f"));
+    TEST_ASSERT_EQUAL_STRING("[1]  x\n", run("set -- ''; /bin/echo \"[$#]\" \"$@\" x"));
+    TEST_ASSERT_EQUAL_STRING("[a][][b]\n", run("set -- a '' b; printf '[%s]' \"$@\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("[][]\n", run("set -- '' ''; printf '[%s]' \"$@\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("done\n", run("set --; for w in \"$@\"; do echo iterated; done; echo done"));
+    TEST_ASSERT_EQUAL_STRING("[xy]\n", run("set --; printf '[%s]' \"x$@y\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("n=3 second=to\n", run("f() { echo n=$# second=$2; }; g() { f \"$@\"; }; g n=1 to three"));
+    TEST_ASSERT_EQUAL_STRING("[a b][a bz]\n", run("set -- a b; x=\"$@\"; y=\"$@\"z; printf '[%s]' \"$x\" \"$y\"; echo"));
+}
+
+void test_escaped_backslash_and_dollar(void) {
+    TEST_ASSERT_EQUAL_STRING("\\star\n", run("V=star; W=\\\\${V}; printf '%s\\n' \"$W\""));
+    TEST_ASSERT_EQUAL_STRING("\\\\star\n", run("V=star; printf '%s\\n' \\\\\\\\$V"));
+    TEST_ASSERT_EQUAL_STRING("$x\n", run("x=VAL; printf '%s\\n' \\$x"));
+    TEST_ASSERT_EQUAL_STRING("\\$x\n", run("x=VAL; printf '%s\\n' \\\\\\$x"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -729,5 +822,15 @@ int main(void) {
 
     RUN_TEST(test_function_nesting_limit_from_funcnest);
     RUN_TEST(test_function_recursion_aborts_with_status_1);
+    RUN_TEST(test_alias_takes_effect_for_later_programs);
+    RUN_TEST(test_alias_in_function_body_is_stored_expanded);
+    RUN_TEST(test_kill_l_translates_names_and_numbers);
+    RUN_TEST(test_umask_shows_and_sets_the_mask);
+    RUN_TEST(test_for_words_honour_noglob);
+    RUN_TEST(test_read_reports_end_of_file);
+    RUN_TEST(test_finished_background_jobs_make_room);
+    RUN_TEST(test_case_word_with_control_bytes);
+    RUN_TEST(test_quoted_at_fields);
+    RUN_TEST(test_escaped_backslash_and_dollar);
     return UNITY_END();
 }

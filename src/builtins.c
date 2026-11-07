@@ -272,6 +272,12 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "Send a signal (TERM by default) to processes or jobs, by number or name.\n"
         "-l lists the signal names.\n"
         ""},
+    [BUILTIN_FUNC_UMASK] = (Builtin){"umask", &shell_umask,
+        "umask [-S] [mode]",
+        "Show or set the file creation mask. Without a mode, print it in octal,\n"
+        "or with -S as u=rwx,g=rx,o=rx. A mode is octal (022) or symbolic\n"
+        "(u+r, g-w,o=, a=rx) as for chmod.\n"
+        ""},
     [BUILTIN_FUNC_HASH] = (Builtin){"hash", &shell_hash,
         "hash [-r] [name...]",
         "Remember where commands live. With names, look them up now; -r forgets\n"
@@ -1179,18 +1185,21 @@ int shell_read(char **args) {
         return 1;
     }
 
-    // Remove trailing newline
+    // Remove trailing newline. Without one the input ended inside the line:
+    // the words are still assigned but the status says end of file (POSIX)
     size_t len = strlen(line);
+    bool at_eof = true;
     if (len > 0 && line[len - 1] == '\n') {
         line[len - 1] = '\0';
+        at_eof = false;
     }
 
     // If no variables specified, use REPLY
     if (args[start] == NULL) {
-        last_command_exit_code = read_assign("REPLY", line) ? 0 : 1;
+        last_command_exit_code = read_assign("REPLY", line) ? (at_eof ? 1 : 0) : 1;
         return 1;
     }
-    int status = 0;
+    int status = at_eof ? 1 : 0;
 
     // Split line into words and assign to variables
     char *saveptr;
@@ -1227,6 +1236,130 @@ int shell_read(char **args) {
     (void)raw;  // TODO: Handle -r flag for backslash escapes
 
     last_command_exit_code = status;
+    return 1;
+}
+
+// ============================================================================
+// umask
+// ============================================================================
+
+// Symbolic mode clauses as for chmod: [ugoa]*([+-=][rwx]*)+ separated by
+// commas. Returns false when the text is not a mode.
+static bool umask_apply_symbolic(const char *text, mode_t *mask) {
+    mode_t m = *mask;
+    const char *p = text;
+    for (;;) {
+        mode_t who = 0;
+        for (; *p; p++) {
+            if (*p == 'u') who |= 0700;
+            else if (*p == 'g') who |= 0070;
+            else if (*p == 'o') who |= 0007;
+            else if (*p == 'a') who |= 0777;
+            else break;
+        }
+        if (who == 0) {
+            who = 0777;
+        }
+        if (!char_in_string(*p, "+-=") || *p == '\0') {
+            return false;
+        }
+        while (*p && char_in_string(*p, "+-=")) {
+            char op = *p++;
+            mode_t perm = 0;
+            for (; *p; p++) {
+                if (*p == 'r') perm |= 0444;
+                else if (*p == 'w') perm |= 0222;
+                else if (*p == 'x') perm |= 0111;
+                else break;
+            }
+            perm &= who;
+            if (op == '+') {
+                m &= ~perm;             // grant: clear the mask bits
+            } else if (op == '-') {
+                m |= perm;              // deny: set the mask bits
+            } else {
+                m = (m | who) & ~perm;  // exactly these for the named classes
+            }
+        }
+        if (*p == '\0') {
+            break;
+        }
+        if (*p != ',') {
+            return false;
+        }
+        p++;
+    }
+    *mask = m;
+    return true;
+}
+
+// u=rwx,g=rx,o=rx: the permissions the mask leaves on
+static void umask_symbolic_text(mode_t mask, char *out, size_t size) {
+    const char classes[] = {'u', 'g', 'o'};
+    size_t o = 0;
+    for (int c = 0; c < 3 && o + 8 < size; c++) {
+        int shift = 6 - 3 * c;
+        if (c > 0) out[o++] = ',';
+        out[o++] = classes[c];
+        out[o++] = '=';
+        if (!((mask >> shift) & 4)) out[o++] = 'r';
+        if (!((mask >> shift) & 2)) out[o++] = 'w';
+        if (!((mask >> shift) & 1)) out[o++] = 'x';
+    }
+    out[o] = '\0';
+}
+
+int shell_umask(char **args) {
+    bool symbolic = false;
+    int i = 1;
+    while (args[i] && args[i][0] == '-' && args[i][1]) {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        if (strcmp(args[i], "-S") == 0) {
+            symbolic = true;
+            i++;
+            continue;
+        }
+        fprintf(stderr, "%s: umask: %s: invalid option\n", HASH_NAME, args[i]);
+        fprintf(stderr, "umask: usage: umask [-S] [mode]\n");
+        last_command_exit_code = 2;
+        return 1;
+    }
+
+    mode_t current = umask(0);
+    umask(current);
+
+    if (args[i] == NULL) {
+        if (symbolic) {
+            char text[32];
+            umask_symbolic_text(current, text, sizeof(text));
+            printf("%s\n", text);
+        } else {
+            printf("%04o\n", (unsigned)current);
+        }
+        return listing_status("umask");
+    }
+
+    const char *mode = args[i];
+    mode_t next = current;
+    if (isdigit((unsigned char)mode[0])) {
+        char *end;
+        long n = strtol(mode, &end, 8);
+        if (*end != '\0' || n < 0 || n > 0777) {
+            fprintf(stderr, "%s: umask: %s: octal number out of range\n", HASH_NAME, mode);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        next = (mode_t)n;
+    } else if (!umask_apply_symbolic(mode, &next)) {
+        fprintf(stderr, "%s: umask: %s: invalid symbolic mode operator\n", HASH_NAME, mode);
+        last_command_exit_code = 1;
+        return 1;
+    }
+    umask(next);
+    last_command_exit_code = 0;
     return 1;
 }
 
@@ -2538,10 +2671,45 @@ int shell_kill(char **args) {
     int sig = SIGTERM;  // Default signal
     int start_idx = 1;
 
-    // Check for -l option (list signals)
+    // kill -l [arg...]: the whole list, or for each arg the name of a signal
+    // number (or of an exit status 128+n) and the number of a signal name;
+    // an unknown one fails. modernish builds its signal table from
+    // `kill -l N` for N in 1..127 and needs the misses to fail.
     if (args[1] && strcmp(args[1], "-l") == 0) {
-        print_signals();
-        return listing_status("kill");
+        if (args[2] == NULL) {
+            print_signals();
+            return listing_status("kill");
+        }
+        int status = 0;
+        for (int i = 2; args[i] != NULL; i++) {
+            char *end;
+            long n = strtol(args[i], &end, 10);
+            if (*args[i] && *end == '\0') {
+                if (n > 128) {
+                    n -= 128;
+                }
+                const char *name = (n > 0 && n < 128) ? trap_signal_name((int)n) : NULL;
+                if (name) {
+                    printf("%s\n", strncmp(name, "SIG", 3) == 0 ? name + 3 : name);
+                } else {
+                    fprintf(stderr, "%s: kill: %s: invalid signal specification\n", HASH_NAME, args[i]);
+                    status = 1;
+                }
+            } else {
+                int num = signal_name_to_number(args[i]);
+                if (num > 0) {
+                    printf("%d\n", num);
+                } else {
+                    fprintf(stderr, "%s: kill: %s: invalid signal specification\n", HASH_NAME, args[i]);
+                    status = 1;
+                }
+            }
+        }
+        if (status == 0) {
+            return listing_status("kill");
+        }
+        last_command_exit_code = status;
+        return 1;
     }
 
     // Parse signal specification

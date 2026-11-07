@@ -99,8 +99,10 @@ static void handle_backslash(Parser *parser) {
             parser->read_pos++;
         } else {
             // Remove backslash, keep the character
-            // If it's a glob character, redirection operator, or tilde, mark it to prevent special handling
-            if (char_in_string(*parser->read_pos, "*?[<>|&;~") || is_marker_byte(*parser->read_pos)) {
+            // If it's a glob character, redirection operator, tilde, $, ` or
+            // another backslash, mark it to prevent special handling (\$ is a
+            // literal dollar sign; a marked backslash cannot escape what follows)
+            if (char_in_string(*parser->read_pos, "*?[<>|&;~\\$`") || is_marker_byte(*parser->read_pos)) {
                 mark_and_write_char(parser); // Marker to prevent special interpretation
                 return;
             }

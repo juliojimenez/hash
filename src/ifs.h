@@ -16,8 +16,11 @@ int ifs_is_whitespace(char c, const char *ifs);
 // Perform IFS word splitting on argument array
 // Splits content within \x03...\x03 markers on IFS characters
 // May grow the argument array (one arg can become multiple)
+// The first assignment_words entries are variable assignments (as the parser
+// saw them, before expansion): they are never split, and a "$@" inside one
+// is joined with spaces
 // Returns 0 on success, -1 on error
 // If splitting occurred, *args_ptr is updated to new array
-int ifs_split_args(char ***args_ptr, int *arg_count);
+int ifs_split_args(char ***args_ptr, int *arg_count, int assignment_words);
 
 #endif
