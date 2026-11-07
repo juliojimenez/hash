@@ -151,15 +151,19 @@ Expand to empty string:
 Value:
 ```
 
-## Limitations
+## Parameter Expansion Forms
 
-Current limitations (may be added):
+The POSIX forms are all available:
 
-- `${VAR:-default}` - Default value
-- `${VAR:=value}` - Assign default
-- `${#VAR}` - Length
-- `${VAR%pattern}` - Remove suffix
-- `${VAR#pattern}` - Remove prefix
+| Form | Result |
+|------|--------|
+| `${VAR:-word}` | `$VAR`, or `word` when unset or empty (`${VAR-word}`: only when unset) |
+| `${VAR:=word}` | Assign `word` when unset or empty, then expand |
+| `${VAR:+word}` | `word` when set and non-empty, otherwise nothing |
+| `${VAR:?word}` | `$VAR`, or print `word` and fail when unset or empty |
+| `${#VAR}` | Length of the value |
+| `${VAR#pattern}`, `${VAR##pattern}` | Remove the shortest, longest matching prefix |
+| `${VAR%pattern}`, `${VAR%%pattern}` | Remove the shortest, longest matching suffix |
 
 The pattern word of `${VAR#pattern}`, `${VAR##pattern}`, `${VAR%pattern}` and
 `${VAR%%pattern}` is expanded before it is used: `${file#*"$prefix"}` removes a

@@ -214,6 +214,10 @@ hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `colo
 | `[` | Same as test |
 | `true` | Return success |
 | `false` | Return failure |
+| `:` | Do nothing, status 0 |
+| `times` | User and system times of the shell and its children |
+| `hash` | Remember where commands live: `hash [-r] [name...]` |
+| `update` | Install a newer release of hash when there is one |
 
 ## Configuration Files
 

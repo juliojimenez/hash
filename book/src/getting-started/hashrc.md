@@ -67,6 +67,14 @@ Define command shortcuts:
 alias name='command'
 ```
 
+Aliases are expanded when a command is read, as POSIX requires, so a definition
+takes effect from the next line on: everything in `.hashrc` is ready for the
+first prompt, while `alias x='echo hi'; x` on one line does not find `x`. The
+name has to be the first word of a command and unquoted (`\ls` or `'ls'` skip
+an `ls` alias), the text may hold reserved words (`alias not='! '` works in
+`if not test -f file; then ...`), and a text that ends in a blank has the word
+after it checked for an alias too (`alias sudo='sudo '`).
+
 ### Examples
 
 ```bash
