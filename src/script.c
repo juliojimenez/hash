@@ -364,6 +364,10 @@ static char *remove_shell_quotes_for_pattern(const char *str) {
             }
         }
 
+        // A quoted * ? [ ] is a literal character, not a pattern character
+        if ((in_single || in_double) && char_in_string(c, "*?[]")) {
+            result[j++] = '\\';
+        }
         result[j++] = c;
     }
 
@@ -371,19 +375,27 @@ static char *remove_shell_quotes_for_pattern(const char *str) {
     return result;
 }
 
-// Pre-process word to add \x02 markers before $ inside double quotes
-// This tells varexpand that the expansion is in a quoted context
-static char *add_quote_markers(const char *word) {
+// Mark a case word or pattern for the expansion passes. The text still has
+// its quotes, which varexpand does not understand, so this pass tells it what
+// the quotes mean:
+//   \x02 before $            a quoted expansion: the result is literal (in
+//                            double quotes; every $ when all_literal)
+//   \x01 before $            a $ in single quotes: no expansion at all
+//   \x01 before \\ (pair)    keep both backslashes; without it varexpand
+//                            collapses \\ to \ and quote removal then takes
+//                            the survivor as an escape (case \\z lost its \)
+//   \x01 before \$ and \`    inside single quotes: keep the backslash too
+// Everything else goes through untouched and quote removal handles it.
+static char *mark_case_text(const char *word, bool all_literal) {
     if (!word) return strdup("");
 
     size_t len = strlen(word);
-    // Worst case: every char needs a marker
     char *result = malloc(len * 2 + 1);
     if (!result) return strdup(word);
 
     size_t j = 0;
-    bool in_double = false;
     bool in_single = false;
+    bool in_double = false;
 
     for (size_t i = 0; i < len; i++) {
         char c = word[i];
@@ -393,16 +405,36 @@ static char *add_quote_markers(const char *word) {
             result[j++] = c;
             continue;
         }
-
         if (c == '"' && !in_single) {
             in_double = !in_double;
             result[j++] = c;
             continue;
         }
 
-        // Mark $ in double quotes with \x02
-        if (c == '$' && in_double && !in_single) {
-            result[j++] = '\x02';
+        if (c == '\\' && word[i + 1]) {
+            char next = word[i + 1];
+            if (next == '\\' || (in_single && (next == '$' || next == '`'))) {
+                result[j++] = '\x01';
+                result[j++] = c;
+                result[j++] = next;
+                i++;
+                continue;
+            }
+            // \$ and \` outside single quotes: varexpand drops the backslash
+            // and keeps the character, which is what quote removal would do.
+            // Any other escape passes through for quote removal.
+            result[j++] = c;
+            result[j++] = next;
+            i++;
+            continue;
+        }
+
+        if (c == '$') {
+            if (in_single) {
+                result[j++] = '\x01';
+            } else if (in_double || all_literal) {
+                result[j++] = '\x02';
+            }
         }
 
         result[j++] = c;
@@ -412,42 +444,15 @@ static char *add_quote_markers(const char *word) {
     return result;
 }
 
-// Pre-process pattern to mark ALL $ with \x02 (not just in double quotes)
-// For patterns, all expanded content should be literal
+// Case word: expansions in double quotes are literal, the rest as usual
+static char *add_quote_markers(const char *word) {
+    return mark_case_text(word, false);
+}
+
+// Case pattern: every expansion is literal (its characters are not pattern
+// characters), so all $ are marked
 static char *add_pattern_markers(const char *word) {
-    if (!word) return strdup("");
-
-    size_t len = strlen(word);
-    char *result = malloc(len * 2 + 1);
-    if (!result) return strdup(word);
-
-    size_t j = 0;
-    bool in_single = false;
-
-    for (size_t i = 0; i < len; i++) {
-        char c = word[i];
-
-        if (c == '\'' && !in_single) {
-            in_single = !in_single;
-            result[j++] = c;
-            continue;
-        }
-        if (c == '\'') {
-            in_single = !in_single;
-            result[j++] = c;
-            continue;
-        }
-
-        // Mark ALL $ with \x02 (except in single quotes where $ is literal)
-        if (c == '$' && !in_single) {
-            result[j++] = '\x02';
-        }
-
-        result[j++] = c;
-    }
-
-    result[j] = '\0';
-    return result;
+    return mark_case_text(word, true);
 }
 
 static char *expand_case_word(const char *word) {
@@ -551,16 +556,12 @@ static char *expand_case_pattern(const char *pattern) {
         result = arith;
     }
 
-    // Apply variable expansion only if there's a $ to expand
-    // Skip varexpand for patterns without $ to avoid its \\ processing
-    // which interferes with quote removal
-    bool has_dollar = (strchr(result, '$') != NULL);
-    if (has_dollar) {
-        char *varexp = varexpand_expand(result, last_command_exit_code);
-        if (varexp) {
-            free(result);
-            result = varexp;
-        }
+    // Apply variable expansion (mark_case_text keeps \\ pairs and quoted $
+    // away from it, so it is safe on every pattern)
+    char *varexp = varexpand_expand(result, last_command_exit_code);
+    if (varexp) {
+        free(result);
+        result = varexp;
     }
 
     // Remove shell quotes (quote removal phase)

@@ -242,6 +242,31 @@ void test_case(void) {
     TEST_ASSERT_EQUAL_STRING("", run("{ ! : || ! case x in x) ;; esac; } && echo FATAL"));
 }
 
+// Backslashes and quoted pattern characters in case words and patterns
+// (#352, #353): an unquoted \\ is one literal backslash on both sides, a
+// backslash in double quotes is literal unless it escapes $ ` " \, single quotes
+// keep everything, and a quoted * ? [ is not a pattern character
+void test_case_backslashes_and_quoted_patterns(void) {
+    // modernish FTL_CASEBKSL and FTL_CASEBKSL2
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case \\\\z in ( \"\\z\" ) echo ok;; ( * ) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("set -- \\\\; case ab\\\\cd in ( *\"$1\"* ) echo ok;; ( * ) echo BUG;; esac"));
+    // the word side: an unquoted \\ is one backslash
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case a\\\\b in (a\\\\b) echo ok;; (*) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case \\\\z in ('\\z') echo ok;; (*) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case '\\\\' in ('\\\\') echo ok;; (*) echo BUG;; esac"));
+    // single quotes keep $ and \\$ literal
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("x=5; case '$x' in (5) echo BUG;; (*) echo ok;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case '\\$' in (\\\\\\$) echo ok;; (*) echo BUG;; esac"));
+    // quoted pattern characters are literal
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case ab in (\"a*\") echo BUG;; (*) echo ok;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case 'a*' in (\"a*\") echo ok;; (*) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case 'a[b' in ('a[b') echo ok;; (*) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case fxo in (f\"*\"o) echo BUG;; (*) echo ok;; esac"));
+    // unquoted pattern characters still match
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case abc in (\"a\"*) echo ok;; (*) echo BUG;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case abc in (a[bx]c) echo ok;; (*) echo BUG;; esac"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -583,6 +608,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_case_backslashes_and_quoted_patterns);
 
     RUN_TEST(test_brace_group_runs_in_current_shell);
     RUN_TEST(test_subshell_isolates_state_and_reports_status);
