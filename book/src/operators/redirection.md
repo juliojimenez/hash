@@ -145,7 +145,7 @@ test -f file.txt && echo "File exists!"
 ## Noclobber
 
 `set -C` (`set -o noclobber`) makes `>` refuse to overwrite an existing file;
-`>|` overwrites anyway. See the [shell options](../reference/README.md#shell-options).
+`>|` overwrites anyway. See the [shell options](../reference/index.md#shell-options).
 
 ## Limitations
 

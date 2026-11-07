@@ -33,6 +33,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: 'latest'
+
+      # Every link in the built book must name a page that exists and an anchor
+      # on it. A link to a chapter's README.md renders as README.html, which does
+      # not exist (#401): the source files all existed, so only the built tree
+      # shows it. This runs on every book change, deploy or not.
+      - name: Check the Book's Links
+        run: |
+          mdbook build book
+          python3 scripts/check-links.py book/output
+
       # The site carries the APT repository too, so a docs deploy rebuilds it from
       # the latest release's packages. GitHub Pages keys deployments by commit SHA
       # and can treat a second deployment of the same commit as already done: it
@@ -58,12 +72,6 @@ jobs:
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
             echo "version=$released" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Setup mdBook
-        if: steps.release.outputs.skip != 'true'
-        uses: peaceiris/actions-mdbook@v2
-        with:
-          mdbook-version: 'latest'
 
       - name: Install APT Repository Tools
         if: steps.release.outputs.skip != 'true'
