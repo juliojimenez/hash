@@ -110,6 +110,24 @@ static bool is_special_param(char c) {
     return c != '\0' && strchr("$?!-#@*", c) != NULL;
 }
 
+// Copy a positional parameter into a "$*" / "$@" buffer with its marker-range
+// bytes protected (\x01 + byte), so they are not read as the \x04 field
+// separators the buffer uses. Returns the bytes written; stops when out of room.
+static size_t copy_param_protected(char *dst, size_t room, const char *param) {
+    size_t out = 0;
+    for (const char *p = param; *p; p++) {
+        size_t need = is_marker_byte(*p) ? 2 : 1;
+        if (out + need > room) {
+            break;
+        }
+        if (need == 2) {
+            dst[out++] = '\x01';
+        }
+        dst[out++] = *p;
+    }
+    return out;
+}
+
 // Value of the special parameter c. Numbers are written to buf; "$*" and "$@"
 // come back in static buffers with the field separators the append step
 // expects: \x04 between fields, or the first character of IFS for a quoted
@@ -160,11 +178,7 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
                     if (i > 1 && use_sep && pos < sizeof(star_buf) - 1) {
                         star_buf[pos++] = sep;
                     }
-                    size_t plen = strlen(param);
-                    if (pos + plen < sizeof(star_buf)) {
-                        memcpy(star_buf + pos, param, plen);
-                        pos += plen;
-                    }
+                    pos += copy_param_protected(star_buf + pos, sizeof(star_buf) - 1 - pos, param);
                 }
             }
             star_buf[pos] = '\0';
@@ -180,11 +194,7 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
                     if (i > 1 && pos < sizeof(at_buf) - 1) {
                         at_buf[pos++] = '\x04';
                     }
-                    size_t plen = strlen(param);
-                    if (pos + plen < sizeof(at_buf)) {
-                        memcpy(at_buf + pos, param, plen);
-                        pos += plen;
-                    }
+                    pos += copy_param_protected(at_buf + pos, sizeof(at_buf) - 1 - pos, param);
                 }
             }
             at_buf[pos] = '\0';
@@ -239,6 +249,11 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             // Escaped backtick - output ` literally (for heredocs)
             result[out_pos++] = '`';
             p += 2;
+        } else if (*p == '\x01' && *(p + 1) && out_pos < result_size - 2) {
+            // Any other protected byte: keep the pair whole so the byte after
+            // the marker (a real \x02, say) is not read as a marker itself
+            result[out_pos++] = *p++;
+            result[out_pos++] = *p++;
         } else if ((*p == '\x02' && *(p + 1) == '$') || *p == '$') {
             // Variable expansion - check for quoted marker first
             bool is_quoted = (*p == '\x02');
@@ -248,6 +263,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             const char *var_value = NULL;
             char var_name[256] = {0};
             bool is_literal_dollar = false;  // Track if this is just a literal $, not an expansion
+            const char *premarked = NULL;    // a "$*"/"$@" buffer: its bytes are already protected
 
             // Special parameters ($ ? ! - # @ *). Inside double quotes the parser
             // puts \x02 before $ and \x01 before ? and *; skip that marker.
@@ -257,6 +273,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
             }
             if (is_special_param(*special)) {
                 var_value = special_param_value(*special, is_quoted, last_exit_code, var_name, sizeof(var_name));
+                if (*special == '@' || *special == '*') {
+                    premarked = var_value;
+                }
                 p = special + 1;
             } else if (*p == '0') {
                 // $0 - script name or shell name
@@ -360,6 +379,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         if (is_special) {
                             val = special_param_value(var_name[0], is_quoted, last_exit_code,
                                                       special_buf, sizeof(special_buf));
+                            if (var_name[0] == '@' || var_name[0] == '*') {
+                                premarked = val;
+                            }
                         } else if (is_positional) {
                             int param_num = atoi(var_name);
                             val = get_positional_param(param_num);
@@ -616,25 +638,44 @@ append_value:
             } else if (var_value) {
                 size_t val_len = strlen(var_value);
                 if (val_len > 0) {
+                    bool keep_pairs = (premarked != NULL && var_value == premarked);
                     if (is_quoted) {
                         // Append with markers to prevent glob expansion and quote interpretation
                         for (size_t i = 0; i < val_len && out_pos < result_size - 2; i++) {
                             char c = var_value[i];
-                            if (char_in_string(c, "*?[]'\"\\<|>&~")) {
+                            if (keep_pairs && c == '\x01' && i + 1 < val_len) {
+                                result[out_pos++] = c;          // an already protected byte
+                                result[out_pos++] = var_value[++i];
+                                continue;
+                            }
+                            if (keep_pairs && c == '\x04') {
+                                result[out_pos++] = c;          // the field separator itself
+                                continue;
+                            }
+                            if (char_in_string(c, "*?[]'\"\\<|>&~") || is_marker_byte(c)) {
                                 // Add marker before special characters (globs, quotes, redirects, operators, tilde, bracket close)
+                                // and before a real marker-range byte, which travels as \x01 + byte
                                 result[out_pos++] = '\x01';
                             }
                             result[out_pos++] = c;
                         }
                     } else {
-                        // Unquoted - wrap with \x03 markers for IFS splitting
-                        size_t space = result_size - 1 - out_pos;
-                        // Need space for: marker + value + marker
-                        size_t to_copy = (val_len < space - 2) ? val_len : (space > 2 ? space - 2 : 0);
-                        if (to_copy > 0 && out_pos < result_size - 2) {
+                        // Unquoted - wrap with \x03 markers for IFS splitting; a
+                        // real marker-range byte in the value travels as \x01 + byte
+                        if (out_pos + 2 < result_size - 1) {
                             result[out_pos++] = '\x03';  // Start marker
-                            memcpy(result + out_pos, var_value, to_copy);
-                            out_pos += to_copy;
+                            for (size_t i = 0; i < val_len && out_pos < result_size - 3; i++) {
+                                char c = var_value[i];
+                                if (keep_pairs && c == '\x01' && i + 1 < val_len) {
+                                    result[out_pos++] = c;      // an already protected byte
+                                    result[out_pos++] = var_value[++i];
+                                    continue;
+                                }
+                                if (!keep_pairs && is_marker_byte(c)) {
+                                    result[out_pos++] = '\x01';
+                                }
+                                result[out_pos++] = c;          // a \x04 separator stays raw
+                            }
                             result[out_pos++] = '\x03';  // End marker
                         }
                     }

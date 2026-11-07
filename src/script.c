@@ -400,6 +400,12 @@ static char *mark_case_text(const char *word, bool all_literal) {
     for (size_t i = 0; i < len; i++) {
         char c = word[i];
 
+        if (is_marker_byte(c)) {
+            // A real marker-range byte in the text travels as \x01 + byte
+            result[j++] = '\x01';
+            result[j++] = c;
+            continue;
+        }
         if (c == '\'' && !in_double) {
             in_single = !in_single;
             result[j++] = c;

@@ -55,6 +55,9 @@ static void handle_backslash(Parser *parser) {
             return;
         }
         *parser->write_pos++ = *parser->read_pos++;
+        if (is_marker_byte(*parser->read_pos)) {
+            mark_and_write_char(parser);  // a real marker-range byte after the backslash
+        }
         return;
     }
 
@@ -83,6 +86,9 @@ static void handle_backslash(Parser *parser) {
             default:
                 // Keep both backslash and character
                 *parser->write_pos++ = '\\';
+                if (is_marker_byte(*parser->read_pos)) {
+                    *parser->write_pos++ = '\x01';
+                }
                 *parser->write_pos++ = *parser->read_pos++;
                 break;
         }
@@ -94,7 +100,7 @@ static void handle_backslash(Parser *parser) {
         } else {
             // Remove backslash, keep the character
             // If it's a glob character, redirection operator, or tilde, mark it to prevent special handling
-            if (char_in_string(*parser->read_pos, "*?[<>|&;~")) {
+            if (char_in_string(*parser->read_pos, "*?[<>|&;~") || is_marker_byte(*parser->read_pos)) {
                 mark_and_write_char(parser); // Marker to prevent special interpretation
                 return;
             }
@@ -472,7 +478,10 @@ ParseResult parse_line(const char *line) {
                 break;
         }
 
-        // Regular character
+        // Regular character; a real marker-range byte is carried as \x01 + byte
+        if (is_marker_byte(*parser.read_pos)) {
+            *parser.write_pos++ = '\x01';
+        }
         *parser.write_pos++ = *parser.read_pos++;
     }
 

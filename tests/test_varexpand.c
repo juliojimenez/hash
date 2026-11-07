@@ -186,6 +186,31 @@ void test_expand_special_braced_positional(void) {
     free(result);
 }
 
+// A value holding a real 0x01..0x04 byte comes out as \x01 + byte, so the
+// byte is not read as a marker later; "$@" keeps its \x04 separators raw (#354)
+void test_expand_marker_bytes_in_values(void) {
+    setenv("HASH_CC", "p\x01q\x03r", 1);
+    char *result = varexpand_expand("$HASH_CC", 0);          // unquoted: inside \x03 markers
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("\x03p\x01\x01q\x01\x03r\x03", result);
+    free(result);
+    result = varexpand_expand("\x02$HASH_CC", 0);            // "$HASH_CC"
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("p\x01\x01q\x01\x03r", result);
+    free(result);
+    unsetenv("HASH_CC");
+
+    script_state.positional_params = malloc(3 * sizeof(char*));
+    script_state.positional_params[0] = strdup("script.sh");
+    script_state.positional_params[1] = strdup("a\x04" "b");
+    script_state.positional_params[2] = strdup("c");
+    script_state.positional_count = 3;
+    result = varexpand_expand("\x02$@", 0);                  // "$@"
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("a\x01\x04" "b\x04" "c", result);
+    free(result);
+}
+
 // Test $$ (process ID)
 void test_expand_pid(void) {
     char *result = varexpand_expand("PID: $$", 0);
@@ -376,6 +401,7 @@ int main(void) {
     RUN_TEST(test_expand_multiple_vars);
     RUN_TEST(test_expand_exit_code);
     RUN_TEST(test_expand_pid);
+    RUN_TEST(test_expand_marker_bytes_in_values);
     RUN_TEST(test_expand_pid_quoted);
     RUN_TEST(test_expand_special_braced);
     RUN_TEST(test_expand_special_braced_modifiers);

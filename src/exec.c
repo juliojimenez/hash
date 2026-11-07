@@ -14,6 +14,7 @@
 #include <sys/resource.h>
 
 #include "exec.h"
+#include "utils.h"
 #include "arena.h"
 #include "arith.h"
 #include "ast_parser.h"
@@ -251,7 +252,10 @@ static char **copy_pointer_array(char **src, int count) {
 static void strip_ifs_markers(char *s) {
     char *w = s;
     for (const char *r = s; *r; r++) {
-        if (*r != '\x03') {
+        if (*r == '\x01' && r[1]) {
+            *w++ = *r++;    // a protected byte: keep the pair (a real \x03, say)
+            *w++ = *r;
+        } else if (*r != '\x03') {
             *w++ = *r;
         }
     }

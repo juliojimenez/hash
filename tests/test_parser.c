@@ -24,6 +24,25 @@ void test_parse_line_simple_command(void) {
     parse_result_free(&parsed);
 }
 
+// A real 0x01..0x04 byte in the input is not one of the parser's markers: it
+// leaves parse_line as \x01 + byte, which the later marker removal turns back
+// into the byte (#354)
+void test_parse_line_protects_marker_bytes(void) {
+    char line[] = "echo a\x01" "b c\x03" "d";
+    ParseResult parsed = parse_line(line);
+    TEST_ASSERT_NOT_NULL(parsed.tokens);
+    TEST_ASSERT_EQUAL_STRING("a\x01\x01" "b", parsed.tokens[1]);
+    TEST_ASSERT_EQUAL_STRING("c\x01\x03" "d", parsed.tokens[2]);
+    TEST_ASSERT_NULL(parsed.tokens[3]);
+    parse_result_free(&parsed);
+
+    char quoted[] = "echo 'x\x02" "y' \"\x04" "z\"";
+    parsed = parse_line(quoted);
+    TEST_ASSERT_EQUAL_STRING("x\x01\x02" "y", parsed.tokens[1]);
+    TEST_ASSERT_EQUAL_STRING("\x01\x04" "z", parsed.tokens[2]);
+    parse_result_free(&parsed);
+}
+
 // Test parse_line with multiple arguments
 void test_parse_line_multiple_args(void) {
     char line[] = "ls -la /tmp";
@@ -367,6 +386,7 @@ int main(void) {
     RUN_TEST(test_parse_cmdsub_nested);
     RUN_TEST(test_parse_cmdsub_with_arith);
     RUN_TEST(test_parse_arith_with_cmdsub);
+    RUN_TEST(test_parse_line_protects_marker_bytes);
 
     return UNITY_END();
 }
