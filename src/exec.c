@@ -1205,7 +1205,16 @@ static ExecStatus exec_case_core(const Node *n) {
             free(pattern);
             if (hit) {
                 matched = true;
-                st = exec_node(item->body);
+                // An empty clause (`x) ;;`) completes with status 0, like a case
+                // with no match; a clause with commands still sees the previous
+                // status in $? and leaves its own. Without this, `false || ! case
+                // x in x) ;; esac` negated the stale 1 (modernish FTL_ORNOT, #351).
+                const Node *body = item->body;
+                if (!body || (body->type == NODE_LIST && body->u.list.items.count == 0)) {
+                    last_command_exit_code = 0;
+                } else {
+                    st = exec_node(body);
+                }
                 break;
             }
         }

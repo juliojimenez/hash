@@ -1286,7 +1286,18 @@ int shell_continue_cmd(char **args) {
 }
 
 int shell_eval(char **args) {
-    if (args[1] == NULL) {
+    // POSIX: no arguments, or only null arguments, is a successful no-op; text
+    // that is only blanks parses to an empty program and counts the same
+    bool all_blank = true;
+    for (int i = 1; args[i] != NULL && all_blank; i++) {
+        for (const char *c = args[i]; *c; c++) {
+            if (*c != ' ' && *c != '\t' && *c != '\n') {
+                all_blank = false;
+                break;
+            }
+        }
+    }
+    if (all_blank) {
         last_command_exit_code = 0;
         return 1;
     }
