@@ -79,7 +79,13 @@ shell_version=$("$shell_bin" --version 2>/dev/null | head -1)
     echo "--- env ---"; env | sort
 } > "$results/environment.txt" 2>&1
 echo "modernish $(git -C "$src" rev-parse --short HEAD) on ${shell_version:-$shell_bin}"
-(cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2>&1
+# MODERNISH_TRACE=1 runs the shell with -x and keeps the trace apart from the
+# results (results/trace.txt), for reading a failure off the uploaded artifact
+if [ -n "${MODERNISH_TRACE:-}" ]; then
+    (cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" -x bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2> "$results/trace.txt"
+else
+    (cd "$src" && ${limit[@]+"${limit[@]}"} "$shell_bin" bin/modernish --test -eq ${extra[@]+"${extra[@]}"}) > "$output" 2>&1
+fi
 status=$?
 
 # Read the result
