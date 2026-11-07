@@ -842,6 +842,46 @@ void test_escaped_backslash_and_dollar(void) {
     TEST_ASSERT_EQUAL_STRING("\\$x\n", run("x=VAL; printf '%s\\n' \\\\\\$x"));
 }
 
+// #384: a here-document with a quoted delimiter is literal, and the text of
+// a $( ) is copied as written at parse time, so the body keeps every
+// backslash and backslash-newline (dash: abc \<nl>def \\<nl>ghi \\\)
+void test_heredoc_in_cmdsub_keeps_backslash_newline(void) {
+    TEST_ASSERT_EQUAL_STRING("[abc \\\ndef \\\\\nghi \\\\\\]\n",
+        run("v=$(cat <<-\\EOT\n\tabc \\\n\tdef \\\\\n\tghi \\\\\\\n\tEOT\n); printf '[%s]\\n' \"$v\""));
+    // the same text reaching the parser through eval
+    TEST_ASSERT_EQUAL_STRING("[abc \\\ndef \\\\]\n",
+        run("nl='\n'; eval 'v=$(cat <<-\\EOT'\"$nl\"'abc \\'\"$nl\"'def \\\\'\"$nl\"'EOT'\"$nl\"')'; printf '[%s]\\n' \"$v\""));
+}
+
+// #384: with an unquoted delimiter a backslash before the newline continues
+// the line: the next line is part of this one, so <<- does not strip its
+// tabs and it is not tested as the delimiter (modernish string.t 010)
+void test_heredoc_continued_line_keeps_tab_and_is_not_the_delimiter(void) {
+    TEST_ASSERT_EQUAL_STRING("def \tghi\njkl\tFIN\n",
+        run("cat <<-FIN\n\tdef \\\n\tghi\n\tjkl\\\n\tFIN\n\tFIN\n"));
+    // a quoted delimiter: no continuation, the backslash stays, the next line
+    // can end the body
+    TEST_ASSERT_EQUAL_STRING("abc \\\n", run("cat <<-'X'\n\tabc \\\n\tX\n"));
+    // an escaped backslash before the newline is not a continuation
+    TEST_ASSERT_EQUAL_STRING("abc \\\nX2\n", run("cat <<X\nabc \\\\\nX2\nX\n"));
+}
+
+// A backslash inside single quotes is a literal byte: it does not escape the
+// closing quote, nor the expansion, command substitution or case pattern
+// that follows the quote ('a\'$x gave a$x; 'a\'`echo q` left the command)
+void test_single_quoted_backslash_escapes_nothing_after_the_quote(void) {
+    TEST_ASSERT_EQUAL_STRING("[a\\1][a\\q][a\\q][\\q][a\\1b\\1]\n",
+        run("x=1; printf '[%s]' 'a\\'$x 'a\\'$(echo q) 'a\\'`echo q` \\\\`echo q` 'a\\'$x'b\\'$x; echo"));
+    TEST_ASSERT_EQUAL_STRING("[a\\\n\tb]\n", run("x=1; printf '[%s]\\n' 'a\\'\"$(printf '\\n\\t')\"b"));
+    TEST_ASSERT_EQUAL_STRING("m1 m2 m3\n",
+        run("nl='\n'; x=1; v='a \\'$nl'b'\n"
+            "case $v in ('a \\'$nl'b') printf 'm1 ';; (*) printf 'n1 ';; esac\n"
+            "case 'a\\1' in ('a\\'$x) printf 'm2 ';; (*) printf 'n2 ';; esac\n"
+            "case 'a\\\\' in ('a\\\\') echo m3;; (*) echo n3;; esac"));
+    TEST_ASSERT_EQUAL_STRING("[abc def]\n",
+        run("nl='\n'; eval 'printf \"[%s]\\n\" \"abc \\'\"$nl\"'def\"'"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -891,6 +931,9 @@ int main(void) {
     RUN_TEST(test_exec_redirections_persist);
     RUN_TEST(test_for_readonly_checked_every_iteration);
     RUN_TEST(test_heredoc_backslash_newline_joins_lines);
+    RUN_TEST(test_heredoc_in_cmdsub_keeps_backslash_newline);
+    RUN_TEST(test_heredoc_continued_line_keeps_tab_and_is_not_the_delimiter);
+    RUN_TEST(test_single_quoted_backslash_escapes_nothing_after_the_quote);
 
     RUN_TEST(test_feeder_runs_complete_lines_immediately);
     RUN_TEST(test_feeder_keeps_program_text_while_it_runs);

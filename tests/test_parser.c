@@ -263,14 +263,23 @@ void test_parse_line_escaped_tab(void) {
     parse_result_free(&parsed);
 }
 
-// Test parse_line with literal backslash in single quotes
+// Test parse_line with literal backslash in single quotes: the backslash is
+// marked (\x01) whatever follows it, so it cannot escape the byte after the
+// closing quote ('a\'$x expands $x, 'a\'`echo q` runs the command)
 void test_parse_line_single_quote_literal_backslash(void) {
     char line[] = "echo 'literal\\n'";
     ParseResult parsed = parse_line(line);
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("literal\\n", parsed.tokens[1]);
+    TEST_ASSERT_EQUAL_STRING("literal\x01\\n", parsed.tokens[1]);
+    TEST_ASSERT_NULL(parsed.tokens[2]);
+    parse_result_free(&parsed);
+
+    char line2[] = "echo 'a\\'$x";
+    parsed = parse_line(line2);
+    TEST_ASSERT_NOT_NULL(parsed.tokens);
+    TEST_ASSERT_EQUAL_STRING("a\x01\\$x", parsed.tokens[1]);
     TEST_ASSERT_NULL(parsed.tokens[2]);
 
     parse_result_free(&parsed);

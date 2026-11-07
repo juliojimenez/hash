@@ -457,9 +457,17 @@ static char *mark_case_text(const char *word, bool all_literal) {
             continue;
         }
 
+        if (c == '\\' && in_single) {
+            // A literal byte: marked, and the byte after it is left to its own
+            // handling ('a \'$x: the quote closes and $x expands; the
+            // backslash used to swallow the quote and leave $x unexpanded)
+            result[j++] = '\x01';
+            result[j++] = c;
+            continue;
+        }
         if (c == '\\' && word[i + 1]) {
             char next = word[i + 1];
-            if (next == '\\' || (in_single && (next == '$' || next == '`'))) {
+            if (next == '\\') {
                 result[j++] = '\x01';
                 result[j++] = c;
                 result[j++] = next;

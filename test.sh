@@ -433,6 +433,11 @@ run_test "\$* in a here-document joins with the first IFS character" $'set -- on
 run_test "\$* in a case word joins with the first IFS character" "set -- one two; IFS=:; case \$* in (one:two) echo case-joined ;; (*) echo case-split ;; esac" "case-joined"
 run_test "\${var=\$*} assigns the joined value and expands to fields" "unset var; set -- one two; IFS=:; printf '[%s]' \${var=\$*}; echo \" var=[\$var]\"" "[one][two] var=[one:two]"
 run_test "quoted \$@ in an assignment joins with spaces" "set -- a b; x=\"\$@\"; echo \"[\$x]\"" "[a b]"
+run_test "a here-document inside \$( ) keeps its backslash-newlines" $'v=$(cat <<-\\EOT\n\tabc \\\n\tdef \\\\\n\tEOT\n); printf \'[%s]\' "$v"; echo' $'[abc \\\ndef \\\\]'
+run_test "<<- keeps the tab of a continued line, which is not the delimiter" $'cat <<-FIN\n\tdef \\\n\tghi\n\tjkl\\\n\tFIN\n\tFIN' $'def \tghi\njkl\tFIN'
+run_test "a single-quoted backslash does not escape the expansion after the quote" "x=1; printf '[%s]' 'a\\'\$x 'a\\'\$(echo q) 'a\\'\`echo q\`; echo" "[a\\1][a\\q][a\\q]"
+run_test "an escaped backslash before a command substitution keeps the substitution" "printf '[%s]' \\\\\`echo q\` \\\\\$(echo q); echo" "[\\q][\\q]"
+run_test "a case pattern with a single-quoted backslash before an expansion" $'nl=\'\n\'; v=\'a \\\'$nl\'b\'; case $v in (\'a \\\'$nl\'b\') echo case-m ;; (*) echo case-n ;; esac' "case-m"
 run_test "case word with a 0x03 byte does not match a 0x01 pattern" "c3=\$(printf '\\003'); c1=\$(printf '\\001'); v=\"a\${c3}b*c\"; case \$v in ( *\"\$c1\"* ) echo bug ;; ( * ) echo case-ok ;; esac" "case-ok"
 run_test "command keeps a quoted operator as an argument" "command expr X '<' X" "0"
 run_test "command skips a function of the same name" "f() { echo function; }; command f 2>&1; echo rc=\$?" "rc=127"
