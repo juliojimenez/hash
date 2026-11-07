@@ -180,7 +180,7 @@ hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `colo
 | Command | Description |
 |---------|-------------|
 | `alias` | Define/list aliases |
-| `unalias` | Remove alias |
+| `unalias` | Remove aliases: `unalias name...`, or every alias with `unalias -a` |
 | `cd` | Change directory: `cd [-L\|-P] [dir]`, `-L` (default) keeps the logical path, `-P` resolves symlinks, `cd -` goes back |
 | `pwd` | Print working directory |
 | `echo` | Print arguments |

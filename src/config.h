@@ -78,6 +78,11 @@ const char *config_get_alias(const char *name);
 int config_remove_alias(const char *name);
 
 /**
+ * Remove every alias (unalias -a)
+ */
+void config_clear_aliases(void);
+
+/**
  * List all aliases
  */
 void config_list_aliases(void);

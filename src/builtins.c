@@ -67,8 +67,9 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "one. An alias is expanded when its name is the first word of a command.\n"
         ""},
     [BUILTIN_FUNC_UNALIAS] = (Builtin){"unalias", &shell_unalias,
-        "unalias name...",
-        "Remove the named aliases.\n"
+        "unalias [-a] name...",
+        "Remove the named aliases, or every alias with -a. A name that is not an\n"
+        "alias is reported and the status is 1; the other names are still removed.\n"
         ""},
     [BUILTIN_FUNC_SOURCE] = (Builtin){"source", &shell_source,
         "source file",
@@ -558,19 +559,49 @@ int shell_alias(char **args) {
 }
 
 int shell_unalias(char **args) {
-    if (args[1] == NULL) {
-        fprintf(stderr, "%s: unalias: usage: unalias name\n", HASH_NAME);
-        last_command_exit_code = 1;
+    // unalias [-a] name...   (POSIX): -a removes every alias; otherwise each
+    // name is removed, a name that is not an alias is reported and the status
+    // is 1, and the others are still removed.
+    bool all = false;
+    int i = 1;
+    while (args[i] && args[i][0] == '-' && args[i][1] != '\0') {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        for (const char *o = args[i] + 1; *o; o++) {
+            if (*o == 'a') {
+                all = true;
+            } else {
+                fprintf(stderr, "%s: unalias: -%c: invalid option\n", HASH_NAME, *o);
+                fprintf(stderr, "unalias: usage: unalias [-a] name [name ...]\n");
+                last_command_exit_code = 2;
+                return 1;
+            }
+        }
+        i++;
+    }
+
+    if (all) {
+        config_clear_aliases();
+        last_command_exit_code = 0;
         return 1;
     }
 
-    if (config_remove_alias(args[1]) == 0) {
-        last_command_exit_code = 0;
-    } else {
-        fprintf(stderr, "%s: unalias: %s: not found\n", HASH_NAME, args[1]);
-        last_command_exit_code = 1;
+    if (args[i] == NULL) {
+        fprintf(stderr, "unalias: usage: unalias [-a] name [name ...]\n");
+        last_command_exit_code = 2;
+        return 1;
     }
 
+    int status = 0;
+    for (; args[i]; i++) {
+        if (config_remove_alias(args[i]) != 0) {
+            fprintf(stderr, "%s: unalias: %s: not found\n", HASH_NAME, args[i]);
+            status = 1;
+        }
+    }
+    last_command_exit_code = status;
     return 1;
 }
 

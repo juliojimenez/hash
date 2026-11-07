@@ -250,6 +250,12 @@ int config_remove_alias(const char *name) {
     return -1;
 }
 
+// Remove every alias
+void config_clear_aliases(void) {
+    memset(shell_config.aliases, 0, sizeof(shell_config.aliases));
+    shell_config.alias_count = 0;
+}
+
 // List all aliases
 void config_list_aliases(void) {
     if (shell_config.alias_count == 0) {
