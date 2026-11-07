@@ -97,6 +97,95 @@ void test_expand_exit_code(void) {
     free(result);
 }
 
+// "$$" inside double quotes (the parser marks each $ with \x02) is the pid too (#349)
+void test_expand_pid_quoted(void) {
+    char *result = varexpand_expand("\x02$\x02$", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    char expected[64];
+    snprintf(expected, sizeof(expected), "%d", (int)shell_pid());
+    TEST_ASSERT_EQUAL_STRING(expected, result);
+    free(result);
+}
+
+// ${$} ${?} ${!} ${-} ${#} in braces, unquoted and quoted (#349)
+void test_expand_special_braced(void) {
+    char expected[64];
+    char *result = varexpand_expand("${$}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    snprintf(expected, sizeof(expected), "%d", (int)shell_pid());
+    TEST_ASSERT_EQUAL_STRING(expected, result);
+    free(result);
+
+    result = varexpand_expand("rc=${?}", 3);
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("rc=3", result);
+    free(result);
+
+    result = varexpand_expand("\x02${?}", 7);   // "${?}"
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("7", result);
+    free(result);
+
+    result = varexpand_expand("[${!}]", 0);     // no background job yet: empty
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("[]", result);
+    free(result);
+
+    result = varexpand_expand("${#}", 0);       // no positional parameters
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("0", result);
+    free(result);
+
+    TEST_ASSERT_FALSE(varexpand_had_error());
+}
+
+// Modifiers and length apply to special parameters: ${?:-x} ${?:+set} ${#?}
+void test_expand_special_braced_modifiers(void) {
+    char *result = varexpand_expand("${?:-x} ${?:+set} ${#?}", 42);
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("42 set 2", result);
+    free(result);
+
+    // Assigning a special parameter is an error, not an expansion
+    varexpand_clear_error();
+    result = varexpand_expand("${?=5}", 1);
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_TRUE(varexpand_had_error());
+    varexpand_clear_error();
+    free(result);
+}
+
+// ${@} and ${*} in braces behave like $@ and $*
+void test_expand_special_braced_positional(void) {
+    script_state.positional_params = malloc(3 * sizeof(char*));
+    script_state.positional_params[0] = strdup("script.sh");
+    script_state.positional_params[1] = strdup("one");
+    script_state.positional_params[2] = strdup("two");
+    script_state.positional_count = 3;
+
+    char *result = varexpand_expand("${#}", 0);
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("2", result);
+    free(result);
+
+    result = varexpand_expand("${@}", 0);       // fields separated by \x04
+    TEST_ASSERT_NOT_NULL(result);
+    strip_ifs_markers(result);
+    TEST_ASSERT_EQUAL_STRING("one\x04two", result);
+    free(result);
+
+    result = varexpand_expand("\x02${*}", 0);   // "${*}": one field joined with IFS[0]
+    TEST_ASSERT_NOT_NULL(result);
+    TEST_ASSERT_EQUAL_STRING("one two", result);
+    free(result);
+}
+
 // Test $$ (process ID)
 void test_expand_pid(void) {
     char *result = varexpand_expand("PID: $$", 0);
@@ -287,6 +376,10 @@ int main(void) {
     RUN_TEST(test_expand_multiple_vars);
     RUN_TEST(test_expand_exit_code);
     RUN_TEST(test_expand_pid);
+    RUN_TEST(test_expand_pid_quoted);
+    RUN_TEST(test_expand_special_braced);
+    RUN_TEST(test_expand_special_braced_modifiers);
+    RUN_TEST(test_expand_special_braced_positional);
     RUN_TEST(test_expand_shell_name);
     RUN_TEST(test_expand_undefined_var);
     RUN_TEST(test_expand_escaped_dollar);

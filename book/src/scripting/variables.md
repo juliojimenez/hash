@@ -27,6 +27,12 @@ testing
 
 ## Special Variables
 
+Every special parameter below expands the same way with or without braces and
+inside double quotes: `"$$"`, `${$}`, `${?}`, `${!}`, `${#}`, `${-}`, `${@}`
+and `${*}` all work, and the braced forms take the usual modifiers
+(`${?:-0}`, `${#?}`). `$$` is the pid of the shell itself, also inside
+pipelines, subshells, `$( )` and background jobs.
+
 ### $? - Exit Code
 
 ```bash

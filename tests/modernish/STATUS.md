@@ -17,7 +17,7 @@ distinct shell bugs, each filed with a reproducer:
 |-------|------------|-----------------|
 | #347 | ~~`cd -- dir`, `cd -L`, `cd -P`~~ fixed | its very first command, `CDPATH='' cd -- "$dir" && pwd -P` |
 | #348 | ~~`unalias -a`; `unalias a b`~~ fixed | FTL_UNALIASA |
-| #349 | `"$$"` in double quotes; `${$}`, `${?}`, `${!}` | FTL_HASHVAR |
+| #349 | ~~`"$$"` in double quotes; `${$}`, `${?}`, `${!}`~~ fixed | FTL_HASHVAR |
 | #350 | `command continue` / `break` / `return` / `exit` lose their control flow | FTL_EVALCOBR |
 | #351 | `!` ignored on a pipeline after `&&` or `\|\|` | FTL_ORNOT |
 | #352 | `\\` right before an operator swallows the operator | FTL_CASEBKSL2 |

@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include "arith.h"
+#include "varexpand.h"
 #include "safe_string.h"
 #include "cmdsub.h"
 #include "shellvar.h"
@@ -134,7 +135,7 @@ static long get_variable(const char *name) {
     if (name[0] != '\0' && name[1] == '\0') {
         switch (name[0]) {
             case '$':  // $$ - shell PID
-                return (long)getpid();
+                return (long)shell_pid();   // $$ inside $(( )), the shell's own pid
             case '?':  // $? - last exit code
                 return (long)last_command_exit_code;
             case '!':  // $! - last background PID

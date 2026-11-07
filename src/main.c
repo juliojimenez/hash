@@ -18,6 +18,7 @@ Julio Jimenez, julio@julioj.com
 #include <errno.h>
 #include <ctype.h>
 #include "hash.h"
+#include "varexpand.h"
 #include "parser.h"
 #include "execute.h"
 #include "colors.h"
@@ -244,6 +245,9 @@ int main(int argc, char *argv[]) {
 
     // The stack guard for function nesting measures from here
     exec_set_stack_base(&argc);
+
+    // $$ is this process, also in the subshells forked from it
+    shell_pid_init();
 
     // Determine if we're a login shell
     // A login shell is indicated by:
