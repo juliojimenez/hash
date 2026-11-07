@@ -181,7 +181,7 @@ hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `colo
 |---------|-------------|
 | `alias` | Define/list aliases |
 | `unalias` | Remove alias |
-| `cd` | Change directory |
+| `cd` | Change directory: `cd [-L\|-P] [dir]`, `-L` (default) keeps the logical path, `-P` resolves symlinks, `cd -` goes back |
 | `pwd` | Print working directory |
 | `echo` | Print arguments |
 | `export` | Set environment variable |

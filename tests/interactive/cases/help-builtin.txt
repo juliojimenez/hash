@@ -1,6 +1,6 @@
 # help works at the prompt (#331)
 send help -s cd
-expect cd [dir]\n
+expect cd [-L|-P] [dir]\n
 send help trap
 expect trap [action] [signal...]\n
 expect More: https://hash-shell.org/
