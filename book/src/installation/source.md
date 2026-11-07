@@ -95,4 +95,4 @@ sudo make uninstall
 
 ## Development
 
-For development setup, see the [Contributing Guide](../contributing/README.md).
+For development setup, see the [Contributing Guide](../contributing/index.md).

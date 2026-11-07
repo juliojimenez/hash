@@ -5,7 +5,7 @@
 
 # Installation
 
-- [Overview](installation/README.md)
+- [Overview](installation/index.md)
   - [Linux](installation/linux.md)
   - [macOS](installation/macos.md)
   - [FreeBSD](installation/freebsd.md)
@@ -15,13 +15,13 @@
 
 # Getting Started
 
-- [Quick Start](getting-started/README.md)
+- [Quick Start](getting-started/index.md)
   - [Configuration (.hashrc)](getting-started/hashrc.md)
   - [Login Shell Setup](getting-started/login-shell.md)
 
 # Interactive Features
 
-- [Overview](shell-features/README.md)
+- [Overview](shell-features/index.md)
   - [Line Editing](shell-features/line-editing.md)
   - [Tab Completion](shell-features/tab-completion.md)
   - [Command History](shell-features/history.md)
@@ -29,14 +29,14 @@
 
 # Scripting
 
-- [Shell Scripting](scripting/README.md)
+- [Shell Scripting](scripting/index.md)
   - [Variables & Expansion](scripting/variables.md)
   - [Control Structures](scripting/control-structures.md)
   - [Test Command](scripting/test-command.md)
 
 # Operators & Redirection
 
-- [Overview](operators/README.md)
+- [Overview](operators/index.md)
   - [Pipes](operators/pipes.md)
   - [I/O Redirection](operators/redirection.md)
   - [Command Chaining](operators/command-chaining.md)
@@ -45,10 +45,10 @@
 
 # Reference
 
-- [Quick Reference](reference/README.md)
+- [Quick Reference](reference/index.md)
 
 # Contributing
 
-- [Contributing Guide](contributing/README.md)
+- [Contributing Guide](contributing/index.md)
   - [Testing](contributing/testing.md)
   - [Security Policy](contributing/security.md)

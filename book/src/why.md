@@ -78,6 +78,6 @@ sudo apt install hash-shell                     # Debian and Ubuntu, after addin
 docker run -it juliojimenez/hash-shell          # anywhere with Docker
 ```
 
-The [installation pages](installation/README.md) have the APT repository line,
+The [installation pages](installation/index.md) have the APT repository line,
 the FreeBSD binaries and the build from source. Nothing changes until you make
 it your login shell; `hash-shell` runs it as a command like any other.
