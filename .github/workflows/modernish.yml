@@ -27,10 +27,8 @@ jobs:
           make
 
       - name: Run modernish against hash
-        # TEMPORARY (PR #381 diagnosis): trace three tests that fail only on this runner
-        env:
-          MODERNISH_TRACE: 1
-        run: bash tests/modernish/run.sh -- -t '@sanitychecks:5/builtin:22/match:20,21,22,23,24,25,26'
+        # MODERNISH_TRACE=1 here (or -- -t FILE:NUM) keeps a -x trace in the results
+        run: bash tests/modernish/run.sh
 
       - name: Upload results
         uses: actions/upload-artifact@v7

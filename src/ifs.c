@@ -7,7 +7,6 @@
 #include "shellvar.h"
 
 #define MAX_SPLIT_ARGS 1024
-#define MAX_ARG_LENGTH 8192
 
 // Get current IFS value
 const char *ifs_get(void) {
@@ -98,8 +97,14 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
     if (!all_words) return NULL;
     int word_count = 0;
 
-    // Buffer for accumulating the current word being built
-    char current_word[MAX_ARG_LENGTH];
+    // Buffer for accumulating the current word being built: never longer
+    // than the input (protected pairs stay pairs)
+    size_t word_cap = strlen(arg) + 2;
+    char *current_word = malloc(word_cap);
+    if (!current_word) {
+        free(all_words);
+        return NULL;
+    }
     size_t current_len = 0;
 
     const char *p = arg;
@@ -111,7 +116,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
             // point (a quoted space inside ${1+"$@"} stays in its field). A real
             // control byte travels the same way, so IFS set to such a byte does
             // not split on it; bash does, and nobody has needed that yet.
-            if (current_len < MAX_ARG_LENGTH - 2) {
+            if (current_len < word_cap - 2) {
                 current_word[current_len++] = *p;
                 current_word[current_len++] = *(p + 1);
             }
@@ -186,7 +191,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
             }
         } else {
             // Regular character - add to current word
-            if (current_len < MAX_ARG_LENGTH - 1) {
+            if (current_len < word_cap - 1) {
                 current_word[current_len++] = *p;
             }
             p++;
@@ -207,6 +212,7 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
         return NULL;
     }
 
+    free(current_word);
     return all_words;
 }
 

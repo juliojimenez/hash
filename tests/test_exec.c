@@ -739,6 +739,40 @@ void test_case_word_with_control_bytes(void) {
     TEST_ASSERT_EQUAL_STRING("joined\n", run("set -- x y; case \"$@\" in ( 'x y' ) echo joined ;; ( * ) echo other ;; esac"));
 }
 
+// Expansions used to be cut at 8 KB (the result buffer was sized from the
+// input), the ${var-word} word at 1 KB and ${var#pat} at 4 KB
+void test_long_expansions_are_not_cut(void) {
+    const char *grow = "v=x; i=0; while [ $i -lt 14 ]; do v=$v$v; i=$((i+1)); done; ";
+    char src[1024];
+    snprintf(src, sizeof(src), "%s printf '%%s' \"$v\" | wc -c | tr -d ' '", grow);
+    TEST_ASSERT_EQUAL_STRING("16384\n", run(src));
+    snprintf(src, sizeof(src), "%s set -- \"$v\" \"$v\"; printf '%%s' \"$*\" | wc -c | tr -d ' '; printf '%%s' \"$@\" | wc -c | tr -d ' '", grow);
+    TEST_ASSERT_EQUAL_STRING("32769\n32768\n", run(src));
+    snprintf(src, sizeof(src), "%s w=${v#x}; echo ${#w}; u=${nope:-$v}; echo ${#u}; s=\"$v,$v\"; IFS=,; set -- $s; echo $# ${#1}", grow);
+    TEST_ASSERT_EQUAL_STRING("16383\n16384\n2 16384\n", run(src));
+}
+
+void test_bad_substitution_is_an_error(void) {
+    run("echo ${.sh.version+s} 2>/dev/null");
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("", run("echo \"${foo*}\" 2>/dev/null"));
+    TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
+    TEST_ASSERT_EQUAL_STRING("rc=1\n", run("(eval '[[ -n ${.sh.version+s} ]]') 2>/dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("0 1 1 y ten p\n", run("x=1; echo \"${#} ${#x} ${x:-d} ${x#1}y ${10:-ten} ${x:+p}\""));
+}
+
+// `command` used to hand its arguments on without their quote markers, so
+// expr X '<' X became `expr X X < X` (and '>' created a file), and it ran a
+// function of that name instead of skipping it
+void test_command_keeps_quoted_operators_and_skips_functions(void) {
+    TEST_ASSERT_EQUAL_STRING("0\nnofile\n", run("cd /tmp && command expr X '<' X; test -e /tmp/X && echo FILE || echo nofile"));
+    TEST_ASSERT_EQUAL_STRING("1\nnofile\n", run("cd /tmp && command expr Y '>' X; test -e /tmp/X && echo FILE || echo nofile"));
+    TEST_ASSERT_EQUAL_STRING("a*b x<y\n", run("command echo 'a*b' 'x<y'"));
+    TEST_ASSERT_EQUAL_STRING("rc=127\n", run("f() { echo function; }; command f 2>/dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("f\n", run("f() { echo function; }; command -v f"));
+    TEST_ASSERT_EQUAL_STRING("ext\n", run("echo() { builtin_echo_replaced; }; command echo ext; unset -f echo"));
+}
+
 void test_quoted_at_fields(void) {
     TEST_ASSERT_EQUAL_STRING("[0] x\n", run("f() { /bin/echo \"[$#]\" \"$@\" x; }; f"));
     TEST_ASSERT_EQUAL_STRING("[1]  x\n", run("set -- ''; /bin/echo \"[$#]\" \"$@\" x"));
@@ -830,6 +864,9 @@ int main(void) {
     RUN_TEST(test_read_reports_end_of_file);
     RUN_TEST(test_finished_background_jobs_make_room);
     RUN_TEST(test_case_word_with_control_bytes);
+    RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
+    RUN_TEST(test_long_expansions_are_not_cut);
+    RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_quoted_at_fields);
     RUN_TEST(test_escaped_backslash_and_dollar);
     return UNITY_END();

@@ -79,6 +79,11 @@ shell_version=$("$shell_bin" --version 2>/dev/null | head -1)
     echo "--- env ---"; env | sort
 } > "$results/environment.txt" 2>&1
 echo "modernish $(git -C "$src" rev-parse --short HEAD) on ${shell_version:-$shell_bin}"
+# modernish picks "a good POSIX shell" for the subshells it spawns ($MSH_SHELL)
+# from a preference list (zsh, ksh93, yash, bash, ...) and would take the
+# runner's bash on Linux; the shell under test goes first when it is exported
+export MSH_SHELL=$shell_bin
+
 # MODERNISH_TRACE=1 runs the shell with -x and keeps the trace apart from the
 # results (results/trace.txt), for reading a failure off the uploaded artifact
 if [ -n "${MODERNISH_TRACE:-}" ]; then

@@ -27,6 +27,7 @@ int fpurge(FILE *);     // BSD libcs (FreeBSD, macOS): hidden by the strict feat
 #include "hash.h"
 #include "input.h"
 #include "builtins.h"
+#include "expand.h"
 #include "colors.h"
 #include "config.h"
 #include "prompt.h"
@@ -1715,11 +1716,22 @@ int shell_command(char **args) {
         return 1;
     }
 
-    const char *cmd = args[arg_start];
+    // The arguments still carry their quote markers (execute() leaves them for
+    // this builtin): a name is looked up without them, a builtin gets a copy
+    // without them, and an external command goes back through execute(), where
+    // launch() strips them after parsing redirections, so expr X '<' X keeps
+    // its '<' as an argument
+    char *cmd = strdup(args[arg_start]);
+    if (!cmd) {
+        last_command_exit_code = 1;
+        return 1;
+    }
+    strip_quote_markers(cmd);
 
     // Handle -v option (print command location/type)
     if (opt_v) {
         bool ret = find_command(cmd, false);
+        free(cmd);
         if (ret) {
             return listing_status("command");   // found: the line must have been written
         }
@@ -1729,11 +1741,13 @@ int shell_command(char **args) {
     // Handle -V option (verbose description)
     if (opt_V) {
         bool ret = find_command(cmd, true);
+        free(cmd);
         if (ret) {
             return listing_status("command");
         }
         return 1;
     }
+    free(cmd);
 
     // Execute command, bypassing functions. First check builtins.
     // POSIX: `command` strips a special builtin of its "an error exits the
@@ -1741,7 +1755,28 @@ int shell_command(char **args) {
     // keep their control flow (their -3/-4/-2 and exit codes go back to the
     // executor exactly as a direct call's would), while a builtin that
     // returns 0 to stop the shell on an error is turned into "keep going".
-    int result = try_builtin(args + arg_start);
+    int count = 0;
+    while (args[arg_start + count]) {
+        count++;
+    }
+    char **plain = calloc((size_t)count + 1, sizeof(char *));
+    if (!plain) {
+        last_command_exit_code = 1;
+        return 1;
+    }
+    for (int i = 0; i < count; i++) {
+        plain[i] = strdup(args[arg_start + i]);
+        if (!plain[i]) {
+            for (int j = 0; j < i; j++) free(plain[j]);
+            free(plain);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        strip_quote_markers(plain[i]);
+    }
+    int result = try_builtin(plain);
+    for (int i = 0; i < count; i++) free(plain[i]);
+    free(plain);
     if (result != -1) {
         if (result == -2 || result == -3 || result == -4) {
             return result;
@@ -1753,9 +1788,9 @@ int shell_command(char **args) {
         return 1;
     }
 
-    // Execute as external command (execute() will handle it)
-    // We need to skip function lookup, so we directly launch
-    // For now, just call execute which handles external commands
+    // An external command: execute() without the function lookup (a function
+    // named like the command is exactly what `command` is for skipping)
+    execute_bypass_functions();
     execute(args + arg_start);
     return 1;
 }

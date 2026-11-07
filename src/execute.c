@@ -520,7 +520,15 @@ static char *expand_assignment_value(const char *value, int *had_error) {
 }
 
 // Execute command (built-in or external)
+static bool bypass_functions_once = false;
+
+void execute_bypass_functions(void) {
+    bypass_functions_once = true;
+}
+
 int execute(char **args) {
+    bool bypass_functions = bypass_functions_once;
+    bypass_functions_once = false;
     if (args[0] == NULL) {
         // Empty command
         last_command_exit_code = 0;
@@ -960,8 +968,10 @@ int execute(char **args) {
     int is_builtin_cmd = exec_args[0] ? is_builtin(exec_args[0]) : 0;
 
     // Strip quote markers only for builtins
-    // External commands go through launch() which does its own redirect parsing and marker stripping
-    if (is_builtin_cmd) {
+    // External commands go through launch() which does its own redirect parsing and marker stripping.
+    // `command` hands its arguments to execute() again, so they keep their markers: a quoted
+    // operator (expr X '<' X) stayed an argument there, not a redirection
+    if (is_builtin_cmd && strcmp(exec_args[0], "command") != 0) {
         strip_quote_markers_args(exec_args);
     }
 
@@ -1095,8 +1105,8 @@ int execute(char **args) {
         return result;
     }
 
-    // Check for user-defined functions
-    const ShellFunction *func = script_get_function(exec_args[0]);
+    // Check for user-defined functions (not for `command name`)
+    const ShellFunction *func = bypass_functions ? NULL : script_get_function(exec_args[0]);
     if (func) {
         // Count arguments (including function name as $0)
         int argc = 0;
