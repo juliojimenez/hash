@@ -146,6 +146,7 @@ set option=value
 |--------|--------|-------------|
 | `colors` | `on`/`off` | Enable colored output |
 | `welcome` | `on`/`off` | Show welcome message |
+| `prompt` | `classic`, `plain`, `minimal`, `two-line`, `powerline`, `list` | Pick a prompt preset; `list` shows them |
 | `PS1` | format | Custom prompt |
 | `color.<element>` | style | Color of one element, e.g. `color.prompt=bold,blue` |
 | `syntax_highlight` | `on`/`off` | Highlight the command line as you type |

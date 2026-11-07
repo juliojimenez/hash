@@ -90,9 +90,11 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "nonlexicalctrl. `set -o` lists the options, `set +o` prints them as\n"
         "commands, $- holds the letters in effect. Arguments after the options (or\n"
         "after --) become the positional parameters.\n"
-        "hash's own settings use name=value: colors=on|off, welcome=on|off, PS1=...,\n"
-        "color.<element>=<spec>, syntax_highlight=on|off, autosuggest=on|off,\n"
-        "danger_highlight=on|off. They work at the prompt, in scripts and in ~/.hashrc.\n"
+        "hash's own settings use name=value: prompt=NAME picks a prompt preset\n"
+        "(classic, plain, minimal, two-line, powerline; prompt=list shows them),\n"
+        "PS1=... builds one, and colors=on|off, welcome=on|off, color.<element>=<spec>,\n"
+        "syntax_highlight=on|off, autosuggest=on|off, danger_highlight=on|off. They\n"
+        "work at the prompt, in scripts and in ~/.hashrc.\n"
         ""},
     [BUILTIN_FUNC_HISTORY] = (Builtin){"history", &shell_history,
         "history [-c | -w | -r]",
@@ -628,12 +630,14 @@ static void handle_positional_arguments(char **args) {
 
 // Returns true if arg was handled and last_command_exit_code was set.
 static bool handle_hash_shell_options(const char *arg) {
-    // name=value options shared with ~/.hashrc (colors, welcome, PS1,
-    // color.<element>, syntax_highlight, autosuggest, danger_highlight)
-    if (config_set_option(arg) != 0) {
+    // name=value options shared with ~/.hashrc (colors, welcome, PS1, prompt,
+    // color.<element>, syntax_highlight, autosuggest, danger_highlight).
+    // config_set_option(): 0 applied, 1 ours but rejected, -1 not ours.
+    int rc = config_set_option(arg);
+    if (rc < 0) {
         return false;
     }
-    last_command_exit_code = 0;
+    last_command_exit_code = rc;
     return true;
 }
 
@@ -646,6 +650,7 @@ int shell_set(char **args) {
     }
 
     // Handle set option=value syntax for hash-specific options
+    int status = 0;
     for (int i = 1; args[i] != NULL; i++) {
         const char *arg = args[i];
 
@@ -694,6 +699,9 @@ int shell_set(char **args) {
         }
 
         if (handle_hash_shell_options(arg)) {
+            if (last_command_exit_code != 0) {
+                status = last_command_exit_code;  // a rejected value (set prompt=nosuch) fails the command
+            }
             continue;
         }
 
@@ -701,7 +709,7 @@ int shell_set(char **args) {
         // (bash 'set' has many options we don't support)
     }
 
-    last_command_exit_code = 0;
+    last_command_exit_code = status;
     return 1;
 }
 

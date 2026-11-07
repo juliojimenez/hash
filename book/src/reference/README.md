@@ -169,7 +169,7 @@ commands, and `$-` holds the letters in effect.
 | | `emacs` | Emacs-style line editing (the default) |
 | | `vi` | Vi-style modal line editing; `set -o vi` turns `emacs` off and back |
 
-hash's own `set name=value` options (`colors`, `welcome`, `PS1`, `color.<element>`,
+hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `color.<element>`,
 `syntax_highlight`, `autosuggest`, `danger_highlight`) are listed on the
 [configuration page](../getting-started/hashrc.md).
 

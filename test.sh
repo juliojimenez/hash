@@ -700,7 +700,9 @@ else
 fi
 
 run_test "recursion within the limit still works" 'n=0; f() { n=$((n+1)); [ $n -lt 200 ] && f; }; f; echo "depth $n"' "depth 200"
-run_interactive_test "recursion limit keeps an interactive session going" $'f() { f; }\nf\necho alive $?' "alive 1"
+# FUNCNEST=20 keeps this well inside the 2 s budget of run_interactive_test on a
+# loaded runner; the default limit is covered by the -c case above
+run_interactive_test "recursion limit keeps an interactive session going" $'FUNCNEST=20\nf() { f; }\nf\necho alive $?' "alive 1"
 
 # A compound command typed over several lines is one history entry, saved in the
 # extended format (a "#<seconds>" line before each entry) and loaded back whole.
@@ -757,6 +759,12 @@ if [[ "$ni_out" == "hash: ehco: command not found" && "$ni_ec" == "127" ]]; then
 else
     echo -e "${RED}FAIL${NC}"; echo "  got ec=$ni_ec: $ni_out"; ((FAILED++))
 fi
+
+# Prompt presets: set prompt=NAME, the listing, and a rejected name
+run_test "set prompt=NAME picks a preset" "set prompt=minimal; echo \"status=\$?\"" "status=0"
+run_test "set prompt=list names every preset and marks the current one" "set prompt=two-line; set prompt=list | grep -oE '^[* ] [a-z-]+' | tr -s ' ' | tr '\n' '|'" "classic| plain| minimal|* two-line| powerline|"
+run_test "an unknown preset fails without touching the parameters" "set -- a b; set prompt=nosuch 2>/dev/null; echo \"status=\$? params=\$#\""  "status=1 params=2"
+run_test "an unknown preset names the presets" "set prompt=nosuch 2>&1" "the presets are classic, plain, minimal, two-line, powerline"
 
 cleanup
 

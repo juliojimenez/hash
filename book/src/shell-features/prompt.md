@@ -2,6 +2,41 @@
 
 Hash shell supports powerful prompt customization through the `PS1` variable.
 
+## Presets
+
+Pick a prompt by name and it applies at once:
+
+```bash
+set prompt=two-line
+```
+
+`set prompt=list` shows every preset with a live sample, the current one
+marked with `*`:
+
+![set prompt=list](../images/prompt-presets.png)
+
+| Preset | Look |
+|--------|------|
+| `classic` | ![classic](../images/prompt-classic.png) |
+| `plain` | ![plain](../images/prompt-plain.png) |
+| `minimal` | ![minimal](../images/prompt-minimal.png) |
+| `two-line` | ![two-line](../images/prompt-two-line.png) |
+| `powerline` | ![powerline](../images/prompt-powerline.png) |
+
+- `classic` is the default: path, git branch and status, and `#>` in the colour
+  of the last exit status.
+- `plain` is the look of a classic bash prompt, `user@host:path$`, without git.
+- `minimal` shows the directory name and a chevron coloured by the last status.
+- `two-line` puts user, host, path and git on one line and the chevron on the
+  next, with a failed status in red before the line break.
+- `powerline` draws coloured segments with triangle separators. It uses
+  characters every monospace font has, so no patched font is needed.
+
+Put the line in `~/.hashrc` to keep it. The presets use the colour elements
+below (`path`, `git_*`, `prompt`, `prompt_error`), so `set color.path=...`
+changes them too, except the powerline segments, whose backgrounds are part of
+the look. A name that is not a preset fails with the list of names and status 1.
+
 ## Default Prompt
 
 ```
@@ -98,10 +133,25 @@ set PS1='\w \e#>\e '
 
 ### Special Characters
 
-| Sequence | Description |
-|----------|-------------|
+| Sequence | Output |
+|----------|--------|
+| `\$` | `#` for root, `$` otherwise |
 | `\n` | Newline |
-| `\\` | Literal backslash |
+| `\\` | A backslash |
+| `\[` `\]` | Ignored; bash wraps colour codes in them and hash measures the codes itself |
+
+### Status, Time, Jobs
+
+| Sequence | Output |
+|----------|--------|
+| `\?` | The last exit status when it was not 0, otherwise nothing |
+| `\b` | The git branch alone, nothing outside a repository |
+| `\t` `\T` `\@` | The time: 24-hour, 12-hour, 12-hour with am/pm |
+| `\d` | The date, `Thu Nov 06` |
+| `\j` | The number of background jobs |
+| `\!` | The history number of the command about to be entered |
+| `\s` `\v` | The shell name and version |
+| `\H` | The full host name (`\h` stops at the first dot) |
 
 ## Example Prompts
 
@@ -138,7 +188,7 @@ set PS1='\w\g\n\e#>\e '
 ### Powerline Style
 
 ```bash
-set PS1='\u@\h \w\g\n\e\e '
+set prompt=powerline     # the preset; see Presets above
 ```
 
 ## Color Behavior
@@ -231,19 +281,19 @@ set PS1='\w \e#>\e '
 
 ### Similar
 
-- `\w`, `\W`, `\u`, `\h`, `\$` work the same
+- `\w`, `\W`, `\u`, `\h`, `\H`, `\$`, `\t`, `\T`, `\@`, `\d`, `\j`, `\!`, `\s`, `\v`, `\[`, `\]` work the same
 - Color support
 - Environment variable support
 
 ### Hash-Specific
 
+- `set prompt=NAME` - Presets
+- `\?` - Last exit status when non-zero, `\b` - bare git branch
 - `\g` - Git integration
 - `\e` - Exit code color
 - Automatic `~` substitution
 
 ### Not Supported (Yet)
 
-- `\d` - Date
-- `\t` - Time
-- `\!` - History number
-- `\[` and `\]` - Non-printing sequences
+- `\D{format}` - Date with a custom format
+- `PROMPT_COMMAND` - Use `$(...)` in PS1 instead
