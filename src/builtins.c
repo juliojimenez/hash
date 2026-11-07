@@ -7,6 +7,11 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pwd.h>
+#if defined(__GLIBC__)
+#include <stdio_ext.h>   // __fpurge
+#else
+int fpurge(FILE *);     // BSD libcs (FreeBSD, macOS): hidden by the strict feature macros above
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/times.h>
@@ -524,11 +529,38 @@ int shell_exit(char **args) {
     return 0;
 }
 
+// Drop what stdout still holds after a failed flush. glibc discards the data
+// itself; the BSD libcs (FreeBSD, macOS) keep it for a retry, so the failed
+// listing would come out with the next command's output once the redirection
+// is gone.
+static void discard_stdout_buffer(void) {
+#if defined(__GLIBC__)
+    __fpurge(stdout);
+#else
+    fpurge(stdout);
+#endif
+}
+
+// The status of a builtin that printed a listing: 0, or 1 with a message when
+// the output could not be written (stdout on /dev/full, a closed descriptor).
+// echo and printf already answer that way; a listing that said nothing about
+// a failed write made `export >/dev/full` look like it had succeeded.
+static int listing_status(const char *name) {
+    if (fflush(stdout) == EOF || ferror(stdout)) {
+        fprintf(stderr, "%s: %s: write error: %s\n", HASH_NAME, name, strerror(errno));
+        discard_stdout_buffer();
+        clearerr(stdout);
+        last_command_exit_code = 1;
+    } else {
+        last_command_exit_code = 0;
+    }
+    return 1;
+}
+
 int shell_alias(char **args) {
     if (args[1] == NULL) {
         config_list_aliases();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("alias");
     }
 
     char *equals = strchr(args[1], '=');
@@ -549,7 +581,7 @@ int shell_alias(char **args) {
         const char *value = config_get_alias(args[1]);
         if (value) {
             printf("alias %s='%s'\n", args[1], value);
-            last_command_exit_code = 0;
+            return listing_status("alias");
         } else {
             fprintf(stderr, "%s: alias: %s: not found\n", HASH_NAME, args[1]);
             last_command_exit_code = 1;
@@ -685,15 +717,13 @@ int shell_source(char **args) {
 int shell_export(char **args) {
     if (args[1] == NULL) {
         shellvar_list_exported();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("export");
     }
 
     // Handle export -p option (same as export with no args)
     if (strcmp(args[1], "-p") == 0) {
         shellvar_list_exported();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("export");
     }
 
     for (int i = 1; args[i] != NULL; i++) {
@@ -796,12 +826,12 @@ int shell_set(char **args) {
     // Handle set with no arguments - list all shell variables
     if (args[1] == NULL) {
         shellvar_list_all();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("set");
     }
 
     // Handle set option=value syntax for hash-specific options
     int status = 0;
+    bool printed_listing = false;   // set -o / set +o: the write must have succeeded
     for (int i = 1; args[i] != NULL; i++) {
         const char *arg = args[i];
 
@@ -829,6 +859,7 @@ int shell_set(char **args) {
             if (strcmp(arg + 1, "o") == 0) {
                 if (!args[i + 1]) {
                     shell_options_print(!on);
+                    printed_listing = true;
                     continue;
                 }
                 const char *name = args[++i];
@@ -860,6 +891,9 @@ int shell_set(char **args) {
         // (bash 'set' has many options we don't support)
     }
 
+    if (status == 0 && printed_listing) {
+        return listing_status("set");
+    }
     last_command_exit_code = status;
     return 1;
 }
@@ -881,8 +915,7 @@ int shell_jobs(char **args) {
     }
 
     jobs_list(format);
-    last_command_exit_code = 0;
-    return 1;
+    return listing_status("jobs");
 }
 
 int shell_fg(char **args) {
@@ -1109,6 +1142,10 @@ done:
 
     // Check for write errors on flush
     if (fflush(stdout) == EOF) write_error = 1;
+    if (write_error) {
+        discard_stdout_buffer();
+        clearerr(stdout);
+    }
 
     last_command_exit_code = write_error ? 1 : 0;
     return 1;
@@ -1541,14 +1578,18 @@ int shell_command(char **args) {
     // Handle -v option (print command location/type)
     if (opt_v) {
         bool ret = find_command(cmd, false);
-        (void)ret;
+        if (ret) {
+            return listing_status("command");   // found: the line must have been written
+        }
         return 1;
     }
 
     // Handle -V option (verbose description)
     if (opt_V) {
         bool ret = find_command(cmd, true);
-        (void)ret;
+        if (ret) {
+            return listing_status("command");
+        }
         return 1;
     }
 
@@ -1828,7 +1869,10 @@ int shell_type(char **args) {
         }
     }
 
-    last_command_exit_code = all_found ? 0 : 1;
+    if (all_found) {
+        return listing_status("type");   // every name resolved; the lines must have been written
+    }
+    last_command_exit_code = 1;
     return 1;
 }
 
@@ -2073,8 +2117,7 @@ int shell_readonly(char **args) {
     // readonly with no args: list all readonly variables
     if (args[1] == NULL) {
         shellvar_list_readonly();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("readonly");
     }
 
     // Handle options
@@ -2083,8 +2126,7 @@ int shell_readonly(char **args) {
         if (strcmp(args[start], "-p") == 0) {
             if (args[start + 1] == NULL) {
                 shellvar_list_readonly();
-                last_command_exit_code = 0;
-                return 1;
+                return listing_status("readonly");
             }
             start++;
         } else if (strcmp(args[start], "--") == 0) {
@@ -2490,8 +2532,7 @@ int shell_kill(char **args) {
     // Check for -l option (list signals)
     if (args[1] && strcmp(args[1], "-l") == 0) {
         print_signals();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("kill");
     }
 
     // Parse signal specification
@@ -2953,8 +2994,7 @@ int shell_help(char **args) {
     }
     if (!args[i]) {
         help_list_all();
-        last_command_exit_code = 0;
-        return 1;
+        return listing_status("help");
     }
     int status = 0;
     bool first = true;
@@ -2980,6 +3020,9 @@ int shell_help(char **args) {
             fprintf(stderr, "%s: help: no help topics match '%s'. Try 'help' for the list.\n", HASH_NAME, args[i]);
             status = 1;
         }
+    }
+    if (status == 0) {
+        return listing_status("help");   // the text was written, or it was not
     }
     last_command_exit_code = status;
     return 1;

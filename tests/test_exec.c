@@ -308,6 +308,23 @@ void test_modernish_battery_findings(void) {
     TEST_ASSERT_EQUAL_STRING("[1]\n", run("set -u; unset hu_; : $((hu_ = 1)); echo \"[$hu_]\"; set +u"));
 }
 
+// A builtin that prints a listing fails with status 1 when the write fails
+// (#364); jobs with no jobs prints nothing. /dev/full exists on Linux only.
+void test_listing_write_errors(void) {
+    TEST_ASSERT_EQUAL_STRING("", run("jobs"));
+    TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
+    if (access("/dev/full", W_OK) != 0) {
+        TEST_IGNORE_MESSAGE("no /dev/full on this system");
+    }
+    TEST_ASSERT_EQUAL_STRING("1\n", run("export >/dev/full 2>/dev/null; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("set >/dev/full 2>/dev/null; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("help >/dev/full 2>/dev/null; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("kill -l >/dev/full 2>/dev/null; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("alias hx_=y; alias >/dev/full 2>/dev/null; echo $?; unalias hx_"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("type echo >/dev/full 2>/dev/null; echo $?"));
+    TEST_ASSERT_EQUAL_STRING("0\n", run("export >/dev/null; echo $?"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -649,6 +666,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_listing_write_errors);
     RUN_TEST(test_modernish_battery_findings);
     RUN_TEST(test_default_words_and_function_args);
     RUN_TEST(test_case_backslashes_and_quoted_patterns);
