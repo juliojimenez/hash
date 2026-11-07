@@ -93,6 +93,46 @@ static void skip_single_quote(Tokenizer *tk) {
     close_or_mark(tk, '\'');
 }
 
+// The body of $( ... ): tk->cur is just past the opening parenthesis. Parentheses
+// inside quotes do not count (`$(echo "(")`, a sed script in single quotes), nor
+// do escaped ones; nested quotes and substitutions are skipped as units.
+static void skip_cmdsub_body(Tokenizer *tk) {
+    int depth = 1;
+    bool word_start = true;     // a # here begins a comment, which runs to the end of the line
+    while (depth > 0 && *tk->cur) {
+        char c = *tk->cur;
+        if (c == '#' && word_start) {
+            while (*tk->cur && *tk->cur != '\n') step(tk);
+            continue;
+        }
+        word_start = (c == ' ' || c == '\t' || c == '\n' || c == '(' || c == ')' ||
+                      c == ';' || c == '|' || c == '&');
+        if (c == '\\' && peek_next(tk)) {
+            step(tk); step(tk);
+            continue;
+        }
+        if (c == '\'') {
+            step(tk);
+            while (*tk->cur && *tk->cur != '\'') step(tk);
+            if (*tk->cur) step(tk);
+            continue;
+        }
+        if (c == '"') {
+            step(tk);
+            while (*tk->cur && *tk->cur != '"') {
+                if (*tk->cur == '\\' && peek_next(tk)) step(tk);
+                step(tk);
+            }
+            if (*tk->cur) step(tk);
+            continue;
+        }
+        if (c == '(') depth++;
+        else if (c == ')') depth--;
+        if (depth > 0) step(tk);
+    }
+    close_or_mark(tk, ')');
+}
+
 static void skip_double_quote(Tokenizer *tk) {
     step(tk);
     while (*tk->cur && *tk->cur != '"') {
@@ -108,15 +148,7 @@ static void skip_double_quote(Tokenizer *tk) {
                 step(tk);
                 skip_arith_body(tk);
             } else {
-                int depth = 1;
-                while (depth > 0 && *tk->cur) {
-                    if (*tk->cur == '\\' && peek_next(tk)) {
-                        step(tk); step(tk);
-                    } else if (*tk->cur == '(') depth++;
-                    else if (*tk->cur == ')') depth--;
-                    if (depth > 0) step(tk);
-                }
-                close_or_mark(tk, ')');
+                skip_cmdsub_body(tk);
             }
             continue;
         }
@@ -132,6 +164,15 @@ static void skip_double_quote(Tokenizer *tk) {
                         step(tk);
                     }
                     close_or_mark(tk, '\'');
+                } else if (*tk->cur == '"') {
+                    // Nested double quotes inside ${...} within a double-quoted
+                    // string ("${t#"a}"}"): a } inside them does not close the brace
+                    step(tk);
+                    while (*tk->cur && *tk->cur != '"') {
+                        if (*tk->cur == '\\' && peek_next(tk)) step(tk);
+                        step(tk);
+                    }
+                    close_or_mark(tk, '"');
                 } else if (*tk->cur == '$' && peek_next(tk) == '(') {
                     step(tk); step(tk);
                     int subdepth = 1;
@@ -203,15 +244,7 @@ static void read_word(Tokenizer *tk) {
                 skip_arith_body(tk);
             } else if (*tk->cur == '(') {
                 step(tk);
-                int depth = 1;
-                while (depth > 0 && *tk->cur) {
-                    if (*tk->cur == '\\' && peek_next(tk)) {
-                        step(tk); step(tk);
-                    } else if (*tk->cur == '(') depth++;
-                    else if (*tk->cur == ')') depth--;
-                    if (depth > 0) step(tk);
-                }
-                close_or_mark(tk, ')');
+                skip_cmdsub_body(tk);
             } else if (*tk->cur == '{') {
                 step(tk);
                 int depth = 1;

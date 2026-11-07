@@ -43,17 +43,19 @@ void test_parse_line_protects_marker_bytes(void) {
     parse_result_free(&parsed);
 }
 
-// The word of ${var:-word} keeps its quotes for varexpand to honour; the
-// other ${...} forms still have their quotes removed here (#375)
+// The word of ${var:-word} and of the ${var#word} pattern forms keeps its
+// quotes for varexpand to honour (#375, #355); a } inside those quotes does
+// not end the expansion
 void test_parse_line_keeps_quotes_in_default_word(void) {
-    char line[] = "echo ${w:-\"a b\"} ${v+'x y'} ${u:=\"q\"} ${p#\"a\"}";
+    char line[] = "echo ${w:-\"a b\"} ${v+'x y'} ${u:=\"q\"} ${p#\"a\"} ${q%\"a}\"}";
     ParseResult parsed = parse_line(line);
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("${w:-\"a b\"}", parsed.tokens[1]);
     TEST_ASSERT_EQUAL_STRING("${v+'x y'}", parsed.tokens[2]);
     TEST_ASSERT_EQUAL_STRING("${u:=\"q\"}", parsed.tokens[3]);
-    TEST_ASSERT_EQUAL_STRING("${p#a}", parsed.tokens[4]);
-    TEST_ASSERT_NULL(parsed.tokens[5]);
+    TEST_ASSERT_EQUAL_STRING("${p#\"a\"}", parsed.tokens[4]);
+    TEST_ASSERT_EQUAL_STRING("${q%\"a}\"}", parsed.tokens[5]);
+    TEST_ASSERT_NULL(parsed.tokens[6]);
     parse_result_free(&parsed);
 }
 

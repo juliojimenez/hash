@@ -21,27 +21,6 @@
 // Track if an unset variable error occurred during expansion
 static bool varexpand_error = false;
 
-// Convert \x01 markers in pattern to backslash escapes for fnmatch
-// Returns a static buffer - not thread safe
-static const char *convert_pattern_for_fnmatch(const char *pattern) {
-    static char converted[2048];
-    size_t out = 0;
-    const char *p = pattern;
-
-    while (*p && out < sizeof(converted) - 2) {
-        if (*p == '\x01' && *(p + 1)) {
-            // Marker followed by character - convert to backslash escape
-            converted[out++] = '\\';
-            p++;  // Skip marker
-            converted[out++] = *p++;
-        } else {
-            converted[out++] = *p++;
-        }
-    }
-    converted[out] = '\0';
-    return converted;
-}
-
 // Check and report unset variable error when -u is set
 // Returns true if error occurred
 static bool check_unset_error(const char *var_name) {
@@ -95,8 +74,8 @@ static const char *mark_dollars_as_quoted(const char *word) {
     const char *p = word;
 
     while (*p && out < sizeof(marked) - 2) {
-        if (*p == '$' && (out == 0 || marked[out-1] != '\x02')) {
-            // Add \x02 marker before $ if not already marked
+        if (*p == '$' && (out == 0 || (marked[out-1] != '\x02' && marked[out-1] != '\x01'))) {
+            // Add \x02 marker before $ if not already marked (and not protected: \x01$ is a literal $)
             marked[out++] = '\x02';
         }
         marked[out++] = *p++;
@@ -106,6 +85,7 @@ static const char *mark_dollars_as_quoted(const char *word) {
 }
 
 static char *expand_default_word(const char *word, bool is_quoted, int last_exit_code);
+static char *expand_pattern_word(const char *word, int last_exit_code);
 
 // The special parameters that are not positional: $ ? ! - # @ *. They expand
 // the same with and without braces, in and out of double quotes.
@@ -260,12 +240,35 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
             seg = strndup(start, (size_t)(p - start));
             if (*p) p++;
         } else {
+            // Unquoted run. A backslash escape \X is a literal X (quote removal):
+            // protect it as \x01X before the expansion, which would otherwise keep
+            // the backslash (`${t:+a\}b}` must give a}b) or fold \\ and \$ its own way
             start = p;
             while (*p && *p != '\'' && *p != '"') {
                 if (*p == '\\' && p[1]) p++;
                 p++;
             }
-            seg = strndup(start, (size_t)(p - start));
+            // When the whole ${...} is in double quotes this run is double-quoted
+            // text: only \$ \` \" \\ are escapes and any other backslash stays
+            size_t n = (size_t)(p - start);
+            seg = malloc(n * 3 + 1);
+            if (seg) {
+                size_t k = 0;
+                for (const char *q = start; q < p; q++) {
+                    if (*q == '\\' && q[1] && q + 1 < p) {
+                        if (is_quoted && !char_in_string(q[1], "$`\"\\")) {
+                            seg[k++] = '\x01';
+                            seg[k++] = '\\';
+                            continue;               // the backslash is literal; X follows on its own
+                        }
+                        seg[k++] = '\x01';
+                        seg[k++] = *++q;
+                    } else {
+                        seg[k++] = *q;
+                    }
+                }
+                seg[k] = '\0';
+            }
         }
         if (!seg) break;
         // Quoted here, or the whole ${...} in quotes: expansions are literal and
@@ -294,6 +297,124 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
         }
         free(e);
     }
+#undef PUT
+#undef ROOM
+    out[o] = '\0';
+    return out;
+}
+
+// The word of ${var#word}, ${var##word}, ${var%word} and ${var%%word} as an
+// fnmatch pattern. The word keeps its own quotes; it is expanded once (the
+// command substitutions and arithmetic in it were already replaced by the
+// earlier passes), and what came from quotes matches literally while the
+// result of an unquoted expansion is pattern text, as POSIX describes.
+static char *expand_pattern_word(const char *word, int last_exit_code) {
+    size_t cap = strlen(word) * 2 + 64;
+    char *out = malloc(cap);
+    if (!out) return NULL;
+    size_t o = 0;
+    #define ROOM(need) do { \
+        if (o + (need) + 1 > cap) { \
+            size_t ncap = (o + (need) + 1) * 2; \
+            char *grown = realloc(out, ncap); \
+            if (!grown) { out[o] = '\0'; return out; } \
+            out = grown; cap = ncap; \
+        } \
+    } while (0)
+#define PUT(ch) do { ROOM(1); out[o++] = (ch); } while (0)
+#define PUT_LITERAL(ch) do { if (char_in_string((ch), "*?[]\\")) PUT('\\'); PUT(ch); } while (0)
+
+    const char *p = word;
+    while (*p) {
+        const char *start;
+        char *seg;
+        if (*p == '\'') {
+            p++;
+            start = p;
+            while (*p && *p != '\'') p++;
+            for (const char *q = start; q < p; q++) PUT_LITERAL(*q);
+            if (*p) p++;
+            continue;
+        }
+        bool dquote = (*p == '"');
+        if (dquote) {
+            p++;
+            start = p;
+            while (*p && *p != '"') {
+                if (*p == '\\' && p[1]) p++;
+                p++;
+            }
+            seg = strndup(start, (size_t)(p - start));
+            if (*p) p++;
+        } else {
+            // Unquoted run. A backslash escape \X is a literal X in the pattern
+            // (`*\\` ends in one backslash): protect it as \x01X before the
+            // expansion, which would otherwise fold \\ into \ and \$ into $
+            start = p;
+            while (*p && *p != '\'' && *p != '"') {
+                if (*p == '\\' && p[1]) p++;
+                p++;
+            }
+            size_t n = (size_t)(p - start);
+            seg = malloc(n * 2 + 1);
+            if (seg) {
+                size_t k = 0;
+                for (const char *q = start; q < p; q++) {
+                    if (*q == '\\' && q[1] && q + 1 < p) {
+                        seg[k++] = '\x01';
+                        seg[k++] = *++q;
+                    } else {
+                        seg[k++] = *q;
+                    }
+                }
+                seg[k] = '\0';
+            }
+        }
+        if (!seg) break;
+        char *marked = dquote ? strdup(mark_dollars_as_quoted(seg)) : NULL;
+        char *e = varexpand_expand(dquote ? (marked ? marked : seg) : seg, last_exit_code);
+        free(marked);
+        free(seg);
+        if (!e) continue;
+        for (const char *q = e; *q; q++) {
+            if (*q == '\x01' && q[1]) {
+                PUT_LITERAL(q[1]);          // protected: literal in the pattern
+                q++;
+            } else if (*q == '\x03' || *q == '\x04') {
+                ;                           // field markers mean nothing in a pattern
+            } else if (dquote) {
+                PUT_LITERAL(*q);            // quoted text matches itself
+            } else {
+                PUT(*q);                    // unquoted: pattern text as written or expanded
+            }
+        }
+        free(e);
+    }
+    out[o] = '\0';
+    // A [ that never closes is a literal [ (bash and dash treat it so; fnmatch
+    // would fail the whole pattern): escape it
+    for (size_t i = 0; i < o; i++) {
+        if (out[i] == '\\' && out[i + 1]) {
+            i++;
+            continue;
+        }
+        if (out[i] != '[') continue;
+        size_t j = i + 1;
+        if (out[j] == '!' || out[j] == '^') j++;
+        if (out[j] == ']') j++;             // a ] right after the opening is a member
+        while (j < o && out[j] != ']') j++;
+        if (j < o) {
+            i = j;                          // a bracket expression: skip it whole
+            continue;
+        }
+        ROOM(1);
+        memmove(out + i + 1, out + i, o - i);
+        out[i] = '\\';
+        o++;
+        out[o] = '\0';
+        i++;
+    }
+#undef PUT_LITERAL
 #undef PUT
 #undef ROOM
     out[o] = '\0';
@@ -439,14 +560,25 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                         p++;
                     }
 
-                    // Parse the word/pattern until closing brace
+                    // Parse the word/pattern until the closing brace; the word keeps
+                    // its own quotes, and a } inside them does not close
                     size_t word_len = 0;
                     int brace_depth = 1;
+                    bool w_single = false, w_double = false;
                     while (*p && brace_depth > 0 && word_len < sizeof(word) - 1) {
-                        if (*p == '{') brace_depth++;
-                        else if (*p == '}') {
-                            brace_depth--;
-                            if (brace_depth == 0) break;
+                        if (*p == '\\' && p[1] && !w_single && word_len < sizeof(word) - 2) {
+                            word[word_len++] = *p++;
+                            word[word_len++] = *p++;
+                            continue;
+                        }
+                        if (*p == '\'' && !w_double) w_single = !w_single;
+                        else if (*p == '"' && !w_single) w_double = !w_double;
+                        else if (!w_single && !w_double) {
+                            if (*p == '{') brace_depth++;
+                            else if (*p == '}') {
+                                brace_depth--;
+                                if (brace_depth == 0) break;
+                            }
                         }
                         word[word_len++] = *p++;
                     }
@@ -591,12 +723,13 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                 size_t val_len = strlen(val);
                                 size_t match_len = 0;
 
-                                // Convert \x01 markers to fnmatch escapes
-                                const char *fnmatch_pattern = convert_pattern_for_fnmatch(word);
+                                // The word, expanded, as an fnmatch pattern
+                                char *fnmatch_pattern = expand_pattern_word(word, last_exit_code);
 
                                 // Try matching pattern at start of string
                                 // For ##, find longest match; for #, find shortest
-                                if (double_modifier) {
+                                // (which may be empty: ${t#*} removes nothing)
+                                if (fnmatch_pattern && double_modifier) {
                                     // Longest match - try from end backwards
                                     for (size_t i = val_len; i > 0; i--) {
                                         char saved = pattern_result[i];
@@ -608,9 +741,9 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                         }
                                         pattern_result[i] = saved;
                                     }
-                                } else {
-                                    // Shortest match - try from start forwards
-                                    for (size_t i = 1; i <= val_len; i++) {
+                                } else if (fnmatch_pattern) {
+                                    // Shortest match - try from the empty prefix forwards
+                                    for (size_t i = 0; i <= val_len; i++) {
                                         char saved = pattern_result[i];
                                         pattern_result[i] = '\0';
                                         if (fnmatch(fnmatch_pattern, pattern_result, 0) == 0) {
@@ -621,6 +754,7 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                         pattern_result[i] = saved;
                                     }
                                 }
+                                free(fnmatch_pattern);
 
                                 // Result is the part after the match
                                 memmove(pattern_result, val + match_len, val_len - match_len + 1);
@@ -639,29 +773,28 @@ char *varexpand_expand(const char *str, int last_exit_code) {
                                 size_t val_len = strlen(val);
                                 size_t keep_len = val_len;  // How much to keep
 
-                                // Convert \x01 markers to fnmatch escapes
-                                const char *fnmatch_pattern = convert_pattern_for_fnmatch(word);
+                                // The word, expanded, as an fnmatch pattern
+                                char *fnmatch_pattern = expand_pattern_word(word, last_exit_code);
 
-                                // Try matching pattern at end of string
-                                // For %%, find longest match; for %, find shortest
-                                if (double_modifier) {
-                                    // Longest match - try from start forwards
-                                    for (size_t i = 0; i < val_len; i++) {
+                                // Try matching pattern at end of string: a suffix starts at
+                                // index i, so the longest is the smallest i that matches
+                                // and the shortest the largest (val_len is the empty suffix)
+                                if (fnmatch_pattern && double_modifier) {
+                                    for (size_t i = 0; i <= val_len; i++) {
                                         if (fnmatch(fnmatch_pattern, val + i, 0) == 0) {
                                             keep_len = i;
                                             break;
                                         }
                                     }
-                                } else {
-                                    // Shortest match - find shortest suffix that matches
-                                    keep_len = val_len;
-                                    for (size_t i = val_len; i > 0; i--) {
-                                        if (fnmatch(fnmatch_pattern, val + i - 1, 0) == 0) {
-                                            keep_len = i - 1;
-                                            // Don't break - keep looking for shorter match
+                                } else if (fnmatch_pattern) {
+                                    for (size_t i = val_len + 1; i-- > 0;) {
+                                        if (fnmatch(fnmatch_pattern, val + i, 0) == 0) {
+                                            keep_len = i;
+                                            break;
                                         }
                                     }
                                 }
+                                free(fnmatch_pattern);
 
                                 // Result is the part before the match
                                 pattern_result[keep_len] = '\0';

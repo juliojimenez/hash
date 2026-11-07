@@ -260,6 +260,60 @@ void test_expand_default_word_quoted_at(void) {
     free(result);
 }
 
+// ${var#word} and ${var%word}: the word is expanded, its quoted parts match
+// literally, an unquoted expansion is pattern text, and the shortest match may
+// be empty (#355; modernish FTL_PSUB2, FTL_PSUB3, FTL_PSUBPP)
+void test_expand_pattern_word(void) {
+    setenv("HASH_PT", "abcdefghij", 1);
+    setenv("HASH_PT2", "efg", 1);
+    setenv("HASH_STAR", "*", 1);
+    char *r;
+    r = varexpand_expand("\x02${HASH_PT#*\"$HASH_PT2\"}", 0);     // FTL_PSUB3
+    TEST_ASSERT_EQUAL_STRING("hij", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT##$HASH_STAR}", 0);        // unquoted expansion: a pattern
+    TEST_ASSERT_EQUAL_STRING("", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT##\"$HASH_STAR\"}", 0);    // quoted expansion: literal *
+    TEST_ASSERT_EQUAL_STRING("abcdefghij", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT#*}", 0);                  // shortest match is empty
+    TEST_ASSERT_EQUAL_STRING("abcdefghij", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT%%*}", 0);
+    TEST_ASSERT_EQUAL_STRING("", r); free(r);
+    setenv("HASH_PT", "/usr/local/bin/x", 1);
+    r = varexpand_expand("\x02${HASH_PT%/*}", 0);                 // shortest suffix
+    TEST_ASSERT_EQUAL_STRING("/usr/local/bin", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT%%/*}", 0);                // longest suffix
+    TEST_ASSERT_EQUAL_STRING("", r); free(r);
+    r = varexpand_expand("\x02${HASH_PT##*/}", 0);
+    TEST_ASSERT_EQUAL_STRING("x", r); free(r);
+    setenv("HASH_PT", "a}b", 1);
+    r = varexpand_expand("\x02${HASH_PT#\"a}\"}", 0);             // } inside quotes
+    TEST_ASSERT_EQUAL_STRING("b", r); free(r);
+    setenv("HASH_PT", "[a]bc", 1);
+    r = varexpand_expand("\x02${HASH_PT#[}", 0);                  // a lone [ is literal
+    TEST_ASSERT_EQUAL_STRING("a\x01]bc", r); free(r);              // (the ] is marked: quoted result)
+    r = varexpand_expand("\x02${HASH_PT#[[]}", 0);                // a bracket expression
+    TEST_ASSERT_EQUAL_STRING("a\x01]bc", r); free(r);
+    // FTL_PSUB2: the result of the inner expansion is not re-expanded
+    setenv("HASH_PT", "a${HASH_PT3=BUG}", 1);
+    unsetenv("HASH_PT3");
+    r = varexpand_expand("\x02${HASH_PT%\"${HASH_PT#a}\"}", 0);
+    TEST_ASSERT_EQUAL_STRING("a", r); free(r);
+    TEST_ASSERT_NULL(getenv("HASH_PT3"));
+    unsetenv("HASH_PT"); unsetenv("HASH_PT2"); unsetenv("HASH_STAR");
+}
+
+// FTL_PSUBPP: a pattern made of another positional parameter
+void test_expand_pattern_word_positional(void) {
+    script_state.positional_params = malloc(3 * sizeof(char*));
+    script_state.positional_params[0] = strdup("script.sh");
+    script_state.positional_params[1] = strdup(" foo -> bar");
+    script_state.positional_params[2] = strdup("foo");
+    script_state.positional_count = 3;
+    char *r = varexpand_expand("\x02${1#\" $2 -> \"}", 0);
+    TEST_ASSERT_EQUAL_STRING("bar", r);
+    free(r);
+}
+
 // Test $$ (process ID)
 void test_expand_pid(void) {
     char *result = varexpand_expand("PID: $$", 0);
@@ -450,6 +504,8 @@ int main(void) {
     RUN_TEST(test_expand_multiple_vars);
     RUN_TEST(test_expand_exit_code);
     RUN_TEST(test_expand_pid);
+    RUN_TEST(test_expand_pattern_word);
+    RUN_TEST(test_expand_pattern_word_positional);
     RUN_TEST(test_expand_default_word_quotes);
     RUN_TEST(test_expand_default_word_quoted_at);
     RUN_TEST(test_expand_marker_bytes_in_values);

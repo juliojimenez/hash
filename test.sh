@@ -210,6 +210,32 @@ run_command_test "cd to /tmp" "cd /tmp"
 run_command_test "cd to home (with tilde)" "cd ~"
 run_command_test "cd to home (no args)" "cd"
 
+# ${var#word} / ${var%word}: the word is expanded, quoted parts match literally (#355)
+run_test "\${t#*\"\$t2\"}: expansion inside a pattern word (modernish FTL_PSUB3)" "t=abcdefghij; t2=efg; echo \"\${t#*\"\$t2\"}\"" "hij"
+run_test "\${1#\" \$2 -> \"}: positional parameters in a pattern word (FTL_PSUBPP)" "set -- ' foo -> bar' foo; echo \"\${1#\" \$2 -> \"}\"" "bar"
+run_test "nested expansion in a pattern word is not re-expanded (FTL_PSUB2)" "t='a\${t2=BUG}'; unset -v t2; t=\${t%\"\${t#a}\"}; echo \"\$t,\${t2-}\"" "a,"
+run_test "an unquoted expansion in a pattern word is a pattern" "t=abcdefghij; p='*'; echo \"[\${t##\$p}] [\${t##\"\$p\"}]\"" "[] [abcdefghij]"
+run_test "\${t%/*} removes the shortest suffix" "t=/usr/local/bin/x; echo \"\${t%/*} \${t%%/*} \${t##*/} \${t#*/}\"" "/usr/local/bin  x usr/local/bin/x"
+run_test "the shortest prefix match may be empty" "t=abc; echo \"[\${t#*}] [\${t##*}]\"" "[abc] []"
+run_test "a } inside quotes in a pattern word" "t='a}b'; echo \"[\${t#\"a}\"}]\"" "[b]"
+run_test "a lone [ in a pattern word is literal" "t='[a]bc'; echo \"[\${t#[}]\"" "[a]bc]"
+run_test "an unquoted escaped backslash in a pattern word" "FOO='\\\\a'; echo \"[\${FOO#*\\\\\\\\}]\"" "[a]"
+
+# Found while running modernish's battery (all present in v51)
+run_test "arithmetic inside a double-quoted case word" "case \"\$((1+1))\" in (2) echo ARITH-CASE-OK;; (*) echo BUG;; esac" "ARITH-CASE-OK"
+run_test "set -u allows an arithmetic assignment to an unset variable" "set -u; unset t; : \$((t = 1)); echo \"[\$t]\"" "[1]"
+run_test "a command substitution runs the commands after an external one" "x=\$(/bin/echo a; echo b); set -- \$x; echo \"n=\$# \$1 \$2\"" "n=2 a b"
+run_test "set -- inside a function does not touch the caller's arguments" "f() { set -- x y; echo \"\$# \$1 \$2\"; }; f a b; echo \"after \$#\"" "after 0"
+run_test "exec with a command applies its redirections" "x=\$(exec echo a 2>/dev/null); echo \"[\$x]\"" "[a]"
+run_test "a parenthesis inside quotes in a command substitution" "x=\$(echo \"(\"); echo \"[\$x]\"" "[(]"
+run_test "a quote inside a comment in a command substitution" "eval ': || \$( : # \"
+)' && echo CSCMTQUOT-OK" "CSCMTQUOT-OK"
+run_test "an escaped brace in a default word" "u=1; x=\${u:+a\\}b}; echo \"[\$x]\"" "[a}b]"
+run_test "double-quote escape rules in a quoted default word" "echo \"\${t:-\\\$x} \${t:-a\\}b}\"" "\$x a\\}b"
+run_test "an unquoted expansion in a case pattern is a pattern" "p='[+-]*'; case --test in (\$p) echo CASE-PATTERN-OK;; (*) echo BUG;; esac" "CASE-PATTERN-OK"
+run_test "a quote character from an expansion is literal in a case pattern" "foo=\\\"; case \"\$foo\" in \$foo ) echo QUOTE-CHAR-OK;; *) echo BUG;; esac" "QUOTE-CHAR-OK"
+run_test "a variable name built from an expansion inside arithmetic" "v=b; _a_b=7; echo \$((_a_\${v} + 1))" "8"
+
 # ${var:-word} words honour their own quotes; function arguments carry no markers (#375)
 run_test "\${1+\"\$@\"} keeps each parameter whole" "f() { printf '<%s>' \${1+\"\$@\"}; echo; }; f 'a b' c" "<a b><c>"
 run_test "\${w:-\"a b\"} is one field" "printf '[%s]' \${w:-\"a b\"}; echo" "[a b]"

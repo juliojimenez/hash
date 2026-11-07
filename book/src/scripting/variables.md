@@ -160,3 +160,10 @@ Current limitations (may be added):
 - `${#VAR}` - Length
 - `${VAR%pattern}` - Remove suffix
 - `${VAR#pattern}` - Remove prefix
+
+The pattern word of `${VAR#pattern}`, `${VAR##pattern}`, `${VAR%pattern}` and
+`${VAR%%pattern}` is expanded before it is used: `${file#*"$prefix"}` removes a
+literal prefix held in a variable, `${t##$glob}` uses the variable's value as a
+pattern, and anything quoted in the word matches itself. `#` and `%` remove the
+shortest match, `##` and `%%` the longest, and the shortest match may be empty
+(`${t#*}` is `$t`).

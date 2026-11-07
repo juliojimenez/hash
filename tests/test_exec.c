@@ -283,6 +283,31 @@ void test_default_words_and_function_args(void) {
     TEST_ASSERT_EQUAL_STRING("m: a; b\nm: c d\n", run("f() { printf 'm: %s\\n' \"$@\"; }; f 'a; b' 'c d'"));
 }
 
+// Bugs found while running modernish's fatal-bug battery (#355 PR), all in v51
+void test_modernish_battery_findings(void) {
+    // arithmetic inside a double-quoted case word is expanded
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("case \"$((1+1))\" in (2) echo ok;; (*) echo BUG;; esac"));
+    // a command substitution runs what follows an external command
+    TEST_ASSERT_EQUAL_STRING("a\nb\n", run("x=$(/bin/echo a; echo b); echo \"$x\""));
+    // set -- inside a function owns its parameters (was a double free)
+    TEST_ASSERT_EQUAL_STRING("2 x y\nafter 0\n", run("f() { set -- x y; echo \"$# $1 $2\"; }; f a b; echo \"after $#\""));
+    // exec with a command applies its redirections instead of passing them as words
+    TEST_ASSERT_EQUAL_STRING("[a]\n", run("x=$(exec echo a 2>/dev/null); echo \"[$x]\""));
+    // parentheses and comments inside quotes in a command substitution
+    TEST_ASSERT_EQUAL_STRING("[(]\n", run("x=$(echo \"(\"); echo \"[$x]\""));
+    TEST_ASSERT_EQUAL_STRING("[(]\n", run("x=\"$(echo \"(\")\"; echo \"[$x]\""));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("eval ': || $( : # \"\n)' && echo ok"));
+    // an escaped brace in a default word; double-quote rules when the ${...} is quoted
+    TEST_ASSERT_EQUAL_STRING("[a}b]\n", run("u=1; x=${u:+a\\}b}; echo \"[$x]\""));
+    TEST_ASSERT_EQUAL_STRING("$x a\\}b\n", run("echo \"${hq_:-\\$x} ${hq_:-a\\}b}\""));
+    // an unquoted expansion in a case pattern is a pattern; a quote character from one is literal
+    TEST_ASSERT_EQUAL_STRING("y\n", run("p='[+-]*'; case --test in ($p) echo y;; (*) echo n;; esac"));
+    TEST_ASSERT_EQUAL_STRING("ok\n", run("foo=\\\"; case \"$foo\" in $foo ) echo ok;; *) echo BUG;; esac"));
+    // a variable name built from an expansion inside arithmetic; assignment under set -u
+    TEST_ASSERT_EQUAL_STRING("8\n", run("v=b; _a_b=7; echo $((_a_${v} + 1))"));
+    TEST_ASSERT_EQUAL_STRING("[1]\n", run("set -u; unset hu_; : $((hu_ = 1)); echo \"[$hu_]\"; set +u"));
+}
+
 // eval with no arguments, null arguments or blank text succeeds (POSIX)
 void test_eval_empty_is_success(void) {
     TEST_ASSERT_EQUAL_STRING("0\n", run("false; eval; echo $?"));
@@ -624,6 +649,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_control_flow);
     RUN_TEST(test_case);
     RUN_TEST(test_eval_empty_is_success);
+    RUN_TEST(test_modernish_battery_findings);
     RUN_TEST(test_default_words_and_function_args);
     RUN_TEST(test_case_backslashes_and_quoted_patterns);
 

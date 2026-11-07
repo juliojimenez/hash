@@ -9,6 +9,9 @@
 #include <errno.h>
 #include <ctype.h>
 #include "cmdsub.h"
+#include "ast_parser.h"
+#include "ast.h"
+#include "arena.h"
 #include "safe_string.h"
 #include "arith.h"
 #include "script.h"
@@ -72,6 +75,23 @@ void cmdsub_reset_exit_code(void) {
     last_cmdsub_exit_code = 0;
 }
 
+// Is the program one simple command (one list item, one pipeline, one command)?
+static bool cmdsub_is_single_simple(const char *cmd) {
+    Arena arena;
+    arena_init(&arena, 0);
+    AstParseResult parsed = parse_program(cmd, &arena);
+    bool single = false;
+    if (parsed.status == PARSE_OK && parsed.root && parsed.root->type == NODE_LIST &&
+        parsed.root->u.list.items.count == 1) {
+        const Node *item = parsed.root->u.list.items.items[0].node;
+        single = !parsed.root->u.list.items.items[0].async &&
+                 item->type == NODE_PIPELINE && item->u.pipeline.commands.count == 1 &&
+                 !item->u.pipeline.negated && item->u.pipeline.commands.items[0]->type == NODE_SIMPLE;
+    }
+    arena_free(&arena);
+    return single;
+}
+
 static void child_process(const char *cmd, const int pipefd[2]) {
     close(pipefd[0]);
     dup2(pipefd[1], STDOUT_FILENO);
@@ -85,10 +105,11 @@ static void child_process(const char *cmd, const int pipefd[2]) {
     // POSIX: break/continue only affect loops in this subshell
     script_reset_for_subshell();
 
-    // Tell execute() to exec directly instead of fork+exec.
-    // This ensures $PPID returns the correct parent PID for commands
-    // run inside command substitution.
-    exec_directly_in_child = true;
+    // Let execute() exec an external command directly instead of fork+exec,
+    // so $PPID is right for it, but only when the captured program is that one
+    // simple command: an exec in the middle of `$(/bin/echo a; echo b)` would
+    // replace this subshell and drop everything after it (it did until #355).
+    exec_directly_in_child = cmdsub_is_single_simple(cmd);
 
     // Use hash's own script execution to preserve function definitions
     int result = script_execute_string(cmd);
@@ -176,17 +197,42 @@ static char *execute_and_capture(const char *cmd) {
 }
 
 // Find matching closing parenthesis, handling nesting
+// The closing parenthesis of a $( ... ) whose body starts at `start`. Parentheses
+// inside quotes or comments do not count, as in the tokenizer (skip_cmdsub_body).
 static const char *find_closing_paren(const char *start) {
     int depth = 1;
     const char *p = start;
+    bool word_start = true;
 
     while (*p && depth > 0) {
-        if (*p == '\\' && *(p + 1)) {
+        char c = *p;
+        if (c == '#' && word_start) {
+            while (*p && *p != '\n') p++;
+            continue;
+        }
+        word_start = (c == ' ' || c == '\t' || c == '\n' || c == '(' || c == ')' ||
+                      c == ';' || c == '|' || c == '&');
+        if (c == '\\' && *(p + 1)) {
             p += 2;
             continue;
         }
-        if (*p == '(') depth++;
-        else if (*p == ')') depth--;
+        if (c == '\'') {
+            p++;
+            while (*p && *p != '\'') p++;
+            if (*p) p++;
+            continue;
+        }
+        if (c == '"') {
+            p++;
+            while (*p && *p != '"') {
+                if (*p == '\\' && *(p + 1)) p++;
+                p++;
+            }
+            if (*p) p++;
+            continue;
+        }
+        if (c == '(') depth++;
+        else if (c == ')') depth--;
         if (depth > 0) p++;
     }
 

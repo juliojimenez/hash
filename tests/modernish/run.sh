@@ -10,13 +10,14 @@
 # tests/modernish/results/ (ignored by git); the summary also goes to the GitHub step
 # summary when there is one.
 #
-# baseline.txt records what the last accepted run looked like, either
+# baseline.txt records what the last accepted run looked like, one of
 #   state=init-failed                   modernish refused to start on hash
-# or
+#   state=died                          modernish initialised but died before any summary
 #   state=ran total=N fails=F           N tests ran, F failed unexpectedly
-# The script exits 1 when the run is worse than the baseline (init fails where it used
-# to run, or more unexpected failures). When it is better, it says so and asks for
-# --update-baseline, which rewrites the file; commit that with the change that earned it.
+# The states are ordered init-failed < died < ran. The script exits 1 when the run is
+# worse than the baseline (a lower state, or more unexpected failures). When it is
+# better, it says so and asks for --update-baseline, which rewrites the file; commit
+# that with the change that earned it.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -73,6 +74,8 @@ state=ran
 total=0; oks=0; skips=0; warns=0; xfails=0; fails=0
 if grep -q 'Initialisation failed' "$output"; then
     state=init-failed
+elif grep -q 'modernish died\|^modernish: .*died' "$output"; then
+    state=died
 elif grep -q '^Out of [0-9]* tests\{0,1\}:' "$output"; then
     total=$(sed -n -E 's/^Out of ([0-9]+) tests?:.*/\1/p' "$output" | tail -1)
     count() { sed -n -E "s/^- ([0-9]+) $1.*/\1/p" "$output" | tail -1; }
@@ -85,6 +88,7 @@ fi
 
 case $state in
     init-failed) summary="modernish could not initialise on hash (status $status): $(grep -m1 -vE 'Initialisation failed|^$' "$output" | head -c 200)" ;;
+    died)        summary="modernish initialised but died before any summary (status $status): $(grep -m1 'died' "$output" | head -c 200)" ;;
     no-summary)  summary="modernish produced no summary (status $status); see $output" ;;
     ran)         summary="modernish: $total tests, $oks succeeded, $skips skipped, $warns warnings, $xfails expected failures, $fails unexpected failures" ;;
 esac
@@ -101,6 +105,7 @@ if [ -f "$baseline" ]; then
     # shellcheck disable=SC1090
     base_state=$(sed -n 's/^state=\([a-z-]*\).*/\1/p' "$baseline")
     base_fails=$(sed -n 's/.*fails=\([0-9]*\).*/\1/p' "$baseline")
+    rank() { case $1 in init-failed) echo 0 ;; died) echo 1 ;; ran) echo 2 ;; *) echo -1 ;; esac; }
     if [ "$state" = ran ] && [ "$base_state" = ran ]; then
         if [ "$fails" -gt "${base_fails:-0}" ]; then
             echo "REGRESSION: $fails unexpected failures, baseline allows ${base_fails:-0}"; verdict=1
@@ -109,14 +114,14 @@ if [ -f "$baseline" ]; then
         else
             echo "matches the baseline ($fails unexpected failures)"
         fi
-    elif [ "$state" = ran ]; then
-        echo "better than the baseline (modernish now initialises): rerun with --update-baseline and commit baseline.txt"
-    elif [ "$base_state" = ran ]; then
-        echo "REGRESSION: modernish used to run $base_fails unexpected failures, now it does not start"; verdict=1
-    elif [ "$state" = init-failed ]; then
-        echo "matches the baseline (modernish does not initialise yet; see tests/modernish/STATUS.md)"
-    else
+    elif [ "$(rank "$state")" -lt 0 ]; then
         echo "no summary to compare with the baseline; see $output"; verdict=1
+    elif [ "$(rank "$state")" -gt "$(rank "$base_state")" ]; then
+        echo "better than the baseline ($base_state -> $state): rerun with --update-baseline and commit baseline.txt"
+    elif [ "$(rank "$state")" -lt "$(rank "$base_state")" ]; then
+        echo "REGRESSION: the baseline is $base_state, this run is $state"; verdict=1
+    else
+        echo "matches the baseline ($state; see tests/modernish/STATUS.md)"
     fi
 else
     echo "no baseline recorded; use --update-baseline to record this run"
@@ -125,6 +130,8 @@ fi
 if [ "$update" -eq 1 ]; then
     if [ "$state" = ran ]; then
         printf 'state=ran total=%s fails=%s\n' "$total" "$fails" > "$baseline"
+    elif [ "$state" = died ]; then
+        printf 'state=died\n' > "$baseline"
     else
         printf 'state=init-failed\n' > "$baseline"
     fi
