@@ -355,39 +355,37 @@ int ifs_split_args(char ***args_ptr, int *arg_count, int assignment_words) {
             continue;
         }
 
-        // Check for \x04 marker (quoted $@ - split into separate args, no IFS splitting)
+        // Check for \x04 marker ($@ or $*: one part per positional parameter).
+        // A quoted "$@" part has no \x03 markers and stays whole, an empty one
+        // included; an unquoted $@ or $* wrapped each parameter in its own
+        // region, so a part splits on IFS like any expansion and an empty
+        // parameter yields no field (POSIX 2.5.2)
         if (has_marker(args[i], '\x04')) {
-            // Split on \x04 markers
             char *copy = strdup(args[i]);
             if (!copy) continue;
 
             const char *start = copy;
             char *p = copy;
-            while (*p && new_count < MAX_SPLIT_ARGS - 1) {
+            bool more = true;
+            while (more && new_count < MAX_SPLIT_ARGS - 1) {
                 if (is_protected_pair(p)) {
                     p += 2;
                     continue;
                 }
-                if (*p == '\x04') {
+                if (*p == '\x04' || *p == '\0') {
+                    more = (*p != '\0');
                     *p = '\0';  // Terminate current part
-                    // Strip \x03 markers from this part; an empty part is an
-                    // empty positional parameter and stays a field
-                    char *part = strdup(start);
-                    if (part) {
-                        strip_markers_inplace(part);
-                        new_args[new_count++] = part;
+                    int part_count = 0;
+                    char **parts = process_arg_with_markers(start, ifs, &part_count);
+                    if (parts) {
+                        for (int j = 0; j < part_count && new_count < MAX_SPLIT_ARGS - 1; j++) {
+                            new_args[new_count++] = parts[j];
+                        }
+                        free(parts);
                     }
                     start = p + 1;
                 }
                 p++;
-            }
-            // Handle last part after final \x04
-            if (new_count < MAX_SPLIT_ARGS - 1) {
-                char *part = strdup(start);
-                if (part) {
-                    strip_markers_inplace(part);
-                    new_args[new_count++] = part;
-                }
             }
             free(copy);
             continue;

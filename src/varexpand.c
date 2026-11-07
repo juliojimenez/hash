@@ -25,6 +25,18 @@
 // Track if an unset variable error occurred during expansion
 static bool varexpand_error = false;
 
+// Set while expanding a word that is never field-split (an assignment, a
+// here-document body, a case word): $* joins with the first IFS character as
+// a quoted "$*" would. Only the join is affected; quoting and escapes stay
+// those of the word as written.
+static bool no_field_splitting = false;
+
+bool varexpand_set_no_split(bool on) {
+    bool was = no_field_splitting;
+    no_field_splitting = on;
+    return was;
+}
+
 // Check and report unset variable error when -u is set
 // Returns true if error occurred
 static bool check_unset_error(const char *var_name) {
@@ -72,17 +84,21 @@ static const char *get_positional_param(int n) {
 
 // Add \x02 marker before each $ in word to indicate quoted context
 // Returns a static buffer - caller should use immediately or copy
-static const char *mark_dollars_as_quoted(const char *word) {
-    static char marked[4096];
+// A copy of word with every $ marked as quoted (\x02$): the expansions in it
+// behave as inside double quotes, which is what a word in a context without
+// field splitting (an assignment, a here-document, a case word) needs: "$*"
+// joins with the first IFS character, "$@" keeps its fields, values are
+// protected. A $ already marked, or protected as a literal (\x01$), is left.
+char *varexpand_mark_quoted(const char *word) {
+    size_t len = strlen(word);
+    char *marked = malloc(len * 2 + 1);
+    if (!marked) return NULL;
     size_t out = 0;
-    const char *p = word;
-
-    while (*p && out < sizeof(marked) - 2) {
+    for (const char *p = word; *p; p++) {
         if (*p == '$' && (out == 0 || (marked[out-1] != '\x02' && marked[out-1] != '\x01'))) {
-            // Add \x02 marker before $ if not already marked (and not protected: \x01$ is a literal $)
             marked[out++] = '\x02';
         }
-        marked[out++] = *p++;
+        marked[out++] = *p;
     }
     marked[out] = '\0';
     return marked;
@@ -157,8 +173,9 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
             return buf;
         }
         case '*': {
-            // POSIX: quoted "$*" joins with the first character of IFS into one
-            // field; unquoted, each parameter is its own field (\x04 separator)
+            // POSIX: quoted "$*", or $* where no field splitting happens, joins
+            // with the first character of IFS into one field; unquoted, each
+            // parameter is its own field (\x04 separator), split again later
             size_t star_cap = positional_params_room();
             char *star_buf = malloc(star_cap);
             size_t pos = 0;
@@ -167,7 +184,7 @@ static const char *special_param_value(char c, bool is_quoted, int last_exit_cod
             if (!star_buf) {
                 return "";
             }
-            if (is_quoted) {
+            if (is_quoted || no_field_splitting) {
                 const char *ifs = ifs_get();
                 if (ifs[0] == '\0') {
                     use_sep = false;
@@ -337,7 +354,7 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
         // Quoted here, or the whole ${...} in quotes: expansions are literal and
         // the output never splits or globs. Otherwise it splits like any text.
         bool protect = dquote || is_quoted;
-        char *marked = protect ? strdup(mark_dollars_as_quoted(seg)) : NULL;
+        char *marked = protect ? varexpand_mark_quoted(seg) : NULL;
         char *e = varexpand_expand(protect ? (marked ? marked : seg) : seg, last_exit_code);
         free(marked);
         free(seg);
@@ -442,7 +459,7 @@ static char *expand_pattern_word(const char *word, int last_exit_code) {
             }
         }
         if (!seg) break;
-        char *marked = dquote ? strdup(mark_dollars_as_quoted(seg)) : NULL;
+        char *marked = dquote ? varexpand_mark_quoted(seg) : NULL;
         char *e = varexpand_expand(dquote ? (marked ? marked : seg) : seg, last_exit_code);
         free(marked);
         free(seg);
@@ -754,25 +771,25 @@ static char *expand_once(const char *str, int last_exit_code, size_t result_size
                             // ${var=word}: assign word if unset
                             // ${var:=word}: assign word if unset or null
                             if (is_unset || (check_null && is_null)) {
-                                // Expand the word with its own quotes honoured
+                                // The value assigned is never field-split, so $* in the
+                                // word joins with the first IFS character. The expansion's
+                                // result is that value, appended
+                                // like any other: split and globbed when the ${...} is
+                                // unquoted (POSIX 2.6.2). It is stored through the variable
+                                // table (not setenv alone, which $var does not read back)
+                                // and without the markers the expansion carries; v51 stored
+                                // "\x03hi there\x03" for ${x:=$(echo hi there)}
+                                bool was = varexpand_set_no_split(true);
                                 char *expanded_word = expand_default_word(word, is_quoted, last_exit_code);
+                                varexpand_set_no_split(was);
                                 if (expanded_word) {
+                                    strip_quote_markers(expanded_word);
+                                    shellvar_set(var_name, expanded_word);
                                     expanded_buf = expanded_word;
-                                    effective_word = expanded_buf;
+                                    var_value = expanded_buf;
+                                } else {
+                                    var_value = "";
                                 }
-                                // Store the word as the user sees it: through the
-                                // variable table (not setenv alone, which $var does
-                                // not read back) and without the expansion markers it
-                                // still carries; v51 stored "\x03hi there\x03" for
-                                // ${x:=$(echo hi there)} and $x then split in two
-                                char *assign_value = strdup(effective_word);
-                                if (assign_value) {
-                                    strip_quote_markers(assign_value);
-                                    shellvar_set(var_name, assign_value);
-                                    free(assign_value);
-                                }
-                                var_value = effective_word;
-                                premarked_word = effective_word;
                             } else {
                                 var_value = val;
                             }
@@ -989,10 +1006,16 @@ append_value:
                         }
                     } else {
                         // Unquoted - wrap with \x03 markers for IFS splitting; a
-                        // real marker-range byte in the value travels as \x01 + byte
+                        // real marker-range byte in the value travels as \x01 + byte.
+                        // An unquoted $* or $@ is one field per parameter (\x04 between
+                        // them), and POSIX splits each of those fields again: every
+                        // parameter gets a region of its own, \x03p1\x03\x04\x03p2\x03.
+                        // The same for the fields of an expanded ${var-word}: those from
+                        // a quoted "$@" inside it carry protected bytes and never split
+                        bool per_field = keep_pairs;
                         if (out_pos + 2 < result_size - 1) {
                             result[out_pos++] = '\x03';  // Start marker
-                            for (size_t i = 0; i < val_len && out_pos < result_size - 3; i++) {
+                            for (size_t i = 0; i < val_len && out_pos < result_size - 5; i++) {
                                 char c = var_value[i];
                                 if (keep_pairs && c == '\x01' && i + 1 < val_len) {
                                     result[out_pos++] = c;      // an already protected byte
@@ -1000,6 +1023,12 @@ append_value:
                                     continue;
                                 }
                                 if (drop_regions && c == '\x03') {
+                                    continue;
+                                }
+                                if (per_field && c == '\x04') {
+                                    result[out_pos++] = '\x03';  // close this parameter's region
+                                    result[out_pos++] = '\x04';
+                                    result[out_pos++] = '\x03';  // open the next one
                                     continue;
                                 }
                                 if (!keep_pairs && is_marker_byte(c)) {

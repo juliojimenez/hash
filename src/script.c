@@ -530,8 +530,11 @@ static char *expand_case_word(const char *word) {
         result = arith;
     }
 
-    // Apply variable expansion
+    // Apply variable expansion; the case word is never field-split, so $* in it
+    // joins with the first IFS character
+    bool was = varexpand_set_no_split(true);
     char *varexp = varexpand_expand(result, last_command_exit_code);
+    varexpand_set_no_split(was);
     if (varexp) {
         free(result);
         result = varexp;
