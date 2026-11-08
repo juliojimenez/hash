@@ -448,6 +448,21 @@ run_test "an invalid parameter name is a bad substitution" "echo \${.sh.version+
 run_test "a script may start more background jobs than the table holds" "i=0; while [ \$i -lt 80 ]; do ( : ) & i=\$((i+1)); done; wait; echo jobs-ok 2>&1" "jobs-ok"
 run_test "for loop words honour set -f" "set -f; a='*'; for w in \$a; do echo w=\$w; done" "w=*"
 run_test "read reports end of file without a newline" "printf abc | { read -r x; echo rc=\$? x=\$x; }" "rc=1 x=abc"
+# read splits on IFS the way field splitting does, handles backslashes without -r (#385)
+run_test "read trims IFS whitespace at both ends" "printf '  ab  cd  \\n' | { IFS=' ' read foo; printf '[%s]\\n' \"\$foo\"; }" "[ab  cd]"
+run_test "read splits on runs of IFS whitespace" "printf '  ab  cd  \\n' | { IFS=' ' read a b; printf '[%s][%s]\\n' \"\$a\" \"\$b\"; }" "[ab][cd]"
+run_test "read keeps empty fields between non-whitespace IFS bytes" "printf 'a::c\\n' | { IFS=: read a b c; printf '[%s][%s][%s]\\n' \"\$a\" \"\$b\" \"\$c\"; }" "[a][][c]"
+run_test "read gives the last name the remaining fields with their delimiters" "printf 'a:b:c:\\n' | { IFS=: read x y; printf '[%s][%s]\\n' \"\$x\" \"\$y\"; }" "[a][b:c:]"
+run_test "read with IFS empty keeps the whole line" "printf '  ab  cd  \\n' | { IFS= read foo; printf '[%s]\\n' \"\$foo\"; }" "[  ab  cd  ]"
+run_test "read without -r drops the backslash of an escape" $'printf \'a\\\\xb\\n\' | { read v; printf \'[%s]\\n\' "$v"; }' "[axb]"
+run_test "read -r keeps backslashes" $'printf \'a\\\\xb\\n\' | { read -r v; printf \'[%s]\\n\' "$v"; }' '[a\xb]'
+run_test "read without -r continues the line after a backslash-newline" $'printf \'a\\\\\\nb\\nc\\n\' | { read v; read w; printf \'[%s][%s]\\n\' "$v" "$w"; }' "[ab][c]"
+run_test "read keeps an escaped IFS byte in the field" $'printf \'a\\\\ b c\\n\' | { read x y; printf \'[%s][%s]\\n\' "$x" "$y"; }' "[a b][c]"
+run_test "read at end of input assigns empty values" "x=old; printf '' | { read x; rc=\$?; printf 'rc=%s [%s]\\n' \"\$rc\" \"\$x\"; }" "rc=1 []"
+run_test "a prefix assignment does not persist after read" "echo l | { IFS=:; IFS=' ' read f; printf '[%s]\\n' \"\$IFS\"; }" "[:]"
+run_test "a prefix assignment does not persist after cd" "v=3; v=4 cd .; echo \"[\$v]\"" "[3]"
+run_test "a special builtin run inside eval or a function leaves the caller's prefix assignment alone" "v=3; v=6 command eval :; f() { :; }; x=1; x=2 f; echo \"[\$v][\$x]\"" "[3][1]"
+run_test "a prefix assignment stays in place for the whole of eval" "v=3; v=6 eval 'printf %s \$v; printf %s \$v'; echo \"[\$v]\"" "66[6]"
 run_test "escaped backslash before a parameter keeps the backslash" $'V=star; W=\\\\${V}; printf \'%s\\n\' "$W"' '\star'
 run_test "escaped dollar sign is literal" $'x=VAL; printf \'%s\\n\' \\$x' '$x'
 run_test "escaped backslash then escaped dollar" $'x=VAL; printf \'%s\\n\' \\\\\\$x' '\$x'

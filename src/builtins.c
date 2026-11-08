@@ -32,6 +32,7 @@ int fpurge(FILE *);     // BSD libcs (FreeBSD, macOS): hidden by the strict feat
 #include "config.h"
 #include "prompt.h"
 #include "execute.h"
+#include "ifs.h"
 #include "history.h"
 #include "jobs.h"
 #include "test_builtin.h"
@@ -1167,75 +1168,130 @@ static bool read_assign(const char *name, const char *value) {
     return shellvar_set(name, value) == 0;
 }
 
-int shell_read(char **args) {
-    // Basic read implementation
-    // Usage: read [-r] [var ...]
+// The line read is split the way field splitting is (POSIX 2.6.5), on the
+// bytes of IFS that no backslash escaped. These look at one byte of the line:
+// is it IFS whitespace, is it any IFS byte at all.
+static bool read_ifs_space(const char *line, const bool *esc, const char *ifs, size_t k) {
+    return !esc[k] && ifs_is_whitespace(line[k], ifs);
+}
 
+static bool read_ifs_byte(const char *line, const bool *esc, const char *ifs, size_t k) {
+    return !esc[k] && line[k] != '\0' && strchr(ifs, line[k]) != NULL;
+}
+
+int shell_read(char **args) {
+    // Usage: read [-r] [--] [var ...]
     bool raw = false;
     int start = 1;
-
-    if (args[start] && strcmp(args[start], "-r") == 0) {
+    while (args[start] && strcmp(args[start], "-r") == 0) {
         raw = true;
         start++;
     }
+    if (args[start] && strcmp(args[start], "--") == 0) {
+        start++;
+    }
 
-    // One line from descriptor 0, leaving what follows for the next reader
-    char line[4096];
-    if (input_read_line(STDIN_FILENO, line, sizeof(line)) <= 0) {
+    // A copy of IFS: shellvar_set frees a variable's old value in place, so
+    // `read IFS` would otherwise pull the string out from under the loop below
+    char *ifs = strdup(ifs_get());
+    if (!ifs) {
         last_command_exit_code = 1;
         return 1;
     }
 
-    // Remove trailing newline. Without one the input ended inside the line:
-    // the words are still assigned but the status says end of file (POSIX)
-    size_t len = strlen(line);
-    bool at_eof = true;
-    if (len > 0 && line[len - 1] == '\n') {
-        line[len - 1] = '\0';
-        at_eof = false;
-    }
-
-    // If no variables specified, use REPLY
-    if (args[start] == NULL) {
-        last_command_exit_code = read_assign("REPLY", line) ? (at_eof ? 1 : 0) : 1;
+    // One line from descriptor 0, leaving what follows for the next reader.
+    // At end of input with nothing read the line is empty: every name is
+    // assigned the empty string and the status says end of file
+    char line[4096];
+    if (input_read_line(STDIN_FILENO, line, sizeof(line)) < 0) {
+        free(ifs);
+        last_command_exit_code = 1;
         return 1;
     }
-    int status = at_eof ? 1 : 0;
 
-    // Split line into words and assign to variables
-    char *saveptr;
-    // TODO: Use the IFS
-    const char *word = strtok_r(line, " \t", &saveptr);
-    int i = start;
-
-    while (args[i] != NULL) {
-        if (args[i + 1] == NULL) {
-            // Last variable gets the rest of the line
-            if (word) {
-                char rest[4096];
-                safe_strcpy(rest, word, sizeof(rest));
-
-                const char *remaining = strtok_r(NULL, "", &saveptr);
-                if (remaining) {
-                    safe_strcat(rest, " ", sizeof(rest));
-                    safe_strcat(rest, remaining, sizeof(rest));
-                }
-                if (!read_assign(args[i], rest)) status = 1;
-            } else {
-                if (!read_assign(args[i], "")) status = 1;
-            }
-        } else {
-            if (!read_assign(args[i], word ? word : "")) status = 1;
-            if (word) {
-                // TODO: Use the IFS
-                word = strtok_r(NULL, " \t", &saveptr);
-            }
+    // The logical line, rewritten in place (the write index never passes the
+    // read index). With -r it ends at the newline. Without -r a backslash
+    // escapes the next byte, which is kept and marked in esc so that it never
+    // splits or trims, and a backslash-newline continues onto the next line
+    bool esc[sizeof(line)];
+    bool at_eof = true;  // no newline ended the line: the input ran out first
+    size_t len = 0;
+    size_t i = 0;
+    for (;;) {
+        char c = line[i];
+        if (c == '\0') break;
+        if (c == '\n') {
+            at_eof = false;
+            break;
         }
+        if (!raw && c == '\\') {
+            char next = line[i + 1];
+            if (next == '\n') {
+                // The next line replaces the backslash and newline and the
+                // scan goes on from there. When nothing follows (end of input,
+                // or no room left) the line ends unterminated
+                if (input_read_line(STDIN_FILENO, line + i, sizeof(line) - i) <= 0) {
+                    line[i] = '\0';
+                    break;
+                }
+                continue;
+            }
+            if (next == '\0') {
+                break;  // a backslash right before end of input is dropped
+            }
+            line[len] = next;
+            esc[len] = true;
+            len++;
+            i += 2;
+            continue;
+        }
+        line[len] = c;
+        esc[len] = false;
+        len++;
         i++;
     }
+    line[len] = '\0';
 
-    (void)raw;  // TODO: Handle -r flag for backslash escapes
+    int status = at_eof ? 1 : 0;
 
+    // No name: REPLY takes the line as it is (bash; ksh and zsh trim it)
+    if (args[start] == NULL) {
+        if (!read_assign("REPLY", line)) status = 1;
+    }
+
+    // Each name takes one field. IFS whitespace runs delimit and are dropped
+    // at both ends; any other IFS byte delimits on its own, so adjacent ones
+    // make empty fields. The last name takes the fields left over with the
+    // delimiters between them, trailing IFS whitespace removed, which is what
+    // every shell does (Issue 7; the Issue 8 text would keep a lone trailing
+    // delimiter). With IFS empty nothing delimits and the first name takes
+    // the whole line. Names past the last field are assigned the empty string
+    size_t pos = 0;
+    for (int v = start; args[v] != NULL; v++) {
+        while (pos < len && read_ifs_space(line, esc, ifs, pos)) pos++;
+        size_t end = pos;
+        while (end < len && !read_ifs_byte(line, esc, ifs, end)) end++;
+        // The delimiter after the field: IFS whitespace around at most one
+        // other IFS byte. next is where the following field starts
+        size_t next = end;
+        while (next < len && read_ifs_space(line, esc, ifs, next)) next++;
+        if (next < len && read_ifs_byte(line, esc, ifs, next)) {
+            next++;
+            while (next < len && read_ifs_space(line, esc, ifs, next)) next++;
+        }
+        size_t vend = end;
+        if (args[v + 1] == NULL && next < len) {
+            vend = len;
+            while (vend > pos && read_ifs_space(line, esc, ifs, vend - 1)) vend--;
+        }
+        char saved = line[vend];
+        line[vend] = '\0';
+        if (!read_assign(args[v], line + pos)) status = 1;
+        line[vend] = saved;
+        pos = next;
+    }
+
+    free(ifs);
     last_command_exit_code = status;
     return 1;
 }

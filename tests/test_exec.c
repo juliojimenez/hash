@@ -339,6 +339,62 @@ void test_read_assigns_shell_variables(void) {
     TEST_ASSERT_EQUAL_STRING("st=1 [keep]\n", run("readonly hro_=keep; echo x | { read hro_ 2>/dev/null; echo \"st=$? [$hro_]\"; }"));
 }
 
+// read splits the line the way field splitting does (#385): IFS whitespace is
+// trimmed at both ends and runs of it delimit, any other IFS byte delimits on
+// its own so adjacent ones make empty fields, the last name takes the fields
+// left over with their delimiters, an empty IFS keeps the whole line, and end
+// of input with nothing read assigns empty values with status 1
+void test_read_splits_on_ifs(void) {
+    TEST_ASSERT_EQUAL_STRING("[ab  cd]\n", run("printf '  ab  cd  \\n' | { IFS=' ' read hrs_; printf '[%s]\\n' \"$hrs_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[ab][cd]\n", run("printf '  ab  cd  \\n' | { IFS=' ' read hrs_ hrt_; printf '[%s][%s]\\n' \"$hrs_\" \"$hrt_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a\tb\tc]\n", run("printf 'a\\tb\\tc\\n' | { read hrs_; printf '[%s]\\n' \"$hrs_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][][c]\n", run("printf 'a::c\\n' | { IFS=: read hrs_ hrt_ hru_; printf '[%s][%s][%s]\\n' \"$hrs_\" \"$hrt_\" \"$hru_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[][a][]\n", run("printf ':a:\\n' | { IFS=: read hrs_ hrt_ hru_; printf '[%s][%s][%s]\\n' \"$hrs_\" \"$hrt_\" \"$hru_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][b:c:]\n", run("printf 'a:b:c:\\n' | { IFS=: read hrs_ hrt_; printf '[%s][%s]\\n' \"$hrs_\" \"$hrt_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][b]\n", run("printf 'a:b:\\n' | { IFS=: read hrs_ hrt_; printf '[%s][%s]\\n' \"$hrs_\" \"$hrt_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][b][c  d]\n", run("printf 'a : b:c  d\\n' | { IFS=' :' read hrs_ hrt_ hru_; printf '[%s][%s][%s]\\n' \"$hrs_\" \"$hrt_\" \"$hru_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a]\n", run("printf 'a : \\n' | { IFS=': ' read hrs_; printf '[%s]\\n' \"$hrs_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[  ab  cd  ][]\n", run("printf '  ab  cd  \\n' | { IFS= read hrs_ hrt_; printf '[%s][%s]\\n' \"$hrs_\" \"$hrt_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a  b]\n", run("printf '  a  b  \\n' | { read -r hrs_; printf '[%s]\\n' \"$hrs_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("rc=1 [][]\n", run("hrs_=old hrt_=old; printf '' | { read hrs_ hrt_; printf 'rc=%s [%s][%s]\\n' \"$?\" \"$hrs_\" \"$hrt_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[v]\n", run("echo v | { read -r -- hrs_; printf '[%s]\\n' \"$hrs_\"; }"));
+}
+
+// Without -r a backslash escapes the next byte: \x is x, an escaped IFS byte
+// neither splits nor trims, a backslash-newline joins the next line, and a
+// backslash right before end of input is dropped with the status saying end
+// of file. With -r every backslash is literal. REPLY gets the same treatment
+void test_read_handles_backslashes(void) {
+    TEST_ASSERT_EQUAL_STRING("[axb]\n", run("printf 'a\\\\xb\\n' | { read hrb_; printf '[%s]\\n' \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a\\xb]\n", run("printf 'a\\\\xb\\n' | { read -r hrb_; printf '[%s]\\n' \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a\\b]\n", run("printf 'a\\\\\\\\b\\n' | { read hrb_; printf '[%s]\\n' \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a b][c]\n", run("printf 'a\\\\ b c\\n' | { read hrb_ hrc_; printf '[%s][%s]\\n' \"$hrb_\" \"$hrc_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a ]\n", run("printf 'a\\\\ \\n' | { read hrb_; printf '[%s]\\n' \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a:b][c]\n", run("printf 'a\\\\:b:c\\n' | { IFS=: read hrb_ hrc_; printf '[%s][%s]\\n' \"$hrb_\" \"$hrc_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[ab][c]\n", run("printf 'a\\\\\\nb\\nc\\n' | { read hrb_; read hrc_; printf '[%s][%s]\\n' \"$hrb_\" \"$hrc_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a\\][b]\n", run("printf 'a\\\\\\nb\\nc\\n' | { read -r hrb_; read -r hrc_; printf '[%s][%s]\\n' \"$hrb_\" \"$hrc_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a  b]\n", run("printf 'a\\\\\\n  b\\n' | { read hrb_; printf '[%s]\\n' \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[a][b c]\n", run("printf 'a \\\\\\nb c\\n' | { read hrb_ hrc_; printf '[%s][%s]\\n' \"$hrb_\" \"$hrc_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("rc=1 [a]\n", run("printf 'a\\\\\\n' | { read hrb_; printf 'rc=%s [%s]\\n' \"$?\" \"$hrb_\"; }"));
+    TEST_ASSERT_EQUAL_STRING("[axb][ab]\n", run("printf 'a\\\\xb\\na\\\\\\nb\\n' | { read; hrb_=$REPLY; read; printf '[%s][%s]\\n' \"$hrb_\" \"$REPLY\"; }"));
+}
+
+// Prefix assignments persist only after a POSIX special builtin (2.9.1): read
+// and cd run in this process but restore theirs like any command. Each
+// command restores only its own, so a special builtin run inside eval or a
+// function body leaves the caller's in place, eval sees them throughout, and
+// a name assigned twice goes back to its original value
+void test_prefix_assignments_follow_the_special_builtin_rule(void) {
+    TEST_ASSERT_EQUAL_STRING("[1]\n", run("hrp_=1; hrp_=2 read hrq_ </dev/null; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[3]\n", run("hrp_=3; hrp_=4 cd .; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[2]\n", run("hrp_=1; hrp_=2 :; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[3]\n", run("hrp_=3; hrp_=6 command eval :; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[1]\n", run("hrpf_() { :; }; hrp_=1; hrp_=2 hrpf_; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("66[6]\n", run("hrp_=3; hrp_=6 eval 'printf %s $hrp_; printf %s $hrp_'; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[0]\n", run("hrp_=0; hrp_=1 hrp_=2 true; echo \"[$hrp_]\""));
+    TEST_ASSERT_EQUAL_STRING("[:]\n", run("echo l | { IFS=:; IFS=' ' read hrq_; printf '[%s]\\n' \"$IFS\"; }"));
+}
+
 // A $name, $N or $? inside $(( )) is substituted as text before evaluation
 // (POSIX), so a parameter holding an expression is evaluated, not read as a
 // number: modernish's let does `return "$((!($1)))"` with $1 = "0 == 0"
@@ -909,6 +965,9 @@ int main(void) {
     RUN_TEST(test_eval_empty_is_success);
     RUN_TEST(test_arith_substitutes_parameters_as_text);
     RUN_TEST(test_read_assigns_shell_variables);
+    RUN_TEST(test_read_splits_on_ifs);
+    RUN_TEST(test_read_handles_backslashes);
+    RUN_TEST(test_prefix_assignments_follow_the_special_builtin_rule);
     RUN_TEST(test_listing_write_errors);
     RUN_TEST(test_modernish_battery_findings);
     RUN_TEST(test_default_words_and_function_args);
