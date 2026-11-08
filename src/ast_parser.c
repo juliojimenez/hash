@@ -199,6 +199,16 @@ static bool is_continuation_only(const Token *t) {
 // Here-document bodies
 // ============================================================================
 
+// Does the line end in a backslash that is not itself escaped? In a body
+// that will be expanded that backslash-newline is a line continuation
+static bool ends_in_continuation(const char *content, size_t len) {
+    size_t backslashes = 0;
+    while (backslashes < len && content[len - 1 - backslashes] == '\\') {
+        backslashes++;
+    }
+    return backslashes % 2 == 1;
+}
+
 // Line [start, eol) with leading tabs dropped when strip is set
 static void heredoc_line(const char *start, const char *eol, bool strip, const char **content, size_t *len) {
     const char *c = start;
@@ -219,17 +229,25 @@ static bool read_one_heredoc(Parser *p, Redirect *r) {
     bool strip = (r->op == TOKEN_DLESSDASH);
     const char *cursor = tokenizer_cursor(&p->tk);
 
+    // With an unquoted delimiter the body is expanded later and a backslash
+    // before the newline continues the line: the next line is part of this
+    // one, so it is neither stripped of tabs nor tested for the delimiter
+    // (dash agrees; modernish string.t 010). A quoted delimiter makes the
+    // body literal and every line stands alone.
+    bool join = !r->heredoc_quoted;
+
     // First pass: find the delimiter line and size the body
     const char *line = cursor;
     const char *after = NULL;
     size_t body_len = 0;
+    bool continued = false;
     for (;;) {
         const char *eol = strchr(line, '\n');
         const char *end = eol ? eol : line + strlen(line);
         const char *content;
         size_t len;
-        heredoc_line(line, end, strip, &content, &len);
-        if (len == delim_len && memcmp(content, delim, delim_len) == 0) {
+        heredoc_line(line, end, strip && !continued, &content, &len);
+        if (!continued && len == delim_len && memcmp(content, delim, delim_len) == 0) {
             after = eol ? eol + 1 : end;
             break;
         }
@@ -237,6 +255,7 @@ static bool read_one_heredoc(Parser *p, Redirect *r) {
             break;  // Ran out of input before the delimiter
         }
         body_len += len + 1;
+        continued = join && ends_in_continuation(content, len);
         line = eol + 1;
     }
     if (!after) {
@@ -253,18 +272,20 @@ static bool read_one_heredoc(Parser *p, Redirect *r) {
     }
     size_t pos = 0;
     line = cursor;
+    continued = false;
     for (;;) {
         const char *eol = strchr(line, '\n');
         const char *end = eol ? eol : line + strlen(line);
         const char *content;
         size_t len;
-        heredoc_line(line, end, strip, &content, &len);
-        if (len == delim_len && memcmp(content, delim, delim_len) == 0) {
+        heredoc_line(line, end, strip && !continued, &content, &len);
+        if (!continued && len == delim_len && memcmp(content, delim, delim_len) == 0) {
             break;
         }
         memcpy(body + pos, content, len);
         pos += len;
         body[pos++] = '\n';
+        continued = join && ends_in_continuation(content, len);
         line = eol + 1;
     }
     body[pos] = '\0';
@@ -592,6 +613,33 @@ static char *materialize(Parser *p, const Token *t) {
     bool in_double = false;
     for (size_t i = 0; i < n; i++) {
         char c = s[i];
+        if (!in_single && c == '$' && i + 2 < n && s[i + 1] == '(' && s[i + 2] != '(') {
+            // A command substitution is a program of its own, parsed again when
+            // it runs: copy it as written, so a here-document inside it keeps
+            // the backslash-newlines its body must show (and its own parse
+            // drops the ones that are continuations)
+            size_t j = i + 2;
+            int depth = 1;
+            bool sq = false, dq = false;
+            while (j < n && depth > 0) {
+                char d = s[j];
+                if (d == '\\' && j + 1 < n && !sq) {
+                    j += 2;
+                    continue;
+                }
+                if (d == '\'' && !dq) sq = !sq;
+                else if (d == '"' && !sq) dq = !dq;
+                else if (!sq && !dq) {
+                    if (d == '(') depth++;
+                    else if (d == ')') depth--;
+                }
+                j++;
+            }
+            memcpy(out + o, s + i, j - i);
+            o += j - i;
+            i = j - 1;
+            continue;
+        }
         if (!in_single && c == '\\' && i + 1 < n) {
             if (s[i + 1] == '\n') {
                 i++;

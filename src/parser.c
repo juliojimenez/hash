@@ -48,13 +48,11 @@ static void handle_backslash(Parser *parser) {
     // In single quotes, backslash has NO special meaning - treat as regular char
     // BUT we need to mark it so varexpand doesn't process it
     if (parser->in_single_quote) {
-        /* Add marker before backslash if next char is $, `, or \
-           so varexpand knows this is literal and not an escape sequence */
-        if (char_in_string(*(parser->read_pos + 1), "$`\\")) {
-            mark_and_write_char(parser); // Marker for literal backslash
-            return;
-        }
-        *parser->write_pos++ = *parser->read_pos++;
+        // Marked literal, always: what follows it in the output is not known
+        // here ('a\'$x closes the quote and continues with an expansion that
+        // the backslash must not escape; 'a\'"\"" likewise), and varexpand
+        // treats a marked backslash as a plain byte wherever it stands
+        mark_and_write_char(parser);
         if (is_marker_byte(*parser->read_pos)) {
             mark_and_write_char(parser);  // a real marker-range byte after the backslash
         }

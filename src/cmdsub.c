@@ -355,18 +355,11 @@ static int process_substitution(const char *cmd_start, size_t cmd_len,
 static bool handle_soh_marker(const char **read_char, CmdSubBuf *buf) {
     const char *p = *read_char;
 
-    // Handle SOH marker with protected backslash (from single quotes: \$ or \`)
-    // Pass through to varexpand which will output \$ or \` literally
-    if (*p == '\x01' && *(p + 1) == '\\' && char_in_string(*(p + 2), "$`")) {
-        if (cmdsub_buf_ensure(buf, 3) == 0) {
-            buf->data[buf->len++] = *p++;  // marker
-            buf->data[buf->len++] = *p++;  // backslash
-            buf->data[buf->len++] = *p++;  // $ or `
-        } else {
-            p += 3;
-        }
-        goto handled;
-    }
+    // A marked backslash (\x01 \\) is a literal byte that escapes nothing: it
+    // is copied as a pair below, and a ` or $( after it is a command
+    // substitution like any other ('a\'`echo q` and \\`echo q` give a\q and
+    // \q; the three used to be copied together and the command left as text)
+
     // Handle SOH marker (single-quoted dollar sign from parser)
     // Pass through to varexpand which will output literal $
     if (*p == '\x01' && *(p + 1) == '$') {
