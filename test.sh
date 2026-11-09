@@ -327,6 +327,7 @@ run_test "\"\$\$\" in double quotes is the pid" "[ \"\$\$\" = \$\$ ] && echo QUO
 run_test "\${\$} is the pid" "[ \"\${\$}\" = \$\$ ] && echo BRACED-PID-OK" "BRACED-PID-OK"
 run_test "\${?} is the exit status" "false; echo rc=\${?}" "rc=1"
 run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
+run_test "trap -- action signal accepts the option terminator" "trap -- 'echo i' INT; trap" "trap -- 'echo i' INT"
 run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"
 run_test "\${#} \${@} \${*} in braces" "set -- a b; echo \"\${#}:\${@}:\${*}\"" "2:a b:a b"
 run_test "\${-} in braces is the option letters" "set -f; case \"\${-}\" in *f*) echo DASH-OK;; esac" "DASH-OK"
