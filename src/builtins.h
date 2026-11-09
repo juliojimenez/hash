@@ -46,6 +46,7 @@ typedef enum {
     BUILTIN_FUNC_COMPLETE,
     BUILTIN_FUNC_HELP,
     BUILTIN_FUNC_UMASK,
+    BUILTIN_FUNC_ULIMIT,
 
     BUILTIN_FUNC_MAX
 } BuiltinFunc;
@@ -408,6 +409,18 @@ int shell_kill(char **args);
  * @return
  */
 int shell_umask(char **args);
+
+/**
+ * Built-in command: ulimit - show or set resource limits of the shell and
+ * the processes it starts (getrlimit/setrlimit)
+ */
+int shell_ulimit(char **args);
+
+/**
+ * Status of a builtin that printed a listing: 0, or 1 after a write error
+ * (reported). Shared with the builtins that live outside builtins.c.
+ */
+int listing_status(const char *name);
 
 /**
  * Built-in command: hash - manage command path hash table

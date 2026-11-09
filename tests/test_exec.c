@@ -809,6 +809,19 @@ void test_long_expansions_are_not_cut(void) {
     TEST_ASSERT_EQUAL_STRING("16383\n16384\n2 16384\n", run(src));
 }
 
+// #396: ulimit shows and sets resource limits (getrlimit/setrlimit); a
+// subshell keeps its changes to itself
+void test_ulimit_shows_and_sets_limits(void) {
+    TEST_ASSERT_EQUAL_STRING("100 100 50 unlimited\n",
+        run("(ulimit -n 100; printf '%s ' $(ulimit -n) $(ulimit -H -n); ulimit -S -n 50; printf '%s ' $(ulimit -S -n)); ulimit -f unlimited; ulimit -f"));
+    TEST_ASSERT_EQUAL_STRING("rc=2 rc=2 rc=2\n",
+        run("ulimit -x 2>/dev/null; printf 'rc=%s ' $?; ulimit -n abc 2>/dev/null; printf 'rc=%s ' $?; ulimit -a 5 2>/dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("raise=1 lines-ok\n",
+        run("(ulimit -n 10; ulimit -n 20 2>/dev/null; printf 'raise=%s ' $?); n=$(ulimit -a | grep -c ''); [ \"$n\" -ge 7 ] && echo lines-ok"));
+    TEST_ASSERT_EQUAL_STRING("same\n",
+        run("[ \"$(ulimit)\" = \"$(ulimit -f)\" ] && echo same"));
+}
+
 void test_bad_substitution_is_an_error(void) {
     run("echo ${.sh.version+s} 2>/dev/null");
     TEST_ASSERT_EQUAL_INT(1, last_command_exit_code);
@@ -1073,6 +1086,7 @@ int main(void) {
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_bad_substitution_is_an_error);
+    RUN_TEST(test_ulimit_shows_and_sets_limits);
     RUN_TEST(test_unquoted_star_and_at_are_fields);
     RUN_TEST(test_star_joins_where_nothing_splits);
     RUN_TEST(test_quoted_at_fields);
