@@ -284,7 +284,7 @@ void strip_quote_markers(char *s) {
     const char *check = s;
     bool has_markers = false;
     while (*check) {
-        if (char_in_string(*check, "\x01\x03\x04")) {
+        if (char_in_string(*check, "\x01\x02\x03\x04")) {
             has_markers = true;
             break;
         }
@@ -296,7 +296,10 @@ void strip_quote_markers(char *s) {
     char *write = s;
 
     while (*read) {
-        if (*read == '\x01' && *(read + 1)) {
+        if (is_empty_quote_marker(read)) {
+            // '' or "": nothing to keep
+            read += 2;
+        } else if (*read == '\x01' && *(read + 1)) {
             // Skip the marker, copy the protected character
             read++;
             *write++ = *read++;
@@ -609,6 +612,9 @@ static char *make_glob_pattern_ex(const char *s, bool do_preprocess) {
         } else if (*read == '\x03') {
             // Skip IFS markers
             read++;
+        } else if (is_empty_quote_marker(read)) {
+            // '' or "": no pattern text
+            read += 2;
         } else {
             *write++ = *read++;
         }

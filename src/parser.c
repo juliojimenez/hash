@@ -123,6 +123,14 @@ static void handle_backslash(Parser *parser) {
     }
 }
 
+// '' or "" (or $''): the two bytes of EMPTY_QUOTE_MARKER, which no other
+// encoding produces (a \x02 is otherwise always followed by $). The field
+// splitter and the marker-stripping passes drop them again.
+static void write_empty_quote_marker(Parser *parser) {
+    *parser->write_pos++ = EMPTY_QUOTE_MARKER[0];
+    *parser->write_pos++ = EMPTY_QUOTE_MARKER[1];
+}
+
 // A byte of quoted text: marked when it could otherwise be read as syntax
 static void write_quoted_byte(Parser *parser, char c) {
     if (is_marker_byte(c) || char_in_string(c, "$`\\*?[]~<>|&;()\"'")) {
@@ -148,6 +156,9 @@ static void handle_doller(Parser *parser) {
         if (end) {
             for (size_t i = 0; i < n; i++) {
                 write_quoted_byte(parser, decoded[i]);
+            }
+            if (n == 0) {
+                write_empty_quote_marker(parser);
             }
             parser->token_has_content = 1;  // $'' is an empty word
             parser->read_pos = end;
@@ -557,6 +568,12 @@ ParseResult parse_line(const char *line) {
 
     parser.token_start_idx = (size_t)(parser.write_pos - parser.output);
 
+    // Where the open quoted string began in the output: a quoted string that
+    // closes without having written a byte leaves EMPTY_QUOTE_MARKER, so the
+    // field splitter knows the word had quoted text and keeps it as one empty
+    // field when everything else in it expands to nothing (''"$@" with no
+    // positional parameters is one field; "$@" alone is none; #403)
+    char *quote_start = NULL;
     while (*parser.read_pos) {
         switch (*parser.read_pos) {
             case '\\':
@@ -569,6 +586,11 @@ ParseResult parse_line(const char *line) {
                     parser.in_single_quote = !parser.in_single_quote;
                     parser.token_has_content = 1;  // Mark that this token exists (even if empty after quotes)
                     parser.read_pos++;
+                    if (parser.in_single_quote) {
+                        quote_start = parser.write_pos;
+                    } else if (parser.write_pos == quote_start) {
+                        write_empty_quote_marker(&parser);
+                    }
                     continue;
                 }
                 break;
@@ -579,6 +601,11 @@ ParseResult parse_line(const char *line) {
                     parser.in_double_quote = !parser.in_double_quote;
                     parser.token_has_content = 1;  // Mark that this token exists (even if empty after quotes)
                     parser.read_pos++;
+                    if (parser.in_double_quote) {
+                        quote_start = parser.write_pos;
+                    } else if (parser.write_pos == quote_start) {
+                        write_empty_quote_marker(&parser);
+                    }
                     continue;
                 }
                 break;

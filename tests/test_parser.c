@@ -296,8 +296,8 @@ void test_parse_line_empty_quotes(void) {
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("", parsed.tokens[1]);  // Empty double-quoted string
-    TEST_ASSERT_EQUAL_STRING("", parsed.tokens[2]);  // Empty single-quoted string
+    TEST_ASSERT_EQUAL_STRING("\x02" "E", parsed.tokens[1]);  // Empty double-quoted string: the marker the splitter drops
+    TEST_ASSERT_EQUAL_STRING("\x02" "E", parsed.tokens[2]);  // Empty single-quoted string
     TEST_ASSERT_NULL(parsed.tokens[3]);
 
     parse_result_free(&parsed);

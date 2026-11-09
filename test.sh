@@ -445,6 +445,9 @@ run_test "\$* in an assignment joins with the first IFS character" "set -- one t
 run_test "\$* in a here-document joins with the first IFS character" $'set -- one two; IFS=:; cat <<X\n$*\nX' "one:two"
 run_test "\$* in a case word joins with the first IFS character" "set -- one two; IFS=:; case \$* in (one:two) echo case-joined ;; (*) echo case-split ;; esac" "case-joined"
 run_test "\${var=\$*} assigns the joined value and expands to fields" "unset var; set -- one two; IFS=:; printf '[%s]' \${var=\$*}; echo \" var=[\$var]\"" "[one][two] var=[one:two]"
+run_test "an empty quoted string next to an empty \"\$@\" keeps one empty field" "set --; c() { echo \"\$#\"; }; c ''\"\$@\"" "1"
+run_test "\"\$@\" alone with no parameters is still no field" "set --; c() { echo \"\$#\"; }; c \"\$@\"" "0"
+run_test "an empty quoted string does not stop splitting of the rest" "x='a b'; c() { echo \"\$#\"; }; c ''\$x" "2"
 run_test "quoted \$@ in an assignment joins with spaces" "set -- a b; x=\"\$@\"; echo \"[\$x]\"" "[a b]"
 run_test "a here-document inside \$( ) keeps its backslash-newlines" $'v=$(cat <<-\\EOT\n\tabc \\\n\tdef \\\\\n\tEOT\n); printf \'[%s]\' "$v"; echo' $'[abc \\\ndef \\\\]'
 run_test "<<- keeps the tab of a continued line, which is not the delimiter" $'cat <<-FIN\n\tdef \\\n\tghi\n\tjkl\\\n\tFIN\n\tFIN' $'def \tghi\njkl\tFIN'

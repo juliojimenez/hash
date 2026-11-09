@@ -1,1 +1,1 @@
-state=ran total=389 fails=1
+state=ran total=389 fails=0
