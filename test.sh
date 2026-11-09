@@ -245,6 +245,9 @@ fi
 # ${var#word} / ${var%word}: the word is expanded, quoted parts match literally (#355)
 run_test "\${t#*\"\$t2\"}: expansion inside a pattern word (modernish FTL_PSUB3)" "t=abcdefghij; t2=efg; echo \"\${t#*\"\$t2\"}\"" "hij"
 run_test "\${1#\" \$2 -> \"}: positional parameters in a pattern word (FTL_PSUBPP)" "set -- ' foo -> bar' foo; echo \"\${1#\" \$2 -> \"}\"" "bar"
+run_test "unset -f in a subshell removes the function there and the parent keeps it" "f() { echo F; }; (unset -f f; command -v f >/dev/null || echo gone); f" $'gone\nF'
+run_test "a function can unset itself" "h() { unset -f h; echo in-h; }; h; h 2>/dev/null; echo rc=\$?" $'in-h\nrc=127'
+run_test "unset -f of a missing function succeeds" "unset -f nosuch; echo rc=\$?" "rc=0"
 run_test "nested expansion in a pattern word is not re-expanded (FTL_PSUB2)" "t='a\${t2=BUG}'; unset -v t2; t=\${t%\"\${t#a}\"}; echo \"\$t,\${t2-}\"" "a,"
 run_test "an unquoted expansion in a pattern word is a pattern" "t=abcdefghij; p='*'; echo \"[\${t##\$p}] [\${t##\"\$p\"}]\"" "[] [abcdefghij]"
 run_test "\${t%/*} removes the shortest suffix" "t=/usr/local/bin/x; echo \"\${t%/*} \${t%%/*} \${t##*/} \${t#*/}\"" "/usr/local/bin  x usr/local/bin/x"

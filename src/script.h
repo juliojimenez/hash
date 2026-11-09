@@ -203,6 +203,20 @@ int script_define_function(const char *name, const char *body);
  */
 ShellFunction *script_get_function(const char *name);
 
+/**
+ * Remove a function (unset -f). A body still running is kept until the
+ * outermost function call returns.
+ *
+ * @return 0 when removed, 1 when there was no such function
+ */
+int script_undefine_function(const char *name);
+
+/**
+ * Free the bodies of functions removed while a function was running; a
+ * no-op while one still is.
+ */
+void script_free_retired_functions(void);
+
 // ============================================================================
 // Test/Condition Evaluation
 // ============================================================================

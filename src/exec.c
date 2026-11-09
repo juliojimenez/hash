@@ -1319,6 +1319,7 @@ int exec_run_function(const ShellFunction *func, int argc, char **argv) {
     exec_nesting_leave();
 
     script_state.function_call_depth--;
+    script_free_retired_functions();    // bodies unset while this ran (no-op if a caller is still running)
     exec_directly_in_child = old_direct;
     script_state.in_script = old_in_script;
     // Free the function's parameters: the copy made above, or whatever `set`

@@ -47,11 +47,24 @@ void script_init(void) {
     script_state.record_history = false;
 }
 
+// Bodies of functions removed while a function was running. The AST of a
+// running body may point into its text, and h() { unset -f h; echo in-h; }
+// is legal, so the free waits until the outermost function call returns.
+static char **retired_bodies = NULL;
+static int retired_count = 0;
+static int retired_cap = 0;
+
 void script_cleanup(void) {
-    // Free function bodies
+    // Free function bodies, the retired ones included (the process is leaving)
     for (int i = 0; i < script_state.function_count; i++) {
         free(script_state.functions[i].body);
     }
+    for (int i = 0; i < retired_count; i++) {
+        free(retired_bodies[i]);
+    }
+    free(retired_bodies);
+    retired_bodies = NULL;
+    retired_count = retired_cap = 0;
 
     // Free positional parameters
     if (script_state.positional_params) {
@@ -194,6 +207,44 @@ int script_define_function(const char *name, const char *body) {
     // POSIX: function definition sets exit code to 0
     last_command_exit_code = 0;
     return 0;
+}
+
+int script_undefine_function(const char *name) {
+    if (!name) return 1;
+    for (int i = 0; i < script_state.function_count; i++) {
+        if (strcmp(script_state.functions[i].name, name) != 0) continue;
+        char *body = script_state.functions[i].body;
+        if (script_state.function_call_depth > 0) {
+            if (retired_count == retired_cap) {
+                int cap = retired_cap ? retired_cap * 2 : 8;
+                char **grown = realloc(retired_bodies, (size_t)cap * sizeof(char *));
+                if (grown) {
+                    retired_bodies = grown;
+                    retired_cap = cap;
+                }
+            }
+            if (retired_count < retired_cap) {
+                retired_bodies[retired_count++] = body;
+            }
+            // (out of memory: the body stays allocated rather than risk a
+            // use after free in the running function)
+        } else {
+            free(body);
+        }
+        memmove(&script_state.functions[i], &script_state.functions[i + 1],
+                (size_t)(script_state.function_count - i - 1) * sizeof(ShellFunction));
+        script_state.function_count--;
+        return 0;
+    }
+    return 1;
+}
+
+void script_free_retired_functions(void) {
+    if (script_state.function_call_depth > 0) return;
+    for (int i = 0; i < retired_count; i++) {
+        free(retired_bodies[i]);
+    }
+    retired_count = 0;
 }
 
 ShellFunction *script_get_function(const char *name) {
