@@ -392,6 +392,7 @@ run_test "unalias -- ends the options" "alias ua1=:; unalias -- ua1; echo rc=\$?
 run_test "alias defined on the same line is not expanded" "alias zz1='echo no'; zz1" "zz1: command not found"
 run_test "alias can stand for the ! keyword" $'alias not=\'! \'\nnot false; echo st=$?' "st=0"
 run_test "alias ! keyword works in an if condition" $'alias not=\'! \'\nif not false; then echo taken; fi' "taken"
+run_test "read takes a line longer than 4 KB" "l=\$(head -c 5000 /dev/zero | tr '\\0' a); printf '%s\\n' \"\$l\" | { read -r v; echo \"rc=\$? len=\${#v}\"; }" "rc=0 len=5000"
 run_test "alias can open a while loop" $'alias forever=\'while :;\'\nn=0; forever do n=$((n+1)); [ $n -ge 3 ] && break; done; echo n=$n' "n=3"
 run_test "alias can be a brace group" $'alias so=\'{ [ "$?" -eq 0 ]; }\'\ntrue; if so; then echo so-ok; fi' "so-ok"
 run_test "alias whose text names itself expands once" $'alias ls=\'ls -d\'\nls /tmp' "/tmp"

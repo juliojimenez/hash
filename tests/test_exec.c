@@ -796,6 +796,18 @@ void test_case_word_with_control_bytes(void) {
     TEST_ASSERT_EQUAL_STRING("joined\n", run("set -- x y; case \"$@\" in ( 'x y' ) echo joined ;; ( * ) echo other ;; esac"));
 }
 
+// #395: read takes a line of any length; a 4 KB buffer cut longer lines and
+// reported end of file (status 1), which ended modernish's LOOP find at its
+// first iteration
+void test_read_line_of_any_length(void) {
+    TEST_ASSERT_EQUAL_STRING("rc=0 len=5000\n",
+        run("l=$(head -c 5000 /dev/zero | tr '\\0' a); printf '%s\\n' \"$l\" | { read -r v; echo \"rc=$? len=${#v}\"; }"));
+    TEST_ASSERT_EQUAL_STRING("5000 5000 next\n",
+        run("l=$(head -c 5000 /dev/zero | tr '\\0' a); printf '%s %s\\nnext\\n' \"$l\" \"$l\" | { read a b; read c; echo \"${#a} ${#b} $c\"; }"));
+    TEST_ASSERT_EQUAL_STRING("10000\n",
+        run("l=$(head -c 5000 /dev/zero | tr '\\0' a); printf '%s\\\\\\n%s\\n' \"$l\" \"$l\" | { read v; echo ${#v}; }"));
+}
+
 // Expansions used to be cut at 8 KB (the result buffer was sized from the
 // input), the ${var-word} word at 1 KB and ${var#pat} at 4 KB
 void test_long_expansions_are_not_cut(void) {
@@ -1072,6 +1084,7 @@ int main(void) {
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);
+    RUN_TEST(test_read_line_of_any_length);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_unquoted_star_and_at_are_fields);
     RUN_TEST(test_star_joins_where_nothing_splits);
