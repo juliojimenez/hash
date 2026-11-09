@@ -93,6 +93,18 @@ static void skip_single_quote(Tokenizer *tk) {
     close_or_mark(tk, '\'');
 }
 
+// $'...': tk->cur is at the quote. A backslash escapes the next byte, \' included
+static void skip_dollar_single_quote(Tokenizer *tk) {
+    step(tk);
+    while (*tk->cur && *tk->cur != '\'') {
+        if (*tk->cur == '\\' && peek_next(tk)) {
+            step(tk);
+        }
+        step(tk);
+    }
+    close_or_mark(tk, '\'');
+}
+
 // The body of $( ... ): tk->cur is just past the opening parenthesis. Parentheses
 // inside quotes do not count (`$(echo "(")`, a sed script in single quotes), nor
 // do escaped ones; nested quotes and substitutions are skipped as units.
@@ -109,6 +121,11 @@ static void skip_cmdsub_body(Tokenizer *tk) {
                       c == ';' || c == '|' || c == '&');
         if (c == '\\' && peek_next(tk)) {
             step(tk); step(tk);
+            continue;
+        }
+        if (c == '$' && peek_next(tk) == '\'') {
+            step(tk);
+            skip_dollar_single_quote(tk);
             continue;
         }
         if (c == '\'') {
@@ -239,7 +256,9 @@ static void read_word(Tokenizer *tk) {
 
         if (c == '$') {
             step(tk);
-            if (*tk->cur == '(' && peek_next(tk) == '(') {
+            if (*tk->cur == '\'') {
+                skip_dollar_single_quote(tk);
+            } else if (*tk->cur == '(' && peek_next(tk) == '(') {
                 step(tk); step(tk);
                 skip_arith_body(tk);
             } else if (*tk->cur == '(') {

@@ -493,6 +493,24 @@ static char *mark_case_text(const char *word, bool all_literal) {
         // its own: copy it verbatim, so its quoted $ are not marked here (a
         // \x02 inside the command text reached the child as a path byte:
         // `case $(f "${d}/${n}") in` exec'd "\x02/bin/\x02sh")
+        if (!in_single && !in_double && c == '$' && word[i + 1] == '\'') {
+            // $'...': decoded here; every byte is quoted text
+            char *decoded = malloc(len + 1);
+            size_t n = 0;
+            const char *end = decoded ? ansi_c_decode(word + i + 1, decoded, &n) : NULL;
+            if (end) {
+                for (size_t k = 0; k < n; k++) {
+                    if (is_marker_byte(decoded[k]) || char_in_string(decoded[k], "$`\\*?[]~<>|&;()\"'")) {
+                        result[j++] = '\x01';
+                    }
+                    result[j++] = decoded[k];
+                }
+                free(decoded);
+                i = (size_t)(end - word) - 1;
+                continue;
+            }
+            free(decoded);
+        }
         if (!in_single && c == '$' && word[i + 1] == '(') {
             size_t k = i + 2;
             int depth = 1;

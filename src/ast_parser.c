@@ -613,6 +613,19 @@ static char *materialize(Parser *p, const Token *t) {
     bool in_double = false;
     for (size_t i = 0; i < n; i++) {
         char c = s[i];
+        if (!in_single && !in_double && c == '$' && i + 1 < n && s[i + 1] == '\'') {
+            // $'...': copied as written up to its closing quote (\' and \\ escape)
+            size_t j = i + 2;
+            while (j < n && s[j] != '\'') {
+                if (s[j] == '\\' && j + 1 < n) j++;
+                j++;
+            }
+            if (j < n) j++;
+            memcpy(out + o, s + i, j - i);
+            o += j - i;
+            i = j - 1;
+            continue;
+        }
         if (!in_single && c == '$' && i + 2 < n && s[i + 1] == '(' && s[i + 2] != '(') {
             // A command substitution is a program of its own, parsed again when
             // it runs: copy it as written, so a here-document inside it keeps

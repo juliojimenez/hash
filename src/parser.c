@@ -123,10 +123,39 @@ static void handle_backslash(Parser *parser) {
     }
 }
 
+// A byte of quoted text: marked when it could otherwise be read as syntax
+static void write_quoted_byte(Parser *parser, char c) {
+    if (is_marker_byte(c) || char_in_string(c, "$`\\*?[]~<>|&;()\"'")) {
+        *parser->write_pos++ = '\x01';
+    }
+    *parser->write_pos++ = c;
+}
+
 static void handle_doller(Parser *parser) {
     if (parser->in_single_quote) {
         mark_and_write_char(parser);
         return;
+    }
+
+    // $'...': C-style escapes decoded, the result is quoted text (POSIX.1-2024,
+    // bash, ksh, zsh; modernish calls it CESCQUOT). Inside double quotes $' is
+    // a dollar sign and a quote, as in those shells.
+    if (*(parser->read_pos + 1) == '\'' && !parser->in_double_quote) {
+        size_t cap = strlen(parser->read_pos + 1);
+        char *decoded = malloc(cap + 1);
+        size_t n = 0;
+        const char *end = decoded ? ansi_c_decode(parser->read_pos + 1, decoded, &n) : NULL;
+        if (end) {
+            for (size_t i = 0; i < n; i++) {
+                write_quoted_byte(parser, decoded[i]);
+            }
+            parser->token_has_content = 1;  // $'' is an empty word
+            parser->read_pos = end;
+            free(decoded);
+            return;
+        }
+        free(decoded);
+        // No closing quote: the $ stands for itself and the quote opens as usual
     }
 
     // Handle $(...) command substitution, $((...)) arithmetic, and ${...} parameter expansion
@@ -307,6 +336,9 @@ static void handle_doller(Parser *parser) {
         // When a quote follows it (`$v"ro"`, `"$v"ro`), this pass removes the
         // quote and the name would run into the next characters ($vro). Write
         // ${name} then, which expands the same and keeps its boundary.
+        // The name is consumed here, so the next pass starts after it: left to
+        // the main loop, the $ of $$ was read again as a new expansion ($$$'bar'
+        // became pid{$}bar, "$$bar" became pid{bar}).
         const char *name = parser->read_pos;
         const char *end = name;
         if (isalpha((unsigned char)*end) || *end == '_') {
@@ -314,11 +346,14 @@ static void handle_doller(Parser *parser) {
         } else if (*end && strchr("0123456789@*#?-$!", *end)) {
             end++;
         }
-        if (end > name && (*end == '"' || *end == '\'')) {
+        bool quote_follows = end > name && (*end == '"' || *end == '\'');
+        if (quote_follows) {
             *parser->write_pos++ = '{';
-            while (parser->read_pos < end) {
-                *parser->write_pos++ = *parser->read_pos++;
-            }
+        }
+        while (parser->read_pos < end) {
+            *parser->write_pos++ = *parser->read_pos++;
+        }
+        if (quote_follows) {
             *parser->write_pos++ = '}';
         }
     }
