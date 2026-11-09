@@ -571,31 +571,38 @@ int shell_alias(char **args) {
         return listing_status("alias");
     }
 
-    char *equals = strchr(args[1], '=');
-    if (equals) {
-        *equals = '\0';
-        const char *name = args[1];
-        // The shell has already removed the quotes around the value; any
-        // quote characters left in it belong to the alias text
-        const char *value = equals + 1;
-
-        if (config_add_alias(name, value) == 0) {
-            last_command_exit_code = 0;
+    // alias name=value... name...: every operand is handled (POSIX); only the
+    // first used to be, so `alias _Msh_1='{ ' _Msh_2='}'` left _Msh_2 undefined
+    // (modernish's BUG_ALIASCSHD probe, #394)
+    int status = 0;
+    bool printed = false;
+    for (int i = 1; args[i]; i++) {
+        char *equals = strchr(args[i], '=');
+        if (equals) {
+            *equals = '\0';
+            const char *name = args[i];
+            // The shell has already removed the quotes around the value; any
+            // quote characters left in it belong to the alias text
+            const char *value = equals + 1;
+            if (config_add_alias(name, value) != 0) {
+                color_error("Failed to add alias");
+                status = 1;
+            }
         } else {
-            color_error("Failed to add alias");
-            last_command_exit_code = 1;
-        }
-    } else {
-        const char *value = config_get_alias(args[1]);
-        if (value) {
-            printf("alias %s='%s'\n", args[1], value);
-            return listing_status("alias");
-        } else {
-            fprintf(stderr, "%s: alias: %s: not found\n", HASH_NAME, args[1]);
-            last_command_exit_code = 1;
+            const char *value = config_get_alias(args[i]);
+            if (value) {
+                printf("alias %s='%s'\n", args[i], value);
+                printed = true;
+            } else {
+                fprintf(stderr, "%s: alias: %s: not found\n", HASH_NAME, args[i]);
+                status = 1;
+            }
         }
     }
-
+    if (printed && status == 0) {
+        return listing_status("alias");
+    }
+    last_command_exit_code = status;
     return 1;
 }
 

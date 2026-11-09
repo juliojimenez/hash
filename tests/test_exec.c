@@ -897,6 +897,17 @@ void test_nested_expansion_with_quotes_in_a_word(void) {
     TEST_ASSERT_EQUAL_STRING("[ 42 ]\n", run("x=' 42 '; echo \"[${x#\"${x%% *}\"}]\""));
 }
 
+// #394: alias handles every operand; only the first used to be defined
+void test_alias_defines_every_operand(void) {
+    TEST_ASSERT_EQUAL_STRING("alias A='echo x'\nalias B='echo y'\nx\ny\n",
+        run("alias A='echo x' B='echo y'; alias A B; eval 'A; B'"));  // eval: aliases apply to text parsed after the definition
+    TEST_ASSERT_EQUAL_STRING("rc=1\nalias D='w'\n",
+        run("alias D='w' nosuch 2>/dev/null; echo rc=$?; alias D"));
+    // modernish's BUG_ALIASCSHD probe: both braces come from one alias command
+    TEST_ASSERT_EQUAL_STRING("ok\n",
+        run("alias _Msh_1='{ ' _Msh_2='}'\neval '_Msh_1\n\t: || : <<-EOF\n\t$( : )\n\tEOF\n_Msh_2' && echo ok"));
+}
+
 // A signal ignored when the shell started stays ignored: trap - does not
 // make it default again and a trap on it is dropped (GitHub Actions runs
 // every step with SIGPIPE ignored; modernish probes exactly this)
@@ -1131,6 +1142,7 @@ int main(void) {
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
     RUN_TEST(test_trap_double_dash_ends_options);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
+    RUN_TEST(test_alias_defines_every_operand);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_unquoted_star_and_at_are_fields);
