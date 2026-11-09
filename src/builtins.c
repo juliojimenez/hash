@@ -1220,11 +1220,27 @@ int shell_read(char **args) {
         return 1;
     }
 
-    // One line from descriptor 0, leaving what follows for the next reader.
-    // At end of input with nothing read the line is empty: every name is
-    // assigned the empty string and the status says end of file
-    char line[4096];
-    if (input_read_line(STDIN_FILENO, line, sizeof(line)) < 0) {
+    // One line from descriptor 0, of any length, leaving what follows for the
+    // next reader. A 4 KB buffer used to cut a longer line short and report end
+    // of file (modernish's LOOP find hands its loop 43 quoted paths in one
+    // `set --` line, #395). At end of input with nothing read the line is
+    // empty: every name is assigned the empty string and the status says so
+    size_t have = 0;
+    errno = 0;
+    char *line = input_read_line_alloc(STDIN_FILENO, &have);
+    if (!line) {
+        if (errno != 0) {
+            free(ifs);
+            last_command_exit_code = 1;
+            return 1;
+        }
+        line = strdup("");
+        have = 0;
+    }
+    bool *esc = line ? malloc(have + 1) : NULL;
+    if (!line || !esc) {
+        free(line);
+        free(esc);
         free(ifs);
         last_command_exit_code = 1;
         return 1;
@@ -1234,7 +1250,6 @@ int shell_read(char **args) {
     // read index). With -r it ends at the newline. Without -r a backslash
     // escapes the next byte, which is kept and marked in esc so that it never
     // splits or trims, and a backslash-newline continues onto the next line
-    bool esc[sizeof(line)];
     bool at_eof = true;  // no newline ended the line: the input ran out first
     size_t len = 0;
     size_t i = 0;
@@ -1249,12 +1264,29 @@ int shell_read(char **args) {
             char next = line[i + 1];
             if (next == '\n') {
                 // The next line replaces the backslash and newline and the
-                // scan goes on from there. When nothing follows (end of input,
-                // or no room left) the line ends unterminated
-                if (input_read_line(STDIN_FILENO, line + i, sizeof(line) - i) <= 0) {
+                // scan goes on from there. When nothing follows (end of input)
+                // the line ends unterminated
+                size_t mlen = 0;
+                errno = 0;
+                char *more = input_read_line_alloc(STDIN_FILENO, &mlen);
+                if (!more) {
                     line[i] = '\0';
                     break;
                 }
+                char *grown = realloc(line, i + mlen + 1);
+                bool *grown_esc = realloc(esc, i + mlen + 1);
+                if (!grown || !grown_esc) {
+                    free(grown ? grown : line);
+                    free(grown_esc ? grown_esc : esc);
+                    free(more);
+                    free(ifs);
+                    last_command_exit_code = 1;
+                    return 1;
+                }
+                line = grown;
+                esc = grown_esc;
+                memcpy(line + i, more, mlen + 1);
+                free(more);
                 continue;
             }
             if (next == '\0') {
@@ -1312,6 +1344,8 @@ int shell_read(char **args) {
         pos = next;
     }
 
+    free(line);
+    free(esc);
     free(ifs);
     last_command_exit_code = status;
     return 1;
