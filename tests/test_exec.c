@@ -1081,6 +1081,20 @@ void test_dollar_single_quotes(void) {
         run("v=$(printf '%s' $'q\\tr'); f() { printf '[%s]\\n' $'it\\'s'; }; printf '[%s] ' \"$v\"; f"));
 }
 
+// #403: a word that holds '' or "" is a field even when everything else in
+// it expands to nothing (POSIX 2.6.5; modernish BUG_PP_01). "$@" alone with
+// no parameters is still no field, and the quoted empty string takes part in
+// no splitting, globbing or tilde expansion.
+void test_empty_quoted_string_keeps_the_field(void) {
+    TEST_ASSERT_EQUAL_STRING("1 1 1 1 1 1 1 1 0 0 \n",
+        run("c() { printf '%s ' \"$#\"; }; set --; x=\n"
+            "c ''\"$@\"; c \"$@\"''; c \"$@\"\"\"; c ''$x; c $x''; c ''; c \"\"; c $''; c \"$@\"; c $x; echo"));
+    TEST_ASSERT_EQUAL_STRING("1 2 2 2 [a b]\n",
+        run("c() { printf '%s ' \"$#\"; }; set --; IFS=; c ''\"$@\"; unset IFS; x='a b'; c ''$x; c $x''; set -- a b; c ''\"$@\"; v=''\"$@\"; echo \"[$v]\""));
+    TEST_ASSERT_EQUAL_STRING("[] [] [~] [/dev/null]\n",
+        run("set --; printf '[%s] ' ''\"$@\"; v=''; printf '[%s] ' \"$v\"; printf '[%s] ' ''~; printf '[%s]\\n' ''/dev/nul[l]"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1175,6 +1189,7 @@ int main(void) {
     RUN_TEST(test_unquoted_star_and_at_are_fields);
     RUN_TEST(test_star_joins_where_nothing_splits);
     RUN_TEST(test_quoted_at_fields);
+    RUN_TEST(test_empty_quoted_string_keeps_the_field);
     RUN_TEST(test_escaped_backslash_and_dollar);
     RUN_TEST(test_bracket_expression_members);
     RUN_TEST(test_escaped_backtick_in_double_quotes_is_literal);

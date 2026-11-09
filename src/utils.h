@@ -31,6 +31,15 @@ bool char_in_string(char c, const char *str);
  * variable, or the input itself) travels as \x01 + byte so it cannot be read
  * as a marker, and comes out as the byte again when the markers are removed.
  */
+// '' or "" in a word: left by the tokenizer so the field splitter keeps a
+// word whose every other part expanded to nothing. Dropped by the splitter,
+// strip_quote_markers() and the glob pattern builder.
+#define EMPTY_QUOTE_MARKER "\x02" "E"   // two literals: "\x02E" would be one hex escape, 0x2E
+
+static inline bool is_empty_quote_marker(const char *p) {
+    return p[0] == '\x02' && p[1] == 'E';
+}
+
 static inline bool is_marker_byte(char c) {
     return (unsigned char)c >= 1 && (unsigned char)c <= 4;
 }

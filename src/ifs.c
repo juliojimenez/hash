@@ -64,6 +64,10 @@ static void strip_markers_inplace(char *s) {
             *dst++ = *src++;
             continue;
         }
+        if (is_empty_quote_marker(src)) {
+            src += 2;  // '' or "": nothing to keep
+            continue;
+        }
         if (*src == '\x04') {
             *dst++ = ' ';
         } else if (*src != '\x03') {
@@ -82,10 +86,13 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
 
     // Quick check: does this arg have any \x03 markers?
     if (!has_marker(arg, '\x03')) {
-        // No markers - return a copy of the original
+        // No markers - return a copy of the original (less an empty-quote marker)
         char **result = malloc(2 * sizeof(char *));
         if (!result) return NULL;
         result[0] = strdup(arg);
+        if (result[0] && has_marker(result[0], '\x02')) {
+            strip_markers_inplace(result[0]);
+        }
         result[1] = NULL;
         *result_count = 1;
         return result;
@@ -109,8 +116,14 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
 
     const char *p = arg;
     int in_expansion = 0;
+    bool had_empty_quotes = false;  // '' or "" in the word: it is a field even when empty
 
     while (*p && word_count < MAX_SPLIT_ARGS - 1) {
+        if (is_empty_quote_marker(p)) {
+            had_empty_quotes = true;
+            p += 2;
+            continue;
+        }
         if (is_protected_pair(p)) {
             // A protected byte is quoted content: never a marker, never a split
             // point (a quoted space inside ${1+"$@"} stays in its field). A real
@@ -198,8 +211,9 @@ static char **process_arg_with_markers(const char *arg, const char *ifs, int *re
         }
     }
 
-    // Add final word if any
-    if (current_len > 0) {
+    // Add final word if any. A word that held '' or "" is a field even when
+    // everything in it expanded to nothing (''"$@" with no parameters)
+    if (current_len > 0 || (had_empty_quotes && word_count == 0)) {
         current_word[current_len] = '\0';
         all_words[word_count++] = strdup(current_word);
     }
@@ -273,7 +287,7 @@ int ifs_split_args(char ***args_ptr, int *arg_count, int assignment_words) {
             } else {
                 // No empty expansions - just strip markers in place
                 for (int i = 0; i < *arg_count; i++) {
-                    if (!has_marker(args[i], '\x03')) {
+                    if (!has_marker(args[i], '\x03') && !has_marker(args[i], '\x02')) {
                         continue;
                     }
                     strip_markers_inplace(args[i]);
@@ -330,7 +344,8 @@ int ifs_split_args(char ***args_ptr, int *arg_count, int assignment_words) {
         for (int i = 0; i < *arg_count; i++) {
             // Only modify strings that actually have markers
             // (avoid writing to read-only string literals)
-            if (!has_marker(args[i], '\x03') && !has_marker(args[i], '\x04')) {
+            if (!has_marker(args[i], '\x03') && !has_marker(args[i], '\x04') &&
+                !has_marker(args[i], '\x02')) {
                 continue;
             }
             strip_markers_inplace(args[i]);
