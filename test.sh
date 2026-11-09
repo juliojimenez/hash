@@ -286,7 +286,7 @@ run_test "0x02 0x03 0x04 in a value reach the command intact" "$CC_SETUP; t=a\${
 run_test "unquoted expansion keeps the bytes and does not split on them" "$CC_SETUP; t=a\${CC03}b\${CC04}c; set -- \$t; echo fields=\$#" "fields=1"
 run_test "command substitution output keeps control bytes" "$CC_SETUP; t=\$(printf 'p\\001q\\003r'); echo len=\${#t}" "len=5"
 run_test "case matches a value holding a control byte" "$CC_SETUP; case a\${CC01}b in (a?b) echo CC-CASE-OK;; (*) echo BUG;; esac" "CC-CASE-OK"
-run_test "modernish FTL_CASECC check" "$CC_SETUP; eval \"case 'ab\${CC01}c\${CC7F}d' in ( \\\\\\\\a\\\\\\\\b\\\\\\\\\${CC01}\\\\\\\\c\\\\\\\\\${CC7F}\\\\\\\\d ) echo CASECC-OK ;; ( * ) echo BUG ;; esac\"" "CASECC-OK"
+run_test "modernish FTL_CASECC check" "$CC_SETUP; eval \"case 'ab\${CC01}c\${CC7F}d' in ( \\\\a\\\\b\\\\\${CC01}\\\\c\\\\\${CC7F}\\\\d ) echo CASECC-OK ;; ( * ) echo BUG ;; esac\"" "CASECC-OK"
 run_test "a control byte in source text is a literal" "$CC_SETUP; eval \"t='A\${CC01}B'\"; echo len=\${#t}" "len=3"
 run_test "positional parameters keep control bytes through \"\$@\"" "$CC_SETUP; set -- \"a\${CC04}b\" c; for x in \"\$@\"; do printf '%s|' \"\$x\"; done | od -An -c | tr -s ' '" " a 004 b | c |"
 run_test "a here-document keeps control bytes" "$CC_SETUP; cat <<EOF | od -An -c | tr -s ' '
@@ -438,6 +438,9 @@ run_test "<<- keeps the tab of a continued line, which is not the delimiter" $'c
 run_test "a single-quoted backslash does not escape the expansion after the quote" "x=1; printf '[%s]' 'a\\'\$x 'a\\'\$(echo q) 'a\\'\`echo q\`; echo" "[a\\1][a\\q][a\\q]"
 run_test "an escaped backslash before a command substitution keeps the substitution" "printf '[%s]' \\\\\`echo q\` \\\\\$(echo q); echo" "[\\q][\\q]"
 run_test "a case pattern with a single-quoted backslash before an expansion" $'nl=\'\n\'; v=\'a \\\'$nl\'b\'; case $v in (\'a \\\'$nl\'b\') echo case-m ;; (*) echo case-n ;; esac' "case-m"
+run_test "a run of escaped backslashes in double quotes keeps its length" "v=\"\\\\\\\\\\\\\"; echo \"\${#v}\"" "3"
+run_test "an escaped backslash pair before an expansion keeps both backslashes" "x=1; printf '[%s]\\n' \"\\\\\\\\\$x\"" "[\\\\1]"
+run_test "a bracket set with an escaped backslash and an escaped ] has both as members" "case '\\' in ( *[\\\\\\]a]* ) printf 'bs ';; (*) printf 'no ';; esac; case ']' in ( *[\\\\\\]a]* ) echo rb;; (*) echo no;; esac" "bs rb"
 run_test "case word with a 0x03 byte does not match a 0x01 pattern" "c3=\$(printf '\\003'); c1=\$(printf '\\001'); v=\"a\${c3}b*c\"; case \$v in ( *\"\$c1\"* ) echo bug ;; ( * ) echo case-ok ;; esac" "case-ok"
 run_test "command keeps a quoted operator as an argument" "command expr X '<' X" "0"
 run_test "command skips a function of the same name" "f() { echo function; }; command f 2>&1; echo rc=\$?" "rc=127"

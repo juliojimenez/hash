@@ -73,9 +73,15 @@ static void handle_backslash(Parser *parser) {
                 break;
             case '`':
             case '"':
-            case '\\':
                 // Remove backslash, keep the character
                 *parser->write_pos++ = *parser->read_pos++;
+                break;
+            case '\\':
+                // An escaped backslash is a literal byte: marked, so the
+                // expander does not read it with its neighbours as an escape
+                // ("\\\\\\" is three backslashes, "\\\\$x" two and the
+                // value of x; bare ones collapsed to two and one)
+                mark_and_write_char(parser);
                 break;
             case '\n':
                 // Line continuation - skip both backslash and newline

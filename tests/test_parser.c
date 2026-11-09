@@ -229,7 +229,8 @@ void test_parse_line_escaped_backslash(void) {
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("path\\to\\file", parsed.tokens[1]);
+    // an escaped backslash in double quotes is a marked literal now (\x01 before it), like one outside quotes
+    TEST_ASSERT_EQUAL_STRING("path\x01\\to\x01\\file", parsed.tokens[1]);
     TEST_ASSERT_NULL(parsed.tokens[2]);
 
     parse_result_free(&parsed);
