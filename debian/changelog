@@ -1,3 +1,25 @@
+hash-shell (53-1) unstable; urgency=medium
+
+  * fix(trap): run trap actions at safe points, not in the signal handler
+  * feat(builtins): pwd
+  * fix(expand): quotes inside a double-quoted ${var-word} are characters
+  * fix(expand): a word with an empty quoted string is a field
+  * feat(builtins): ulimit
+  * fix(read): a line of any length
+  * fix(builtins): alias handles every operand
+  * fix(builtins): trap -- action signal accepts the option terminator
+  * fix(exec): save a redirection's target before opening its source
+  * fix(builtins): command runs an external program without expanding its arguments again
+  * fix(builtins): unset -f removes the function
+  * feat(parse): $'...' dollar-single-quotes, and $$ is read as one parameter
+  * fix(parse): bracket sets over the whole ASCII set; backticks and quotes inside quotes are literal
+  * fix(read): split on IFS as POSIX says; prefix assignments outlast only special builtins
+  * fix(parse): here-document bodies keep their backslashes; a single-quoted backslash escapes nothing
+  * fix(expand): unquoted $* and $@ are fields split on IFS; $* joins where nothing splits
+  * docs(book): chapter index pages are index.md; every link in the built book is checked
+
+ -- Julio Jimenez <julio@julioj.com>  Mon, 09 Nov 2026 10:16:38 -0500
+
 hash-shell (52-1) unstable; urgency=medium
 
   * docs: drop the Product Hunt badge; the book catches up with the shell

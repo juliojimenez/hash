@@ -33,10 +33,10 @@ After installation, verify hash is working:
 
 ```bash
 hash-shell --version
-# hash version 52
+# hash version 53
 
 hash-shell
-# hash v52
+# hash v53
 # Type 'exit' to quit
 #>
 ```

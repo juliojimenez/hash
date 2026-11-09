@@ -9,7 +9,7 @@ latest release.
 
 | Version          | Supported          |
 | ---------------- | ------------------ |
-| v52 (latest)     | :white_check_mark: |
+| v53 (latest)     | :white_check_mark: |
 | Earlier releases | :x:                |
 
 ## Reporting a Vulnerability
