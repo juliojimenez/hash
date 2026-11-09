@@ -938,6 +938,40 @@ void test_single_quoted_backslash_escapes_nothing_after_the_quote(void) {
         run("nl='\n'; eval 'printf \"[%s]\\n\" \"abc \\'\"$nl\"'def\"'"));
 }
 
+// #386: bracket expressions over the whole ASCII set. Three things had to
+// hold: a run of escaped backslashes in double quotes keeps its length, an
+// escaped marker-range byte in a case pattern travels protected, and the
+// fnmatch pattern puts a ] member first (macOS fnmatch loses a backslash
+// member that is followed by an escaped ]: [\\\]a] had no \ in it there)
+void test_bracket_expression_members(void) {
+    TEST_ASSERT_EQUAL_STRING("[\\\\\\] 3 [\\\\1] [\\\\q]\n",
+        run("x=1; v=\"\\\\\\\\\\\\\"; printf '[%s] %s [%s] [%s]\\n' \"$v\" \"${#v}\" \"\\\\\\\\$x\" \"\\\\\\\\`echo q`\""));
+    TEST_ASSERT_EQUAL_STRING("bs rb a\n",
+        run("case '\\' in ( *[\\\\\\]a]* ) printf 'bs ';; ( * ) printf 'no ';; esac\n"
+            "case ']' in ( *[\\\\\\]a]* ) printf 'rb ';; ( * ) printf 'no ';; esac\n"
+            "case 'a' in ( *[\\\\\\]a]* ) echo a;; ( * ) echo no;; esac"));
+    // an escaped control byte and an escaped $ in one pattern (the $ used to be expanded)
+    TEST_ASSERT_EQUAL_STRING("ok\n",
+        run("c1=$(printf '\\001'); eval \"case 'a' in ( *[\\\\${c1}\\\\\\$a]* ) echo ok;; ( * ) echo no;; esac\""));
+    // ] first and - last are kept as members; a range still works
+    TEST_ASSERT_EQUAL_STRING("rb dash m no\n",
+        run("case ']' in ( []a] ) printf 'rb ';; ( * ) printf 'no ';; esac\n"
+            "case '-' in ( [a\\\\-] ) printf 'dash ';; ( * ) printf 'no ';; esac\n"
+            "case 'm' in ( [a-z] ) printf 'm ';; ( * ) printf 'no ';; esac\n"
+            "case '-' in ( [a-z] ) echo yes;; ( * ) echo no;; esac"));
+}
+
+// An escaped backtick inside double quotes is a literal backtick; a bare one
+// started a command substitution later ("a\`b\`c" ran b)
+void test_escaped_backtick_in_double_quotes_is_literal(void) {
+    TEST_ASSERT_EQUAL_STRING("[a`b`c] 5 [x`y`z] [\\`t`]\n",
+        run("v=\"q\\`w\\`e\"; printf '[%s] %s ' \"a\\`b\\`c\" \"${#v}\"; eval 'printf \"[%s] \" \"x\\`y\\`z\"'; printf '[%s]\\n' \"\\\\\\`t\\`\""));
+    // escaped quotes are marked too: a bare one flipped the quote tracking of
+    // the command-substitution pass, which then ran what single quotes held
+    TEST_ASSERT_EQUAL_STRING("[''`t`] [a\"b`c\"] ['p `q` r']\n",
+        run("x=\\'\\''`t`'; printf '[%s] ' \"$x\" \"a\\\"b\\`c\\\"\"; printf '[%s]\\n' \\''p `q` r'\\'"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1026,5 +1060,7 @@ int main(void) {
     RUN_TEST(test_star_joins_where_nothing_splits);
     RUN_TEST(test_quoted_at_fields);
     RUN_TEST(test_escaped_backslash_and_dollar);
+    RUN_TEST(test_bracket_expression_members);
+    RUN_TEST(test_escaped_backtick_in_double_quotes_is_literal);
     return UNITY_END();
 }

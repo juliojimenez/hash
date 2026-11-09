@@ -203,7 +203,8 @@ void test_parse_line_escaped_double_quote(void) {
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("He said \"hello\"", parsed.tokens[1]);
+    // an escaped quote is a marked literal (\x01 before it): a bare one flipped the quote tracking of later passes
+    TEST_ASSERT_EQUAL_STRING("He said \x01\"hello\x01\"", parsed.tokens[1]);
     TEST_ASSERT_NULL(parsed.tokens[2]);
 
     parse_result_free(&parsed);
@@ -216,7 +217,8 @@ void test_parse_line_escaped_single_quote(void) {
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("can't", parsed.tokens[1]);
+    // an escaped quote is a marked literal (\x01 before it): a bare one flipped the quote tracking of later passes
+    TEST_ASSERT_EQUAL_STRING("can\x01't", parsed.tokens[1]);
     TEST_ASSERT_NULL(parsed.tokens[2]);
 
     parse_result_free(&parsed);
@@ -229,7 +231,8 @@ void test_parse_line_escaped_backslash(void) {
 
     TEST_ASSERT_NOT_NULL(parsed.tokens);
     TEST_ASSERT_EQUAL_STRING("echo", parsed.tokens[0]);
-    TEST_ASSERT_EQUAL_STRING("path\\to\\file", parsed.tokens[1]);
+    // an escaped backslash in double quotes is a marked literal now (\x01 before it), like one outside quotes
+    TEST_ASSERT_EQUAL_STRING("path\x01\\to\x01\\file", parsed.tokens[1]);
     TEST_ASSERT_NULL(parsed.tokens[2]);
 
     parse_result_free(&parsed);

@@ -282,6 +282,82 @@ static char *remove_shell_quotes(const char *str) {
     return result;
 }
 
+// fnmatch on macOS misreads a bracket expression that has an escaped ] after
+// an escaped backslash: in [\\\]a] the backslash is not a member there (glibc
+// reads it as POSIX says). Both agree on the form POSIX describes without
+// escapes: a ] member first, a - member last. Rewrite every bracket expression
+// of an fnmatch pattern that way, in place (the result is never longer).
+static void canonicalize_bracket_members(char *pat) {
+    size_t n = strlen(pat);
+    for (size_t i = 0; i < n; i++) {
+        if (pat[i] == '\\' && pat[i + 1]) {
+            i++;
+            continue;
+        }
+        if (pat[i] != '[') continue;
+        size_t j = i + 1;
+        if (pat[j] == '!' || pat[j] == '^') j++;
+        size_t members = j;
+        if (pat[j] == ']') j++;             // a ] right after [ or [! is a member
+        bool closed = false;
+        while (pat[j]) {
+            if (pat[j] == '\\' && pat[j + 1]) {
+                j += 2;
+                continue;
+            }
+            if (pat[j] == '[' && pat[j + 1] == ':') {
+                const char *end = strstr(pat + j + 2, ":]");
+                if (!end) break;
+                j = (size_t)(end - pat) + 2;
+                continue;
+            }
+            if (pat[j] == ']') {
+                closed = true;
+                break;
+            }
+            j++;
+        }
+        if (!closed) continue;              // a [ with no ]: a literal character
+        char *kept = malloc(j - members + 1);
+        if (!kept) return;
+        size_t k = 0;
+        bool has_rbracket = false, has_dash = false;
+        for (size_t p = members; p < j;) {
+            if (p == members && pat[p] == ']') {
+                has_rbracket = true;
+                p++;
+            } else if (pat[p] == '\\' && pat[p + 1] == ']') {
+                has_rbracket = true;
+                p += 2;
+            } else if (pat[p] == '\\' && pat[p + 1] == '-') {
+                has_dash = true;
+                p += 2;
+            } else if (pat[p] == '-' && (p == members || p + 1 == j)) {
+                has_dash = true;             // a - that is not a range operator
+                p++;
+            } else if (pat[p] == '\\' && pat[p + 1]) {
+                kept[k++] = pat[p++];
+                kept[k++] = pat[p++];
+            } else {
+                kept[k++] = pat[p++];
+            }
+        }
+        size_t w = members;
+        if (has_rbracket) pat[w++] = ']';
+        memcpy(pat + w, kept, k);
+        w += k;
+        if (has_dash) pat[w++] = '-';
+        free(kept);
+        if (w < j) {                        // \] and \- lost their backslashes: close the gap
+            memmove(pat + w, pat + j, n - j + 1);
+            n -= j - w;
+            j = w;
+        }
+        pat[j] = ']';
+        i = j;
+    }
+}
+
 // Remove shell quotes for case patterns - similar to remove_shell_quotes but
 // escapes backslashes that are meant to be literal (from inside single quotes)
 // so fnmatch treats them correctly
@@ -360,6 +436,9 @@ static char *remove_shell_quotes_for_pattern(const char *str) {
                     // Keep the escape sequence for fnmatch
                     result[j++] = '\\';
                     i++;
+                    if (str[i] == '\x01' && str[i + 1]) {
+                        i++;  // a protected byte: the byte itself is the escaped character
+                    }
                     if (str[i] != '\n') {  // Backslash-newline is removed
                         result[j++] = str[i];
                     }
@@ -470,6 +549,18 @@ static char *mark_case_text(const char *word, bool all_literal) {
             if (next == '\\') {
                 result[j++] = '\x01';
                 result[j++] = c;
+                result[j++] = next;
+                i++;
+                continue;
+            }
+            if (is_marker_byte(next)) {
+                // An escaped control byte in the marker range: the byte travels
+                // protected, or the expander reads it as a marker and takes the
+                // byte after it with it (a `\$` later in the same pattern was
+                // then read as "literal backslash, expand $": `*[\<01>...\$...]*`
+                // matched nothing, modernish match.t 018)
+                result[j++] = c;
+                result[j++] = '\x01';
                 result[j++] = next;
                 i++;
                 continue;
@@ -675,6 +766,7 @@ static char *expand_case_pattern(const char *pattern) {
         free(result);
         result = unquoted;
     }
+    canonicalize_bracket_members(result);
 
     return result;
 }
