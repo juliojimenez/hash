@@ -71,10 +71,15 @@ static void handle_backslash(Parser *parser) {
                 // Use marker to prevent variable expansion
                 mark_and_write_char(parser);
                 break;
-            case '`':
             case '"':
                 // Remove backslash, keep the character
                 *parser->write_pos++ = *parser->read_pos++;
+                break;
+            case '`':
+                // A literal backtick, marked: a bare one would start a command
+                // substitution later ("a\`b\`c" ran b; modernish shellquote -P
+                // writes its output with \` inside double quotes)
+                mark_and_write_char(parser);
                 break;
             case '\\':
                 // An escaped backslash is a literal byte: marked, so the

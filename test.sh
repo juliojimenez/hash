@@ -441,6 +441,7 @@ run_test "a case pattern with a single-quoted backslash before an expansion" $'n
 run_test "a run of escaped backslashes in double quotes keeps its length" "v=\"\\\\\\\\\\\\\"; echo \"\${#v}\"" "3"
 run_test "an escaped backslash pair before an expansion keeps both backslashes" "x=1; printf '[%s]\\n' \"\\\\\\\\\$x\"" "[\\\\1]"
 run_test "a bracket set with an escaped backslash and an escaped ] has both as members" "case '\\' in ( *[\\\\\\]a]* ) printf 'bs ';; (*) printf 'no ';; esac; case ']' in ( *[\\\\\\]a]* ) echo rb;; (*) echo no;; esac" "bs rb"
+run_test "an escaped backtick in double quotes is a literal backtick" "v=\"q\\\`w\\\`e\"; printf '[%s] %s\\n' \"a\\\`b\\\`c\" \"\${#v}\"" "[a\`b\`c] 5"
 run_test "case word with a 0x03 byte does not match a 0x01 pattern" "c3=\$(printf '\\003'); c1=\$(printf '\\001'); v=\"a\${c3}b*c\"; case \$v in ( *\"\$c1\"* ) echo bug ;; ( * ) echo case-ok ;; esac" "case-ok"
 run_test "command keeps a quoted operator as an argument" "command expr X '<' X" "0"
 run_test "command skips a function of the same name" "f() { echo function; }; command f 2>&1; echo rc=\$?" "rc=127"

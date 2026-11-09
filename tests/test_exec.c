@@ -961,6 +961,13 @@ void test_bracket_expression_members(void) {
             "case '-' in ( [a-z] ) echo yes;; ( * ) echo no;; esac"));
 }
 
+// An escaped backtick inside double quotes is a literal backtick; a bare one
+// started a command substitution later ("a\`b\`c" ran b)
+void test_escaped_backtick_in_double_quotes_is_literal(void) {
+    TEST_ASSERT_EQUAL_STRING("[a`b`c] 5 [x`y`z] [\\`t`]\n",
+        run("v=\"q\\`w\\`e\"; printf '[%s] %s ' \"a\\`b\\`c\" \"${#v}\"; eval 'printf \"[%s] \" \"x\\`y\\`z\"'; printf '[%s]\\n' \"\\\\\\`t\\`\""));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1050,5 +1057,6 @@ int main(void) {
     RUN_TEST(test_quoted_at_fields);
     RUN_TEST(test_escaped_backslash_and_dollar);
     RUN_TEST(test_bracket_expression_members);
+    RUN_TEST(test_escaped_backtick_in_double_quotes_is_literal);
     return UNITY_END();
 }
