@@ -197,6 +197,7 @@ static void loop(void) {
             prompt_str = prompt_generate(last_exit_code);
         }
 
+        trap_run_pending();   // trapped signals that arrived at the prompt
         char *line = read_line(prompt_str);
         if (!line) {
             // End of input: leave like `exit`, keeping the last command's status

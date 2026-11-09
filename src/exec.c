@@ -1378,6 +1378,9 @@ ExecStatus exec_node(const Node *node) {
     if (!node) {
         return EXEC_OK;
     }
+    if (trap_run_pending()) {   // a safe point: trapped signals run between commands
+        return EXEC_EXIT;       // and an action that said exit stops this node from running
+    }
     switch (node->type) {
         case NODE_LIST:
             return exec_list(node);

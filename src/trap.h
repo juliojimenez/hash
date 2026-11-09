@@ -51,6 +51,13 @@ int trap_running_exit_status(void);
 // Reset traps for subshell (POSIX: traps are not inherited by subshells)
 void trap_reset_for_subshell(void);
 
+/**
+ * Run the actions of the trapped signals that have arrived since the last
+ * call. The handler only records them; the executor calls this at its safe
+ * points. Cheap when nothing is pending.
+ */
+bool trap_run_pending(void);   // true when one of the actions asked the shell to exit
+
 // List all traps
 void trap_list(void);
 

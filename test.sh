@@ -336,6 +336,13 @@ run_test "\${?} is the exit status" "false; echo rc=\${?}" "rc=1"
 run_test "single quotes inside a double-quoted \${var-word} are characters" "unset y; printf '[%s]\\n' \"\${y:-'a'}\"" "['a']"
 run_test "an unquoted \${var-word} still treats its quotes as quotes" "unset y; printf '[%s]\\n' \${y:-'a b'}" "[a b]"
 run_test "a double-quoted pattern word keeps its quotes as quotes" "q=ab; printf '[%s]\\n' \"\${q#'a'}\"" "[b]"
+run_test "a trap action runs after the command the signal interrupted" "trap 'echo T' USR1; kill -s USR1 \$\$; echo after" $'T\nafter'
+run_test "a trap action leaves \$? as it was" "trap false USR1; true; kill -s USR1 \$\$; echo rc=\$?" "rc=0"
+run_test "a trap action runs once the foreground child is done" "trap 'echo T' USR1; (kill -s USR1 \$\$; echo sub); echo after" $'sub\nT\nafter'
+run_test "a pending trap action runs at exit, before the EXIT trap" "trap 'echo T' USR1; trap 'echo X' EXIT; kill -s USR1 \$\$" $'T\nX'
+run_test "exit in a trap action stops the script with that status" "out=\$(./hash-shell -c 'trap \"exit 3\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=3 out=[]"
+run_test "set -e: a failing trap action exits the shell" "out=\$(./hash-shell -c 'set -e; trap \"false; echo BUG\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=1 out=[]"
+run_test "set -e: a failing trap action still runs the EXIT trap" "out=\$(./hash-shell -c 'set -e; trap \"echo X\" EXIT; trap \"false; echo BUG\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=1 out=[X]"
 run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
 run_test "trap -- action signal accepts the option terminator" "trap -- 'echo i' INT; trap" "trap -- 'echo i' INT"
 run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"

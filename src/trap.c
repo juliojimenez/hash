@@ -120,21 +120,48 @@ const char *trap_signal_name(int signum) {
     return NULL;
 }
 
-// Signal handler that executes trap command
-static void trap_signal_handler(int signum) {
-    if (signum >= 0 && signum < MAX_TRAPS && traps[signum]) {
-        // Execute the trap command
-        int result = script_execute_string(traps[signum]);
+// A trapped signal is only recorded here; the action runs at the next safe
+// point (trap_run_pending(): before a command, after a foreground child or
+// `wait` has been reaped, after an interrupted read, before a prompt line).
+// Parsing and running it from the handler meant malloc, stdio and fork in
+// signal context, which ThreadSanitizer flags and which can corrupt the heap
+// when the signal lands inside an allocation (#398).
+static volatile sig_atomic_t pending_signals[MAX_TRAPS];
+static volatile sig_atomic_t trap_pending_any = 0;
+static bool running_trap_action = false;
 
-        // If errexit triggered in trap handler (exit code != 0 with -e),
-        // the return value will be non-zero. Check if shell should exit.
-        extern int last_command_exit_code;
-        if (shell_option_errexit() && last_command_exit_code != 0) {
-            // Errexit triggered in trap - exit the shell
-            exit(last_command_exit_code);
-        }
-        (void)result;  // Suppress unused warning
+static void trap_signal_handler(int signum) {
+    if (signum > 0 && signum < MAX_TRAPS) {
+        pending_signals[signum] = 1;
+        trap_pending_any = 1;
     }
+}
+
+bool trap_run_pending(void) {
+    if (!trap_pending_any || running_trap_action) {
+        return false;
+    }
+    trap_pending_any = 0;
+    running_trap_action = true;   // an action's own commands reach these safe points too
+    bool exit_asked = false;
+    for (int i = 1; i < MAX_TRAPS; i++) {
+        if (!pending_signals[i]) continue;
+        pending_signals[i] = 0;
+        if (!traps[i] || traps[i][0] == '\0') continue;   // reset or ignored meanwhile
+        // POSIX: $? after the action is what it was before the action ran
+        int saved_status = last_command_exit_code;
+        script_execute_string(traps[i]);
+        // `exit` in the action, or set -e tripping on one of its commands, ends
+        // the shell with the action's status, through the normal exit path so
+        // the EXIT trap still runs
+        if (script_state.exit_requested) {
+            exit_asked = true;
+            break;
+        }
+        last_command_exit_code = saved_status;
+    }
+    running_trap_action = false;
+    return exit_asked;
 }
 
 int trap_set(const char *action, const char *signal_name) {
@@ -199,6 +226,12 @@ int trap_running_exit_status(void) {
 }
 
 int trap_exit_status(int status) {
+    // A signal that arrived during the last command has had no safe point
+    // yet: its action runs before the shell leaves, and before the EXIT trap
+    // (set -e; trap "false; echo BUG" USR1; kill -s USR1 $$ exits 1)
+    if (trap_run_pending()) {
+        status = last_command_exit_code;   // the action asked to exit: with its status
+    }
     if (!traps[0]) {
         return status;
     }
@@ -222,6 +255,12 @@ int trap_exit_status(int status) {
 // but trap with no operands should show what traps were when subshell was entered
 void trap_reset_for_subshell(void) {
     in_subshell = 1;
+    // Signals that arrived before the fork belong to the parent
+    for (int i = 0; i < MAX_TRAPS; i++) {
+        pending_signals[i] = 0;
+    }
+    trap_pending_any = 0;
+    running_trap_action = false;
     // A subshell started inside an EXIT trap action is a new environment: a
     // bare exit in it uses the subshell's own last status, not the trap's
     exit_trap_status = -1;
