@@ -1858,10 +1858,11 @@ int shell_command(char **args) {
         return 1;
     }
 
-    // An external command: execute() without the function lookup (a function
-    // named like the command is exactly what `command` is for skipping)
-    execute_bypass_functions();
-    execute(args + arg_start);
+    // An external command, launched with the arguments as they are: the
+    // execute() that ran this builtin expanded them once, and a second
+    // execute() expanded them again (`command /dev/null \${v=x}` assigned v,
+    // #393). launch() runs programs only, which is what `command` is for.
+    execute_external(args + arg_start);
     return 1;
 }
 

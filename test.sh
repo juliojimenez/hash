@@ -273,6 +273,8 @@ run_test "a variable name built from an expansion inside arithmetic" "v=b; _a_b=
 
 # ${var:-word} words honour their own quotes; function arguments carry no markers (#375)
 run_test "\${1+\"\$@\"} keeps each parameter whole" "f() { printf '<%s>' \${1+\"\$@\"}; echo; }; f 'a b' c" "<a b><c>"
+run_test "command does not expand its arguments a second time" "unset v; command /dev/null \\\${v=x} 2>/dev/null; echo \"\${v-unset}\"" "unset"
+run_test "command passes a literal dollar-brace to the program and leaves the shell alone" "unset v; command sh -c 'echo \${v=y}'; echo \"\${v-unset}\"" $'y\nunset'
 run_test "\${w:-\"a b\"} is one field" "printf '[%s]' \${w:-\"a b\"}; echo" "[a b]"
 run_test "\${z:-\$(cmd)} splits like an unquoted expansion" "printf '[%s]' \${z:-\$(echo a b)}; echo" "[a][b]"
 run_test "\"\${y:-\$(cmd)}\" is one field" "printf '[%s]' \"\${y:-\$(echo a b)}\"; echo" "[a b]"

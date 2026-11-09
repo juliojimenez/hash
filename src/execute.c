@@ -529,15 +529,22 @@ static char *expand_assignment_value(const char *value, int *had_error) {
 }
 
 // Execute command (built-in or external)
-static bool bypass_functions_once = false;
 
-void execute_bypass_functions(void) {
-    bypass_functions_once = true;
+// Run an external command whose arguments are already expanded: the
+// `command` builtin's. The execute() that ran the builtin expanded them once
+// and left their quote markers on, so launch() can still tell a quoted '<'
+// from a redirection before it strips the markers. Running them through
+// execute() again expanded them a second time (`command /dev/null \${v=x}`
+// assigned v; #393); a function lookup is not wanted here either.
+int execute_external(char **args) {
+    if (!args || !args[0]) return 1;
+    char *cmd_string = build_cmd_string(args);
+    int result = launch(args, cmd_string);
+    free(cmd_string);
+    return result;
 }
 
 int execute(char **args) {
-    bool bypass_functions = bypass_functions_once;
-    bypass_functions_once = false;
     if (args[0] == NULL) {
         // Empty command
         last_command_exit_code = 0;
@@ -1133,8 +1140,9 @@ int execute(char **args) {
         return result;
     }
 
-    // Check for user-defined functions (not for `command name`)
-    const ShellFunction *func = bypass_functions ? NULL : script_get_function(exec_args[0]);
+    // Check for user-defined functions (`command name` never gets here: its
+    // external path is execute_external())
+    const ShellFunction *func = script_get_function(exec_args[0]);
     if (func) {
         // Count arguments (including function name as $0)
         int argc = 0;
