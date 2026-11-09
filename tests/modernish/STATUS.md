@@ -9,8 +9,8 @@ on changes to these files, and fails only when the result is worse than the base
 ## Where things stand
 
 The suite runs to its own summary, with the same result on macOS and on the GitHub
-runner: `baseline.txt` records `state=ran total=389 fails=0` (389 tests, 367 succeeded,
-12 skipped, 2 warnings, 8 expected failures, 0 unexpected failures). The weekly job turns
+runner: `baseline.txt` records `state=ran total=389 fails=0` (389 tests, 369 succeeded,
+12 skipped, 2 warnings, 6 expected failures, 0 unexpected failures). The weekly job turns
 red only when the number of unexpected failures goes up; when a fix brings it down, rerun
 with `--update-baseline` and commit `baseline.txt`.
 
@@ -32,14 +32,14 @@ as a bad substitution, `command` keeping quoted operators and skipping functions
 arrived ignored ignored.
 
 No unexpected failure is left: the 43 that #381 found were filed by root cause in #399 and
-fixed in #404, #406, #407, #410 to #418 and the pull request for #403. The 8 expected failures
+fixed in #404, #406, #407, #410 to #418, #420 and #421. The 6 expected failures
 are tests modernish marks as such for a shell with the quirk its capability detection found,
 and the two warnings (WRN_EREMBYTE, WRN_MULTIBYTE) are about multibyte characters in `ematch`
 and IFS, as on other shells without full UTF-8 support.
 
-Also seen in the output, not counted as failures: `pwd` after `cd -P` into a symlinked temp
-directory fails (`pwd: Not a directory` on Linux; #397), and trap actions still run inside the
-signal handler (#398).
+Two things the output used to show besides the counts are gone at v53: `pwd` after `cd -P`
+into a symlinked temp directory failed (`pwd: Not a directory` on Linux; #397, fixed by the
+`pwd` builtin in #422), and trap actions ran inside the signal handler (#398, fixed in #423).
 
 All nine shell bugs that modernish's fatal-bug battery (`lib/modernish/adj/fatal.sh`)
 found against v51 are fixed; the battery passes, and `bin/modernish` initialises on hash.
