@@ -1095,6 +1095,20 @@ void test_empty_quoted_string_keeps_the_field(void) {
         run("set --; printf '[%s] ' ''\"$@\"; v=''; printf '[%s] ' \"$v\"; printf '[%s] ' ''~; printf '[%s]\\n' ''/dev/nul[l]"));
 }
 
+// #408: when the whole ${...} sits in double quotes, a single quote in the
+// word of ${var-word} (and :+ and =) is a character, as in dash and bash;
+// backslashes follow the double-quote rules; a pattern word (${var#word})
+// keeps its quotes as quotes; an unquoted ${...} is unchanged
+void test_quotes_inside_a_double_quoted_brace_word(void) {
+    TEST_ASSERT_EQUAL_STRING("['a\\'1] ['a'] ['a b'c] ['x'] ['1'] \n",
+        run("x=1; unset y; printf '[%s] ' \"${y:-'a\\'$x}\" \"${y:-'a'}\" \"${y:-'a b'}c\" \"${x:+'x'}\" \"${y:-'$x'}\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("['q r'] ['q r'] [a b] [a b] \n",
+        run("unset y z; printf '[%s] ' \"${z='q r'}\" \"$z\" ${y:-'a b'} \"${y:-\"a b\"}\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("['a'b] [b] [b] [a] case-literal\n",
+        run("p=\"'a'b\"; q=ab; unset y; printf '[%s] ' \"${p#'a'}\" \"${p#\\'a\\'}\" \"${q#'a'}\" \"${q%'b'}\"; "
+            "case \"x'a'\" in (\"${y:-x'a'}\") echo case-literal;; (*) echo case-no;; esac"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1179,6 +1193,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
     RUN_TEST(test_redirect_saves_a_closed_fd_before_opening_the_source);
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
+    RUN_TEST(test_quotes_inside_a_double_quoted_brace_word);
     RUN_TEST(test_trap_double_dash_ends_options);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_alias_defines_every_operand);

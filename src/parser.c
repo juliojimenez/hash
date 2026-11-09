@@ -271,7 +271,8 @@ static void handle_doller(Parser *parser) {
                     *parser->write_pos++ = *parser->read_pos++;
                     continue;
                 }
-                if (c == '\'' && !dq) {
+                if (c == '\'' && !dq && !parser->in_double_quote) {
+                    // inside double quotes a single quote is a character (#408)
                     sq = !sq;
                 } else if (c == '"' && !sq) {
                     dq = !dq;
