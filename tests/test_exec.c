@@ -849,7 +849,7 @@ void test_command_keeps_quoted_operators_and_skips_functions(void) {
 
 // trap -- action signal: -- ends the options (POSIX); it was taken for the action
 void test_trap_double_dash_ends_options(void) {
-    TEST_ASSERT_EQUAL_STRING("trap -- 'echo i' INT\nrc=0\n", run("trap -- 'echo i' INT; trap; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("trap -- 'echo i' INT\nrc=0\n", run("trap -- 'echo i' INT; trap; echo rc=$?; trap - INT"));  // reset: the harness runs in-process and a set trap is a leak at exit
     TEST_ASSERT_EQUAL_STRING("x\n", run("( trap -- 'echo x' EXIT )"));
     TEST_ASSERT_EQUAL_STRING("\n", run("trap 'echo y' EXIT; trap -- - EXIT; echo"));
 }

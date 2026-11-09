@@ -425,6 +425,8 @@ int main(int argc, char *argv[]) {
         int result = trap_exit_status(script_execute_string(command_string));
 
         script_cleanup();
+
+        trap_cleanup();   // trap actions are strdup'd: free them too
         return result;
     }
 
@@ -446,6 +448,7 @@ int main(int argc, char *argv[]) {
         // calls exit with an operand itself
         result = trap_exit_status(result);
         script_cleanup();
+        trap_cleanup();   // trap actions are strdup'd: free them too
         return result;
     }
 
@@ -501,6 +504,7 @@ int main(int argc, char *argv[]) {
             script_state.in_script = false;
             int status = trap_exit_status(2);
             script_cleanup();
+            trap_cleanup();   // trap actions are strdup'd: free them too
             return status;
         }
 
@@ -510,6 +514,7 @@ int main(int argc, char *argv[]) {
         // exit with an operand itself
         int status = trap_exit_status(execute_get_last_exit_code());
         script_cleanup();
+        trap_cleanup();   // trap actions are strdup'd: free them too
         return status;
     }
 
@@ -599,6 +604,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     lineedit_cleanup();
     script_cleanup();
+    trap_cleanup();   // trap actions are strdup'd: free them too
 
     // POSIX: an interactive shell exits with the status of the last command
     // (`exit N` sets it; end of input keeps it)
