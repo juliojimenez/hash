@@ -303,6 +303,8 @@ run_test "case: unquoted \\\\ in the word is one backslash" "case a\\\\b in (a\\
 run_test "case: backslash in a double-quoted pattern is literal" "case \\\\z in (\"\\z\") echo CASE-OK2;; (*) echo BUG;; esac" "CASE-OK2"
 run_test "case: a backslash from a quoted expansion matches (modernish FTL_CASEBKSL2)" "set -- \\\; case ab\\\\cd in (*\"\$1\"*) echo CASE-OK3;; (*) echo BUG;; esac" "CASE-OK3"
 run_test "case: single quotes keep \$ literal in the word" "x=5; case '\$x' in (5) echo BUG;; (*) echo CASE-OK4;; esac" "CASE-OK4"
+run_test "a block's redirection of a closed fd is closed again afterwards" "exec 3>/dev/null; exec 4>&-; { :; } 4>/dev/null; { true >&4; } 2>/dev/null && echo open || echo closed" "closed"
+run_test "a closed fd stays closed after nested blocks that open and close it" "exec 3>/dev/null; exec 4>&-; { { while :; do { exec 4>/dev/null; } 4>&-; break; done 4>&-; { true >&4; } 2>/dev/null && echo leaked; } 4>&-; } 4>/dev/null; { true >&4; } 2>/dev/null && echo open || echo closed" "closed"
 run_test "case: a quoted * is not a pattern character" "case ab in (\"a*\") echo BUG;; (*) echo CASE-OK5;; esac" "CASE-OK5"
 run_test "case: a quoted [ is not a pattern character" "case 'a[b' in ('a[b') echo CASE-OK6;; (*) echo BUG;; esac" "CASE-OK6"
 run_test "case: two single-quoted backslashes match two" "case '\\\\\\\\' in ('\\\\\\\\') echo CASE-OK7;; (*) echo BUG;; esac" "CASE-OK7"
