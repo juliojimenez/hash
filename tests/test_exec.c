@@ -879,6 +879,13 @@ void test_command_keeps_quoted_operators_and_skips_functions(void) {
     TEST_ASSERT_EQUAL_STRING("ext\n", run("echo() { builtin_echo_replaced; }; command echo ext; unset -f echo"));
 }
 
+// trap -- action signal: -- ends the options (POSIX); it was taken for the action
+void test_trap_double_dash_ends_options(void) {
+    TEST_ASSERT_EQUAL_STRING("trap -- 'echo i' INT\nrc=0\n", run("trap -- 'echo i' INT; trap; echo rc=$?; trap - INT"));  // reset: the harness runs in-process and a set trap is a leak at exit
+    TEST_ASSERT_EQUAL_STRING("x\n", run("( trap -- 'echo x' EXIT )"));
+    TEST_ASSERT_EQUAL_STRING("\n", run("trap 'echo y' EXIT; trap -- - EXIT; echo"));
+}
+
 // A ${...} nested in the word of another, with quotes of its own, is one
 // unit of that word: the segmenters used to cut the outer word at the
 // inner quotes (modernish's str isint: ${2#"${2%%[!" $CCt$CCn"]*}"})
@@ -1122,6 +1129,7 @@ int main(void) {
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
     RUN_TEST(test_redirect_saves_a_closed_fd_before_opening_the_source);
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
+    RUN_TEST(test_trap_double_dash_ends_options);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_bad_substitution_is_an_error);

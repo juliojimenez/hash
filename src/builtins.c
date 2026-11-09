@@ -2434,6 +2434,13 @@ int shell_readonly(char **args) {
 }
 
 int shell_trap(char **args) {
+    // trap -- action signal...: -- ends the options (POSIX), so an action
+    // beginning with - can be given; `trap -- 'echo i' INT` was rejected as an
+    // invalid signal specification
+    if (args[1] && strcmp(args[1], "--") == 0) {
+        args++;
+    }
+
     // trap with no args: list all traps
     if (args[1] == NULL) {
         trap_list();
