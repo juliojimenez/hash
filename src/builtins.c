@@ -290,6 +290,12 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "-H acts on the hard limit, -S on the soft one (both when setting,\n"
         "the soft one when showing). The limit is a number or unlimited.\n"
         ""},
+    [BUILTIN_FUNC_PWD] = (Builtin){"pwd", &shell_pwd,
+        "pwd [-L|-P]",
+        "Print the working directory. -L (the default) prints $PWD, the path\n"
+        "cd built, when it still names the current directory; -P prints the\n"
+        "physical path with every symbolic link resolved.\n"
+        ""},
     [BUILTIN_FUNC_HASH] = (Builtin){"hash", &shell_hash,
         "hash [-r] [name...]",
         "Remember where commands live. With names, look them up now; -r forgets\n"
@@ -1359,6 +1365,70 @@ int shell_read(char **args) {
     free(ifs);
     last_command_exit_code = status;
     return 1;
+}
+
+// ============================================================================
+// pwd
+// ============================================================================
+
+// Does the logical path in $PWD still name the current directory? It must be
+// absolute, hold no . or .. component, and lead to the same inode as "."
+static bool pwd_is_current(const char *pwd) {
+    if (!pwd || pwd[0] != '/') return false;
+    for (const char *p = pwd; *p; p++) {
+        if (*p == '/' && p[1] == '.') {
+            if (p[2] == '\0' || p[2] == '/') return false;
+            if (p[2] == '.' && (p[3] == '\0' || p[3] == '/')) return false;
+        }
+    }
+    struct stat a, b;
+    if (stat(pwd, &a) != 0 || stat(".", &b) != 0) return false;
+    return a.st_dev == b.st_dev && a.st_ino == b.st_ino;
+}
+
+int shell_pwd(char **args) {
+    // pwd [-L|-P]: the last of -L and -P wins, as for cd
+    bool physical = false;
+    int i = 1;
+    while (args[i] && args[i][0] == '-' && args[i][1]) {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        for (const char *o = args[i] + 1; *o; o++) {
+            if (*o == 'L') {
+                physical = false;
+            } else if (*o == 'P') {
+                physical = true;
+            } else {
+                fprintf(stderr, "%s: pwd: -%c: invalid option\n", HASH_NAME, *o);
+                fprintf(stderr, "pwd: usage: pwd [-L|-P]\n");
+                last_command_exit_code = 2;
+                return 1;
+            }
+        }
+        i++;
+    }
+    if (args[i]) {
+        fprintf(stderr, "%s: pwd: too many arguments\n", HASH_NAME);
+        last_command_exit_code = 2;
+        return 1;
+    }
+
+    const char *logical = physical ? NULL : shellvar_get("PWD");
+    if (logical && pwd_is_current(logical)) {
+        printf("%s\n", logical);
+        return listing_status("pwd");
+    }
+    char *cwd = getcwd(NULL, 0);
+    if (!cwd) {
+        fprintf(stderr, "%s: pwd: %s\n", HASH_NAME, strerror(errno));
+        last_command_exit_code = 1;
+        return 1;
+    }
+    printf("%s\n", cwd);
+    free(cwd);
+    return listing_status("pwd");
 }
 
 // ============================================================================

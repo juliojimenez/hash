@@ -47,6 +47,7 @@ typedef enum {
     BUILTIN_FUNC_HELP,
     BUILTIN_FUNC_UMASK,
     BUILTIN_FUNC_ULIMIT,
+    BUILTIN_FUNC_PWD,
 
     BUILTIN_FUNC_MAX
 } BuiltinFunc;
@@ -415,6 +416,12 @@ int shell_umask(char **args);
  * the processes it starts (getrlimit/setrlimit)
  */
 int shell_ulimit(char **args);
+
+/**
+ * Built-in command: pwd - print the working directory, logical (-L, the
+ * default: $PWD when it still names the current directory) or physical (-P)
+ */
+int shell_pwd(char **args);
 
 /**
  * Status of a builtin that printed a listing: 0, or 1 after a write error

@@ -1109,6 +1109,17 @@ void test_quotes_inside_a_double_quoted_brace_word(void) {
             "case \"x'a'\" in (\"${y:-x'a'}\") echo case-literal;; (*) echo case-no;; esac"));
 }
 
+// #397: pwd is a builtin. It used to be /bin/pwd, which modernish's mktemp
+// could not find under its restricted PATH (`PATH=$DEFPATH command pwd` said
+// "command not found"). -L prints $PWD while it still names the current
+// directory, -P the physical path.
+void test_pwd_builtin(void) {
+    TEST_ASSERT_EQUAL_STRING("same ok rc=2 link-ok\n",
+        run("cd /tmp && [ \"$(pwd)\" = \"$PWD\" ] && printf 'same '; [ -n \"$(PATH=/dev/null command pwd)\" ] && printf 'ok '; "
+            "pwd -x 2>/dev/null; printf 'rc=%s ' $?; d=$(mktemp -d); ln -s \"$d\" \"$d.l\"; cd \"$d.l\" && "
+            "[ \"$(pwd)\" = \"$d.l\" ] && [ \"$(pwd -P)\" = \"$(cd -P \"$d\" && pwd -P)\" ] && echo link-ok; cd /; rm -f \"$d.l\"; rmdir \"$d\""));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1198,6 +1209,7 @@ int main(void) {
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_alias_defines_every_operand);
     RUN_TEST(test_long_expansions_are_not_cut);
+    RUN_TEST(test_pwd_builtin);
     RUN_TEST(test_read_line_of_any_length);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_ulimit_shows_and_sets_limits);
