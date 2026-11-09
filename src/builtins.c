@@ -1021,25 +1021,42 @@ int shell_unset(char **args) {
         return 1;
     }
 
-    bool unset_var = true;
+    bool unset_var = false;
     bool unset_func = false;
     int start = 1;
 
-    // Check for -v (variable) or -f (function) flags
-    if (args[1][0] == '-') {
-        if (strcmp(args[1], "-v") == 0) {
-            unset_var = true;
-            unset_func = false;
-            start = 2;
-        } else if (strcmp(args[1], "-f") == 0) {
-            unset_var = false;
-            unset_func = true;
-            start = 2;
+    // -v names variables, -f functions, one or the other (POSIX); neither is -v.
+    // unset name leaves a function of that name alone, as dash does.
+    for (; args[start] && args[start][0] == '-' && args[start][1]; start++) {
+        if (strcmp(args[start], "--") == 0) {
+            start++;
+            break;
+        }
+        for (const char *o = args[start] + 1; *o; o++) {
+            if (*o == 'v') {
+                unset_var = true;
+            } else if (*o == 'f') {
+                unset_func = true;
+            } else {
+                fprintf(stderr, "%s: unset: -%c: invalid option\n", HASH_NAME, *o);
+                last_command_exit_code = 2;
+                return 1;
+            }
         }
     }
+    if (unset_var && unset_func) {
+        fprintf(stderr, "%s: unset: cannot unset a function and a variable at once\n", HASH_NAME);
+        last_command_exit_code = 1;
+        return 1;
+    }
+    if (!unset_func) unset_var = true;
 
     int error = 0;
     for (int i = start; args[i] != NULL; i++) {
+        if (unset_func) {
+            script_undefine_function(args[i]);  // no such function: nothing to do, status 0 (POSIX)
+            continue;
+        }
         if (unset_var) {
             // Check for readonly variable
             if (shellvar_unset(args[i]) != 0) {
@@ -1052,9 +1069,6 @@ int shell_unset(char **args) {
                     return 0;  // Exit shell
                 }
             }
-        }
-        if (unset_func) {
-            // TODO: Implement function unset when functions are fully implemented
         }
     }
 
