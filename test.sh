@@ -372,6 +372,8 @@ run_command_test "empty command" ""
 run_command_test "whitespace only" "   "
 
 echo -e "\n${YELLOW}Command Substitution:${NC}"
+run_test "pwd is a builtin and needs no PATH" "cd /tmp && [ \"\$(PATH=/dev/null command pwd)\" = \"\$PWD\" ] && echo pwd-builtin" "pwd-builtin"
+run_test "pwd -P resolves symbolic links" "d=\$(mktemp -d); ln -s \"\$d\" \"\$d.l\"; cd \"\$d.l\" && [ \"\$(pwd -P)\" = \"\$(cd -P \"\$d\" && pwd -P)\" ] && [ \"\$(pwd)\" = \"\$d.l\" ] && echo pwd-ok; cd /; rm -f \"\$d.l\"; rmdir \"\$d\"" "pwd-ok"
 run_test "basic command substitution" 'echo $(echo hello)' "hello"
 run_test "alias defines every operand of one command" "alias A='x' B='y'; alias B" "alias B='y'"
 run_test "command substitution with pwd" 'echo $(pwd)' "/"
