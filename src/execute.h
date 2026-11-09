@@ -18,10 +18,10 @@ extern int last_command_exit_code;
 int execute(char **args);
 
 /**
- * The next execute() call runs no shell function: `command name` must reach
- * the builtin or the external command even when a function has that name
+ * Launch an external program with arguments that execute() has already
+ * expanded (quote markers still on): the `command` builtin's path.
  */
-void execute_bypass_functions(void);
+int execute_external(char **args);
 
 /**
  * Get the last exit code

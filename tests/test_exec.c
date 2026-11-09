@@ -786,6 +786,17 @@ void test_finished_background_jobs_make_room(void) {
     TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
 }
 
+// #393: `command` runs an external program with the arguments it was given,
+// expanded once; they used to go through execute() a second time
+void test_command_does_not_expand_its_arguments_twice(void) {
+    TEST_ASSERT_EQUAL_STRING("unset\n", run("unset v; command /dev/null \\${v=x} 2>/dev/null; echo \"${v-unset}\""));
+    TEST_ASSERT_EQUAL_STRING("y\nunset\n", run("unset v; command sh -c 'echo ${v=y}'; echo \"${v-unset}\""));
+    TEST_ASSERT_EQUAL_STRING("$(echo sub) * ~ \\$v a  b\n", run("command /bin/echo '$(echo sub)' '*' '~' '\\$v' \"a  b\""));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("command expr 1 '<' 2"));
+    TEST_ASSERT_EQUAL_STRING("rc=0\n", run("command /bin/echo a > /dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("rc=127\n", run("f() { echo fn; }; command f 2>/dev/null; echo rc=$?"));
+}
+
 // A real 0x03 in the case word used to be read as a region marker, which
 // shifted the protected pairs and left marker bytes in the word for fnmatch
 void test_case_word_with_control_bytes(void) {
@@ -1068,6 +1079,7 @@ int main(void) {
     RUN_TEST(test_read_reports_end_of_file);
     RUN_TEST(test_finished_background_jobs_make_room);
     RUN_TEST(test_case_word_with_control_bytes);
+    RUN_TEST(test_command_does_not_expand_its_arguments_twice);
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
