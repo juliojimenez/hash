@@ -1120,6 +1120,22 @@ void test_pwd_builtin(void) {
             "[ \"$(pwd)\" = \"$d.l\" ] && [ \"$(pwd -P)\" = \"$(cd -P \"$d\" && pwd -P)\" ] && echo link-ok; cd /; rm -f \"$d.l\"; rmdir \"$d\""));
 }
 
+// #398: a trapped signal's action runs at a safe point of the executor, not
+// in the signal handler: after the command that was running when it arrived,
+// after a foreground child is reaped, with $? restored afterwards (POSIX).
+// A unit test could not deliver a trapped signal before (ThreadSanitizer saw
+// malloc in the handler); now it can.
+void test_trap_actions_run_at_safe_points(void) {
+    TEST_ASSERT_EQUAL_STRING("T\nafter\n", run("trap 'echo T' USR1; kill -s USR1 $$; echo after"));
+    // (the foreground-child shape lives in test.sh: in this in-process harness $$ is not the
+    // shell's pid, so a subshell's `kill $$` would signal itself)
+    // $? is kill's own status (0), not the action's (false gives 1), both times
+    TEST_ASSERT_EQUAL_STRING("rc=0 rc2=0\n", run("trap false USR1; true; kill -s USR1 $$; printf 'rc=%s ' $?; (exit 3); kill -s USR1 $$; echo rc2=$?"));
+    TEST_ASSERT_EQUAL_STRING("B A end\n",
+        run("trap 'printf \"A \"' USR1; trap 'printf \"B \"' USR2; kill -s USR2 $$; kill -s USR1 $$; echo end"));
+    run("trap - USR1 USR2");  // leave nothing set: the harness runs in-process
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1207,6 +1223,7 @@ int main(void) {
     RUN_TEST(test_quotes_inside_a_double_quoted_brace_word);
     RUN_TEST(test_trap_double_dash_ends_options);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
+    RUN_TEST(test_trap_actions_run_at_safe_points);
     RUN_TEST(test_alias_defines_every_operand);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_pwd_builtin);

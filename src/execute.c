@@ -11,6 +11,7 @@
 #include "completion.h"
 #include "hash.h"
 #include "execute.h"
+#include "trap.h"
 #include "exec.h"
 #include "builtins.h"
 #include "config.h"
@@ -274,6 +275,10 @@ static int launch(char **args, const char *cmd_string) {
             // The child may have been reaped unexpectedly
             last_command_exit_code = 1;
         }
+
+        // A trapped signal that arrived while the child ran: its action runs
+        // now that the foreground command is done, with $? restored afterwards
+        trap_run_pending();
 
         // Add command to hash table if we found its path
         if (cmd_path) {

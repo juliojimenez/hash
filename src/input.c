@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "input.h"
+#include "trap.h"
 
 // A regular file can be read ahead and repositioned; anything else (pipe,
 // terminal, socket, device) is read one byte at a time so that nothing past
@@ -22,6 +23,7 @@ static ssize_t read_retry(int fd, void *buf, size_t n) {
         if (r >= 0 || errno != EINTR) {
             return r;
         }
+        trap_run_pending();   // a trapped signal interrupted the read: run it, read on
     }
 }
 

@@ -2640,6 +2640,7 @@ static void wait_for_all_jobs(sigset_t old_mask) {
     // Keep trying until no more children (ECHILD) or interrupted
     while (1) {
         pid = waitpid(-1, &status, 0);
+        trap_run_pending();   // a trapped signal during the wait runs its action here
         if (pid > 0) {
             // Successfully waited for a child
             jobs_update_status(pid, status);
@@ -2671,6 +2672,7 @@ static void wait_for_all_jobs(sigset_t old_mask) {
 static void wait_for_job_pid(pid_t pid, int job_id_to_remove) {
     int status;
     pid_t result = waitpid(pid, &status, 0);
+    trap_run_pending();
     if (result > 0) {
         if (WIFEXITED(status)) {
             last_command_exit_code = WEXITSTATUS(status);
