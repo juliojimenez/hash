@@ -285,11 +285,16 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
     } while (0)
 #define PUT(ch) do { ROOM(1); out[o++] = (ch); } while (0)
 
+    // When the whole ${...} sits in double quotes, the word is double-quoted
+    // text: a single quote in it is a character, not a quote ("${y:-'a'}" is
+    // 'a' with the quotes, as in dash and bash; #408). Double quotes in it
+    // still quote, as they do in those shells. The pattern words of
+    // ${var#word} keep their quotes as quotes either way (expand_pattern_word).
     const char *p = word;
     while (*p) {
         const char *start;
         char *seg;
-        if (*p == '\'') {
+        if (*p == '\'' && !is_quoted) {
             // Literal segment: every character protected, nothing expands
             p++;
             start = p;
@@ -320,7 +325,7 @@ static char *expand_default_word(const char *word, bool is_quoted, int last_exit
             // protect it as \x01X before the expansion, which would otherwise keep
             // the backslash (`${t:+a\}b}` must give a}b) or fold \\ and \$ its own way
             start = p;
-            while (*p && *p != '\'' && *p != '"') {
+            while (*p && (is_quoted || *p != '\'') && *p != '"') {
                 if (opens_brace_expansion(word, p)) {
                     p = past_brace_expansion(p);
                     continue;
