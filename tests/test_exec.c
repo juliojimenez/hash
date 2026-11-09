@@ -966,6 +966,10 @@ void test_bracket_expression_members(void) {
 void test_escaped_backtick_in_double_quotes_is_literal(void) {
     TEST_ASSERT_EQUAL_STRING("[a`b`c] 5 [x`y`z] [\\`t`]\n",
         run("v=\"q\\`w\\`e\"; printf '[%s] %s ' \"a\\`b\\`c\" \"${#v}\"; eval 'printf \"[%s] \" \"x\\`y\\`z\"'; printf '[%s]\\n' \"\\\\\\`t\\`\""));
+    // escaped quotes are marked too: a bare one flipped the quote tracking of
+    // the command-substitution pass, which then ran what single quotes held
+    TEST_ASSERT_EQUAL_STRING("[''`t`] [a\"b`c\"] ['p `q` r']\n",
+        run("x=\\'\\''`t`'; printf '[%s] ' \"$x\" \"a\\\"b\\`c\\\"\"; printf '[%s]\\n' \\''p `q` r'\\'"));
 }
 
 int main(void) {

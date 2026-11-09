@@ -72,8 +72,9 @@ static void handle_backslash(Parser *parser) {
                 mark_and_write_char(parser);
                 break;
             case '"':
-                // Remove backslash, keep the character
-                *parser->write_pos++ = *parser->read_pos++;
+                // A literal quote, marked: later passes that track quotes in
+                // raw text (cmdsub_expand on \'\''`t`') must not take it for one
+                mark_and_write_char(parser);
                 break;
             case '`':
                 // A literal backtick, marked: a bare one would start a command
@@ -108,10 +109,12 @@ static void handle_backslash(Parser *parser) {
             parser->read_pos++;
         } else {
             // Remove backslash, keep the character
-            // If it's a glob character, redirection operator, tilde, $, ` or
-            // another backslash, mark it to prevent special handling (\$ is a
-            // literal dollar sign; a marked backslash cannot escape what follows)
-            if (char_in_string(*parser->read_pos, "*?[<>|&;~\\$`") || is_marker_byte(*parser->read_pos)) {
+            // If it's a glob character, redirection operator, tilde, $, `, a
+            // quote or another backslash, mark it to prevent special handling
+            // (\$ is a literal dollar sign; a marked backslash cannot escape
+            // what follows; a bare quote would flip the quote tracking of
+            // cmdsub_expand, which ran the `t` of \'\''`t`')
+            if (char_in_string(*parser->read_pos, "*?[<>|&;~\\$`'\"") || is_marker_byte(*parser->read_pos)) {
                 mark_and_write_char(parser); // Marker to prevent special interpretation
                 return;
             }
@@ -323,8 +326,9 @@ static void handle_doller(Parser *parser) {
 
 static void handle_backtick(Parser *parser) {
     if (parser->in_single_quote) {
-        // In single quotes, backtick is literal
-        *parser->write_pos++ = *parser->read_pos++;
+        // In single quotes, backtick is literal: marked, or cmdsub_expand
+        // takes it for a command substitution ('a`b`c' ran b)
+        mark_and_write_char(parser);
         return;
     }
 
