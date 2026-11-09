@@ -781,6 +781,23 @@ void test_read_reports_end_of_file(void) {
     TEST_ASSERT_EQUAL_STRING("rc=0 x=abc\n", run("printf 'abc\\n' | { read -r x; echo rc=$? x=$x; }"));
 }
 
+// #390: unset -f removes a function (it was a TODO). A subshell removes its
+// own copy and the parent keeps the function, a function may unset itself
+// while it runs, a missing name is not an error, and unset without -f leaves
+// functions alone (dash)
+void test_unset_f_removes_the_function(void) {
+    TEST_ASSERT_EQUAL_STRING("gone\nparent: F\n",
+        run("f() { echo F; }; (unset -f f; command -v f >/dev/null || echo gone); echo \"parent: $(f)\""));
+    TEST_ASSERT_EQUAL_STRING("in-h\nrc=127\n",
+        run("h() { unset -f h; echo in-h; }; h; h 2>/dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("0 P R 127\n",
+        run("p() { echo P; }; q() { echo Q; }; r() { echo R; }; unset -f q nosuch q; s=$?; q 2>/dev/null; rc=$?; echo \"$s $(p) $(r) $rc\""));
+    TEST_ASSERT_EQUAL_STRING("G [unset]\nN [unset]\n",
+        run("g() { echo G; }; g=1; unset g; echo \"$(g) [${g-unset}]\"; n() { echo N; }; n=1; unset -v n; echo \"$(n) [${n-unset}]\""));
+    TEST_ASSERT_EQUAL_STRING("rc=1 K\n",
+        run("k() { echo K; }; unset -fv k 2>/dev/null; echo \"rc=$? $(k)\""));
+}
+
 void test_finished_background_jobs_make_room(void) {
     TEST_ASSERT_EQUAL_STRING("ok\n", run("i=0; while [ $i -lt 80 ]; do ( : ) & i=$((i+1)); done; wait; echo ok"));
     TEST_ASSERT_EQUAL_INT(0, last_command_exit_code);
@@ -1067,6 +1084,7 @@ int main(void) {
     RUN_TEST(test_for_words_honour_noglob);
     RUN_TEST(test_read_reports_end_of_file);
     RUN_TEST(test_finished_background_jobs_make_room);
+    RUN_TEST(test_unset_f_removes_the_function);
     RUN_TEST(test_case_word_with_control_bytes);
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
