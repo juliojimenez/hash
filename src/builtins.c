@@ -27,6 +27,7 @@ int fpurge(FILE *);     // BSD libcs (FreeBSD, macOS): hidden by the strict feat
 #include "hash.h"
 #include "input.h"
 #include "builtins.h"
+#include <sys/resource.h>
 #include "expand.h"
 #include "colors.h"
 #include "config.h"
@@ -279,6 +280,15 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "Show or set the file creation mask. Without a mode, print it in octal,\n"
         "or with -S as u=rwx,g=rx,o=rx. A mode is octal (022) or symbolic\n"
         "(u+r, g-w,o=, a=rx) as for chmod.\n"
+        ""},
+    [BUILTIN_FUNC_ULIMIT] = (Builtin){"ulimit", &shell_ulimit,
+        "ulimit [-HS] [-a | -cdfnstuv] [limit]",
+        "Show or set a resource limit of the shell and the commands it runs.\n"
+        "-c core file (512-byte blocks), -d data (KB), -f file size (blocks),\n"
+        "-n open files, -s stack (KB), -t CPU seconds, -u processes, -v\n"
+        "virtual memory (KB); -f when no resource is named. -a shows them all.\n"
+        "-H acts on the hard limit, -S on the soft one (both when setting,\n"
+        "the soft one when showing). The limit is a number or unlimited.\n"
         ""},
     [BUILTIN_FUNC_HASH] = (Builtin){"hash", &shell_hash,
         "hash [-r] [name...]",
@@ -553,7 +563,7 @@ static void discard_stdout_buffer(void) {
 // the output could not be written (stdout on /dev/full, a closed descriptor).
 // echo and printf already answer that way; a listing that said nothing about
 // a failed write made `export >/dev/full` look like it had succeeded.
-static int listing_status(const char *name) {
+int listing_status(const char *name) {
     if (fflush(stdout) == EOF || ferror(stdout)) {
         fprintf(stderr, "%s: %s: write error: %s\n", HASH_NAME, name, strerror(errno));
         discard_stdout_buffer();

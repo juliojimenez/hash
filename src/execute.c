@@ -1018,6 +1018,7 @@ int execute(char **args) {
                               strcmp(exec_args[0], "readonly") == 0 ||
                               strcmp(exec_args[0], "cd") == 0 ||
                               strcmp(exec_args[0], "umask") == 0 ||
+                              strcmp(exec_args[0], "ulimit") == 0 ||
                               strcmp(exec_args[0], "alias") == 0 ||
                               strcmp(exec_args[0], "unalias") == 0 ||
                               strcmp(exec_args[0], "eval") == 0 ||

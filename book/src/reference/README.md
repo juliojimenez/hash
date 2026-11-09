@@ -211,6 +211,7 @@ hash's own `set name=value` options (`prompt`, `colors`, `welcome`, `PS1`, `colo
 | `bg` | Continue job in background |
 | `kill` | Send signal to process |
 | `umask` | Show or set the file creation mask |
+| `ulimit` | Show or set resource limits: `ulimit [-HS] [-a | -cdfnstuv] [limit]` |
 | `test` | Evaluate expression |
 | `[` | Same as test |
 | `true` | Return success |
