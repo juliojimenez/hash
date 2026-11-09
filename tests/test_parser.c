@@ -402,6 +402,20 @@ void test_parse_arith_with_cmdsub(void) {
     parse_result_free(&parsed);
 }
 
+// $'...' decodes C-style escapes into quoted text: a pattern character comes
+// out marked, an ordinary one plain
+void test_parse_line_dollar_single_quotes(void) {
+    char line[] = "echo $'a\\tb' $'*' $$'x'";
+    ParseResult parsed = parse_line(line);
+
+    TEST_ASSERT_NOT_NULL(parsed.tokens);
+    TEST_ASSERT_EQUAL_STRING("a\tb", parsed.tokens[1]);
+    TEST_ASSERT_EQUAL_STRING("\x01*", parsed.tokens[2]);
+    TEST_ASSERT_EQUAL_STRING("${$}x", parsed.tokens[3]);  // the quote after $$ ends the name: ${$} keeps the boundary
+    TEST_ASSERT_NULL(parsed.tokens[4]);
+    parse_result_free(&parsed);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -421,6 +435,7 @@ int main(void) {
     RUN_TEST(test_parse_line_escaped_newline);
     RUN_TEST(test_parse_line_escaped_tab);
     RUN_TEST(test_parse_line_single_quote_literal_backslash);
+    RUN_TEST(test_parse_line_dollar_single_quotes);
     RUN_TEST(test_parse_line_empty_quotes);
 
     // Arithmetic tokenization

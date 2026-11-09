@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <stddef.h>
+
 #include <stdbool.h>
 
 /**
@@ -32,5 +34,14 @@ bool char_in_string(char c, const char *str);
 static inline bool is_marker_byte(char c) {
     return (unsigned char)c >= 1 && (unsigned char)c <= 4;
 }
+
+/**
+ * $'...' (dollar-single-quotes: POSIX.1-2024, bash, ksh, zsh). s points at the
+ * opening quote. Decodes the C-style escapes (\a \b \e \f \n \r \t \v \\ \' \"
+ * \? \nnn \xHH \uHHHH \UHHHHHHHH \cX; an unknown one is kept as written) into
+ * out, which needs strlen(s) bytes, sets *out_len, and returns the position
+ * after the closing quote, or NULL when the input ends before it.
+ */
+const char *ansi_c_decode(const char *s, char *out, size_t *out_len);
 
 #endif // UTILS_H

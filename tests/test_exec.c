@@ -972,6 +972,23 @@ void test_escaped_backtick_in_double_quotes_is_literal(void) {
         run("x=\\'\\''`t`'; printf '[%s] ' \"$x\" \"a\\\"b\\`c\\\"\"; printf '[%s]\\n' \\''p `q` r'\\'"));
 }
 
+// #388: $'...' is dollar-single-quotes (POSIX.1-2024, bash, ksh, zsh): C-style
+// escapes decoded, the result quoted text. Inside double quotes it is a dollar
+// sign and a quote. $$'bar' is the pid followed by bar ($$ is consumed as one
+// parameter; the second $ used to be read again as a new expansion).
+void test_dollar_single_quotes(void) {
+    TEST_ASSERT_EQUAL_STRING("[bar][a\tb][AA\xc3\xa9][it's][\\z][][$'x']\n",
+        run("printf '[%s]' $'bar' $'a\\tb' $'\\x41\\101\\u00e9' $'it\\'s' $'\\z' $'' \"$'x'\"; echo"));
+    TEST_ASSERT_EQUAL_STRING("3 ok1 ok2 ok3\n",
+        run("v=$'\\e\\cA\\n'; printf '%s ' \"${#v}\"; a=$$'bar'; [ \"$a\" = \"$$bar\" ] && printf 'ok1 '; "
+            "b=$$$'bar'; [ \"$b\" = \"$$bar\" ] && printf 'ok2 '; [ \"$$x\" = \"$$\"x ] && echo ok3"));
+    TEST_ASSERT_EQUAL_STRING("m lit\n",
+        run("case 'a b' in ( $'a\\40b' ) printf 'm ';; ( * ) printf 'no ';; esac; case 'xyz' in ( $'*' ) echo bug;; ( * ) echo lit;; esac"));
+    // a $'...' inside a command substitution and a function body (the lexer skips it as a unit, \' included)
+    TEST_ASSERT_EQUAL_STRING("[q\tr] [it's]\n",
+        run("v=$(printf '%s' $'q\\tr'); f() { printf '[%s]\\n' $'it\\'s'; }; printf '[%s] ' \"$v\"; f"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1062,5 +1079,6 @@ int main(void) {
     RUN_TEST(test_escaped_backslash_and_dollar);
     RUN_TEST(test_bracket_expression_members);
     RUN_TEST(test_escaped_backtick_in_double_quotes_is_literal);
+    RUN_TEST(test_dollar_single_quotes);
     return UNITY_END();
 }
