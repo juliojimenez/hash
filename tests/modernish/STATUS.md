@@ -9,8 +9,8 @@ on changes to these files, and fails only when the result is worse than the base
 ## Where things stand
 
 The suite runs to its own summary, with the same result on macOS and on the GitHub
-runner: `baseline.txt` records `state=ran total=389 fails=21` (389 tests, 344 succeeded,
-12 skipped, 2 warnings, 10 expected failures, 21 unexpected failures). The weekly job turns
+runner: `baseline.txt` records `state=ran total=389 fails=17` (389 tests, 348 succeeded,
+12 skipped, 2 warnings, 10 expected failures, 17 unexpected failures). The weekly job turns
 red only when the number of unexpected failures goes up; when a fix brings it down, rerun
 with `--update-baseline` and commit `baseline.txt`.
 
@@ -31,17 +31,15 @@ as a bad substitution, `command` keeping quoted operators and skipping functions
 `${...}` with quotes of its own inside another's word, and `trap -` keeping a signal that
 arrived ignored ignored.
 
-The 21 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
-order worth taking them in; #383, the 23 `$*`/`$@` tests, went first):
+The 17 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
+order worth taking them in; #383, the 23 `$*`/`$@` tests, went first, then #384, #385 and #389):
 
 | Area | Tests | What fails | Issue |
 |------|-------|------------|-------|
 | `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #403 |
 | shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution | #387 |
-| Here-documents | string.t 006 010 | backslash handling in a non-expanding body; line continuation in an expanding body | #384 |
-| `read` | string.t 009 | trailing IFS whitespace is not trimmed | #385 |
 | Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` | #386 |
-| Functions in subshells | isset.t 026 027 | `local` assignments with regular builtins; `unset -f` inside a subshell | #389 #390 |
+| Functions in subshells | isset.t 027 | `unset -f` inside a subshell | #390 |
 | `trap` | trap.t 001 | `var=$(trap)` does not print the traps | #391 |
 | `command` | builtin.t 005 | argument parsing | #393 |
 | `ulimit` | builtin.t 003 | there is no `ulimit` builtin | #396 |
