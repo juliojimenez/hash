@@ -9,8 +9,8 @@ on changes to these files, and fails only when the result is worse than the base
 ## Where things stand
 
 The suite runs to its own summary, with the same result on macOS and on the GitHub
-runner: `baseline.txt` records `state=ran total=389 fails=17` (389 tests, 348 succeeded,
-12 skipped, 2 warnings, 10 expected failures, 17 unexpected failures). The weekly job turns
+runner: `baseline.txt` records `state=ran total=389 fails=1` (389 tests, 364 succeeded,
+12 skipped, 2 warnings, 10 expected failures, 1 unexpected failure). The weekly job turns
 red only when the number of unexpected failures goes up; when a fix brings it down, rerun
 with `--update-baseline` and commit `baseline.txt`.
 
@@ -31,22 +31,13 @@ as a bad substitution, `command` keeping quoted operators and skipping functions
 `${...}` with quotes of its own inside another's word, and `trap -` keeping a signal that
 arrived ignored ignored.
 
-The 17 unexpected failures, by area, each with the issue that tracks it (#399 lists them in the
-order worth taking them in; #383, the 23 `$*`/`$@` tests, went first, then #384, #385 and #389):
+The one unexpected failure left, with the issue that tracks it (#399 listed the 43 of #381 by root
+cause and every one of them has been fixed, in the order it gave; the pull requests are #404, #406,
+#407, #410 to #418):
 
 | Area | Tests | What fails | Issue |
 |------|-------|------------|-------|
 | `$@` corner | posparam.t 048 | `''"${novar-}$@$(:)"` with no parameters should be one empty field | #403 |
-| shellquote | shellquote.t 001 002 003 004 006 | four levels of quoting do not round-trip; `-P` output does not `eval`; C-style `$'...'` in a command substitution | #387 |
-| Brackets | match.t 018 019 | bracket patterns built from `$ASCIICHARS` | #386 |
-| Functions in subshells | isset.t 027 | `unset -f` inside a subshell | #390 |
-| `trap` | trap.t 001 | `var=$(trap)` does not print the traps | #391 |
-| `command` | builtin.t 005 | argument parsing | #393 |
-| `ulimit` | builtin.t 003 | there is no `ulimit` builtin | #396 |
-| `exec` with a closed fd | io.t 001 | a block cannot save and restore a closed file descriptor | #392 |
-| Here-doc in alias body | local.t 013, loop_cond.t 019 | a `$( )` inside a here-document inside `LOCAL`/`LOOP` (modernish's BUG_ALIASCSHD probe) | #394 |
-| `LOOP find --xargs` | loop_cond.t 022 | finds no files | #395 |
-| Sanity | @sanitychecks.t 002 | the `$CC*` control character constants | #388 |
 
 The two warnings (WRN_EREMBYTE, WRN_MULTIBYTE) are about multibyte characters in `ematch`
 and IFS, as on other shells without full UTF-8 support. Also seen in the output, not
