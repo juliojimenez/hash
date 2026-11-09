@@ -818,6 +818,27 @@ void test_bad_substitution_is_an_error(void) {
     TEST_ASSERT_EQUAL_STRING("0 1 1 y ten p\n", run("x=1; echo \"${#} ${#x} ${x:-d} ${x#1}y ${10:-ten} ${x:+p}\""));
 }
 
+// #392: a redirection's target is saved before its source is opened. With fds
+// 0-3 in use and the target closed, open() returns the target's own number;
+// the copy used to be taken afterwards, of the new source, and the restore
+// put /dev/null back on the fd (modernish BUG_SCLOSEDFD)
+void test_redirect_saves_a_closed_fd_before_opening_the_source(void) {
+    TEST_ASSERT_EQUAL_STRING("closed\n",
+        run("exec 3>/dev/null; exec 4>&-; { :; } 4>/dev/null; { true >&4; } 2>/dev/null && echo open || echo closed"));
+    TEST_ASSERT_EQUAL_STRING("closed\n",
+        run("exec 3>/dev/null; exec 4>&-; : 4>/dev/null; { true >&4; } 2>/dev/null && echo open || echo closed"));
+    TEST_ASSERT_EQUAL_STRING("closed\n",
+        run("exec 3>/dev/null; exec 4>&-\n"
+            "{ { while :; do { exec 4>/dev/null; } 4>&-; break; done 4>&-\n"
+            "    { true >&4; } 2>/dev/null && echo leaked; } 4>&-; } 4>/dev/null\n"
+            "{ true >&4; } 2>/dev/null && echo open || echo closed"));
+    // a bare exec onto a closed descriptor still takes effect, and a later
+    // block that redirects it restores it rather than closing it (inside the
+    // block fd 4 is the block's /dev/null, so "hi" goes there, as in dash)
+    TEST_ASSERT_EQUAL_STRING("still\n",
+        run("exec 3>/dev/null; exec 4>&-; exec 4>&1; { echo hi >&4; } 4>/dev/null; echo still >&4"));
+}
+
 // `command` used to hand its arguments on without their quote markers, so
 // expr X '<' X became `expr X X < X` (and '>' created a file), and it ran a
 // function of that name instead of skipping it
@@ -1069,6 +1090,7 @@ int main(void) {
     RUN_TEST(test_finished_background_jobs_make_room);
     RUN_TEST(test_case_word_with_control_bytes);
     RUN_TEST(test_command_keeps_quoted_operators_and_skips_functions);
+    RUN_TEST(test_redirect_saves_a_closed_fd_before_opening_the_source);
     RUN_TEST(test_nested_expansion_with_quotes_in_a_word);
     RUN_TEST(test_trap_keeps_signals_ignored_on_entry);
     RUN_TEST(test_long_expansions_are_not_cut);

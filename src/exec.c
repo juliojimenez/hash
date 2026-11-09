@@ -592,15 +592,21 @@ static bool apply_redirs(const RedirVec *redirs, SavedFd *saved, int *saved_coun
     fflush(stderr);
     for (size_t i = 0; i < redirs->count && *saved_count < EXEC_MAX_REDIRS; i++) {
         const Redirect *r = &redirs->items[i];
+        // Save the target before opening the source: when the target is closed,
+        // open() hands out that very number, and a copy taken afterwards is a
+        // copy of the new source, not of the closed state. `{ :; } 4>/dev/null`
+        // with fd 4 closed (and 0-3 in use) left /dev/null on fd 4 for good
+        // (modernish BUG_SCLOSEDFD, #392). On a failed open the slot stays
+        // recorded: restoring it is harmless, the descriptor never changed.
+        SavedFd *slot = &saved[*saved_count];
+        slot->fd = r->fd;
+        slot->saved = fcntl(r->fd, F_DUPFD_CLOEXEC, 10);
+        (*saved_count)++;
         bool close_only = false;
         int src = open_redirect_source(r, &close_only);
         if (src < 0 && !close_only) {
             return false;
         }
-        SavedFd *slot = &saved[*saved_count];
-        slot->fd = r->fd;
-        slot->saved = fcntl(r->fd, F_DUPFD_CLOEXEC, 10);
-        (*saved_count)++;
         if (close_only) {
             close(r->fd);
         } else if (src != r->fd) {
