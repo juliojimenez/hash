@@ -354,6 +354,9 @@ run_test "type -t names the kind in one word" "f() { :; }; type -t echo if f ls"
 run_test "type -p prints only a file, -P searches PATH past the builtin" "type -p echo; echo rc=\$?; case \$(type -P echo) in /*) echo abs;; esac" $'rc=0\nabs'
 run_test "type -a lists every match, the builtin first" "type -a echo | head -1" "echo is a shell builtin"
 run_test "type rejects an unknown option with status 2" "type -x echo 2>&1; echo rc=\$?" $'invalid option\nrc=2'
+run_test "a subshell's trap lists the parent's traps until a trap command runs there" "trap 'echo t' USR1; (trap); (trap 'echo u' USR2; trap)" $'trap -- \'echo t\' USR1\ntrap -- \'echo u\' USR2'
+run_test "trap - in a subshell takes the trap out of the listing" "trap 'echo t' USR1; s=\$(trap - USR1; trap); echo \"[\$s]\"" "[]"
+run_test "an ignored signal stays a trap in a subshell" "trap '' USR1; (trap - USR2; trap)" "trap -- '' USR1"
 run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
 run_test "trap -- action signal accepts the option terminator" "trap -- 'echo i' INT; trap" "trap -- 'echo i' INT"
 run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"

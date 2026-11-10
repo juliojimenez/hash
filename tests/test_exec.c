@@ -1169,6 +1169,23 @@ void test_type_options(void) {
     TEST_ASSERT_EQUAL_STRING("echo is a shell builtin\nrc=1\n", run("type echo nosuchcmd_x 2>/dev/null; echo rc=$?"));   // one missing name fails the command
 }
 
+// #429: a subshell's `trap` lists the traps in effect when it was entered
+// (POSIX's way for a shell with no lexical check for $(trap); ksh93 does the
+// same) until a trap command with operands runs there; from then on it lists
+// the current traps. An ignored signal stays a trap in the subshell.
+void test_trap_listing_in_subshells(void) {
+    TEST_ASSERT_EQUAL_STRING("trap -- 'echo t' USR1\n", run("trap 'echo t' USR1; (trap); trap - USR1"));
+    TEST_ASSERT_EQUAL_STRING("[trap -- 'echo t' USR1]\n", run("trap 'echo t' USR1; echo \"[$(trap)]\"; trap - USR1"));
+    TEST_ASSERT_EQUAL_STRING("trap -- 'echo u' USR2\n", run("trap 'echo t' USR1; (trap 'echo u' USR2; trap); trap - USR1"));
+    // a snapshot taken after the removal must not reinstall the trap
+    TEST_ASSERT_EQUAL_STRING("[]\n", run("trap 'echo t' USR1; s=$(trap - USR1; trap); echo \"[$s]\"; trap - USR1"));
+    // nested: the outer subshell's state, which is already reset
+    TEST_ASSERT_EQUAL_STRING("end\n", run("trap 'echo t' USR1; ((trap); echo end); trap - USR1"));
+    TEST_ASSERT_EQUAL_STRING("trap -- '' USR1\n", run("trap '' USR1; (trap - USR2; trap); trap - USR1"));
+    TEST_ASSERT_EQUAL_STRING("trap -- 'echo t' USR1\n", run("trap 'echo t' USR1; (trap -p USR1); trap - USR1"));
+    TEST_ASSERT_EQUAL_STRING("done\n", run("trap 'echo t' USR1; (trap - USR1; trap -p USR1); echo done; trap - USR1"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1262,6 +1279,7 @@ int main(void) {
     RUN_TEST(test_pwd_builtin);
     RUN_TEST(test_builtins_accept_option_terminator);
     RUN_TEST(test_type_options);
+    RUN_TEST(test_trap_listing_in_subshells);
     RUN_TEST(test_read_line_of_any_length);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_ulimit_shows_and_sets_limits);

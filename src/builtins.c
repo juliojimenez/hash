@@ -2744,7 +2744,7 @@ int shell_trap(char **args) {
             for (int i = 2; args[i]; i++) {
                 int signum = trap_parse_signal(args[i]);
                 if (signum >= 0) {
-                    const char *action = trap_get(signum);
+                    const char *action = trap_listed(signum);
                     if (action) {
                         const char *name = trap_signal_name(signum);
                         if (name) {
