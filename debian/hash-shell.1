@@ -27,10 +27,29 @@ When given a script file, it executes the commands in that file.
 .BI \-c " command_string"
 Execute commands from
 .I command_string
-instead of reading from standard input or a file.
+instead of reading from standard input or a file. The arguments after it
+become $0, $1 and so on.
+.TP
+.B \-i
+Run interactively even when standard input is not a terminal.
+.TP
+.BR \-l ", " \-\-login
+Run as a login shell: read /etc/profile and ~/.hash_profile (or ~/.profile),
+and ~/.hash_logout on exit.
 .TP
 .B \-s
 Read commands from standard input. Useful when piping commands to the shell.
+.TP
+.BR \-a ", " \-b ", " \-C ", " \-e ", " \-f ", " \-m ", " \-n ", " \-u ", " \-x
+Set the shell option of that letter, as
+.B set
+does (see SHELL BUILTIN COMMANDS).
+.TP
+.BR \-v ", " \-\-version
+Print the version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print the usage message and exit.
 .SH INVOCATION
 .TP
 .B Interactive shell
@@ -143,6 +162,11 @@ Variable expansion occurs within double quotes.
 .TP
 .B Backslash
 A non-quoted backslash preserves the literal value of the next character.
+.TP
+.B Dollar-single quotes
+.BI $' string '
+is like single quotes, but backslash escapes are decoded first: \en, \et,
+\e\e, \e', \exHH, \ennn, \euHHHH and the rest, as in bash and ksh.
 .SH PARAMETERS
 .SS Positional Parameters
 .TP
@@ -167,6 +191,13 @@ Exit status of the most recently executed foreground pipeline.
 .B $$
 Process ID of the shell.
 .TP
+.B $!
+Process ID of the most recent background command.
+.TP
+.B $\-
+The option letters in effect (see
+.BR set ).
+.TP
 .B $LINENO
 Line number of the current command within the script, function or command string.
 .SS Variable Expansion
@@ -176,6 +207,17 @@ Expands to the value of variable VAR.
 .TP
 .B ${VAR}
 Expands to the value of variable VAR. Useful for concatenation.
+.TP
+.BR ${VAR\-word} ", " ${VAR:\-word} ", " ${VAR=word} ", " ${VAR:=word} ", " ${VAR+word} ", " ${VAR:+word} ", " ${VAR?word} ", " ${VAR:?word}
+Use a default, assign a default, use an alternative, or fail with a message
+when VAR is unset (with the colon, also when it is empty).
+.TP
+.B ${#VAR}
+The length of the value.
+.TP
+.BR ${VAR#pattern} ", " ${VAR##pattern} ", " ${VAR%pattern} ", " ${VAR%%pattern}
+The value with the shortest or longest match of pattern removed from the
+start or from the end.
 .SH REDIRECTION
 .TP
 .BI < " file"
@@ -205,6 +247,28 @@ Redirect standard error to standard output.
 .BI &> " file"
 Redirect both standard output and standard error to
 .IR file .
+.TP
+.BI >| " file"
+Redirect standard output to
+.IR file ,
+overwriting it even under
+.BR "set \-C" .
+.TP
+.BI n> " file" ", " n< " file"
+Redirect file descriptor n.
+.TP
+.BI n>& m ", " n<& m
+Make descriptor n a copy of descriptor m.
+.TP
+.BI n>& \-
+Close descriptor n.
+.TP
+.BI << " word"
+Here-document: the following lines, up to a line holding only word, become
+the standard input. Quoting word keeps the body literal; otherwise parameters
+and command substitutions expand in it.
+.BI <<\- " word"
+strips leading tabs from the body.
 .SH JOB CONTROL
 .B hash-shell
 supports job control, allowing you to run commands in the background
@@ -358,83 +422,355 @@ Execute command number n from history.
 .TP
 .BI ! prefix
 Execute the most recent command starting with prefix.
+.TP
+.BI !\- n
+Execute the command n entries back.
+.PP
+A command typed over several lines (a loop, an if, a function) is one history
+entry and comes back whole. The history is saved to ~/.hash_history as it is
+entered, in bash's extended format (a line with the time before each entry);
+.B history
+shows it and
+.B history \-c
+clears it (see SHELL BUILTIN COMMANDS). HISTSIZE, HISTFILESIZE and HISTCONTROL
+tune it (see ENVIRONMENT).
 .SH SHELL BUILTIN COMMANDS
+.\" docs-parity: generated from the builtin table in src/builtins.c
+.\" by scripts/docs-parity.py; `help NAME` prints the same text. Edit the
+.\" table, then run: make docs
+Every builtin takes \-\- as the end of its options. In the shell,
+.B help
+lists these entries and
+.B help NAME
+prints one; the book keeps the same text at
+https://hash\-shell.org/reference/builtins.html .
 .TP
-.BI alias " [name[=value]]"
-Without arguments, list all aliases. With a name, show that alias.
-With name=value, create or update an alias.
+\fB\&.\fR file
+Read and run file in the current shell (POSIX spelling of source). `return`
+ends the file; `exit` ends the shell.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.BI unalias " name"
-Remove the alias for name.
+\fB:\fR [arg...]
+Do nothing; the arguments are expanded and dropped. Status 0.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.BI cd " [directory]"
-Change the current working directory. Without arguments, changes to HOME.
-Supports ~ expansion for home directory.
+\fB[\fR expr ]
+The test command written with brackets; the closing ] is required. See
+`help test` for the operators.
+.br
+More: https://hash\-shell.org/scripting/test\-command.html
 .TP
-.BI export " [name[=value]]"
-Without arguments, list all exported variables. With name=value, set and
-export the variable.
+\fB[[\fR expr ]]
+Extended test: the operators of test plus pattern matching with == and !=,
+regular expressions with =~, and && and || inside the brackets. Words are
+not split or glob\-expanded.
+.br
+More: https://hash\-shell.org/scripting/test\-command.html
 .TP
-.BI source " file"
-Read and execute commands from file in the current shell environment.
+\fBalias\fR [name[=value]...]
+Define aliases, or print them: `alias` lists every alias, `alias name` prints
+one. An alias is expanded when its name is the first word of a command.
+.br
+More: https://hash\-shell.org/getting\-started/hashrc.html
 .TP
-.BI getopts " optstring name [arg ...]"
-Parse one option per call into the variable
-.IR name ,
-following POSIX: OPTIND is the index of the next argument, OPTARG holds an
-option's argument, a leading colon in optstring selects silent error reporting.
-Parses the positional parameters unless arguments are given. Returns non-zero
-when the options are exhausted.
+\fBbg\fR [%job]
+Continue a stopped job in the background.
+.br
+More: https://hash\-shell.org/operators/background.html
 .TP
-.BI shift " [n]"
-Drop the first n positional parameters (default 1). Fails without changing them
-when n is larger than $#.
+\fBbreak\fR [n]
+Leave the innermost n enclosing loops (one by default).
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.BI local " name[=value] ..."
-Make variables local to the running function: the previous value, attributes
-and environment entry come back when the function returns. A name without a
-value is unset inside the function. Functions called from the function see its
-locals. Fails outside a function and on a readonly name.
+\fBcd\fR [\-L|\-P] [dir]
+Change the working directory to dir, or to $HOME without one. \-L, the default,
+keeps the logical path, so `cd ..` under a symlinked directory goes to the
+parent of the link; \-P follows symlinks and sets PWD to the physical path.
+`cd \-` goes back to the previous directory and prints it. PWD and OLDPWD are
+updated.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.B exit
-Exit the shell. If there are running background jobs, warns before exiting.
+\fBcommand\fR name [arg...]
+.PD 0
 .TP
-.B jobs
-List background jobs.
+\fBcommand\fR \-v | \-V name...
+.PD
+Run name without looking up functions, so a function can call the command
+it shadows; a failing special builtin does not end the shell, but break,
+continue, return and exit keep their effect. \-v prints how name would be
+resolved, \-V describes it.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.BI fg " [%job]"
-Bring job to foreground.
+\fBcomplete\fR [\-abcdfuv] [\-o default|dirnames] [\-W words] [\-F function] name...
+.PD 0
 .TP
-.BI bg " [%job]"
-Resume job in background.
+\fBcomplete\fR \-p [name...]
 .TP
-.BI set " [-abCefhmnuvx] [+abCefhmnuvx] [-o option] [+o option] [--] [arg ...]"
-With a letter or an option name, set (-) or clear (+) a POSIX shell option:
--a allexport, -b notify, -C noclobber, -e errexit, -f noglob, -h, -m monitor,
--n noexec, -u nounset, -v verbose, -x xtrace. Letters may be clustered (-ex).
-"set -o" alone lists the options and their state, "set +o" prints them as
-commands that recreate the state. With -- or operands, set the positional
-parameters. The letters in effect are in $-. hash's own options use name=value:
-.RS
+\fBcomplete\fR \-r [name...]
+.PD
+Record how a command's arguments are tab\-completed. \-W gives the candidate
+words, \-F a function whose output lines are candidates ($1 command, $2 word,
+$3 previous word), \-a \-b \-c \-d \-f \-u \-v add aliases, builtins, commands,
+directories, files, users or variables, \-o default falls back to files.
+\-p prints the definitions in a form that can be typed back, \-r removes them.
+.br
+More: https://hash\-shell.org/shell\-features/tab\-completion.html
 .TP
-.B colors=on|off
-Enable or disable colored output.
+\fBcontinue\fR [n]
+Resume the next iteration of the innermost n enclosing loops.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.B welcome=on|off
-Show or hide welcome message on startup.
+\fBecho\fR [\-neE] [arg...]
+Print the arguments separated by spaces, then a newline. \-n leaves out the
+newline, \-e interprets backslash escapes (\en \et \e\e ...), \-E does not.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.BI PS1= format
-Set the prompt string format.
-.RE
+\fBeval\fR [arg...]
+Join the arguments with spaces and run the result as a command in the
+current shell.
+.br
+More: https://hash\-shell.org/reference/builtins.html
 .TP
-.B true
-Return exit status 0.
+\fBexec\fR [command [arg...]]
+.PD 0
 .TP
-.B false
-Return exit status 1.
+\fBexec\fR redirection...
+.PD
+Replace the shell with command. With only redirections, apply them to the
+shell itself for the commands that follow (`exec 3< file`, `exec >log`).
+.br
+More: https://hash\-shell.org/operators/redirection.html
+.TP
+\fBexit\fR [n]
+Leave the shell with status n, or with the status of the last command. The
+EXIT trap runs first; a login shell also runs ~/.hash_logout.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBexport\fR [\-p] [name[=value]...]
+Mark variables for export to the environment of commands, assigning a value
+when one is given. \-p, or no arguments, prints the exported variables.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBfalse\fR
+Do nothing, with status 1.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBfg\fR [%job]
+Bring a job to the foreground and wait for it. Without an argument, the
+current job.
+.br
+More: https://hash\-shell.org/operators/background.html
+.TP
+\fBgetopts\fR optstring name [arg...]
+Parse options from the positional parameters (or arg...) one call at a time,
+placing the letter in name, its argument in OPTARG and the next index in
+OPTIND. A colon after a letter in optstring means it takes an argument; a
+leading colon selects silent error reporting.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBhash\fR [\-r] [name...]
+Remember where commands live. With names, look them up now; \-r forgets
+everything remembered; alone, print the table.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBhelp\fR [\-s] [pattern...]
+Describe the builtins and the shell's keywords. Alone, list every topic with
+its synopsis; with names or glob patterns, print the synopsis and a short
+description of each; \-s prints the synopsis only. The book has the same
+text at https://hash\-shell.org/reference/builtins.html
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBhistory\fR [\-c | \-w | \-r]
+Print the command history with its numbers. \-c clears it, \-w writes it to
+the history file, \-r reads the file back. HISTFILE, HISTSIZE, HISTFILESIZE
+and HISTCONTROL apply; `!!`, `!n`, `!\-n` and `!prefix` expand entries.
+.br
+More: https://hash\-shell.org/shell\-features/history.html
+.TP
+\fBjobs\fR [\-l | \-p]
+List the background jobs of this shell. \-l adds the process IDs, \-p prints
+only them.
+.br
+More: https://hash\-shell.org/operators/background.html
+.TP
+\fBkill\fR [\-s signal | \-signal] pid | %job ...
+.PD 0
+.TP
+\fBkill\fR \-l
+.PD
+Send a signal (TERM by default) to processes or jobs, by number or name.
+\-l lists the signal names.
+.br
+More: https://hash\-shell.org/operators/background.html
+.TP
+\fBlocal\fR [name[=value]...]
+Declare variables local to the current function; the previous values come
+back when it returns. Outside a function it is an error.
+.br
+More: https://hash\-shell.org/scripting/index.html#functions
+.TP
+\fBlogout\fR
+Leave a login shell, running ~/.hash_logout first. In a shell that is not a
+login shell it fails; use exit.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBpwd\fR [\-L|\-P]
+Print the working directory. \-L (the default) prints $PWD, the path
+cd built, when it still names the current directory; \-P prints the
+physical path with every symbolic link resolved.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBread\fR [\-r] name...
+Read one line from standard input and split it into the variables; the last
+one takes the rest. Backslash continues a line unless \-r is given. The
+status is 1 at end of input.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBreadonly\fR [\-p] [name[=value]...]
+Mark variables read\-only, assigning a value when one is given; later
+assignments and unset fail. \-p, or no arguments, prints them.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBreturn\fR [n]
+Leave the current function or sourced file with status n, or with the status
+of the last command.
+.br
+More: https://hash\-shell.org/scripting/index.html#functions
+.TP
+\fBset\fR [\-abCefhmnuvx] [\-o option] [+...] [\-\-] [arg...]
+.PD 0
+.TP
+\fBset\fR name=value
+.PD
+Set shell options with \-, clear them with +: \-a allexport, \-b notify,
+\-C noclobber, \-e errexit, \-f noglob, \-h, \-m monitor, \-n noexec, \-u nounset,
+\-v verbose, \-x xtrace; \-o takes a name, also emacs, vi, nolog and
+nonlexicalctrl. `set \-o` lists the options, `set +o` prints them as
+commands, $\- holds the letters in effect. Arguments after the options (or
+after \-\-) become the positional parameters.
+hash's own settings use name=value: prompt=NAME picks a prompt preset
+(classic, plain, minimal, two\-line, powerline; prompt=list shows them),
+PS1=... builds one, and colors=on|off, welcome=on|off, color.<element>=<spec>,
+syntax_highlight=on|off, autosuggest=on|off, danger_highlight=on|off. They
+work at the prompt, in scripts and in ~/.hashrc.
+.br
+More: https://hash\-shell.org/reference/index.html#shell\-options
+.TP
+\fBshift\fR [n]
+Drop the first n positional parameters (one by default). A count past $# is
+an error.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBsource\fR file
+Read and run file in the current shell, like `.`. Functions, variables and
+aliases it defines stay. A file name without a slash is looked up in PATH.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBtest\fR expr
+Evaluate a conditional expression: file tests (\-e \-f \-d \-r \-w \-x \-s \-L and
+more), string tests (\-z \-n = !=), numbers (\-eq \-ne \-lt \-le \-gt \-ge), and !
+\-a \-o with parentheses. The status is 0 when expr is true. `[ expr ]` is the
+same command with a closing bracket.
+.br
+More: https://hash\-shell.org/scripting/test\-command.html
+.TP
+\fBtimes\fR
+Print the user and system times used by the shell and by its children.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBtrap\fR [action] [signal...]
+.PD 0
+.TP
+\fBtrap\fR \-l | \-p
+.PD
+Run action when a signal arrives, or at EXIT. An empty action ignores the
+signal, `\-` restores the default. \-l lists the signal names, \-p prints the
+traps in effect. The EXIT trap sees the shell's status as $?.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBtrue\fR
+Do nothing, successfully.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBtype\fR [\-afptP] name...
+Say how each name would be interpreted: an alias, a shell keyword, a
+function, a builtin, or a file found in PATH, in that order. \-t prints
+one word (alias, keyword, function, builtin, file); \-p prints the file
+that would run and nothing for anything else; \-P searches PATH even when
+an alias, function or builtin would run; \-a prints every match; \-f skips
+functions. Status 1 when a name is not found.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBulimit\fR [\-HS] [\-a | \-cdfnstuv] [limit]
+Show or set a resource limit of the shell and the commands it runs.
+\-c core file (512\-byte blocks), \-d data (KB), \-f file size (blocks),
+\-n open files, \-s stack (KB), \-t CPU seconds, \-u processes, \-v
+virtual memory (KB); \-f when no resource is named. \-a shows them all.
+\-H acts on the hard limit, \-S on the soft one (both when setting,
+the soft one when showing). The limit is a number or unlimited.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBumask\fR [\-S] [mode]
+Show or set the file creation mask. Without a mode, print it in octal,
+or with \-S as u=rwx,g=rx,o=rx. A mode is octal (022) or symbolic
+(u+r, g\-w,o=, a=rx) as for chmod.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBunalias\fR [\-a] name...
+Remove the named aliases, or every alias with \-a. A name that is not an
+alias is reported and the status is 1; the other names are still removed.
+.br
+More: https://hash\-shell.org/getting\-started/hashrc.html
+.TP
+\fBunset\fR [\-f | \-v] name...
+Remove variables (\-v, the default) or functions (\-f). Readonly variables
+cannot be unset.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBupdate\fR
+Check for a newer release of hash and install it when one is available.
+HASH_DISABLE_UPDATE_CHECK=1 turns the startup check off.
+.br
+More: https://hash\-shell.org/reference/builtins.html
+.TP
+\fBwait\fR [pid | %job ...]
+Wait for the given background jobs, or for all of them, and return the
+status of the last one waited for.
+.br
+More: https://hash\-shell.org/operators/background.html
+.\" docs-parity: end of the generated entries
 .SH PROMPT CUSTOMIZATION
-The prompt is controlled by the PS1 variable. The following escape sequences
-are supported:
+.B set prompt=NAME
+picks one of the built-in prompts: classic (the default), plain
+(user@host:path$), minimal, two\-line and powerline;
+.B set prompt=list
+shows them all. PS1 builds your own, with these escape sequences:
 .TP
 .B \ew
 Full current working directory path (~ for home).
@@ -446,24 +782,45 @@ Current directory name only.
 Username.
 .TP
 .B \eh
-Hostname.
+Hostname, up to the first dot;
+.B \eH
+is the full host name.
 .TP
 .B \eg
 Git branch with status indicator. Shows branch name in cyan, with green
 "git:" if clean or yellow "git:" if there are uncommitted changes.
+.B \eb
+is the branch name alone, and nothing outside a repository.
 .TP
 .B \ee
 Exit code color indicator. Text between \ee...\ee is colored blue for
 success (exit code 0) or red for failure (non-zero exit code).
+.B \e?
+is the last exit status when it was not 0, otherwise nothing.
 .TP
 .B \e$
 Shows $ for regular users, # for root.
+.TP
+.BR \et ", " \eT ", " \e@ ", " \ed
+The time (24\-hour, 12\-hour, 12\-hour with am/pm) and the date.
+.TP
+.BR \ej ", " \e!
+The number of background jobs, and the history number of the next command.
+.TP
+.BR \es ", " \ev
+The shell name and version.
 .TP
 .B \en
 Newline.
 .TP
 .B \e\e
 Literal backslash.
+.TP
+.BR \e[ ", " \e]
+Ignored: bash wraps colour codes in them, hash measures the codes itself.
+.PP
+PS2 is the continuation prompt, shown while a command is completed over
+several lines.
 .PP
 .B Examples:
 .RS
@@ -475,19 +832,43 @@ set PS1='\ew\eg\en\ee#>\ee '   # Two-line with git info
 .RE
 .SH TAB COMPLETION
 .B hash-shell
-provides context-aware tab completion:
+completes what the command expects:
 .TP
-.B Command completion
-Completes executable names from PATH.
+.B Commands
+The first word completes from aliases, functions, builtins, keywords and the
+executables in PATH.
 .TP
-.B File/directory completion
-Completes file and directory names.
+.B Files and directories
+Arguments complete to file names, with a trailing / for a directory;
+.BR cd ", " pushd " and " rmdir
+offer directories only. ~ and ~user expand.
 .TP
-.B Tilde expansion
-Completes ~ to home directory path.
+.B Variables and users
+$NA and ${NA complete variable names, ~na user names.
+.TP
+.B Commands that know their arguments
+.B unalias
+completes alias names;
+.BR unset ", " export ", " readonly " and " local
+variable names;
+.BR command ", " exec ", " type ", " sudo ", " nohup ", " time ", " env ", " xargs
+and friends a command name first, then files;
+.B git
+its subcommands, then branches, tags, remotes or files;
+.B make
+the targets of the Makefile in the current directory;
+.B man
+page names.
+.TP
+.B complete
+records completions for other commands:
+.B complete \-W words name
+offers the words,
+.B complete \-F function name
+runs the function and takes its output lines (see SHELL BUILTIN COMMANDS).
 .PP
 Press Tab once to complete or show matches. Press Tab again to cycle
-through multiple matches.
+through multiple matches. Options such as \-\-long are not completed.
 .SH LINE EDITING
 Interactive line editing is supported with the following key bindings:
 .TP
@@ -520,6 +901,18 @@ Cancel current line.
 .TP
 .B Ctrl+L
 Clear screen.
+.TP
+.B Enter, Ctrl+J
+Run the line.
+.PP
+Text typed while a command runs is kept and appears at the next prompt. With
+.B set \-o vi
+the editor switches to vi's modes: Esc enters command mode with the usual
+motions (h l 0 ^ $ w b e), operators (d c y with a motion, dd cc yy D C, x X,
+p P, r, ~, u), k and j for history and / for an incremental history search;
+i a I A return to insert mode.
+.B set \-o emacs
+is the default.
 .SH FUNCTIONS
 .B hash-shell
 supports shell functions:
@@ -534,7 +927,11 @@ supports shell functions:
 Functions are called like commands and can access arguments via $1, $2, etc.
 Use
 .B return
-to exit a function with a specific exit status.
+to exit a function with a specific exit status, and
+.B local
+for variables that belong to the function. FUNCNEST limits how deep functions
+may nest (1000 by default); a function that calls itself for ever fails with
+a message instead of crashing the shell.
 .SH FILES
 .TP
 .I ~/.hashrc
@@ -544,7 +941,15 @@ startup: aliases, environment variable exports, shell options (see
 functions, conditionals and any other command.
 .TP
 .I ~/.hash_history
-Command history file. Stores previously executed commands.
+Command history file, written as commands are entered, in bash's extended
+format: a line with the time before each entry.
+.TP
+.I /etc/profile, ~/.hash_profile, ~/.profile
+Read by a login shell (\-l): /etc/profile first, then ~/.hash_profile, or
+~/.profile when there is no ~/.hash_profile.
+.TP
+.I ~/.hash_logout
+Run when a login shell exits.
 .TP
 .I /usr/share/hash-shell/hashrc.example
 Example configuration file with common aliases and settings.
@@ -558,6 +963,20 @@ Colon-separated list of directories to search for commands.
 .TP
 .B PS1
 Primary prompt string.
+.TP
+.B PS2
+Continuation prompt, for a command that spans lines.
+.TP
+.B PS4
+Prefix of the lines printed by
+.BR "set \-x" .
+.TP
+.B HISTFILE
+Where the history is saved (default: ~/.hash_history).
+.TP
+.B FUNCNEST
+Maximum function nesting depth, eval and . included (default 1000; 0 keeps
+only the stack guard).
 .TP
 .B HISTSIZE
 Maximum number of commands to keep in memory (default: 1000).
@@ -695,4 +1114,5 @@ Licensed under the Apache License, Version 2.0.
 .BR zsh (1),
 .BR test (1)
 .PP
-Full documentation: https://github.com/juliojimenez/hash
+Full documentation: https://hash-shell.org (the book). Source and issues:
+https://github.com/juliojimenez/hash

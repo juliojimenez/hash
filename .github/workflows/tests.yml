@@ -57,6 +57,9 @@ jobs:
       - name: Run Interactive Tests
         run: python3 tests/interactive/run.py
 
+      - name: Check Documentation Parity
+        run: make check-docs
+
       - name: Test Different Optimization Levels
         run: |
           make clean

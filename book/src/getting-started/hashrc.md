@@ -189,11 +189,17 @@ set PS1='\u@\h:\w\$ '
 | `\w` | Full current path |
 | `\W` | Current directory name |
 | `\u` | Username |
-| `\h` | Hostname |
-| `\g` | Git branch with status |
-| `\e` | Exit code color |
+| `\h` | Hostname, up to the first dot (`\H` the full name) |
+| `\g` | Git branch with status (`\b` the branch alone) |
+| `\e` | Exit code color, between `\e...\e` (`\?` the status itself when not 0) |
 | `\$` | `$` for user, `#` for root |
+| `\t` `\T` `\@` `\d` | Time (24-hour, 12-hour, with am/pm) and date |
+| `\j` `\!` | Background jobs, history number |
+| `\s` `\v` | Shell name and version |
 | `\n` | Newline |
+| `\\` | A backslash |
+
+The full list, with examples, is on the [Prompt Customization](../shell-features/prompt.md) page; `set prompt=NAME` picks a preset instead.
 
 See [Prompt Customization](../shell-features/prompt.md) for complete details.
 

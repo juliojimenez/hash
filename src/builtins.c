@@ -309,8 +309,8 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "help [-s] [pattern...]",
         "Describe the builtins and the shell's keywords. Alone, list every topic with\n"
         "its synopsis; with names or glob patterns, print the synopsis and a short\n"
-        "description of each; -s prints the synopsis only. The book has the long\n"
-        "form: https://hash-shell.org/reference/\n"
+        "description of each; -s prints the synopsis only. The book has the same\n"
+        "text at https://hash-shell.org/reference/builtins.html\n"
         ""},
 };
 
@@ -3510,7 +3510,7 @@ static const char *help_page_for(const char *name) {
             return help_pages[i].page;
         }
     }
-    return "reference/index.html#built-in-commands";
+    return "reference/builtins.html";
 }
 
 static void help_print_topic(const char *name, const char *synopsis, const char *description, bool synopsis_only) {
