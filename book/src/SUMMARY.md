@@ -46,6 +46,7 @@
 # Reference
 
 - [Quick Reference](reference/index.md)
+  - [Built-in Commands](reference/builtins.md)
 
 # Contributing
 

@@ -60,6 +60,8 @@ help:
 	@echo " test-clean  - Remove test build artifacts"
 	@echo " test-interactive - Drive the shell in a pty through tests/interactive/cases"
 	@echo " release     - Bump every version string: make release VERSION=47"
+	@echo " docs        - Regenerate the man page's builtin section and the book's builtins page"
+	@echo " check-docs  - Fail when those differ from the builtin table in src/builtins.c"
 	@echo " help        - Show this help message"
 	@echo ""
 	@echo "Directory structure:"
@@ -138,6 +140,15 @@ format-check:
 # entry (see "Cutting a Release" in CONTRIBUTING.md)
 release:
 	@bash scripts/release.sh $(VERSION)
+
+# The man page's builtin section and book/src/reference/builtins.md are
+# generated from the builtin table in src/builtins.c (the text `help` prints);
+# check-docs fails when they have drifted, and CI runs it
+docs:
+	@python3 scripts/docs-parity.py --write
+
+check-docs:
+	@python3 scripts/docs-parity.py --check
 
 # Re-record the README demo with the binary built in this tree, so the banner
 # shows this tree's version (needs vhs: brew install vhs). Run it from the

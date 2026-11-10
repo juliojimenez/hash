@@ -463,6 +463,16 @@ When adding features, update relevant documentation:
 - Show both usage and expected output
 - Link to related documentation
 
+### The builtins
+
+`help` prints the builtin table in `src/builtins.c` (name, synopsis, description).
+Two documents are generated from that table and are not edited by hand: the
+SHELL BUILTIN COMMANDS section of `debian/hash-shell.1` and
+`book/src/reference/builtins.md`. After changing the table, run `make docs` and
+commit what it writes; `make check-docs` fails when they have drifted (CI runs
+it), and also when `book/src/reference/index.md`, which is written by hand, has
+no row for a builtin.
+
 ## Getting Help
 
 - **Questions:** Open a [GitHub Discussion](https://github.com/juliojimenez/hash/discussions)
