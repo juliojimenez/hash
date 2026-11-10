@@ -343,6 +343,13 @@ run_test "a pending trap action runs at exit, before the EXIT trap" "trap 'echo 
 run_test "exit in a trap action stops the script with that status" "out=\$(./hash-shell -c 'trap \"exit 3\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=3 out=[]"
 run_test "set -e: a failing trap action exits the shell" "out=\$(./hash-shell -c 'set -e; trap \"false; echo BUG\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=1 out=[]"
 run_test "set -e: a failing trap action still runs the EXIT trap" "out=\$(./hash-shell -c 'set -e; trap \"echo X\" EXIT; trap \"false; echo BUG\" USR1; kill -s USR1 \$\$; echo after'); echo \"rc=\$? out=[\$out]\"" "rc=1 out=[X]"
+run_test "type takes -- as the end of its options" "type -- echo" "echo is a shell builtin"
+run_test "kill -- reads what follows as a pid, not a signal" "kill -- 999999 2>&1; echo rc=\$?" $'No such process\nrc=1'
+run_test "alias and hash take --" "alias -- aa='echo A'; alias -- aa; hash -- ls; echo rc=\$?" $'alias aa=\'echo A\'\nrc=0'
+run_test "exit -- status" "./hash-shell -c 'exit -- 3'; echo rc=\$?" "rc=3"
+run_test "shift, return, break and continue take --" "f() { shift -- 1; echo \$1; return -- 2; }; f a b; echo rc=\$?; for i in 1 2; do continue -- 1; echo no; done; for i in 1 2; do echo \$i; break -- 1; done" $'b\nrc=2\n1'
+run_test "eval, exec, . and source take --" "eval -- 'echo ev'; (exec -- echo ex); printf 'echo so\\n' > /tmp/hash-dd-src.sh; . -- /tmp/hash-dd-src.sh; source -- /tmp/hash-dd-src.sh; rm -f /tmp/hash-dd-src.sh" $'ev\nex\nso\nso'
+run_test "local takes --" "f() { local -- lv=1; echo \$lv; }; f" "1"
 run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
 run_test "trap -- action signal accepts the option terminator" "trap -- 'echo i' INT; trap" "trap -- 'echo i' INT"
 run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"

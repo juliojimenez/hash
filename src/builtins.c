@@ -505,6 +505,16 @@ int shell_cd(char **args) {
     return 1;
 }
 
+// POSIX: a utility that takes operands accepts `--` as the end of its options,
+// and one without options accepts it as a first argument to discard (XBD 12.2
+// guideline 10, XCU 1.4). The builtins parse their options by hand, so each
+// one calls this where its options end and gets the index of its first
+// operand. The special builtins need not take `--` (XCU 2.14), but bash does
+// and scripts written for it use it, so they take it too (#426).
+static int skip_option_terminator(char **args, int at) {
+    return (args[at] && strcmp(args[at], "--") == 0) ? at + 1 : at;
+}
+
 int shell_exit(char **args) {
     // POSIX: exit without an operand exits with the last command's status;
     // inside the EXIT trap, with the status the shell was already exiting with
@@ -514,11 +524,12 @@ int shell_exit(char **args) {
     }
 
     // Check for exit code argument
-    if (args[1] != NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] != NULL) {
         char *endptr;
-        long val = strtol(args[1], &endptr, 10);
+        long val = strtol(args[first], &endptr, 10);
         if (*endptr != '\0') {
-            fprintf(stderr, "%s: exit: %s: numeric argument required\n", HASH_NAME, args[1]);
+            fprintf(stderr, "%s: exit: %s: numeric argument required\n", HASH_NAME, args[first]);
             exit_code = 2;
         } else {
             exit_code = (int)(val & 0xFF);  // Exit codes are 0-255
@@ -582,7 +593,8 @@ int listing_status(const char *name) {
 }
 
 int shell_alias(char **args) {
-    if (args[1] == NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] == NULL) {
         config_list_aliases();
         return listing_status("alias");
     }
@@ -592,7 +604,7 @@ int shell_alias(char **args) {
     // (modernish's BUG_ALIASCSHD probe, #394)
     int status = 0;
     bool printed = false;
-    for (int i = 1; args[i]; i++) {
+    for (int i = first; args[i]; i++) {
         char *equals = strchr(args[i], '=');
         if (equals) {
             *equals = '\0';
@@ -670,13 +682,14 @@ int shell_unalias(char **args) {
 }
 
 int shell_source(char **args) {
-    if (args[1] == NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] == NULL) {
         fprintf(stderr, "%s: %s: filename argument required\n", HASH_NAME, args[0]);
         last_command_exit_code = 2;
         return 1;
     }
 
-    const char *filepath = args[1];
+    const char *filepath = args[first];
     char resolved_path[PATH_MAX];
 
     // POSIX: If filename doesn't contain '/', search PATH for it
@@ -708,7 +721,7 @@ int shell_source(char **args) {
 
         if (!found) {
             // File not found in PATH
-            fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
+            fprintf(stderr, "%s: %s: not found\n", args[0], args[first]);
             last_command_exit_code = 1;
             // Special builtin: non-interactive shell should exit on error
             return is_interactive ? 1 : 0;
@@ -716,7 +729,7 @@ int shell_source(char **args) {
     } else {
         // Filepath contains '/' - check if it exists
         if (access(filepath, R_OK) != 0) {
-            fprintf(stderr, "%s: %s: not found\n", args[0], args[1]);
+            fprintf(stderr, "%s: %s: not found\n", args[0], args[first]);
             last_command_exit_code = 1;
             // Special builtin: non-interactive shell should exit on error
             return is_interactive ? 1 : 0;
@@ -1563,11 +1576,12 @@ int shell_return(char **args) {
     // POSIX: If no argument is provided, use the exit status of the last command
     int return_code = last_command_exit_code;
 
-    if (args[1] != NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] != NULL) {
         char *endptr;
-        long val = strtol(args[1], &endptr, 10);
+        long val = strtol(args[first], &endptr, 10);
         if (*endptr != '\0') {
-            fprintf(stderr, "%s: return: %s: numeric argument required\n", HASH_NAME, args[1]);
+            fprintf(stderr, "%s: return: %s: numeric argument required\n", HASH_NAME, args[first]);
             return_code = 2;
         } else {
             return_code = (int)(val & 0xFF);
@@ -1591,11 +1605,12 @@ int shell_return(char **args) {
 int shell_break(char **args) {
     int levels = 1;
 
-    if (args[1] != NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] != NULL) {
         char *endptr;
-        long val = strtol(args[1], &endptr, 10);
+        long val = strtol(args[first], &endptr, 10);
         if (*endptr != '\0' || val < 1) {
-            fprintf(stderr, "%s: break: %s: numeric argument required\n", HASH_NAME, args[1]);
+            fprintf(stderr, "%s: break: %s: numeric argument required\n", HASH_NAME, args[first]);
             last_command_exit_code = 1;
             return 1;
         }
@@ -1625,11 +1640,12 @@ int shell_break(char **args) {
 int shell_continue_cmd(char **args) {
     int levels = 1;
 
-    if (args[1] != NULL) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first] != NULL) {
         char *endptr;
-        long val = strtol(args[1], &endptr, 10);
+        long val = strtol(args[first], &endptr, 10);
         if (*endptr != '\0' || val < 1) {
-            fprintf(stderr, "%s: continue: %s: numeric argument required\n", HASH_NAME, args[1]);
+            fprintf(stderr, "%s: continue: %s: numeric argument required\n", HASH_NAME, args[first]);
             last_command_exit_code = 1;
             return 1;
         }
@@ -1659,8 +1675,9 @@ int shell_continue_cmd(char **args) {
 int shell_eval(char **args) {
     // POSIX: no arguments, or only null arguments, is a successful no-op; text
     // that is only blanks parses to an empty program and counts the same
+    int first = skip_option_terminator(args, 1);
     bool all_blank = true;
-    for (int i = 1; args[i] != NULL && all_blank; i++) {
+    for (int i = first; args[i] != NULL && all_blank; i++) {
         for (const char *c = args[i]; *c; c++) {
             if (*c != ' ' && *c != '\t' && *c != '\n') {
                 all_blank = false;
@@ -1675,7 +1692,7 @@ int shell_eval(char **args) {
 
     // Concatenate all arguments with spaces
     size_t total_len = 0;
-    for (int i = 1; args[i] != NULL; i++) {
+    for (int i = first; args[i] != NULL; i++) {
         total_len += strlen(args[i]) + 1;  // +1 for space or null
     }
 
@@ -1686,8 +1703,8 @@ int shell_eval(char **args) {
     }
 
     cmd[0] = '\0';
-    for (int i = 1; args[i] != NULL; i++) {
-        if (i > 1) {
+    for (int i = first; args[i] != NULL; i++) {
+        if (i > first) {
             strcat(cmd, " ");
         }
         strcat(cmd, args[i]);
@@ -2125,12 +2142,14 @@ int shell_exec(char **args) {
         return 1;
     }
 
+    int first = skip_option_terminator(args, 1);
+
     // Check for redirections only (exec N<file, exec N>file, etc.)
     // These persist for the shell process
-    bool has_command = check_has_command(&args[1]);
+    bool has_command = check_has_command(&args[first]);
 
     // Handle redirections
-    int ret = handle_redirections(&args[1], has_command);
+    int ret = handle_redirections(&args[first], has_command);
     if (ret != 0) {
         return ret;
     }
@@ -2138,7 +2157,7 @@ int shell_exec(char **args) {
     // If there's a command, replace the shell
     if (has_command) {
         // Find the command start
-        for (int i = 1; args[i]; i++) {
+        for (int i = first; args[i]; i++) {
             const char *arg = args[i];
             const char *p = arg;
             while (*p && isdigit(*p)) p++;
@@ -2224,14 +2243,15 @@ int shell_times(char **args) {
 
 int shell_type(char **args) {
     // type is equivalent to command -V
-    if (!args[1]) {
+    int first = skip_option_terminator(args, 1);
+    if (!args[first]) {
         last_command_exit_code = 0;
         return 1;
     }
 
     bool all_found = true;
 
-    for (int i = 1; args[i]; i++) {
+    for (int i = first; args[i]; i++) {
         const char *cmd = args[i];
         if (!find_command(cmd, true)) {
             all_found = false;
@@ -2403,11 +2423,12 @@ int shell_getopts(char **args) {
 
 int shell_shift(char **args) {
     long n = 1;
-    if (args[1]) {
+    int first = skip_option_terminator(args, 1);
+    if (args[first]) {
         char *end;
-        n = strtol(args[1], &end, 10);
-        if (*args[1] == '\0' || *end != '\0' || n < 0) {
-            fprintf(stderr, "%s: shift: %s: numeric argument required\n", HASH_NAME, args[1]);
+        n = strtol(args[first], &end, 10);
+        if (*args[first] == '\0' || *end != '\0' || n < 0) {
+            fprintf(stderr, "%s: shift: %s: numeric argument required\n", HASH_NAME, args[first]);
             last_command_exit_code = 1;
             return 1;
         }
@@ -2455,7 +2476,8 @@ int shell_local(char **args) {
         return 1;
     }
     int status = 0;
-    for (int i = 1; args[i]; i++) {
+    int first = skip_option_terminator(args, 1);
+    for (int i = first; args[i]; i++) {
         const char *arg = args[i];
         const char *eq = strchr(arg, '=');
         size_t len = eq ? (size_t)(eq - arg) : strlen(arg);
@@ -2948,8 +2970,11 @@ int shell_kill(char **args) {
         return 1;
     }
 
-    // Parse signal specification
-    if (args[1] && args[1][0] == '-') {
+    // Parse signal specification. `--` ends the options, which is how a
+    // process group gets its signal: kill -- -PGID
+    if (args[1] && strcmp(args[1], "--") == 0) {
+        start_idx = 2;
+    } else if (args[1] && args[1][0] == '-') {
         const char *sigspec = args[1] + 1;
 
         if (strcmp(sigspec, "s") == 0) {
@@ -2980,6 +3005,8 @@ int shell_kill(char **args) {
             }
         }
     }
+
+    start_idx = skip_option_terminator(args, start_idx);
 
     // No targets specified
     if (!args[start_idx]) {
@@ -3093,22 +3120,23 @@ static void cmd_hash_list(void) {
 }
 
 int shell_hash(char **args) {
-    // hash with no args: list all hashed commands
-    if (args[1] == NULL) {
-        cmd_hash_list();
-        last_command_exit_code = 0;
-        return 1;
-    }
-
     // hash -r: clear hash table
-    if (strcmp(args[1], "-r") == 0) {
+    if (args[1] && strcmp(args[1], "-r") == 0) {
         cmd_hash_clear();
         last_command_exit_code = 0;
         return 1;
     }
 
+    // hash with no args: list all hashed commands
+    int first = skip_option_terminator(args, 1);
+    if (args[first] == NULL) {
+        cmd_hash_list();
+        last_command_exit_code = 0;
+        return 1;
+    }
+
     // hash name [name...]: look up and hash commands
-    for (int i = 1; args[i]; i++) {
+    for (int i = first; args[i]; i++) {
         char *path = find_in_path(args[i]);
         if (path) {
             cmd_hash_add(args[i], path);
