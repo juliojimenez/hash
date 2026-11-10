@@ -1136,6 +1136,21 @@ void test_trap_actions_run_at_safe_points(void) {
     run("trap - USR1 USR2");  // leave nothing set: the harness runs in-process
 }
 
+// #426: every builtin that takes operands accepts `--` as the end of its
+// options: POSIX for the regular builtins (type, alias, hash, kill), bash's
+// way for the special builtins, which POSIX leaves open
+void test_builtins_accept_option_terminator(void) {
+    TEST_ASSERT_EQUAL_STRING("echo is a shell builtin\n", run("type -- echo"));
+    TEST_ASSERT_EQUAL_STRING("alias aa='echo A'\nrc=0\n", run("alias -- aa='echo A'; alias -- aa; unalias aa; hash -- ls; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("rc=1\n", run("kill -- 999999 2>/dev/null; echo rc=$?"));   // a pid, not a signal
+    TEST_ASSERT_EQUAL_STRING("3\n", run("(exit -- 3); echo $?"));
+    TEST_ASSERT_EQUAL_STRING("b\nrc=2\n", run("f() { shift -- 1; echo $1; return -- 2; }; f a b; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("1\ndone\n", run("for i in 1 2; do echo $i; break -- 1; done; for i in 1 2; do continue -- 1; echo no; done; echo done"));
+    TEST_ASSERT_EQUAL_STRING("ev\nex\n", run("eval -- 'echo ev'; (exec -- echo ex)"));
+    TEST_ASSERT_EQUAL_STRING("so\nso\n", run("printf 'echo so\\n' > /tmp/hash_exec_dd.sh; . -- /tmp/hash_exec_dd.sh; source -- /tmp/hash_exec_dd.sh; rm -f /tmp/hash_exec_dd.sh"));
+    TEST_ASSERT_EQUAL_STRING("1\n", run("f() { local -- lv=1; echo $lv; }; f"));
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1227,6 +1242,7 @@ int main(void) {
     RUN_TEST(test_alias_defines_every_operand);
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_pwd_builtin);
+    RUN_TEST(test_builtins_accept_option_terminator);
     RUN_TEST(test_read_line_of_any_length);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_ulimit_shows_and_sets_limits);
