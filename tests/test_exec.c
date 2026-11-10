@@ -1151,6 +1151,24 @@ void test_builtins_accept_option_terminator(void) {
     TEST_ASSERT_EQUAL_STRING("1\n", run("f() { local -- lv=1; echo $lv; }; f"));
 }
 
+// #427: type takes bash's options. The lookup order is alias, keyword,
+// function, builtin, file, and the first match is the answer unless -a asks
+// for every one.
+void test_type_options(void) {
+    TEST_ASSERT_EQUAL_STRING("builtin\nkeyword\nfile\n", run("type -t echo if sh"));
+    TEST_ASSERT_EQUAL_STRING("function\nalias\n", run("tf() { :; }; alias ta='echo'; type -t tf ta; unalias ta; unset -f tf"));
+    TEST_ASSERT_EQUAL_STRING("rc=1\n", run("type -t nosuchcmd_x; echo rc=$?"));             // nothing printed, just the status
+    TEST_ASSERT_EQUAL_STRING("rc=0\n", run("type -p echo; echo rc=$?"));                    // a builtin: no file to print, still found
+    TEST_ASSERT_EQUAL_STRING("abs\n", run("case $(type -P echo) in /*) echo abs;; *) echo rel;; esac"));   // past the builtin, into PATH
+    TEST_ASSERT_EQUAL_STRING("echo is a shell builtin\nmore\n", run("type -a echo | sed -n '1p'; [ $(type -a echo | wc -l) -ge 2 ] && echo more"));
+    TEST_ASSERT_EQUAL_STRING("builtin\nfile\n", run("type -at echo | sed -n '1,2p'"));
+    TEST_ASSERT_EQUAL_STRING("rc=1\n", run("tf() { :; }; type -f tf 2>/dev/null; echo rc=$?; unset -f tf"));
+    TEST_ASSERT_EQUAL_STRING("echo is a function\necho () { :; }\n", run("echo() { :; }; type echo; unset -f echo"));   // shadows the builtin; the body as written
+    TEST_ASSERT_EQUAL_STRING("rc=2\n", run("type -x echo 2>/dev/null; echo rc=$?"));
+    TEST_ASSERT_EQUAL_STRING("rc=1\n", run("type -- -t 2>/dev/null; echo rc=$?"));          // after --, -t is a name
+    TEST_ASSERT_EQUAL_STRING("echo is a shell builtin\nrc=1\n", run("type echo nosuchcmd_x 2>/dev/null; echo rc=$?"));   // one missing name fails the command
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1243,6 +1261,7 @@ int main(void) {
     RUN_TEST(test_long_expansions_are_not_cut);
     RUN_TEST(test_pwd_builtin);
     RUN_TEST(test_builtins_accept_option_terminator);
+    RUN_TEST(test_type_options);
     RUN_TEST(test_read_line_of_any_length);
     RUN_TEST(test_bad_substitution_is_an_error);
     RUN_TEST(test_ulimit_shows_and_sets_limits);

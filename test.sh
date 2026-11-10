@@ -350,6 +350,10 @@ run_test "exit -- status" "./hash-shell -c 'exit -- 3'; echo rc=\$?" "rc=3"
 run_test "shift, return, break and continue take --" "f() { shift -- 1; echo \$1; return -- 2; }; f a b; echo rc=\$?; for i in 1 2; do continue -- 1; echo no; done; for i in 1 2; do echo \$i; break -- 1; done" $'b\nrc=2\n1'
 run_test "eval, exec, . and source take --" "eval -- 'echo ev'; (exec -- echo ex); printf 'echo so\\n' > /tmp/hash-dd-src.sh; . -- /tmp/hash-dd-src.sh; source -- /tmp/hash-dd-src.sh; rm -f /tmp/hash-dd-src.sh" $'ev\nex\nso\nso'
 run_test "local takes --" "f() { local -- lv=1; echo \$lv; }; f" "1"
+run_test "type -t names the kind in one word" "f() { :; }; type -t echo if f ls" $'builtin\nkeyword\nfunction\nfile'
+run_test "type -p prints only a file, -P searches PATH past the builtin" "type -p echo; echo rc=\$?; case \$(type -P echo) in /*) echo abs;; esac" $'rc=0\nabs'
+run_test "type -a lists every match, the builtin first" "type -a echo | head -1" "echo is a shell builtin"
+run_test "type rejects an unknown option with status 2" "type -x echo 2>&1; echo rc=\$?" $'invalid option\nrc=2'
 run_test "\"\${?}\" quoted is the exit status" "(exit 3); echo \"rc=\${?}\"" "rc=3"
 run_test "trap -- action signal accepts the option terminator" "trap -- 'echo i' INT; trap" "trap -- 'echo i' INT"
 run_test "\${!} is the last background pid" ": & [ \"\${!}\" = \"\$!\" ] && [ -n \"\$!\" ] && echo BG-OK; wait" "BG-OK"

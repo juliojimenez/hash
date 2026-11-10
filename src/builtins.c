@@ -248,9 +248,13 @@ Builtin builtins[BUILTIN_FUNC_MAX] = {
         "Print the user and system times used by the shell and by its children.\n"
         ""},
     [BUILTIN_FUNC_TYPE] = (Builtin){"type", &shell_type,
-        "type name...",
-        "Say how each name would be interpreted: an alias, a shell keyword, a builtin,\n"
-        "a function, or a file found in PATH.\n"
+        "type [-afptP] name...",
+        "Say how each name would be interpreted: an alias, a shell keyword, a\n"
+        "function, a builtin, or a file found in PATH, in that order. -t prints\n"
+        "one word (alias, keyword, function, builtin, file); -p prints the file\n"
+        "that would run and nothing for anything else; -P searches PATH even when\n"
+        "an alias, function or builtin would run; -a prints every match; -f skips\n"
+        "functions. Status 1 when a name is not found.\n"
         ""},
     [BUILTIN_FUNC_READONLY] = (Builtin){"readonly", &shell_readonly,
         "readonly [-p] [name[=value]...]",
@@ -2241,20 +2245,160 @@ int shell_times(char **args) {
     return 1;
 }
 
+// type [-afptP] name...: how each name would be interpreted as a command, in
+// the order the shell looks them up: alias, keyword, function, builtin, file.
+// bash's options (#427): -t prints one word per match, -p the file that would
+// run and nothing for anything else, -P the file from PATH even when an alias,
+// function or builtin would run, -a every match, -f skips functions.
+typedef enum { TYPE_ALIAS, TYPE_KEYWORD, TYPE_FUNCTION, TYPE_BUILTIN, TYPE_FILE } TypeKind;
+
+typedef struct {
+    bool all;         // -a
+    bool no_functions;// -f
+    bool paths;       // -p, or -P: print files only
+    bool force_path;  // -P: skip everything that is not a file
+    bool words;       // -t
+} TypeOptions;
+
+static const char *cmd_hash_lookup(const char *name);
+
+static void type_report(const char *name, TypeKind kind, const char *detail, bool hashed,
+                        const TypeOptions *o) {
+    if (o->paths) {
+        if (kind == TYPE_FILE) {
+            printf("%s\n", detail);
+        }
+        return;
+    }
+    if (o->words) {
+        static const char *const words[] = {"alias", "keyword", "function", "builtin", "file"};
+        printf("%s\n", words[kind]);
+        return;
+    }
+    switch (kind) {
+        case TYPE_ALIAS:    printf("%s is aliased to '%s'\n", name, detail); break;
+        case TYPE_KEYWORD:  printf("%s is a shell keyword\n", name); break;
+        case TYPE_FUNCTION: printf("%s is a function\n%s () %s\n", name, name, detail); break;
+        case TYPE_BUILTIN:  printf("%s is a shell builtin\n", name); break;
+        case TYPE_FILE:
+            if (hashed) {
+                printf("%s is hashed (%s)\n", name, detail);
+            } else {
+                printf("%s is %s\n", name, detail);
+            }
+            break;
+    }
+}
+
+// Every executable called name in PATH (the name itself when it has a slash),
+// reported in PATH order; the count found.
+static int type_report_all_files(const char *name, const TypeOptions *o) {
+    int found = 0;
+    if (strchr(name, '/') != NULL) {
+        if (access(name, X_OK) == 0) {
+            type_report(name, TYPE_FILE, name, false, o);
+            found = 1;
+        }
+        return found;
+    }
+    const char *path_env = getenv("PATH");
+    if (!path_env) {
+        path_env = "/usr/bin:/bin";
+    }
+    char *path_copy = strdup(path_env);
+    if (!path_copy) {
+        return 0;
+    }
+    char *saveptr;
+    for (char *dir = strtok_r(path_copy, ":", &saveptr); dir; dir = strtok_r(NULL, ":", &saveptr)) {
+        char fullpath[4096];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dir, name);
+        if (access(fullpath, X_OK) == 0) {
+            type_report(name, TYPE_FILE, fullpath, false, o);
+            found++;
+        }
+    }
+    free(path_copy);
+    return found;
+}
+
+static bool type_one(const char *name, const TypeOptions *o) {
+    bool found = false;
+    if (!o->force_path) {
+        const char *alias_val = config_get_alias(name);
+        if (alias_val) {
+            type_report(name, TYPE_ALIAS, alias_val, false, o);
+            if (!o->all) return true;
+            found = true;
+        }
+        if (is_posix_keyword(name)) {
+            type_report(name, TYPE_KEYWORD, NULL, false, o);
+            if (!o->all) return true;
+            found = true;
+        }
+        if (!o->no_functions) {
+            const ShellFunction *fn = script_get_function(name);
+            if (fn) {
+                type_report(name, TYPE_FUNCTION, fn->body, false, o);
+                if (!o->all) return true;
+                found = true;
+            }
+        }
+        if (is_builtin_name(name)) {
+            type_report(name, TYPE_BUILTIN, NULL, false, o);
+            if (!o->all) return true;
+            found = true;
+        }
+    }
+    if (o->all) {
+        return type_report_all_files(name, o) > 0 || found;
+    }
+    // The file that would run: the hashed one when the shell has already found it
+    const char *hashed = cmd_hash_lookup(name);
+    char *path = hashed ? strdup(hashed) : find_in_path(name);
+    if (path) {
+        type_report(name, TYPE_FILE, path, hashed != NULL, o);
+        free(path);
+        found = true;
+    }
+    return found;
+}
+
 int shell_type(char **args) {
-    // type is equivalent to command -V
-    int first = skip_option_terminator(args, 1);
-    if (!args[first]) {
+    TypeOptions o = {0};
+    int i = 1;
+    for (; args[i] && args[i][0] == '-' && args[i][1]; i++) {
+        if (strcmp(args[i], "--") == 0) {
+            i++;
+            break;
+        }
+        for (const char *c = args[i] + 1; *c; c++) {
+            switch (*c) {
+                case 'a': o.all = true; break;
+                case 'f': o.no_functions = true; break;
+                case 'p': o.paths = true; break;
+                case 'P': o.paths = true; o.force_path = true; break;
+                case 't': o.words = true; break;
+                default:
+                    fprintf(stderr, "%s: type: -%c: invalid option\n%s: type: usage: type [-afptP] name...\n",
+                            HASH_NAME, *c, HASH_NAME);
+                    last_command_exit_code = 2;
+                    return 1;
+            }
+        }
+    }
+    if (!args[i]) {
         last_command_exit_code = 0;
         return 1;
     }
 
     bool all_found = true;
-
-    for (int i = first; args[i]; i++) {
-        const char *cmd = args[i];
-        if (!find_command(cmd, true)) {
+    for (; args[i]; i++) {
+        if (!type_one(args[i], &o)) {
             all_found = false;
+            if (!o.words && !o.paths) {   // -t and -p/-P say it with an empty line and the status
+                fprintf(stderr, "%s: type: %s: not found\n", HASH_NAME, args[i]);
+            }
         }
     }
 
@@ -3090,6 +3234,16 @@ static void cmd_hash_clear(void) {
 }
 
 // List all hashed commands
+// The path the shell remembered for name, or NULL
+static const char *cmd_hash_lookup(const char *name) {
+    for (CmdHashEntry *e = cmd_hash_table[cmd_hash_func(name)]; e; e = e->next) {
+        if (strcmp(e->name, name) == 0) {
+            return e->path;
+        }
+    }
+    return NULL;
+}
+
 static void cmd_hash_list(void) {
     for (int i = 0; i < CMD_HASH_SIZE; i++) {
         const CmdHashEntry *e = cmd_hash_table[i];
