@@ -34,6 +34,11 @@ int trap_set(const char *action, const char *signal_name);
 // Returns NULL if no trap set, or the command string
 const char *trap_get(int signum);
 
+/* The action `trap` lists for signum: the current one, or in a subshell where
+ * no trap command with operands has run yet, the one in effect when the
+ * subshell was entered (NULL when there is none). */
+const char *trap_listed(int signum);
+
 /**
  * Run the EXIT trap, if one is set, and return the status the shell (or
  * subshell) exits with. `status` is the status it was exiting with: the trap

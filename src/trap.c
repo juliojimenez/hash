@@ -12,10 +12,19 @@
 // Trap storage
 static char *traps[MAX_TRAPS];
 
-// Inherited traps for display in subshells (POSIX: trap with no operands shows
-// the trap commands as they were when the subshell was entered)
+// What `trap` lists in a subshell until a trap command with operands runs
+// there: the traps in effect when the subshell was entered. POSIX (XCU trap)
+// lets a shell that does no lexical check for `$(trap)` work this way, and
+// ksh93 does; after such a command the list is the current traps (#429).
 static char *inherited_traps[MAX_TRAPS];
 static int in_subshell = 0;
+
+static void trap_forget_inherited(void) {
+    for (int i = 0; i < MAX_TRAPS; i++) {
+        free(inherited_traps[i]);
+        inherited_traps[i] = NULL;
+    }
+}
 // Status the shell is exiting with while the EXIT trap runs, -1 otherwise
 static int exit_trap_status = -1;
 
@@ -82,6 +91,7 @@ void trap_cleanup(void) {
             traps[i] = NULL;
         }
     }
+    trap_forget_inherited();
 }
 
 int trap_parse_signal(const char *name) {
@@ -165,6 +175,9 @@ bool trap_run_pending(void) {
 }
 
 int trap_set(const char *action, const char *signal_name) {
+    if (in_subshell) {
+        trap_forget_inherited();   // a trap command has run here: `trap` lists the current traps from now on
+    }
     int signum = trap_parse_signal(signal_name);
     if (signum < 0 || signum >= MAX_TRAPS) {
         fprintf(stderr, "%s: trap: %s: invalid signal specification\n",
@@ -264,12 +277,18 @@ void trap_reset_for_subshell(void) {
     // A subshell started inside an EXIT trap action is a new environment: a
     // bare exit in it uses the subshell's own last status, not the trap's
     exit_trap_status = -1;
+    // What `trap` lists until a trap command runs here: the traps in effect
+    // right now, which for a nested subshell are the outer subshell's own
+    trap_forget_inherited();
     for (int i = 0; i < MAX_TRAPS; i++) {
-        // Save current trap for display purposes (if not already in nested subshell)
-        if (traps[i] && !inherited_traps[i]) {
+        if (traps[i]) {
             inherited_traps[i] = strdup(traps[i]);
         }
-        // Clear the active trap
+        // An ignored signal stays ignored and stays a trap (POSIX resets the
+        // traps that are not being ignored); the others go back to the default
+        if (traps[i] && traps[i][0] == '\0') {
+            continue;
+        }
         if (traps[i]) {
             free(traps[i]);
             traps[i] = NULL;
@@ -286,13 +305,19 @@ void trap_reset_for_subshell(void) {
     }
 }
 
+const char *trap_listed(int signum) {
+    if (signum < 0 || signum >= MAX_TRAPS) {
+        return NULL;
+    }
+    if (traps[signum]) {
+        return traps[signum];
+    }
+    return in_subshell ? inherited_traps[signum] : NULL;
+}
+
 void trap_list(void) {
     for (int i = 0; i < MAX_TRAPS; i++) {
-        // Show active traps, or inherited traps if in subshell with no active trap
-        const char *action = traps[i];
-        if (!action && in_subshell) {
-            action = inherited_traps[i];
-        }
+        const char *action = trap_listed(i);
         if (action) {
             const char *name = trap_signal_name(i);
             if (name) {
