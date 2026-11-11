@@ -1,3 +1,12 @@
+hash-shell (54-1) unstable; urgency=medium
+
+  * docs: the man page and the book keep pace with the builtins, by generation
+  * fix(trap): a subshell's trap lists the current traps once a trap command has run there
+  * feat(builtins): type takes bash's -t, -p, -P, -a and -f
+  * fix(builtins): -- ends the options of every builtin that takes operands
+
+ -- Julio Jimenez <julio@julioj.com>  Tue, 10 Nov 2026 18:58:57 -0500
+
 hash-shell (53-1) unstable; urgency=medium
 
   * fix(trap): run trap actions at safe points, not in the signal handler
