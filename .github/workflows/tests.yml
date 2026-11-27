@@ -126,7 +126,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build and Test on FreeBSD
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: freebsd
           architecture: x86_64
@@ -213,7 +213,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Check Compiler Warnings on FreeBSD
-        uses: cross-platform-actions/action@v1.7.0
+        uses: cross-platform-actions/action@v1.8.0
         with:
           operating_system: freebsd
           architecture: x86_64
